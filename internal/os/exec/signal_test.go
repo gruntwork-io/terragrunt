@@ -1,7 +1,10 @@
 package exec_test
 
 import (
+	"bytes"
 	"context"
+	"errors"
+	"fmt"
 	"io"
 	"os"
 	"syscall"
@@ -13,6 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -240,4 +244,77 @@ func TestForwardSignalStopsWhenTheCommandFinishesMidDelayWithRacing(t *testing.T
 
 		assert.Empty(t, rec.sigs, "a signal was forwarded after the caller gave up on it")
 	})
+}
+
+type blockedSignalRecorder struct {
+	*signalRecorder
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (r *blockedSignalRecorder) Command(context.Context, string, ...string) vexec.Cmd { return r }
+
+func (r *blockedSignalRecorder) Signal(os.Signal) error {
+	close(r.entered)
+	<-r.release
+
+	return errors.New("process already finished")
+}
+
+func TestStoppingGracefulShutdownWaitsForSignalAndLogging(t *testing.T) {
+	t.Parallel()
+
+	for _, withSignal := range []bool{false, true} {
+		t.Run(fmt.Sprintf("signal=%t", withSignal), func(t *testing.T) {
+			t.Parallel()
+
+			synctest.Test(t, func(t *testing.T) {
+				rec := &blockedSignalRecorder{
+					signalRecorder: newSignalRecorder(),
+					entered:        make(chan struct{}),
+					release:        make(chan struct{}),
+				}
+
+				ctx, cancel := context.WithCancelCause(t.Context())
+				defer cancel(nil)
+
+				var output bytes.Buffer
+
+				l := logger.CreateLogger()
+				l.SetOptions(log.WithOutput(&output))
+
+				cmd := exec.Command(ctx, venv.MemVenv().WithExec(rec), "tofu", "apply")
+				cmd.Configure(exec.WithSignalNotifier(noopNotifier))
+				stop := cmd.RegisterGracefullyShutdown(ctx, l)
+
+				if withSignal {
+					cancel(signal.NewContextCanceledError(os.Interrupt))
+				} else {
+					cancel(nil)
+				}
+
+				<-rec.entered
+
+				stopped := make(chan struct{})
+
+				go func() {
+					stop()
+					close(stopped)
+				}()
+
+				synctest.Wait()
+
+				select {
+				case <-stopped:
+					assert.Fail(t, "cleanup returned while signal handling could still write logs")
+				default:
+				}
+
+				close(rec.release)
+				<-stopped
+				synctest.Wait()
+				assert.Contains(t, output.String(), "process already finished")
+			})
+		})
+	}
 }

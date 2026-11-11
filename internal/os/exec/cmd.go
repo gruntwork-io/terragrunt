@@ -163,12 +163,17 @@ func (cmd *Cmd) Run(l log.Logger) error {
 //     was some failure and we need to terminate all executed commands,
 //     in this situation we are sure that commands did not receive any
 //     signal, so we send them an interrupt signal immediately.
+//
+// The returned cleanup cancels forwarding and waits for signal handling and logging to finish.
 func (cmd *Cmd) RegisterGracefullyShutdown(ctx context.Context, l log.Logger) func() {
 	cmd.gracefulShutdownRegistered.Store(true)
 
 	ctxShutdown, cancelShutdown := context.WithCancel(context.Background())
+	done := make(chan struct{})
 
 	go func() {
+		defer close(done)
+
 		select {
 		case <-ctxShutdown.Done():
 		case <-ctx.Done():
@@ -185,7 +190,10 @@ func (cmd *Cmd) RegisterGracefullyShutdown(ctx context.Context, l log.Logger) fu
 		}
 	}()
 
-	return cancelShutdown
+	return func() {
+		cancelShutdown()
+		<-done
+	}
 }
 
 // ForwardSignal forwards a given `sig` with a delay if cmd.forwardSignalDelay is greater than 0,
