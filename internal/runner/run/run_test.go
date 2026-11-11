@@ -117,6 +117,18 @@ func TestSetTerragruntInputsAsEnvVars(t *testing.T) {
 			expected:       map[string]string{"TF_VAR_foo": `{"a": "$${b}"}`},
 		},
 		{
+			description:    "input with a template directive for a string variable",
+			inputsInConfig: map[string]any{"foo": `{"a": "%{b}"}`},
+			moduleFiles:    map[string]string{"main.tf": `variable "foo" { type = string }`},
+			expected:       map[string]string{"TF_VAR_foo": `{"a": "%{b}"}`},
+		},
+		{
+			description:    "input with a template directive for a variable of any type",
+			inputsInConfig: map[string]any{"foo": `{"a": "%{b}"}`},
+			moduleFiles:    map[string]string{"main.tf": `variable "foo" { type = any }`},
+			expected:       map[string]string{"TF_VAR_foo": `{"a": "%%{b}"}`},
+		},
+		{
 			description:    "input with an interpolation pattern for an unparseable module",
 			inputsInConfig: map[string]any{"foo": `{"a": "${b}"}`},
 			moduleFiles:    map[string]string{"main.tf": `variable "foo" {`},
@@ -343,6 +355,22 @@ func TestToTerraformEnvVars(t *testing.T) {
 			vars:        map[string]any{"mystr": "plain ${bar} string"},
 			declared:    map[string]tf.ModuleVariable{"other": {ParsingMode: tf.VariableParseHCL}},
 			expected:    map[string]string{"TF_VAR_mystr": `plain ${bar} string`},
+		},
+		{
+			description: "map value with template directive",
+			vars:        map[string]any{"stuff": map[string]any{"foo": "test %{bar} test"}},
+			expected:    map[string]string{"TF_VAR_stuff": `{"foo":"test %%{bar} test"}`},
+		},
+		{
+			description: "string with template directive for a literally read variable",
+			vars:        map[string]any{"mystr": "plain %{bar} string"},
+			expected:    map[string]string{"TF_VAR_mystr": `plain %{bar} string`},
+		},
+		{
+			description: "string with template directive for an HCL parsed variable",
+			vars:        map[string]any{"mystr": "plain %{bar} string"},
+			declared:    map[string]tf.ModuleVariable{"mystr": {ParsingMode: tf.VariableParseHCL}},
+			expected:    map[string]string{"TF_VAR_mystr": `plain %%{bar} string`},
 		},
 		{
 			description: "typed slice with interpolation pattern",

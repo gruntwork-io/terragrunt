@@ -1,4 +1,5 @@
 {
   "foo": "test ${bar} test",
+  "directive": "test %{bar} test",
   "baz": "no interpolation here"
 }
