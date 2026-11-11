@@ -1,0 +1,10 @@
+---
+version: "v1.2.2"
+category: "bug-fixes"
+---
+
+#### Provider cache links, `root-terragrunt-hcl` lookups and `GIT_CEILING_DIRECTORIES`
+
+- `--provider-cache` resolves a relative `download_url`, `shasums_url` or `shasums_signature_url` against the registry response URL, as OpenTofu does.
+- With the `root-terragrunt-hcl` strict control, `find_in_parent_folders` fails for `./terragrunt.hcl`, `../terragrunt.hcl` and other casings of that file, as it does with no argument. So does `scaffold` when its root file is `terragrunt.hcl`.
+- Entries after an empty `GIT_CEILING_DIRECTORIES` entry skip symlink resolution, as in git, even when the empty entry is not first.

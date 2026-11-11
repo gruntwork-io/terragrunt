@@ -54,7 +54,7 @@ func TestDirectProviderHandlerGetPlatformResolvesRelativeURLs(t *testing.T) {
 
 	assert.Equal(
 		t,
-		"https://registry.example.com/v1/providers/example/example/1.0.0/download/linux/amd64/terraform-provider-example_1.0.0_linux_amd64.zip",
+		"https://registry.example.com/v1/providers/example/example/1.0.0/download/linux/terraform-provider-example_1.0.0_linux_amd64.zip",
 		body.DownloadURL,
 		"a relative download url should resolve against the platform url",
 	)

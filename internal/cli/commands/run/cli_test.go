@@ -1,6 +1,7 @@
 package run_test
 
 import (
+	"maps"
 	"path/filepath"
 	"testing"
 
@@ -57,12 +58,13 @@ func TestNewCommandRunsTheCommand(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		name string
-		args []string
+		name    string
+		command string
+		args    []string
 	}{
-		{name: "after the separator", args: []string{"--", tf.CommandNamePlan}},
-		{name: "as a subcommand", args: []string{tf.CommandNamePlan}},
-		{name: "a command run does not list", args: []string{"--", "custom-command"}},
+		{name: "after the separator", command: tf.CommandNamePlan, args: []string{"--", tf.CommandNamePlan}},
+		{name: "as a subcommand", command: tf.CommandNamePlan, args: []string{tf.CommandNamePlan}},
+		{name: "a command run does not list", command: "custom-command", args: []string{"--", "custom-command"}},
 	}
 
 	for _, tc := range testCases {
@@ -72,11 +74,11 @@ func TestNewCommandRunsTheCommand(t *testing.T) {
 			rec := &recorder{}
 			v := rec.venv(t, map[string]string{"unit/terragrunt.hcl": "", "unit/main.tf": ""})
 
-			cmd := runcommand.NewCommand(logger.CreateLogger(), newOpts(t, v, "unit", tf.CommandNamePlan), v, new(rewrite.Store))
+			cmd := runcommand.NewCommand(logger.CreateLogger(), newOpts(t, v, "unit", tc.command), v, new(rewrite.Store))
 
 			_, err := runCommand(t, cmd, tc.args...)
 			require.NoError(t, err)
-			assert.Equal(t, [][]string{{tf.CommandNameInit, "-no-color"}, {tf.CommandNamePlan}}, rec.commands())
+			assert.Equal(t, [][]string{{tf.CommandNameInit, "-no-color"}, {tc.command}}, rec.commands())
 		})
 	}
 }
@@ -85,13 +87,27 @@ func TestNewCommandRunsTheCommand(t *testing.T) {
 func TestNewCommandRunsEveryUnit(t *testing.T) {
 	t.Parallel()
 
+	units := maps.Clone(dependentUnits)
+	units["db/terragrunt.hcl"] = ""
+	units["db/main.tf"] = ""
+
 	testCases := []struct {
-		name string
-		unit string
-		args []string
+		name      string
+		unit      string
+		args      []string
+		wantUnits []string
 	}{
-		{name: "all", args: []string{"--" + shared.AllFlagName}},
-		{name: "graph", unit: "vpc", args: []string{"--" + shared.GraphFlagName}},
+		{
+			name:      "all",
+			args:      []string{"--" + shared.AllFlagName},
+			wantUnits: []string{filepath.Join(memRoot, "app"), filepath.Join(memRoot, "db"), filepath.Join(memRoot, "vpc")},
+		},
+		{
+			name:      "graph",
+			unit:      "vpc",
+			args:      []string{"--" + shared.GraphFlagName},
+			wantUnits: []string{filepath.Join(memRoot, "app"), filepath.Join(memRoot, "vpc")},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -99,18 +115,25 @@ func TestNewCommandRunsEveryUnit(t *testing.T) {
 			t.Parallel()
 
 			rec := &recorder{}
-			v := rec.venv(t, dependentUnits)
+			v := rec.venv(t, units)
 
 			opts := newOpts(t, v, tc.unit, tf.CommandNamePlan)
 			opts.GraphRoot = memRoot
 
 			_, err := runCommand(t, runcommand.NewCommand(logger.CreateLogger(), opts, v, new(rewrite.Store)), tc.args...)
 			require.NoError(t, err)
-			assert.Equal(
-				t,
-				[]string{filepath.Join(memRoot, "app"), filepath.Join(memRoot, "vpc")},
-				rec.unitsRun(tf.CommandNamePlan),
-			)
+			assert.Equal(t, tc.wantUnits, rec.unitsRun(tf.CommandNamePlan))
+			assert.Equal(t, tc.wantUnits, rec.unitsRun(tf.CommandNameInit))
+
+			for _, unit := range tc.wantUnits {
+				assert.Equal(
+					t,
+					[]string{tf.CommandNameInit, tf.CommandNamePlan},
+					rec.commandsIn(unit),
+					"%s should run init before plan",
+					unit,
+				)
+			}
 		})
 	}
 }

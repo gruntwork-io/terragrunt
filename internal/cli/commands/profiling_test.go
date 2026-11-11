@@ -2,6 +2,7 @@ package commands_test
 
 import (
 	"context"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -13,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -90,7 +92,7 @@ func TestWrapWithProfilingProfileDirWritesAllProfiles(t *testing.T) {
 	opts.ProfileDir = "profiles"
 
 	competing := options.NewTerragruntOptions(vexec.NewOSExec())
-	competing.ProfileDir = hostPath("/competing")
+	competing.ProfileDir = venvtest.Root("/competing")
 
 	var nestedRan bool
 
@@ -196,9 +198,9 @@ func TestWrapWithProfilingFlushFailuresDoNotFailCommand(t *testing.T) {
 		mem       string
 		goroutine string
 	}{
-		{name: "memory profile write", op: "write", mem: hostPath("/profiles/mem.prof")},
-		{name: "goroutine profile write", op: "write", goroutine: hostPath("/profiles/goroutine.prof")},
-		{name: "memory profile close", op: "close", mem: hostPath("/profiles/mem.prof")},
+		{name: "memory profile write", op: "write", mem: venvtest.Root("/profiles/mem.prof")},
+		{name: "goroutine profile write", op: "write", goroutine: venvtest.Root("/profiles/goroutine.prof")},
+		{name: "memory profile close", op: "close", mem: venvtest.Root("/profiles/mem.prof")},
 	}
 
 	for _, tc := range testCases {
@@ -206,7 +208,8 @@ func TestWrapWithProfilingFlushFailuresDoNotFailCommand(t *testing.T) {
 			t.Parallel()
 
 			v := venv.MemVenv()
-			v = v.WithFS(newFaultFS(v.FS, atPath(tc.op, tc.mem+tc.goroutine)))
+			fsys := newFaultFS(v.FS, atPath(tc.op, tc.mem+tc.goroutine))
+			v = v.WithFS(fsys)
 
 			opts := options.NewTerragruntOptions(vexec.NewOSExec())
 			opts.ProfileMem = tc.mem
@@ -222,6 +225,7 @@ func TestWrapWithProfilingFlushFailuresDoNotFailCommand(t *testing.T) {
 				})
 			require.NoError(t, err, "a profile flush failure should not fail the command")
 			assert.True(t, actionRan, "the action should run")
+			assert.Equal(t, []injection{{op: tc.op, path: tc.mem + tc.goroutine}}, fsys.injections())
 		})
 	}
 }
@@ -230,26 +234,30 @@ func TestWrapWithProfilingFlushFailuresDoNotFailCommand(t *testing.T) {
 func TestWrapWithProfilingCleanupFailuresKeepStartupError(t *testing.T) {
 	t.Parallel()
 
-	memPath := hostPath("/profiles/mem.prof")
-	goroutinePath := hostPath("/profiles/goroutine.prof")
+	memPath := venvtest.Root("/profiles/mem.prof")
+	goroutinePath := venvtest.Root("/profiles/goroutine.prof")
 
 	testCases := []struct {
+		startup     injection
+		cleanup     injection
 		name        string
-		faults      []fault
 		wantMemFile bool
 	}{
 		{
-			name:   "discarded profile fails to close",
-			faults: []fault{atPath("openfile", goroutinePath), atPath("close", memPath)},
+			name:    "discarded profile fails to close",
+			startup: injection{op: "openfile", path: goroutinePath},
+			cleanup: injection{op: "close", path: memPath},
 		},
 		{
 			name:        "discarded profile fails to remove",
-			faults:      []fault{atPath("openfile", goroutinePath), atPath("remove", memPath)},
+			startup:     injection{op: "openfile", path: goroutinePath},
+			cleanup:     injection{op: "remove", path: memPath},
 			wantMemFile: true,
 		},
 		{
 			name:        "profile fails to close after a permission failure",
-			faults:      []fault{atPath("chmod", memPath), atPath("close", memPath)},
+			startup:     injection{op: "chmod", path: memPath},
+			cleanup:     injection{op: "close", path: memPath},
 			wantMemFile: true,
 		},
 	}
@@ -259,7 +267,8 @@ func TestWrapWithProfilingCleanupFailuresKeepStartupError(t *testing.T) {
 			t.Parallel()
 
 			v := venv.MemVenv()
-			v = v.WithFS(newFaultFS(v.FS, tc.faults...))
+			fsys := newFaultFS(v.FS, atPath(tc.startup.op, tc.startup.path), atPath(tc.cleanup.op, tc.cleanup.path))
+			v = v.WithFS(fsys)
 
 			opts := options.NewTerragruntOptions(vexec.NewOSExec())
 			opts.ProfileMem = memPath
@@ -267,6 +276,18 @@ func TestWrapWithProfilingCleanupFailuresKeepStartupError(t *testing.T) {
 
 			err := commands.WrapWithProfiling(logger.CreateLogger(), opts, v)(t.Context(), &clihelper.Context{}, failIfCalled(t))
 			require.ErrorIs(t, err, errInjected)
+
+			var pathErr *fs.PathError
+
+			require.ErrorAs(t, err, &pathErr)
+			reported := injection{op: pathErr.Op, path: pathErr.Path}
+			assert.Equal(t, tc.startup, reported, "the startup failure should be reported, not the cleanup one")
+			assert.Equal(
+				t,
+				[]injection{tc.startup, tc.cleanup},
+				fsys.injections(),
+				"the cleanup should run after the startup failure",
+			)
 			assert.Equal(t, tc.wantMemFile, vfs.Exists(v.FS, memPath), "memory profile presence after cleanup")
 		})
 	}

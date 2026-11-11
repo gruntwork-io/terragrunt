@@ -44,6 +44,8 @@ func (severity *DiagnosticSeverity) UnmarshalJSON(val []byte) error {
 		*severity = DiagnosticSeverity(hcl.DiagError)
 	case DiagnosticSeverityWarning:
 		*severity = DiagnosticSeverity(hcl.DiagWarning)
+	default:
+		*severity = DiagnosticSeverity(hcl.DiagInvalid)
 	}
 
 	return nil

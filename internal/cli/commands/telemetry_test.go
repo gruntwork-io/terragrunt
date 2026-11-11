@@ -21,6 +21,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -46,7 +47,7 @@ func TestWrapWithTelemetryResolvesPaths(t *testing.T) {
 		{
 			name:           "defaults under the working dir",
 			cmdName:        run.CommandName,
-			workingDir:     hostPath("/work/nested/.."),
+			workingDir:     testWorkDir + filepath.FromSlash("/nested/.."),
 			tfPath:         "tofu",
 			wantWorkingDir: testWorkDir,
 			wantDownload:   filepath.Join(testWorkDir, ".terragrunt-cache"),
@@ -69,13 +70,13 @@ func TestWrapWithTelemetryResolvesPaths(t *testing.T) {
 			name:           "absolute paths are only cleaned",
 			cmdName:        run.CommandName,
 			workingDir:     testWorkDir,
-			downloadDir:    hostPath("/cache/./dl"),
-			configPath:     hostPath("/configs/app.hcl"),
-			tfPath:         hostPath("/usr/bin/tofu"),
+			downloadDir:    venvtest.Root("/cache") + filepath.FromSlash("/./dl"),
+			configPath:     venvtest.Root("/configs/app.hcl"),
+			tfPath:         venvtest.Root("/usr/bin/tofu"),
 			wantWorkingDir: testWorkDir,
-			wantDownload:   hostPath("/cache/dl"),
-			wantConfig:     hostPath("/configs/app.hcl"),
-			wantTFPath:     hostPath("/usr/bin/tofu"),
+			wantDownload:   venvtest.Root("/cache/dl"),
+			wantConfig:     venvtest.Root("/configs/app.hcl"),
+			wantTFPath:     venvtest.Root("/usr/bin/tofu"),
 		},
 		{
 			name:           "relative config path stays relative outside run",
