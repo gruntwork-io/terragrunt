@@ -1100,10 +1100,9 @@ func TestNewWorktreesCreationFailures(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		fails        func(args []string) bool
-		name         string
-		diff         string
-		wantTempDirs int
+		fails func(args []string) bool
+		name  string
+		diff  string
 	}{
 		{
 			name: "registering fails",
@@ -1132,7 +1131,6 @@ func TestNewWorktreesCreationFailures(t *testing.T) {
 			fails: func(args []string) bool {
 				return slices.Contains(args, "remove") || (slices.Contains(args, "add") && args[len(args)-1] == "HEAD")
 			},
-			wantTempDirs: 1,
 		},
 	}
 
@@ -1157,7 +1155,7 @@ func TestNewWorktreesCreationFailures(t *testing.T) {
 
 			entries, err := vfs.ReadDir(v.FS, v.Platform.TempDir())
 			require.NoError(t, err)
-			assert.Len(t, entries, tc.wantTempDirs, "a failed reference should not leave its directory behind")
+			assert.Empty(t, entries, "a failed reference should not leave its directory behind")
 		})
 	}
 }
