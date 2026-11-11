@@ -7,6 +7,10 @@ on:
         description: 'S3 key prefix for uploaded assets (e.g. "tip" or "test")'
         required: true
         type: string
+      commit_sha:
+        description: 'Commit SHA the binaries were built from'
+        required: true
+        type: string
     secrets:
       TIP_BUILD_ROLE_ARN:
         required: false
@@ -118,5 +122,5 @@ jobs:
         env:
           BUCKET: ${{ secrets.TIP_BUILD_BUCKET }}
           PREFIX: ${{ inputs.prefix }}
-          COMMIT_SHA: ${{ github.sha }}
+          COMMIT_SHA: ${{ inputs.commit_sha }}
         run: .github/scripts/upload-tip-build.sh bin

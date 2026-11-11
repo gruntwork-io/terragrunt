@@ -91,6 +91,7 @@ jobs:
     uses: ./.github/workflows/upload-tip-build.yml
     with:
       prefix: tip
+      commit_sha: ${{ github.sha }}
     permissions:
       contents: read
       id-token: write
