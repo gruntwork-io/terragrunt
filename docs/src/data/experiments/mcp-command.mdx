@@ -3,30 +3,11 @@ name: mcp-command
 since: "v1.2.0"
 ---
 
-import Before from '@components/Before.astro';
-import Since from '@components/Since.astro';
-
 Adds the `terragrunt mcp` command, which serves Terragrunt operations to AI agents over the [Model Context Protocol](https://modelcontextprotocol.io).
 
 ### `mcp-command` - What it does
 
 With the experiment enabled, `terragrunt mcp` speaks the Model Context Protocol over standard input and output, so an agent can ask Terragrunt questions about your estate instead of guessing at them from the HCL. It serves these tools:
-
-<Before version="v1.2.2">
-
-| Name            | What it does                                                                 |
-| --------------- | ---------------------------------------------------------------------------- |
-| `discover`      | Which units and stacks exist under a directory, and how they depend on each other |
-| `render_config` | What one unit's `terragrunt.hcl` resolves to, once locals, includes, and dependency outputs are evaluated |
-| `validate`      | Whether the configurations under a directory parse and evaluate, as file/line diagnostics |
-| `run_order`     | What must finish before each unit may start, for the command you name |
-| `get_outputs`   | The applied outputs of one unit                                              |
-| `plan`          | The per-unit result of `run --all plan`                                      |
-| `apply`, `destroy` | The per-unit result of a real change, served only under `--dangerously-allow-apply` and gated on a person accepting it |
-
-</Before>
-
-<Since version="v1.2.2">
 
 | Name            | What it does                                                                 |
 | --------------- | ---------------------------------------------------------------------------- |
@@ -42,8 +23,6 @@ With the experiment enabled, `terragrunt mcp` speaks the Model Context Protocol 
 | `docs_*`        | The tools of the Terragrunt docs MCP server, served only under `--allow=docs` |
 | `apply`, `destroy` | The per-unit result of a real change, served only under `--dangerously-allow-apply` and gated on a person accepting it |
 
-</Since>
-
 `run_order` takes the command it should answer for. `plan` and `apply` order alike, and only `destroy` inverts, but an `exclude` block naming one action does not match another, so the three can cover different sets of units.
 
 Every tool is confined to the directory the server was launched in. A `working_dir` argument that resolves outside it is refused, and graph traversal is bounded there too, so a filter that follows dependencies or dependents cannot bring back a unit from a tree the server was never pointed at. A unit across that boundary still has its configuration read, so units inside can be ordered against it and fetch its outputs.
@@ -57,11 +36,7 @@ The server denies every capability at startup, and grants them separately.
 - [`--allow=http`](/reference/cli/commands/mcp#allow) lets it make requests. Without it every request Terragrunt makes on its own account fails, so state backends, registries, and remote module sources are unreachable, and a unit whose `terraform` source is remote cannot be planned at all.
 - [`--allow=env`](/reference/cli/commands/mcp#allow) passes its environment variables to configurations and the commands the tools run. Without it they start from an empty environment, so `get_env()` returns its default.
 
-<Since version="v1.2.2">
-
 - [`--allow=docs`](/reference/cli/commands/mcp#allow) relays the tools and resources of the [Terragrunt docs MCP server](/getting-started/install#terragrunt-docs-mcp-server), each tool under a `docs_` prefix. Without it the server sends nothing to the docs server.
-
-</Since>
 
 With none granted, Terragrunt refuses the commands and requests the tools would otherwise make. A result a restriction affected carries a `degraded` list naming what was substituted, such as a dependency output that fell back to `mock_outputs`, a `run_cmd` that returned an empty string, or outputs that were not fetched. `plan` needs real commands, so it is refused outright. `get_outputs` needs either `exec` or `http`, since it runs the real output command or reads remote state itself. The second path works for a unit whose `remote_state` backend is `s3`, `gcs`, or `azurerm`; any other unit reports that it fetched nothing and says why.
 
