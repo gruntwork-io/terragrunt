@@ -20,6 +20,7 @@ func TestAsTerraformEnvVarJsonValue(t *testing.T) {
 		// plain strings: passed through unchanged, escaping is the caller's call
 		{"aws_region", "aws_region"},
 		{"plain ${bar} string", "plain ${bar} string"},
+		{"plain %{bar} string", "plain %{bar} string"},
 		// list: JSON serialized, strings within escaped
 		{[]string{"10.0.0.0/16", "10.0.0.10/16"}, "[\"10.0.0.0/16\",\"10.0.0.10/16\"]"},
 		// map: strings within escaped
@@ -30,6 +31,10 @@ func TestAsTerraformEnvVarJsonValue(t *testing.T) {
 		{[]any{"${foo}", "bar"}, `["$${foo}","bar"]`},
 		// nested map
 		{map[string]any{"a": map[string]any{"b": "${nested}"}}, `{"a":{"b":"$${nested}"}}`},
+		// map and list with a template directive
+		{map[string]any{"foo": "test %{bar} test"}, `{"foo":"test %%{bar} test"}`},
+		{map[string]any{"foo": "test %%{bar} test"}, `{"foo":"test %%{bar} test"}`},
+		{[]any{"%{if foo}", "${bar} %{baz}"}, `["%%{if foo}","$${bar} %%{baz}"]`},
 		// typed []string with interpolation
 		{[]string{"${foo}", "bar"}, `["$${foo}","bar"]`},
 		// typed map[string]string with interpolation
@@ -74,7 +79,7 @@ func buildNestedMap(depth int) map[string]any {
 	return map[string]any{"nested": buildNestedMap(depth - 1)}
 }
 
-func TestEscapeInterpolationInString(t *testing.T) {
+func TestEscapeTemplateSequencesInString(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -96,6 +101,14 @@ func TestEscapeInterpolationInString(t *testing.T) {
 		{"${foo}", "$${foo}"},
 		// starts with already-escaped
 		{"$${foo} and ${bar}", "$${foo} and $${bar}"},
+		// template directive
+		{"test %{bar} test", "test %%{bar} test"},
+		// idempotent: already escaped directive
+		{"test %%{bar} test", "test %%{bar} test"},
+		// percent not followed by brace
+		{"100% done", "100% done"},
+		// both sequences
+		{"${a} and %{b}", "$${a} and %%{b}"},
 	}
 
 	for i, tc := range testCases {
@@ -107,7 +120,7 @@ func TestEscapeInterpolationInString(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			actual := util.EscapeInterpolationInString(tc.input)
+			actual := util.EscapeTemplateSequencesInString(tc.input)
 			assert.Equal(t, tc.expected, actual)
 		})
 	}
