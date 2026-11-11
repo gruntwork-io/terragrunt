@@ -10,6 +10,10 @@ on:
       tag_name:
         description: 'Latest release tag to clean up against (e.g. v1.0.7)'
         required: true
+      max_pr_age_days:
+        description: 'Re-target only open PRs updated within this many days'
+        required: false
+        default: '30'
 
 permissions:
   contents: read
@@ -64,3 +68,31 @@ jobs:
             > [!TIP]
             > Push an empty commit to this PR to trigger CI checks, which do not run
             > automatically on commits made by the `GITHUB_TOKEN`.
+
+  retarget-open-prs:
+    name: Re-target open PRs to the next patch release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          sparse-checkout: .github/scripts
+
+      - name: Open chained PRs for stale changelog entries and gates
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        env:
+          TAG_NAME: ${{ github.event.release.tag_name || inputs.tag_name }}
+          MAX_PR_AGE_DAYS: ${{ inputs.max_pr_age_days || '30' }}
+        with:
+          script: |
+            const { default: retarget } = require('./.github/scripts/docs-retarget-open-prs.ts');
+            await retarget({
+              github,
+              context,
+              core,
+              tagName: process.env.TAG_NAME,
+              maxAgeDays: Number(process.env.MAX_PR_AGE_DAYS),
+            });
