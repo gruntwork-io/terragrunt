@@ -23,6 +23,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
+	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -405,8 +406,8 @@ func validateDependencyConfigPathDirs(
 			continue
 		}
 
-		return evaluateDependencyControl(
-			ctx, pctx, l,
+		return evaluateDetailControl(
+			ctx, l, pctx.StrictControls,
 			controls.DependencyConfigPathFile,
 			DependencyConfigPathFileError{
 				ConfigPath:     cfgPath,
@@ -436,10 +437,10 @@ func validateUniqueDependencies(
 	deps Dependencies,
 ) error {
 	if address, found := duplicateDependencyAddress(deps); found {
-		return evaluateDependencyControl(
+		return evaluateDetailControl(
 			ctx,
-			pctx,
 			l,
+			pctx.StrictControls,
 			controls.DuplicateDependencyLabels,
 			DuplicateDependencyError{
 				ConfigPath: cfgPath,
@@ -449,10 +450,10 @@ func validateUniqueDependencies(
 	}
 
 	if dup, found := duplicateDependencyConfigPath(cfgPath, deps); found {
-		return evaluateDependencyControl(
+		return evaluateDetailControl(
 			ctx,
-			pctx,
 			l,
+			pctx.StrictControls,
 			controls.DuplicateDependencyLabels,
 			DuplicateDependencyConfigPathError{
 				ConfigPath:     cfgPath,
@@ -466,17 +467,17 @@ func validateUniqueDependencies(
 	return nil
 }
 
-// evaluateDependencyControl returns strictErr when the strict control called name is enabled.
+// evaluateDetailControl returns strictErr when the strict control called name is enabled.
 // Otherwise it logs the control's warning and the message of strictErr, each once per command,
 // so every config the control would reject is named.
-func evaluateDependencyControl(
+func evaluateDetailControl(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
+	strictControls strict.Controls,
 	name string,
 	strictErr error,
 ) error {
-	control := pctx.StrictControls.Find(name)
+	control := strictControls.Find(name)
 	if control == nil {
 		return errors.New("failed to find control " + name)
 	}

@@ -17,6 +17,7 @@ import (
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -972,6 +973,18 @@ func fetchViaCAS(
 
 	defer result.Cleanup()
 
+	for i := range result.SourcesInsideStack {
+		if err := evaluateDetailControl(
+			ctx,
+			l,
+			opts.strictControls,
+			controls.CASSourceInsideStack,
+			CASSourceInsideStackError{Component: kindStr + " " + cmp.address, Block: &result.SourcesInsideStack[i]},
+		); err != nil {
+			return err
+		}
+	}
+
 	// A copy failure can leave partial content in dest, so reset it before
 	// falling through to the standard getter. ProcessStackComponent writes only
 	// to its own temp dir, so failures before this point never touch dest.
@@ -1017,20 +1030,25 @@ func rewriteViaCAS(
 		return nil, err
 	}
 
-	if err := opts.casInstance.ProcessStoredStackComponent(
+	inside, err := opts.casInstance.ProcessStoredStackComponent(
 		ctx,
 		l,
 		v,
 		staged.root,
 		staged.contentDir,
 		staged.treeKey,
-	); err != nil {
+	)
+	if err != nil {
 		staged.cleanup()
 
 		return nil, err
 	}
 
-	return &cas.StackCASResult{ContentDir: staged.contentDir, Cleanup: staged.cleanup}, nil
+	return &cas.StackCASResult{
+		ContentDir:         staged.contentDir,
+		Cleanup:            staged.cleanup,
+		SourcesInsideStack: inside,
+	}, nil
 }
 
 // resolveLocalCASSource normalizes a relative local source against sourceDir so
@@ -2357,9 +2375,13 @@ func stackNameSet(stacks []*Stack) map[string]struct{} {
 
 // casFailureIsFinal reports whether a CAS failure is final: a fallback would repeat it or skip a required rewrite.
 func casFailureIsFinal(err error) bool {
-	var packageErr StackPackageFetchError
+	var (
+		packageErr StackPackageFetchError
+		insideErr  CASSourceInsideStackError
+	)
 
-	return errors.Is(err, cas.ErrSourceNotLiteral) ||
+	return errors.As(err, &insideErr) ||
+		errors.Is(err, cas.ErrSourceNotLiteral) ||
 		errors.Is(err, cas.ErrUpdateSourceWithCASNotConstant) ||
 		errors.Is(err, cas.ErrCASOffline) ||
 		errors.Is(err, cas.ErrSourceEscapesRepo) ||
