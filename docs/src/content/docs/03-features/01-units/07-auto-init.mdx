@@ -17,13 +17,13 @@ When Auto-Init is enabled (the default), terragrunt will automatically call [`to
 - `source` needs to be downloaded.
 - The `.terragrunt-init-required` file is in the downloaded module directory (`.terragrunt-cache/aaa/bbb/modules/<module>`).
 
-<Before version="v1.2.2">
+<Before version="v1.2.3">
 
 - The modules or remote state used by a module have changed since the previous call to `init`.
 
 </Before>
 
-<Since version="v1.2.2">
+<Since version="v1.2.3">
 
 - A `.tf`, `.tofu`, `.tf.json`, or `.tofu.json` file of the unit, or of a local module it calls, has changed since the previous call to `init`.
 - The `.terraform.lock.hcl` file has changed since the previous call to `init`.
