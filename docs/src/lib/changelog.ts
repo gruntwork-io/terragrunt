@@ -13,13 +13,13 @@ export const CHANGELOG_CATEGORIES: readonly ChangelogCategory[] = [
   { slug: "new-features", label: "✨ New Features" },
   { slug: "performance-improvements", label: "🏎️ Performance Improvements" },
   { slug: "tips-added", label: "💡 Tips Added" },
-  { slug: "bug-fixes", label: "🐛 Bug Fixes" },
-  { slug: "documentation-updates", label: "📖 Documentation Updates" },
-  { slug: "experiments-added", label: "🧪 Experiments Added" },
-  { slug: "experiments-updated", label: "🧪 Experiments Updated" },
   { slug: "strict-controls-added", label: "🔒 Strict Controls Added" },
   { slug: "strict-controls-updated", label: "🔒 Strict Controls Updated" },
+  { slug: "experiments-added", label: "🧪 Experiments Added" },
+  { slug: "experiments-updated", label: "🧪 Experiments Updated" },
+  { slug: "documentation-updates", label: "📖 Documentation Updates" },
   { slug: "process-updates", label: "⚙️ Process Updates" },
+  { slug: "bug-fixes", label: "🐛 Bug Fixes" },
 ] as const;
 
 export const CHANGELOG_CATEGORY_SLUGS = CHANGELOG_CATEGORIES.map((c) => c.slug) as [
