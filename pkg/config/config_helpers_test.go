@@ -557,6 +557,194 @@ func TestFindInParentFolders(t *testing.T) {
 	}
 }
 
+func TestFindInParentFoldersRootTerragruntHCLStrictControl(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		symlinks map[string]string
+		name     string
+		param    string
+		files    []string
+		want     rootTerragruntHCLWant
+		strict   bool
+	}{
+		{
+			name:   "terragrunt.hcl as a path under the strict control",
+			files:  []string{config.DefaultTerragruntConfigPath},
+			param:  "./terragrunt.hcl",
+			strict: true,
+			want:   rootTerragruntHCLWant{outcome: rootRejected},
+		},
+		{
+			name:  "terragrunt.hcl as a path with the control disabled",
+			files: []string{config.DefaultTerragruntConfigPath},
+			param: "./terragrunt.hcl",
+			want:  rootTerragruntHCLWant{path: config.DefaultTerragruntConfigPath, outcome: rootWarned},
+		},
+		{
+			name:   "terragrunt.hcl in a subdirectory under the strict control",
+			files:  []string{subConfigPath},
+			param:  subConfigPath,
+			strict: true,
+			want:   rootTerragruntHCLWant{path: subConfigPath},
+		},
+		{
+			name:  "terragrunt.hcl in a subdirectory with the control disabled",
+			files: []string{subConfigPath},
+			param: subConfigPath,
+			want:  rootTerragruntHCLWant{path: subConfigPath},
+		},
+		{
+			name:   "terragrunt.hcl through a parent directory under the strict control",
+			files:  []string{parentConfigPath},
+			param:  parentConfigPath,
+			strict: true,
+			want:   rootTerragruntHCLWant{outcome: rootRejected},
+		},
+		{
+			name:  "terragrunt.hcl through a parent directory with the control disabled",
+			files: []string{parentConfigPath},
+			param: parentConfigPath,
+			want:  rootTerragruntHCLWant{path: parentConfigPath, outcome: rootWarned},
+		},
+		{
+			name:   "another unit's terragrunt.hcl through a parent directory under the strict control",
+			files:  []string{"../" + subConfigPath},
+			param:  "../" + subConfigPath,
+			strict: true,
+			want:   rootTerragruntHCLWant{path: "../" + subConfigPath},
+		},
+		{
+			name:   "differently cased name distinct from terragrunt.hcl under the strict control",
+			files:  []string{config.DefaultTerragruntConfigPath, otherCaseConfigName},
+			param:  otherCaseConfigName,
+			strict: true,
+			want:   rootTerragruntHCLWant{path: otherCaseConfigName},
+		},
+		{
+			name:  "differently cased name distinct from terragrunt.hcl with the control disabled",
+			files: []string{config.DefaultTerragruntConfigPath, otherCaseConfigName},
+			param: otherCaseConfigName,
+			want:  rootTerragruntHCLWant{path: otherCaseConfigName},
+		},
+		{
+			name:     "differently cased symlink to terragrunt.hcl under the strict control",
+			files:    []string{config.DefaultTerragruntConfigPath},
+			symlinks: map[string]string{otherCaseConfigName: config.DefaultTerragruntConfigPath},
+			param:    otherCaseConfigName,
+			strict:   true,
+			want:     rootTerragruntHCLWant{outcome: rootRejected},
+		},
+		{
+			name:     "differently cased symlink to terragrunt.hcl with the control disabled",
+			files:    []string{config.DefaultTerragruntConfigPath},
+			symlinks: map[string]string{otherCaseConfigName: config.DefaultTerragruntConfigPath},
+			param:    otherCaseConfigName,
+			want:     rootTerragruntHCLWant{path: otherCaseConfigName, outcome: rootWarned},
+		},
+		{
+			name:     "differently cased symlink in a subdirectory under the strict control",
+			files:    []string{subConfigPath},
+			symlinks: map[string]string{"sub/TERRAGRUNT.HCL": subConfigPath},
+			param:    "sub/TERRAGRUNT.HCL",
+			strict:   true,
+			want:     rootTerragruntHCLWant{path: "sub/TERRAGRUNT.HCL"},
+		},
+		{
+			name:     "differently cased symlink to terragrunt.hcl elsewhere under the strict control",
+			files:    []string{"other/terragrunt.hcl"},
+			symlinks: map[string]string{otherCaseConfigName: "other/terragrunt.hcl"},
+			param:    otherCaseConfigName,
+			strict:   true,
+			want:     rootTerragruntHCLWant{outcome: rootRejected},
+		},
+		{
+			name:     "differently cased symlink to another file under the strict control",
+			files:    []string{config.RecommendedParentConfigName},
+			symlinks: map[string]string{otherCaseConfigName: config.RecommendedParentConfigName},
+			param:    otherCaseConfigName,
+			strict:   true,
+			want:     rootTerragruntHCLWant{path: otherCaseConfigName},
+		},
+		{
+			name:   "another file name under the strict control",
+			files:  []string{config.RecommendedParentConfigName},
+			param:  config.RecommendedParentConfigName,
+			strict: true,
+			want:   rootTerragruntHCLWant{path: config.RecommendedParentConfigName},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := venvtest.Root("/live")
+			files := make(map[string]string, len(tc.files))
+
+			for _, name := range tc.files {
+				files[name] = name
+			}
+
+			fsys := venvtest.NewFS(t, root, files)
+
+			for link, target := range tc.symlinks {
+				require.NoError(t, vfs.Symlink(fsys, filepath.Join(root, target), filepath.Join(root, link)))
+			}
+
+			want := tc.want
+			if want.path != "" {
+				want.path = filepath.Join(root, want.path)
+			}
+
+			assertRootTerragruntHCLLookup(t, venv.MemVenv().WithFS(fsys), root, tc.param, tc.strict, want)
+		})
+	}
+}
+
+func TestFindInParentFoldersRootTerragruntHCLOtherCaseOnOS(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name    string
+		dir     string
+		outcome rootLookupOutcome
+		strict  bool
+	}{
+		{name: "under the strict control", strict: true, outcome: rootRejected},
+		{name: "with the control disabled", outcome: rootWarned},
+		{name: "in a subdirectory under the strict control", dir: "sub", strict: true, outcome: rootFound},
+		{name: "in a subdirectory with the control disabled", dir: "sub", outcome: rootFound},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			fsys := vfs.NewOSFS()
+			root := t.TempDir()
+			dir := filepath.Join(root, tc.dir)
+
+			require.NoError(t, vfs.WriteFile(fsys, filepath.Join(dir, config.DefaultTerragruntConfigPath), nil, 0o644))
+
+			otherCase := filepath.Join(dir, otherCaseConfigName)
+
+			if !vfs.Exists(fsys, otherCase) {
+				require.NoError(t, vfs.Link(fsys, filepath.Join(dir, config.DefaultTerragruntConfigPath), otherCase))
+			}
+
+			want := rootTerragruntHCLWant{outcome: tc.outcome}
+			if tc.outcome != rootRejected {
+				want.path = otherCase
+			}
+
+			param := filepath.Join(tc.dir, otherCaseConfigName)
+
+			assertRootTerragruntHCLLookup(t, venv.MemVenv().WithFS(fsys), root, param, tc.strict, want)
+		})
+	}
+}
+
 func TestFindInParentFoldersWithStackFile(t *testing.T) {
 	t.Parallel()
 
@@ -1097,7 +1285,7 @@ func testGetTerragruntDir(t *testing.T, configPath string, expectedPath string) 
 func newMemTestDir(tb testing.TB) (*venv.Venv, string) {
 	tb.Helper()
 
-	return venvtest.New(), tb.TempDir()
+	return venv.MemVenv(), tb.TempDir()
 }
 
 // newTestParsingContext creates a ParsingContext for configPath with the defaults
@@ -2435,4 +2623,59 @@ dependency "vpc" {
 	require.NoError(t, err)
 	require.Len(t, cfg.TerragruntDependencies, 1)
 	assert.Equal(t, "../vpc", cfg.TerragruntDependencies[0].ConfigPath.AsString())
+}
+
+const subConfigPath = "sub/" + config.DefaultTerragruntConfigPath
+
+const parentConfigPath = "../" + config.DefaultTerragruntConfigPath
+
+const otherCaseConfigName = "TERRAGRUNT.HCL"
+
+type rootLookupOutcome int
+
+const (
+	rootFound rootLookupOutcome = iota
+	rootWarned
+	rootRejected
+)
+
+type rootTerragruntHCLWant struct {
+	path    string
+	outcome rootLookupOutcome
+}
+
+// assertRootTerragruntHCLLookup looks param up from a unit directly under root and checks the result against want.
+func assertRootTerragruntHCLLookup(
+	t *testing.T,
+	v *venv.Venv,
+	root, param string,
+	strict bool,
+	want rootTerragruntHCLWant,
+) {
+	t.Helper()
+
+	ctx, pctx := newTestParsingContext(t, filepath.Join(root, "unit", config.DefaultTerragruntConfigPath))
+
+	if strict {
+		require.NoError(t, pctx.StrictControls.EnableControl(controls.RootTerragruntHCL))
+	}
+
+	ctrl, ok := pctx.StrictControls.Find(controls.RootTerragruntHCL).(*controls.Control)
+	require.True(t, ok, "control %s should be a *controls.Control", controls.RootTerragruntHCL)
+
+	got, err := config.FindInParentFolders(ctx, logger.CreateLogger(), v, pctx, []string{param})
+
+	switch want.outcome {
+	case rootRejected:
+		require.ErrorIs(t, err, ctrl.Error, "the enabled control should reject a terragrunt.hcl root")
+	case rootFound, rootWarned:
+		require.NoError(t, err)
+		assert.Equal(t, want.path, got)
+	}
+
+	warned := true
+
+	ctrl.OnceWarn.Do(func() { warned = false })
+
+	assert.Equal(t, want.outcome == rootWarned, warned, "the disabled control should warn only for a terragrunt.hcl root")
 }

@@ -24,6 +24,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/services"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -137,7 +138,7 @@ func testProviderCache(t *testing.T, c vhttp.Client) {
 			opts:               opts,
 			relURLPath:         "/registry.terraform.io/hashicorp/aws/5.36.0/download/darwin/arm64",
 			expectedStatusCode: http.StatusOK,
-			expectedDownloadPath: "/releases.hashicorp.com/terraform-provider-aws/5.36.0/" +
+			expectedDownloadPath: "/https/releases.hashicorp.com/terraform-provider-aws/5.36.0/" +
 				"terraform-provider-aws_5.36.0_darwin_arm64.zip",
 		},
 	}
@@ -409,7 +410,7 @@ func TestProviderCacheWithProviderCacheDir(t *testing.T) {
 		server := providercache.NewProviderCache()
 		err := server.Init(
 			logger.CreateLogger(),
-			venvtest.New().WithFS(memFs),
+			venv.MemVenv().WithFS(memFs),
 			tfimpl.OpenTofu,
 			&pcoptions.ProviderCacheOptions{
 				Dir: cacheDir,
@@ -433,7 +434,7 @@ func TestProviderCacheWithProviderCacheDir(t *testing.T) {
 		server := providercache.NewProviderCache()
 		err := server.Init(
 			logger.CreateLogger(),
-			venvtest.New().WithFS(memFs),
+			venv.MemVenv().WithFS(memFs),
 			tfimpl.OpenTofu,
 			&pcoptions.ProviderCacheOptions{
 				Dir: cacheDir,

@@ -2,12 +2,16 @@ package flags
 
 import "fmt"
 
+// GlobalFlagHintError reports a flag given at the global level that only a
+// command accepts, and names the command that takes it.
 type GlobalFlagHintError struct {
 	undefFlag string
 	cmdHint   string
 	flagHint  string
 }
 
+// NewGlobalFlagHintError returns a [GlobalFlagHintError] for undefFlag that
+// suggests `cmdHint --flagHint` instead.
 func NewGlobalFlagHintError(undefFlag, cmdHint, flagHint string) *GlobalFlagHintError {
 	return &GlobalFlagHintError{
 		undefFlag: undefFlag,
@@ -25,6 +29,8 @@ func (err GlobalFlagHintError) Error() string {
 	)
 }
 
+// CommandFlagHintError reports a flag given to a command that does not accept
+// it, and names the command that does.
 type CommandFlagHintError struct {
 	undefFlag string
 	wrongCmd  string
@@ -32,6 +38,8 @@ type CommandFlagHintError struct {
 	flagHint  string
 }
 
+// NewCommandFlagHintError returns a [CommandFlagHintError] for undefFlag given
+// to wrongCmd that suggests `cmdHint --flagHint` instead.
 func NewCommandFlagHintError(wrongCmd, undefFlag, cmdHint, flagHint string) *CommandFlagHintError {
 	return &CommandFlagHintError{
 		undefFlag: undefFlag,
@@ -51,10 +59,13 @@ func (err CommandFlagHintError) Error() string {
 	)
 }
 
+// PassthroughFlagHintError reports an unknown flag under `terragrunt run` and
+// suggests forwarding it to tofu after `--`.
 type PassthroughFlagHintError struct {
 	undefFlag string
 }
 
+// NewPassthroughFlagHintError returns a [PassthroughFlagHintError] for undefFlag.
 func NewPassthroughFlagHintError(undefFlag string) *PassthroughFlagHintError {
 	return &PassthroughFlagHintError{undefFlag: undefFlag}
 }

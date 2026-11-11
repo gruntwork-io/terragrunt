@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -96,7 +97,7 @@ func TestGraphPhase_ConcurrentDependentsSharedParseWithRacing(t *testing.T) {
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: workingDir}).
 		WithGitRoot(gitRoot).
 		WithFilters(filters).
-		Discover(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv(), opts)
+		Discover(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
 	require.NoError(t, err)
 
 	require.ElementsMatch(t, expected, components.Filter(component.UnitKind).Paths())

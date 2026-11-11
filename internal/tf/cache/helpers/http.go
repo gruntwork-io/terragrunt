@@ -107,6 +107,8 @@ func FetchToFile(
 	return nil
 }
 
+// ResponseReader returns the body of resp, wrapped in a gzip reader when the server sent it
+// gzip-encoded. In that case it also drops the encoding and length headers from resp.
 func ResponseReader(resp *http.Response) (io.ReadCloser, error) {
 	// Check that the server actually sent compressed data
 	switch resp.Header.Get("Content-Encoding") {
@@ -150,6 +152,10 @@ func ResponseBuffer(resp *http.Response) (*bytes.Buffer, error) {
 	return buffer, nil
 }
 
+// ModifyJSONBody decodes the JSON body of a 200 resp into value, runs fn, and replaces the body
+// with value encoded again. A response with any other status is left as is.
+//
+// Returns [ResponseTooLargeError] when the body exceeds [MaxJSONResponseBytes].
 func ModifyJSONBody(resp *http.Response, value any, fn func() error) error {
 	if resp.StatusCode != http.StatusOK {
 		return nil

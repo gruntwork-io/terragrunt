@@ -10,9 +10,11 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
@@ -123,6 +125,7 @@ func discoverWithRetry(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	opts *options.TerragruntOptions,
 	runnerOpts ...Option,
 ) (component.Components, error) {
@@ -131,12 +134,19 @@ func discoverWithRetry(
 	var discovered component.Components
 
 	err := doWithTelemetry(ctx, l, telemetryDiscovery, map[string]any{
-		"working_dir":       opts.WorkingDir,
-		"terraform_command": opts.TerraformCommand,
+		"working_dir":  opts.WorkingDir,
+		"tofu_command": opts.TofuCommand,
 	}, func(childCtx context.Context, l log.Logger) error {
-		var discoveryErr error
+		discoveryErr := spinner.ShowAfter(childCtx, l, spinner.Messages{
+			Working: "Discovering units...",
+			Done:    "Discovered units",
+		}, func() error {
+			var err error
 
-		discovered, discoveryErr = d.Discover(childCtx, l, v, opts)
+			discovered, err = d.Discover(childCtx, l, v, s, opts)
+
+			return err
+		})
 		if discoveryErr == nil {
 			l.Debugf("Runner pool discovery found %d configs", len(discovered))
 		}
@@ -160,7 +170,7 @@ func createRunner(
 
 	err := doWithTelemetry(ctx, l, telemetryCreation, map[string]any{
 		"discovered_configs": len(comps),
-		"terraform_command":  opts.TerraformCommand,
+		"tofu_command":       opts.TofuCommand,
 	}, func(childCtx context.Context, l log.Logger) error {
 		var err2 error
 

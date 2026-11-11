@@ -1,0 +1,3 @@
+output "a" {
+  value = "db"
+}

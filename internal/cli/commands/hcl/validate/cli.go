@@ -6,20 +6,30 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 const (
+	// CommandName is the name of the `terragrunt hcl validate` command.
 	CommandName = "validate"
 
-	StrictFlagName         = "strict"
-	InputsFlagName         = "inputs"
+	// StrictFlagName is the name of the flag that, with --inputs, also fails on
+	// inputs the module does not declare.
+	StrictFlagName = "strict"
+	// InputsFlagName is the name of the flag that checks each unit's inputs
+	// against the variables its module declares.
+	InputsFlagName = "inputs"
+	// ShowConfigPathFlagName is the name of the flag that prints the paths of
+	// the files with invalid configuration.
 	ShowConfigPathFlagName = "show-config-path"
-	JSONFlagName           = "json"
+	// JSONFlagName is the name of the flag that prints diagnostics as JSON.
+	JSONFlagName = "json"
 )
 
+// NewFlags returns the flags of `terragrunt hcl validate`, bound to opts.
 func NewFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.Flags {
 	tgPrefix := flags.Prefix{flags.TgPrefix}
 	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
@@ -30,7 +40,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihe
 				Name:        StrictFlagName,
 				EnvVars:     tgPrefix.EnvVars(StrictFlagName),
 				Destination: &opts.HCLValidateStrict,
-				Usage:       "Enables strict mode. When used in combination with the `--inputs` flag, any inputs defined in Terragrunt that are _not_ used in OpenTofu/Terraform will trigger an error.",
+				Usage:       "Enables strict mode. When used in combination with the --inputs flag, any inputs defined in Terragrunt that are _not_ used in OpenTofu/Terraform will trigger an error.",
 			},
 			flags.WithDeprecatedEnvVars(tgPrefix.EnvVars(
 				"strict-validate",             // `TG_STRICT_VALIDATE`
@@ -94,14 +104,15 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihe
 	return flagSet
 }
 
-func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *clihelper.Command {
+// NewCommand returns the `terragrunt hcl validate` command.
+func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *rewrite.Store) *clihelper.Command {
 	cmd := &clihelper.Command{
 		Name:                         CommandName,
 		Usage:                        "Recursively find HashiCorp Configuration Language (HCL) files and validate them.",
 		Flags:                        NewFlags(l, opts, v),
 		DisabledErrorOnUndefinedFlag: true,
 		Action: func(ctx context.Context, _ *clihelper.Context) error {
-			return Run(ctx, l, v, opts.OptionsFromContext(ctx))
+			return Run(ctx, l, v, s, opts.OptionsFromContext(ctx))
 		},
 	}
 

@@ -33,7 +33,7 @@ func TestRunOnEmptyWorkspaceWritesNothing(t *testing.T) {
 
 	var buf strings.Builder
 
-	v := venvtest.New().WithWriter(&buf)
+	v := venv.MemVenv().WithWriter(&buf)
 	workDir := "/catalog-empty"
 
 	require.NoError(t, v.FS.MkdirAll(workDir, 0o755))
@@ -85,7 +85,7 @@ func TestRunReportsEveryUnreachableSource(t *testing.T) {
 
 			var buf strings.Builder
 
-			v := venvtest.New().WithWriter(&buf)
+			v := venv.MemVenv().WithWriter(&buf)
 			workDir := "/catalog-sources"
 
 			for unit, source := range tc.sources {
@@ -261,13 +261,39 @@ func TestRunToleratesAnUnparseableCatalogConfig(t *testing.T) {
 	assert.Empty(t, buf.String())
 }
 
+// TestRunReportsAnUnparseableCatalogConfigWhenAsked pins that
+// [catalog.ReportUnreadableConfig] counts a broken block as a failed source, so
+// a run with nothing else to load reads as every source having failed.
+func TestRunReportsAnUnparseableCatalogConfigWhenAsked(t *testing.T) {
+	t.Parallel()
+
+	rootDir := t.TempDir()
+
+	v := venvtest.NewWithOSFS()
+
+	require.NoError(t, vfs.WriteFile(
+		v.FS, filepath.Join(rootDir, "root.hcl"), []byte("catalog {\n  urls = [\n}\n"), 0o644,
+	))
+
+	opts := newOptions(t, rootDir, catalog.FormatJSONL)
+	opts.UnreadableConfig = catalog.ReportUnreadableConfig
+
+	err := catalog.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, opts, "")
+
+	var loadErr *tui.SourceLoadError
+
+	require.ErrorAs(t, err, &loadErr)
+	assert.Equal(t, []string{"root.hcl"}, failedURLs(loadErr))
+	assert.True(t, loadErr.AllFailed())
+}
+
 // TestRunWithAnExplicitRepoURLSkipsDiscovery pins that a URL given on the
 // command line is the only source loaded: the failure comes back as it is,
 // rather than as the aggregate discovery reports.
 func TestRunWithAnExplicitRepoURLSkipsDiscovery(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	workDir := "/catalog-explicit"
 
 	writeUnit(t, v, filepath.Join(workDir, "vpc"), "github.com/acme/discovered//modules/x")
@@ -288,7 +314,7 @@ func TestRunRejectsAnUnknownFormat(t *testing.T) {
 	t.Parallel()
 
 	err := catalog.Run(
-		config.WithCaches(t.Context()), logger.CreateLogger(), venvtest.New(),
+		config.WithCaches(t.Context()), logger.CreateLogger(), venv.MemVenv(),
 		newOptions(t, "/catalog-unknown-format", "yaml"), "github.com/acme/vpc",
 	)
 

@@ -18,11 +18,13 @@ dependency "db" {
 
 This was never documented, and Terragrunt supported it inconsistently. Existing support will be retained for v1.x for backwards compatibility, to obey the [Terragrunt 1.0 guarantees](/process/1-0-guarantees#hcl-configurations).
 
-Terragrunt warns about a `config_path` that names a file by default. Enabling the control turns the warning into an error naming the block and the path:
+By default, Terragrunt warns once about each block whose `config_path` names a file, naming the block and the path:
 
 ```text
 /path/to/terragrunt.hcl: dependency db sets config_path to the file ../db/terragrunt.hcl; set it to the directory of the unit or stack
 ```
+
+Enabling the control turns each warning into an error with the same message.
 
 Set `config_path` to the directory:
 

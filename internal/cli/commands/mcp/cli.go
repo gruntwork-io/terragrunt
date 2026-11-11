@@ -6,12 +6,11 @@
 // still answers, and its result includes a "degraded" list naming what was
 // substituted.
 //
-// Exec stays bounded once granted. The handle allows the commands Terragrunt
-// runs itself, listed in [execAllowedBinaries], plus the invocations an
-// --allow-cmd pattern matches. A program a configuration names beyond those is
-// refused, and the
-// parse-only tools offer it for approval through [runWithCommandApproval]
-// rather than answering without it.
+// Each tool call runs against a venv narrowed by [venv.Restrict]. Exec stays
+// bounded once granted: it allows the commands Terragrunt runs itself, plus
+// the invocations an --allow-cmd pattern matches. A program a configuration
+// names beyond those is refused, and the parse-only tools offer it for
+// approval through [runWithCommandApproval] rather than answering without it.
 //
 // A tool call works against the real filesystem. Terragrunt writes where its
 // work requires, such as a dependency's source into a .terragrunt-cache, and
@@ -19,7 +18,7 @@
 // [resolveWorkingDir] bounds the working_dir argument rather than what the
 // parse then reaches for.
 //
-// A tool call starts from an empty environment unless [CapabilityEnv] is
+// A tool call starts from an empty environment unless [venv.CapabilityEnv] is
 // granted, in which case it sees a copy of the server's own. The command also
 // strips its own process environment the same way before serving, as
 // [IsolatedEnv] describes, because go-getter and the cloud SDKs read that
@@ -34,9 +33,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
+	"github.com/gruntwork-io/terragrunt/pkg/venv"
 )
 
 const (
@@ -101,23 +100,21 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *cl
 				return clihelper.NewExitError(ErrExperimentRequired, clihelper.ExitCodeGeneralError)
 			}
 
-			granted, err := ParseCapabilities(cmdOpts.Allow)
+			granted, err := venv.ParseCapabilities(cmdOpts.Allow, allCapabilities)
 			if err != nil {
 				return clihelper.NewExitError(err, clihelper.ExitCodeGeneralError)
 			}
 
-			if cmdOpts.AllowApply && !granted.Has(CapabilityExec) {
+			if cmdOpts.AllowApply && !granted.Has(venv.CapabilityExec) {
 				return clihelper.NewExitError(ErrApplyRequiresExec, clihelper.ExitCodeGeneralError)
 			}
 
-			if len(cmdOpts.AllowCmds) > 0 && !granted.Has(CapabilityExec) {
-				return clihelper.NewExitError(
-					ErrAllowCmdRequiresExec,
-					clihelper.ExitCodeGeneralError,
-				)
+			allowCmds, err := venv.ParseAllowCmds(cmdOpts.AllowCmds)
+			if err != nil {
+				return clihelper.NewExitError(err, clihelper.ExitCodeGeneralError)
 			}
 
-			if _, err = parseAllowCmds(cmdOpts.AllowCmds); err != nil {
+			if err = (venv.Policy{Granted: granted, AllowCmds: allowCmds}).Validate(); err != nil {
 				return clihelper.NewExitError(err, clihelper.ExitCodeGeneralError)
 			}
 
@@ -130,7 +127,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *cl
 			return nil
 		},
 		Action: func(ctx context.Context, _ *clihelper.Context) error {
-			granted, err := ParseCapabilities(cmdOpts.Allow)
+			granted, err := venv.ParseCapabilities(cmdOpts.Allow, allCapabilities)
 			if err != nil {
 				return clihelper.NewExitError(err, clihelper.ExitCodeGeneralError)
 			}

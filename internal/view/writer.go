@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/view/diagnostic"
 )
 
+// Render formats diagnostics and configuration paths for a [Writer].
 type Render interface {
 	// Diagnostics renders early diagnostics, resulting from argument parsing.
 	Diagnostics(diags diagnostic.Diagnostics) (string, error)
@@ -22,6 +23,7 @@ type Writer struct {
 	render Render
 }
 
+// NewWriter returns a [Writer] that formats output with render and writes it to writer.
 func NewWriter(writer io.Writer, render Render) *Writer {
 	return &Writer{
 		Writer: writer,
@@ -29,6 +31,7 @@ func NewWriter(writer io.Writer, render Render) *Writer {
 	}
 }
 
+// Diagnostics writes diags as the [Render] formats them.
 func (writer *Writer) Diagnostics(diags diagnostic.Diagnostics) error {
 	output, err := writer.render.Diagnostics(diags)
 	if err != nil {
@@ -38,6 +41,7 @@ func (writer *Writer) Diagnostics(diags diagnostic.Diagnostics) error {
 	return writer.output(output)
 }
 
+// ShowConfigPath writes each distinct file that diags point into, in order of first appearance.
 func (writer *Writer) ShowConfigPath(diags diagnostic.Diagnostics) error {
 	var filenames []string
 

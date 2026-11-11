@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 
@@ -25,7 +27,7 @@ import (
 )
 
 // Run runs the find command.
-func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
+func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, opts *Options) error {
 	d, err := discovery.NewForDiscoveryCommand(l, v.FS, &discovery.DiscoveryCommandOptions{
 		WorkingDir:        opts.WorkingDir,
 		QueueConstructAs:  opts.QueueConstructAs,
@@ -42,7 +44,7 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
 		return err
 	}
 
-	d, cleanupWorktrees, err := discoverysetup.Worktrees(ctx, l, v, opts.TerragruntOptions, d)
+	d, cleanupWorktrees, err := discoverysetup.Worktrees(ctx, l, v, s, opts.TerragruntOptions, d)
 
 	defer cleanupWorktrees(ctx)
 
@@ -63,7 +65,17 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
 			"mode":         opts.Mode,
 			"exclude":      opts.Exclude,
 		}, func(ctx context.Context, l log.Logger) error {
-			components, discoverErr = d.Discover(ctx, l, v, opts.TerragruntOptions)
+			discoverErr = spinner.ShowAfter(ctx, l, spinner.Messages{
+				Working: "Discovering units...",
+				Done:    "Discovered units",
+			}, func() error {
+				var err error
+
+				components, err = d.Discover(ctx, l, v, s, opts.TerragruntOptions)
+
+				return err
+			})
+
 			return discoverErr
 		})
 	if telemetryErr != nil {
@@ -123,8 +135,12 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
 	}
 }
 
+// FoundComponents is the result set that `terragrunt find` prints.
 type FoundComponents []*FoundComponent
 
+// FoundComponent is one unit or stack in the output of `terragrunt find`. Path
+// is relative to the working directory. The optional fields are set only when
+// their flags request them.
 type FoundComponent struct {
 	Type component.Kind `json:"type"`
 	Path string         `json:"path"`
@@ -263,6 +279,8 @@ func NewColorizer(shouldColor bool) *Colorizer {
 	}
 }
 
+// Colorize returns the path of foundComponent with its directory dimmed and its
+// base name styled by component kind.
 func (c *Colorizer) Colorize(foundComponent *FoundComponent) string {
 	path := foundComponent.Path
 

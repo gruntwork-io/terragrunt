@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/handlers"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/models"
@@ -18,6 +19,8 @@ const (
 	downloadPath = "/downloads"
 )
 
+// DownloaderController serves provider archives from the cache when it has them, and proxies
+// the download from the remote host otherwise.
 type DownloaderController struct {
 	*router.Router
 
@@ -56,20 +59,46 @@ func (controller *DownloaderController) Register(router *router.Router) {
 	controller.Router = router.Group(path.Join(downloadPath, controller.segment))
 
 	// Wildcard route so multi-segment S3/GCS bucket paths match correctly.
-	controller.GET("/{remote_host}/{rest...}", controller.downloadProviderAction)
+	controller.GET("/{remote_scheme}/{remote_host}/{rest...}", controller.downloadProviderAction)
 }
 
 func (controller *DownloaderController) downloadProviderAction(w router.ResponseWriter, r *http.Request) error {
 	var (
-		remoteHost = r.PathValue("remote_host")
-		remotePath = r.PathValue("rest")
+		remoteScheme = r.PathValue("remote_scheme")
+		remoteHost   = r.PathValue("remote_host")
 	)
+
+	if remoteScheme != "http" && remoteScheme != "https" {
+		return router.NewHTTPError(http.StatusNotFound)
+	}
+
+	_, hostAndPath, _ := strings.Cut(strings.TrimPrefix(r.URL.EscapedPath(), controller.URL().Path+"/"), "/")
+
+	_, routedPath, found := strings.Cut(hostAndPath, "/")
+	if !found {
+		return router.NewHTTPError(http.StatusNotFound)
+	}
+
+	escapedPath, err := url.PathUnescape("/" + routedPath)
+	if err != nil {
+		controller.ProviderService.Logger().Debugf("Malformed provider download path %s/%s: %v", remoteHost, routedPath, err)
+
+		return router.NewHTTPError(http.StatusBadRequest)
+	}
+
+	remotePath, err := url.PathUnescape(escapedPath)
+	if err != nil {
+		controller.ProviderService.Logger().Debugf("Malformed provider download path %s/%s: %v", remoteHost, routedPath, err)
+
+		return router.NewHTTPError(http.StatusBadRequest)
+	}
 
 	// Forward query string from the inbound request so signed URLs (e.g. S3 pre-signed) keep their auth parameters.
 	downloadURL := url.URL{
-		Scheme:   "https",
+		Scheme:   remoteScheme,
 		Host:     remoteHost,
-		Path:     "/" + remotePath,
+		Path:     remotePath,
+		RawPath:  escapedPath,
 		RawQuery: r.URL.RawQuery,
 	}
 

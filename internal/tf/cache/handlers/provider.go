@@ -50,7 +50,7 @@ func NewProviderHandlers(
 ) (ProviderHandlers, error) {
 	var (
 		providerHandlers = make([]ProviderHandler, 0, len(cliCfg.ProviderInstallation.Methods))
-		excludeAddrs     = make([]string, 0, len(cliCfg.ProviderInstallation.Methods))
+		excludeAddrs     = make([]string, 0, len(registryNames))
 		directIsDefined  bool
 	)
 
@@ -133,6 +133,7 @@ func (handlers ProviderHandlers) DiscoveryURL(
 	return DefaultRegistryURLs, nil
 }
 
+// ProviderHandler is one provider installation source of the cache server, such as a registry or a mirror.
 type ProviderHandler interface {
 	// CanHandleProvider returns true if the given provider can be handled by this handler.
 	CanHandleProvider(provider *models.Provider) bool

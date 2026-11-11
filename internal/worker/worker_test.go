@@ -4,6 +4,7 @@ import (
 	"errors"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 
 	"github.com/gruntwork-io/terragrunt/internal/panicreport"
 	"github.com/gruntwork-io/terragrunt/internal/worker"
@@ -219,4 +220,154 @@ func TestValidateParallelSubmits(t *testing.T) {
 	require.NoError(t, errs)
 
 	assert.Equal(t, int32(5), totalCount.Load())
+}
+
+func TestNewWorkerPool_NonPositiveMaxWorkersRunsOneTaskAtATime(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name       string
+		maxWorkers int
+	}{
+		{name: "zero", maxWorkers: 0},
+		{name: "negative", maxWorkers: -3},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			synctest.Test(t, func(t *testing.T) {
+				wp := worker.NewWorkerPool(tc.maxWorkers)
+				defer wp.Stop()
+
+				release := make(chan struct{})
+
+				var secondRan atomic.Bool
+
+				wp.Submit(func() error {
+					<-release
+					return nil
+				})
+				synctest.Wait()
+
+				wp.Submit(func() error {
+					secondRan.Store(true)
+					return nil
+				})
+				synctest.Wait()
+
+				assert.False(t, secondRan.Load(), "the second task should wait for the only worker")
+
+				close(release)
+
+				require.NoError(t, wp.Wait())
+				assert.True(t, secondRan.Load(), "the second task should run once the worker is free")
+			})
+		})
+	}
+}
+
+func TestStart_KeepsCollectedErrorsWhenAlreadyRunning(t *testing.T) {
+	t.Parallel()
+
+	errTask := errors.New("task failed")
+
+	wp := worker.NewWorkerPool(1)
+	defer wp.Stop()
+
+	wp.Start()
+	wp.Submit(func() error { return errTask })
+	require.ErrorIs(t, wp.Wait(), errTask)
+
+	wp.Start()
+
+	assert.ErrorIs(t, wp.Wait(), errTask, "starting a running pool should keep the errors it collected")
+}
+
+func TestStart_ClearsCollectedErrorsAfterFullStopWithRacing(t *testing.T) {
+	t.Parallel()
+
+	errTask := errors.New("task failed")
+
+	wp := worker.NewWorkerPool(1)
+	defer wp.Stop()
+
+	wp.Start()
+	wp.Submit(func() error { return errTask })
+	require.ErrorIs(t, wp.GracefulStop(), errTask)
+	require.False(t, wp.IsRunning(), "GracefulStop should leave the pool stopped")
+
+	wp.Start()
+
+	require.NoError(t, wp.Wait(), "starting a stopped pool should drop the errors it collected")
+
+	errRestarted := errors.New("restarted task failed")
+
+	wp.Submit(func() error { return errRestarted })
+	require.ErrorIs(t, wp.Wait(), errRestarted, "a restarted pool should run new tasks")
+}
+
+func TestSubmit_DropsTasksWhileStopping(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		wp := worker.NewWorkerPool(1)
+		release := make(chan struct{})
+
+		wp.Submit(func() error {
+			<-release
+			return nil
+		})
+		synctest.Wait()
+
+		wp.Stop()
+
+		require.True(t, wp.IsStopping(), "Stop should mark the pool as stopping")
+		require.True(t, wp.IsRunning(), "the pool should keep running until its tasks finish")
+
+		var lateRan atomic.Bool
+
+		wp.Submit(func() error {
+			lateRan.Store(true)
+			return nil
+		})
+
+		close(release)
+
+		require.NoError(t, wp.Wait())
+		synctest.Wait()
+
+		assert.False(t, lateRan.Load(), "a task submitted while stopping should be dropped")
+		assert.False(t, wp.IsRunning(), "the pool should stop once its tasks finish")
+	})
+}
+
+func TestGracefulStop_WaitsForTasksAndReturnsTheirErrors(t *testing.T) {
+	t.Parallel()
+
+	errTask := errors.New("task failed")
+
+	wp := worker.NewWorkerPool(2)
+
+	require.False(t, wp.IsRunning(), "a new pool should not be running")
+	require.False(t, wp.IsStopping(), "a new pool should not be stopping")
+
+	var done atomic.Int32
+
+	for range 3 {
+		wp.Submit(func() error {
+			done.Add(1)
+			return errTask
+		})
+	}
+
+	require.True(t, wp.IsRunning(), "submitting should start the pool")
+
+	err := wp.GracefulStop()
+
+	require.ErrorIs(t, err, errTask)
+	assert.Equal(t, int32(3), done.Load(), "GracefulStop should wait for every task")
+	assert.False(t, wp.IsRunning(), "the pool should not be running after GracefulStop")
+	assert.True(t, wp.IsStopping(), "the pool should stay marked as stopping")
 }

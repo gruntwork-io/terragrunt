@@ -40,7 +40,12 @@ terraform {
 	require.NoError(t, err)
 
 	// Test parsing with Terraform implementation
-	constraints, err := getproviders.ParseProviderConstraints(vfs.NewOSFS(), map[string]string{}, tfimpl.Terraform, testDir)
+	constraints, err := getproviders.ParseProviderConstraints(
+		vfs.NewOSFS(),
+		map[string]string{},
+		tfimpl.Terraform,
+		testDir,
+	)
 	require.NoError(t, err)
 
 	assert.Equal(t, "~> 5.0", constraints["registry.terraform.io/hashicorp/aws"])
@@ -75,7 +80,12 @@ terraform {
 	require.NoError(t, err)
 
 	// Test parsing with Terraform implementation
-	constraints, err := getproviders.ParseProviderConstraints(vfs.NewOSFS(), map[string]string{}, tfimpl.Terraform, testDir)
+	constraints, err := getproviders.ParseProviderConstraints(
+		vfs.NewOSFS(),
+		map[string]string{},
+		tfimpl.Terraform,
+		testDir,
+	)
 	require.NoError(t, err)
 
 	// Verify the parsed constraints default to terraform registry and are normalized
@@ -314,7 +324,12 @@ terraform {
 	require.NoError(t, err)
 
 	// Test parsing with Terraform implementation
-	constraints, err := getproviders.ParseProviderConstraints(vfs.NewOSFS(), map[string]string{}, tfimpl.Terraform, testDir)
+	constraints, err := getproviders.ParseProviderConstraints(
+		vfs.NewOSFS(),
+		map[string]string{},
+		tfimpl.Terraform,
+		testDir,
+	)
 	require.NoError(t, err)
 
 	// Verify the parsed constraints are normalized (no "=" prefix)
@@ -481,7 +496,12 @@ func TestNormalizeVersionConstraint(t *testing.T) {
 			err := os.WriteFile(filepath.Join(testDir, "main.tf"), []byte(terraformContent), 0644)
 			require.NoError(t, err)
 
-			constraints, err := getproviders.ParseProviderConstraints(vfs.NewOSFS(), map[string]string{}, tfimpl.Terraform, testDir)
+			constraints, err := getproviders.ParseProviderConstraints(
+				vfs.NewOSFS(),
+				map[string]string{},
+				tfimpl.Terraform,
+				testDir,
+			)
 			require.NoError(t, err)
 
 			result := constraints["registry.terraform.io/example/test"]

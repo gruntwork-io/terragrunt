@@ -7,12 +7,14 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 )
 
 const (
+	// UnitKind is the [Kind] of a [Unit].
 	UnitKind Kind = "unit"
 )
 
@@ -335,6 +337,9 @@ func (u *Unit) OutputJSONFile(rootWorkingDir, jsonOutputFolder string) string {
 }
 
 // planFilePath computes the path for plan output files.
+//
+// A unit discovered at a Git reference goes under a directory named for the
+// reference, such as @HEAD_1.
 func (u *Unit) planFilePath(rootWorkingDir, outputFolder, fileName string) string {
 	if outputFolder == "" {
 		return ""
@@ -346,6 +351,10 @@ func (u *Unit) planFilePath(rootWorkingDir, outputFolder, fileName string) strin
 	relPath, err := filepath.Rel(u.discoveryContext.WorkingDir, u.path)
 	if err != nil {
 		relPath = u.path
+	}
+
+	if ref := u.discoveryContext.Ref; ref != "" {
+		relPath = filepath.Join("@"+git.SanitizeRef(ref), relPath)
 	}
 
 	dir := filepath.Join(outputFolder, relPath)

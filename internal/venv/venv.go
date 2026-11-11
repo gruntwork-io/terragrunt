@@ -21,6 +21,7 @@ import (
 	"io"
 	"net"
 	"os"
+	ossignal "os/signal"
 	"runtime"
 
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
@@ -250,7 +251,7 @@ func OSVenv() *Venv {
 		Sops:    vsops.NewOSDecrypter(),
 		Browser: vbrowser.NewOSOpener(),
 		Listen:  (&net.ListenConfig{}).Listen,
-		Signals: signal.NotifierWithContext,
+		Signals: signal.NewNotifier(ossignal.Notify, ossignal.Stop),
 		Stdin:   os.Stdin,
 		Env:     ParseEnviron(os.Environ()),
 		Platform: &Platform{
@@ -260,15 +261,18 @@ func OSVenv() *Venv {
 			TempDir:        os.TempDir,
 			Getwd:          os.Getwd,
 			GetPID:         os.Getpid,
+			GetUID:         os.Getuid,
 			ReplaceEnviron: replaceOSEnviron,
 			GOOS:           runtime.GOOS,
 			GOARCH:         runtime.GOARCH,
 		},
 		Terminal: &Terminal{
-			StdinIsTTY:  func() bool { return term.IsTerminal(int(os.Stdin.Fd())) },
-			StdoutIsTTY: func() bool { return term.IsTerminal(int(os.Stdout.Fd())) },
-			StderrIsTTY: func() bool { return term.IsTerminal(int(os.Stderr.Fd())) },
-			Width:       osTerminalWidth,
+			StdinIsTTY:           func() bool { return term.IsTerminal(int(os.Stdin.Fd())) },
+			StdoutIsTTY:          func() bool { return term.IsTerminal(int(os.Stdout.Fd())) },
+			StderrIsTTY:          func() bool { return term.IsTerminal(int(os.Stderr.Fd())) },
+			StderrHandlesEscapes: osStderrHandlesEscapes,
+			Width:                osTerminalWidth,
+			ErrWidth:             osTerminalErrWidth,
 		},
 		Writers: &writer.Writers{Writer: os.Stdout, ErrWriter: os.Stderr},
 	}

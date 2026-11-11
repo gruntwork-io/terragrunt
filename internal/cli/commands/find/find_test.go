@@ -1,6 +1,7 @@
 package find_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"io"
@@ -11,7 +12,10 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/find"
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -520,7 +524,13 @@ locals {
 			r, w, err := os.Pipe()
 			require.NoError(t, err)
 
-			err = find.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), opts)
+			err = find.Run(
+				config.WithCaches(t.Context()),
+				l,
+				venvtest.NewOSWithEmptyEnv().WithWriter(w),
+				new(rewrite.Store),
+				opts,
+			)
 			if tt.format == "invalid" || tt.mode == "invalid" {
 				require.Error(t, err)
 				return
@@ -582,7 +592,7 @@ dependency "target" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	err = find.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), opts)
+	err = find.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), new(rewrite.Store), opts)
 	require.NoError(t, err)
 
 	require.NoError(t, w.Close())
@@ -696,8 +706,8 @@ exclude {
 
 	var buf strings.Builder
 
-	v := venvtest.New().WithFS(fsys).WithWriter(&buf)
-	require.NoError(t, find.Run(config.WithCaches(t.Context()), newTestLogger(t), v, opts))
+	v := venv.MemVenv().WithFS(fsys).WithWriter(&buf)
+	require.NoError(t, find.Run(config.WithCaches(t.Context()), newTestLogger(t), v, new(rewrite.Store), opts))
 
 	var found find.FoundComponents
 
@@ -735,8 +745,12 @@ func TestRunFailsWhenTheWriterFails(t *testing.T) {
 			opts := find.NewOptions(tgOpts)
 			opts.Format = tc.format
 
-			v := venvtest.New().WithFS(fsys).WithWriter(failingWriter{})
-			require.ErrorIs(t, find.Run(config.WithCaches(t.Context()), newTestLogger(t), v, opts), errWriteFailed)
+			v := venv.MemVenv().WithFS(fsys).WithWriter(failingWriter{})
+			require.ErrorIs(
+				t,
+				find.Run(config.WithCaches(t.Context()), newTestLogger(t), v, new(rewrite.Store), opts),
+				errWriteFailed,
+			)
 		})
 	}
 }
@@ -779,10 +793,61 @@ func TestRunRejectsUnsupportedOptions(t *testing.T) {
 
 			var buf strings.Builder
 
-			v := venvtest.New().WithFS(fsys).WithWriter(&buf)
+			v := venv.MemVenv().WithFS(fsys).WithWriter(&buf)
 
-			require.Error(t, find.Run(config.WithCaches(t.Context()), newTestLogger(t), v, opts))
+			require.Error(t, find.Run(config.WithCaches(t.Context()), newTestLogger(t), v, new(rewrite.Store), opts))
 			assert.Empty(t, buf.String())
+		})
+	}
+}
+
+// TestRunDiscoveryProgress checks that unit discovery is drawn with a reporter and prints the same units without one.
+func TestRunDiscoveryProgress(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		reported bool
+	}{
+		{name: "reporter on the context", reported: true},
+		{name: "plain context"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := "/find-progress"
+			fsys := venvtest.NewFS(t, root, map[string]string{
+				"unit1/terragrunt.hcl": "",
+				"unit2/terragrunt.hcl": "",
+			})
+
+			tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+			tgOpts.WorkingDir = root
+			tgOpts.RootWorkingDir = root
+
+			opts := find.NewOptions(tgOpts)
+			opts.Format = find.FormatText
+
+			l := newTestLogger(t)
+			term := new(bytes.Buffer)
+
+			ctx := t.Context()
+			if tc.reported {
+				ctx = spinner.ContextWithReporter(ctx, drawingReporter(term))
+			}
+
+			var buf strings.Builder
+
+			v := venv.MemVenv().WithFS(fsys).WithWriter(&buf)
+			require.NoError(t, find.Run(ctx, l, v, new(rewrite.Store), opts))
+
+			assert.Equal(t, "unit1\nunit2\n", buf.String(), "stdout is the same with and without a reporter")
+
+			if tc.reported {
+				assert.NotEmpty(t, term.String())
+			}
 		})
 	}
 }
@@ -839,8 +904,8 @@ exclude {
 
 	var buf strings.Builder
 
-	v := venvtest.New().WithFS(fsys).WithWriter(&buf)
-	require.NoError(t, find.Run(config.WithCaches(t.Context()), newTestLogger(t), v, opts))
+	v := venv.MemVenv().WithFS(fsys).WithWriter(&buf)
+	require.NoError(t, find.Run(config.WithCaches(t.Context()), newTestLogger(t), v, new(rewrite.Store), opts))
 
 	assert.Equal(t, []string{"kept", "plain"}, strings.Fields(buf.String()))
 }
@@ -960,8 +1025,8 @@ func TestRunFileDependency(t *testing.T) {
 
 			var buf strings.Builder
 
-			v := venvtest.New().WithFS(venvtest.NewFS(t, root, tc.files)).WithWriter(&buf)
-			require.NoError(t, find.Run(config.WithCaches(t.Context()), l, v, opts))
+			v := venv.MemVenv().WithFS(venvtest.NewFS(t, root, tc.files)).WithWriter(&buf)
+			require.NoError(t, find.Run(config.WithCaches(t.Context()), l, v, new(rewrite.Store), opts))
 
 			var found find.FoundComponents
 
@@ -969,4 +1034,14 @@ func TestRunFileDependency(t *testing.T) {
 			assert.Equal(t, tc.want, found)
 		})
 	}
+}
+
+// drawingReporter returns a reporter that draws its progress line on term from the start.
+func drawingReporter(term io.Writer) *spinner.Reporter {
+	v := venv.MemVenv().WithErrWriter(term).WithEnv(map[string]string{"TERM": "xterm"}).WithGOOS("linux")
+	v.Terminal.StderrIsTTY = func() bool { return true }
+	v.Terminal.StderrHandlesEscapes = func() bool { return true }
+	v.Terminal.ErrWidth = func() int { return 120 }
+
+	return spinner.New(v, spinner.Options{LogsForHumans: true})
 }

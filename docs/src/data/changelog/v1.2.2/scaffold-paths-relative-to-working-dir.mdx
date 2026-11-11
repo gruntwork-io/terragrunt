@@ -1,0 +1,12 @@
+---
+version: "v1.2.2"
+category: "bug-fixes"
+---
+
+#### `scaffold` resolves relative paths against the working directory
+
+`terragrunt scaffold --output-folder live/vpc` wrote into `live/vpc` under the directory the shell was in, not under `--working-dir`, and the same went for a relative `--var-file`. Both are now taken from the working directory, as the module URL already was. An absolute path is used as given.
+
+The warning that the directory being scaffolded into is not empty now inspects the output folder, since that is where the files land.
+
+A module named by a relative local path, such as `../modules/vpc`, is downloaded relative to the working directory but was written into the generated `terraform { source }` as typed, where the unit reads it relative to its own directory. The two agreed only when `--output-folder` was unset. The generated `source` is now written relative to the output folder, so the unit points at the module that was scaffolded from. Absolute paths and remote URLs are written as before.

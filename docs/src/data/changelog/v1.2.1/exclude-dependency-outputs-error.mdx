@@ -1,0 +1,16 @@
+---
+version: "v1.2.1"
+category: "bug-fixes"
+---
+
+#### `exclude` blocks that reference dependency outputs fail with a clear error
+
+An [`exclude`](/reference/hcl/blocks#exclude) block whose attributes referenced a dependency output, such as `if = dependency.vpc.outputs.skip`, never worked with `run --all`. Terragrunt evaluates the block while it builds the run queue, before any dependency has run, so it ignored the block with a warning and ran the unit anyway. Single unit runs read the output, so the same config behaved differently depending on the command.
+
+Terragrunt now rejects the config on every command:
+
+```text
+exclude block in /live/app/terragrunt.hcl cannot reference dependency outputs; exclude blocks are evaluated before dependencies run
+```
+
+Base the exclusion on a [feature flag](/reference/hcl/blocks#feature) or a local instead.

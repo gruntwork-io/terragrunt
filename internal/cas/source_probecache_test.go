@@ -84,13 +84,15 @@ func TestFetchSourceServesRecordedProbeWithinTTL(t *testing.T) {
 	var fetchCalls atomic.Int32
 
 	fetchOnce := func(c *cas.CAS) error {
-		return c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: filepath.Join(t.TempDir(), "dst")},
+		_, err := c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: filepath.Join(t.TempDir(), "dst")},
 			cas.SourceRequest{
 				Scheme:   "http",
 				URL:      redact.NewURL(probeCacheTestURL),
 				Resolver: resolver,
 				Fetch:    fakeFetcher(c, map[string]string{"main.tf": "# hello"}, &fetchCalls),
 			})
+
+		return err
 	}
 
 	first, err := cas.New(venvtest.NewWithOSFS(),
@@ -231,13 +233,15 @@ func TestFetchSourceRecordsNothingWithoutProbeCache(t *testing.T) {
 
 		var fetchCalls atomic.Int32
 
-		return c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: filepath.Join(t.TempDir(), "dst")},
+		_, err = c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: filepath.Join(t.TempDir(), "dst")},
 			cas.SourceRequest{
 				Scheme:   resolver.scheme,
 				URL:      redact.NewURL(probeCacheTestURL),
 				Resolver: resolver,
 				Fetch:    fakeFetcher(c, map[string]string{"main.tf": "# hello"}, &fetchCalls),
 			})
+
+		return err
 	}
 
 	require.NoError(t, fetch())
@@ -269,13 +273,15 @@ func fetchThroughNewCAS(
 
 	var fetchCalls atomic.Int32
 
-	return c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: filepath.Join(t.TempDir(), "dst")},
+	_, err = c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: filepath.Join(t.TempDir(), "dst")},
 		cas.SourceRequest{
 			Scheme:   resolver.scheme,
 			URL:      redact.NewURL(probeCacheTestURL),
 			Resolver: resolver,
 			Fetch:    fakeFetcher(c, map[string]string{"main.tf": "# hello"}, &fetchCalls),
 		})
+
+	return err
 }
 
 // TestFetchSourceOfflineRefusesRepair pins that a store missing an object
@@ -298,19 +304,20 @@ func TestFetchSourceOfflineRefusesRepair(t *testing.T) {
 	var fetchCalls atomic.Int32
 
 	files := map[string]string{"main.tf": "# hello"}
-	require.NoError(t, c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: filepath.Join(t.TempDir(), "dst1")},
+	_, err = c.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: filepath.Join(t.TempDir(), "dst1")},
 		cas.SourceRequest{
 			Scheme:   "http",
 			URL:      redact.NewURL(probeCacheTestURL),
 			Resolver: resolver,
 			Fetch:    fakeFetcher(c, files, &fetchCalls),
-		}))
+		})
+	require.NoError(t, err)
 	require.NoError(t, v.FS.Remove(storedBlobPath(t, c, v, key, "main.tf")))
 
 	offline, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath), cas.WithOffline())
 	require.NoError(t, err)
 
-	err = offline.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: filepath.Join(t.TempDir(), "dst2")},
+	_, err = offline.FetchSource(t.Context(), l, v, &cas.CloneOptions{Dir: filepath.Join(t.TempDir(), "dst2")},
 		cas.SourceRequest{
 			Scheme:   "http",
 			URL:      redact.NewURL(probeCacheTestURL),

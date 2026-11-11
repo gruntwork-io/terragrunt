@@ -11,10 +11,9 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/os/exec"
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -92,7 +91,7 @@ func TestRegisterGracefullyShutdownForwardsCancelCauseSignalWithRacing(t *testin
 
 	ctx, cancel := context.WithCancelCause(t.Context())
 
-	cmd := exec.Command(ctx, venvtest.New().WithExec(rec), "tofu", "apply")
+	cmd := exec.Command(ctx, venv.MemVenv().WithExec(rec), "tofu", "apply")
 
 	stopShutdown := cmd.RegisterGracefullyShutdown(ctx, logger.CreateLogger())
 	defer stopShutdown()
@@ -113,7 +112,7 @@ func TestRegisterGracefullyShutdownInterruptsWithoutSignalCauseWithRacing(t *tes
 
 	ctx, cancel := context.WithCancel(t.Context())
 
-	cmd := exec.Command(ctx, venvtest.New().WithExec(rec), "tofu", "apply")
+	cmd := exec.Command(ctx, venv.MemVenv().WithExec(rec), "tofu", "apply")
 	cmd.Configure(exec.WithForwardSignalDelay(time.Hour))
 
 	stopShutdown := cmd.RegisterGracefullyShutdown(ctx, logger.CreateLogger())
@@ -134,7 +133,7 @@ func TestForwardSignalSkipsTheDelayOnRepeatWithRacing(t *testing.T) {
 		rec := newSignalRecorder()
 		notified := make(chan signal.NotifyFunc, 1)
 
-		cmd := exec.Command(t.Context(), venvtest.New().WithExec(rec), "tofu", "apply")
+		cmd := exec.Command(t.Context(), venv.MemVenv().WithExec(rec), "tofu", "apply")
 		cmd.Configure(
 			exec.WithForwardSignalDelay(time.Hour),
 			exec.WithSignalNotifier(func(_ context.Context, notifyFn signal.NotifyFunc, _ ...os.Signal) {
@@ -161,7 +160,7 @@ func TestForwardSignalWaitsOutTheDelayWithRacing(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		rec := newSignalRecorder()
 
-		cmd := exec.Command(t.Context(), venvtest.New().WithExec(rec), "tofu", "apply")
+		cmd := exec.Command(t.Context(), venv.MemVenv().WithExec(rec), "tofu", "apply")
 		cmd.Configure(
 			exec.WithForwardSignalDelay(time.Minute),
 			exec.WithSignalNotifier(noopNotifier),
@@ -189,7 +188,7 @@ func TestForwardSignalNeverSignalsAfterTheContextIsDoneWithRacing(t *testing.T) 
 		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 
-		v := venvtest.New().WithExec(rec)
+		v := venv.MemVenv().WithExec(rec)
 
 		for range signalAttempts {
 			cmd := exec.Command(t.Context(), v, "tofu", "apply")
@@ -222,7 +221,7 @@ func TestForwardSignalStopsWhenTheCommandFinishesMidDelayWithRacing(t *testing.T
 
 		ctx, cancel := context.WithCancel(t.Context())
 
-		cmd := exec.Command(t.Context(), venvtest.New().WithExec(rec), "tofu", "apply")
+		cmd := exec.Command(t.Context(), venv.MemVenv().WithExec(rec), "tofu", "apply")
 		cmd.Configure(
 			exec.WithForwardSignalDelay(time.Minute),
 			exec.WithSignalNotifier(noopNotifier),

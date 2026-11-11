@@ -150,6 +150,21 @@ func TestConfig_ForcePathStyleClientSession(t *testing.T) {
 			config:   s3backend.Config{},
 			expected: false,
 		},
+		{
+			name:     "use-path-style-true",
+			config:   s3backend.Config{"use_path_style": true},
+			expected: true,
+		},
+		{
+			name:     "use-path-style-false",
+			config:   s3backend.Config{"use_path_style": false},
+			expected: false,
+		},
+		{
+			name:     "use-path-style-string-true",
+			config:   s3backend.Config{"use_path_style": "true"},
+			expected: true,
+		},
 	}
 
 	for _, tc := range testCases {

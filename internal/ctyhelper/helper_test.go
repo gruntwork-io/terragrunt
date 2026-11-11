@@ -71,6 +71,22 @@ func TestUpdateUnknownCtyValValues(t *testing.T) {
 			cty.ObjectVal(map[string]cty.Value{"key": cty.UnknownVal(cty.String)}),
 			cty.ObjectVal(map[string]cty.Value{"key": cty.StringVal("")}),
 		},
+		{
+			cty.ObjectVal(map[string]cty.Value{"key": cty.DynamicVal}),
+			cty.ObjectVal(map[string]cty.Value{"key": cty.StringVal("")}),
+		},
+		{
+			cty.ObjectVal(map[string]cty.Value{"key": cty.UnknownVal(cty.Bool)}),
+			cty.ObjectVal(map[string]cty.Value{"key": cty.NullVal(cty.Bool)}),
+		},
+		{
+			cty.ListVal([]cty.Value{cty.NumberIntVal(1), cty.UnknownVal(cty.Number)}),
+			cty.ListVal([]cty.Value{cty.NumberIntVal(1), cty.NullVal(cty.Number)}),
+		},
+		{
+			cty.MapVal(map[string]cty.Value{"key": cty.UnknownVal(cty.List(cty.Bool))}),
+			cty.MapVal(map[string]cty.Value{"key": cty.NullVal(cty.List(cty.Bool))}),
+		},
 	}
 
 	for i, tc := range testCases {
@@ -293,7 +309,7 @@ func TestParseCtyValueToMapMatchesJSONRoundTrip(t *testing.T) {
 		{
 			name: "nested marks",
 			value: cty.ObjectVal(map[string]cty.Value{
-				"secret": cty.StringVal("hunter2").Mark("sensitive"),
+				"secret": cty.StringVal("fake-password").Mark("sensitive"),
 				"list":   cty.ListVal([]cty.Value{cty.NumberIntVal(1).Mark("sensitive")}),
 			}),
 		},
@@ -340,11 +356,11 @@ func TestParseCtyValueToMapMatchesJSONRoundTrip(t *testing.T) {
 func TestParseCtyValueToMapUnmarksTopLevelValue(t *testing.T) {
 	t.Parallel()
 
-	value := cty.ObjectVal(map[string]cty.Value{"secret": cty.StringVal("hunter2")}).Mark("sensitive")
+	value := cty.ObjectVal(map[string]cty.Value{"secret": cty.StringVal("fake-password")}).Mark("sensitive")
 
 	result, err := ctyhelper.ParseCtyValueToMap(value)
 	require.NoError(t, err)
-	assert.Equal(t, map[string]any{"secret": "hunter2"}, result)
+	assert.Equal(t, map[string]any{"secret": "fake-password"}, result)
 }
 
 // FuzzParseCtyValueToMap pins that converting any value decoded from JSON gives

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -17,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -654,6 +656,83 @@ func TestProcessStackComponent_LocalSource_StackOutputDirIgnored(t *testing.T) {
 	)
 }
 
+// TestProcessStoredStackComponent_RewritesInPlaceFromTreeKey: the tree is rewritten in place, refs keyed by treeKey.
+func TestProcessStoredStackComponent_RewritesInPlaceFromTreeKey(t *testing.T) {
+	t.Parallel()
+
+	keyA := strings.Repeat("a", sha256.Size*2)
+	keyB := strings.Repeat("b", sha256.Size*2)
+
+	refA := storedServiceUnitCASRef(t, keyA)
+
+	assert.Regexp(t, `^cas::sha256:[0-9a-f]{64}`, refA)
+	assert.Equal(t, refA, storedServiceUnitCASRef(t, keyA), "one tree key must give one ref")
+	assert.NotEqual(t, refA, storedServiceUnitCASRef(t, keyB), "the ref must follow the tree key, not the content")
+}
+
+// TestProcessStoredStackComponent_WriteFailureIsRewriteIncomplete: a failed write after a rewrite is final.
+func TestProcessStoredStackComponent_WriteFailureIsRewriteIncomplete(t *testing.T) {
+	t.Parallel()
+
+	root := buildLocalStackFixture(t)
+	contentDir := filepath.Join(root, "stacks", "my-stack")
+
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(filepath.Join(helpers.TmpDirWOSymlinks(t), "store")))
+	require.NoError(t, err)
+
+	v := venvtest.NewOSWithEmptyEnv()
+	v.FS = &unwritableFS{FS: v.FS, path: filepath.Join(contentDir, "terragrunt.stack.hcl")}
+
+	_, err = c.ProcessStoredStackComponent(
+		t.Context(),
+		logger.CreateLogger(),
+		v,
+		root,
+		contentDir,
+		strings.Repeat("a", sha256.Size*2),
+	)
+	require.ErrorIs(t, err, cas.ErrRewriteIncomplete)
+	require.ErrorIs(t, err, errUnwritable)
+}
+
+// storedServiceUnitCASRef rewrites a fresh fixture tree in place under treeKey and returns the service unit source.
+func storedServiceUnitCASRef(t *testing.T, treeKey string) string {
+	t.Helper()
+
+	root := buildLocalStackFixture(t)
+
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(filepath.Join(helpers.TmpDirWOSymlinks(t), "store")))
+	require.NoError(t, err)
+
+	contentDir := filepath.Join(root, "stacks", "my-stack")
+
+	_, err = c.ProcessStoredStackComponent(
+		t.Context(),
+		logger.CreateLogger(),
+		venvtest.NewOSWithEmptyEnv(),
+		root,
+		contentDir,
+		treeKey,
+	)
+	require.NoError(t, err)
+
+	content, err := os.ReadFile(filepath.Join(contentDir, "terragrunt.stack.hcl"))
+	require.NoError(t, err)
+
+	_, blocks, err := cas.ReadStackBlocks(content)
+	require.NoError(t, err)
+
+	for _, b := range blocks {
+		if b.Name == serviceUnitName {
+			return b.Source
+		}
+	}
+
+	require.Failf(t, "unit not found", "no %q unit in the rewritten stack file", serviceUnitName)
+
+	return ""
+}
+
 // serviceUnitCASRef processes the stack in a fixture built by
 // buildLocalStackFixture and returns the rewritten source of its "service"
 // unit, using a store of its own so nothing is read from an earlier run.
@@ -1207,4 +1286,273 @@ stack "fn" {
 	assert.True(t, strings.HasPrefix(blocks[1].Source, cas.CASProtocolPrefix), "the stack must be rewritten")
 	assert.True(t, strings.HasPrefix(blocks[2].Source, cas.CASProtocolPrefix), "the injected unit must be rewritten")
 	assert.NotEqual(t, blocks[1].Source, blocks[2].Source)
+}
+
+// errUnwritable is returned by unwritableFS for a write to its path.
+var errUnwritable = errors.New("unwritable")
+
+// unwritableFS refuses to open its path for writing.
+type unwritableFS struct {
+	vfs.FS
+	path string
+}
+
+func (f *unwritableFS) OpenFile(name string, flag int, perm os.FileMode) (vfs.File, error) {
+	if name == f.path && flag&(os.O_WRONLY|os.O_RDWR) != 0 {
+		return nil, errUnwritable
+	}
+
+	return f.FS.OpenFile(name, flag, perm)
+}
+
+func TestProcessStackComponent_LocalSource_DisabledUnitNotRewritten(t *testing.T) {
+	t.Parallel()
+
+	root := buildLocalStackFixture(t)
+	stackFile := filepath.Join(root, "stacks", "my-stack", "terragrunt.stack.hcl")
+
+	content, err := os.ReadFile(stackFile)
+	require.NoError(t, err)
+
+	content = append(content, []byte(`
+unit "retired" {
+  source = "../..//units/retired"
+
+  update_source_with_cas = true
+
+  enabled = false
+
+  path = "retired"
+}
+`)...)
+	require.NoError(t, os.WriteFile(stackFile, content, 0o644))
+
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(filepath.Join(helpers.TmpDirWOSymlinks(t), "store")))
+	require.NoError(t, err)
+
+	result, err := c.ProcessStackComponent(
+		t.Context(),
+		logger.CreateLogger(),
+		venvtest.NewOSWithEmptyEnv(),
+		root+"//stacks/my-stack",
+		"stack",
+	)
+	require.NoError(t, err)
+
+	defer result.Cleanup()
+
+	rewritten, err := os.ReadFile(filepath.Join(result.ContentDir, "terragrunt.stack.hcl"))
+	require.NoError(t, err)
+
+	assert.Contains(t, string(rewritten), "cas::sha256:")
+	assert.Contains(t, string(rewritten), `"../..//units/retired"`)
+}
+
+func TestProcessStackComponent_LocalSource_SelfReferencingSourceFails(t *testing.T) {
+	t.Parallel()
+
+	root := helpers.TmpDirWOSymlinks(t)
+	stackDir := filepath.Join(root, "stacks", "loop")
+	require.NoError(t, os.MkdirAll(stackDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(stackDir, "terragrunt.stack.hcl"), []byte(`unit "self" {
+  source = "."
+
+  update_source_with_cas = true
+
+  path = "self"
+}
+`), 0o644))
+
+	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(filepath.Join(helpers.TmpDirWOSymlinks(t), "store")))
+	require.NoError(t, err)
+
+	_, err = c.ProcessStackComponent(
+		t.Context(),
+		logger.CreateLogger(),
+		venvtest.NewOSWithEmptyEnv(),
+		root+"//stacks/loop",
+		"stack",
+	)
+	require.ErrorIs(t, err, cas.ErrRewriteTooDeep)
+	require.ErrorIs(t, err, cas.ErrRewriteIncomplete)
+}
+
+func TestProcessStackComponent_LocalSource_ReportsSourcesInsideStack(t *testing.T) {
+	t.Parallel()
+
+	const unitConfig = "inputs = {}\n"
+
+	testCases := []struct {
+		files  map[string]string
+		name   string
+		subdir string
+		want   []cas.SourceInsideStack
+	}{
+		{
+			name: "stack at the root of its source",
+			files: map[string]string{
+				"terragrunt.stack.hcl": `unit "foo" {
+  source                 = "./units/foo"
+  update_source_with_cas = true
+  path                   = "foo"
+}
+`,
+				"units/foo/terragrunt.hcl": unitConfig,
+			},
+			want: []cas.SourceInsideStack{{
+				StackFile: "terragrunt.stack.hcl",
+				BlockType: "unit",
+				Name:      "foo",
+				Source:    "./units/foo",
+			}},
+		},
+		{
+			name: "unit inside a stack selected with a subdirectory",
+			files: map[string]string{
+				"stacks/bar/terragrunt.stack.hcl": `unit "foo" {
+  source                 = "./units/foo"
+  update_source_with_cas = true
+  path                   = "foo"
+}
+`,
+				"stacks/bar/units/foo/terragrunt.hcl": unitConfig,
+			},
+			subdir: "stacks/bar",
+			want: []cas.SourceInsideStack{{
+				StackFile: "stacks/bar/terragrunt.stack.hcl",
+				BlockType: "unit",
+				Name:      "foo",
+				Source:    "./units/foo",
+			}},
+		},
+		{
+			name: "unit inside a nested stack",
+			files: map[string]string{
+				"stacks/bar/terragrunt.stack.hcl": `stack "baz" {
+  source                 = "../baz"
+  update_source_with_cas = true
+  path                   = "baz"
+}
+`,
+				"stacks/baz/terragrunt.stack.hcl": `unit "foo" {
+  source                 = "./units/foo"
+  update_source_with_cas = true
+  path                   = "foo"
+}
+`,
+				"stacks/baz/units/foo/terragrunt.hcl": unitConfig,
+			},
+			subdir: "stacks/bar",
+			want: []cas.SourceInsideStack{{
+				StackFile: "stacks/baz/terragrunt.stack.hcl",
+				BlockType: "unit",
+				Name:      "foo",
+				Source:    "./units/foo",
+			}},
+		},
+		{
+			name: "stack inside a stack",
+			files: map[string]string{
+				"stacks/bar/terragrunt.stack.hcl": `stack "baz" {
+  source                 = "./baz"
+  update_source_with_cas = true
+  path                   = "baz"
+}
+`,
+				"stacks/bar/baz/terragrunt.stack.hcl": `unit "foo" {
+  source                 = "../../../units/foo"
+  update_source_with_cas = true
+  path                   = "foo"
+}
+`,
+				"units/foo/terragrunt.hcl": unitConfig,
+			},
+			subdir: "stacks/bar",
+			want: []cas.SourceInsideStack{{
+				StackFile: "stacks/bar/terragrunt.stack.hcl",
+				BlockType: "stack",
+				Name:      "baz",
+				Source:    "./baz",
+			}},
+		},
+		{
+			name: "unit outside the stack directory",
+			files: map[string]string{
+				"stacks/bar/terragrunt.stack.hcl": `unit "foo" {
+  source                 = "../../units/foo"
+  update_source_with_cas = true
+  path                   = "foo"
+}
+`,
+				"units/foo/terragrunt.hcl": unitConfig,
+			},
+			subdir: "stacks/bar",
+		},
+		{
+			name: "unit inside the stack directory without update_source_with_cas",
+			files: map[string]string{
+				"terragrunt.stack.hcl": `unit "foo" {
+  source = "./units/foo"
+  path   = "foo"
+}
+`,
+				"units/foo/terragrunt.hcl": unitConfig,
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := writeLocalFixture(t, tc.files)
+
+			source := root
+			if tc.subdir != "" {
+				source = root + "//" + tc.subdir
+			}
+
+			c, v := newCAS(t)
+
+			result, err := c.ProcessStackComponent(t.Context(), logger.CreateLogger(), v, source, "stack")
+			require.NoError(t, err)
+
+			defer result.Cleanup()
+
+			assert.Equal(t, tc.want, result.SourcesInsideStack)
+		})
+	}
+}
+
+func TestProcessStoredStackComponent_ReportsSourcesInsideStack(t *testing.T) {
+	t.Parallel()
+
+	root := writeLocalFixture(t, map[string]string{
+		"terragrunt.stack.hcl": `unit "foo" {
+  source                 = "./units/foo"
+  update_source_with_cas = true
+  path                   = "foo"
+}
+`,
+		"units/foo/terragrunt.hcl": "inputs = {}\n",
+	})
+
+	c, v := newCAS(t)
+
+	inside, err := c.ProcessStoredStackComponent(
+		t.Context(),
+		logger.CreateLogger(),
+		v,
+		root,
+		root,
+		strings.Repeat("foo", sha256.Size*2),
+	)
+	require.NoError(t, err)
+
+	assert.Equal(t, []cas.SourceInsideStack{{
+		StackFile: "terragrunt.stack.hcl",
+		BlockType: "unit",
+		Name:      "foo",
+		Source:    "./units/foo",
+	}}, inside)
 }

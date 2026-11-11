@@ -75,7 +75,7 @@ func newStackOutputsContext(
 ) (context.Context, *venv.Venv, *config.ParsingContext) {
 	t.Helper()
 
-	v := venvtest.New().WithFS(venvtest.NewFS(t, stackUnitOutputsRoot, files))
+	v := venv.MemVenv().WithFS(venvtest.NewFS(t, stackUnitOutputsRoot, files))
 
 	ctx, pctx := newTestParsingContext(t, filepath.Join(stackUnitOutputsRoot, "terragrunt.hcl"))
 

@@ -35,7 +35,7 @@ Using this command deletes the backend state file for the current Terragrunt uni
 
 For example, given the following `remote_state` block:
 
-<StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure']}>
+<StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure', 'GCP']}>
 <Fragment slot="aws">
 
 ```hcl
@@ -75,6 +75,24 @@ remote_state {
 ```
 
 Running `terragrunt backend delete` will delete the backend state blob located at `path/to/my/key` in the `tfstate` container of the `mytofustate` storage account.
+
+</Fragment>
+<Fragment slot="gcp">
+
+```hcl
+# terragrunt.hcl
+remote_state {
+  backend = "gcs"
+  config = {
+    project  = "my-project"
+    location = "us-central1"
+    bucket   = "my-tofu-state"
+    prefix   = "path/to/my/prefix"
+  }
+}
+```
+
+Running `terragrunt backend delete` will delete every object in the `my-tofu-state` bucket whose name starts with `path/to/my/prefix`. That includes the state of every workspace under the prefix.
 
 </Fragment>
 </StatefulTabs>

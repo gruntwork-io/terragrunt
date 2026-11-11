@@ -19,6 +19,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/portal"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -66,7 +67,7 @@ func Run(
 
 	return withSourceGuidance(Stream(
 		streamCtx, l, v.Writers.Writer, renderer,
-		newLoadFunc(l, v, opts, tempDirs, repoURL),
+		NewLoadFunc(l, v, opts, tempDirs, repoURL),
 	))
 }
 
@@ -121,12 +122,15 @@ func runTUI(
 
 	return tui.Run(
 		ctx, l, v, opts.TerragruntOptions, warnCh,
-		newLoadFunc(loadLogger, v, opts, tempDirs, repoURL),
+		NewLoadFunc(loadLogger, v, opts, tempDirs, repoURL),
 	)
 }
 
-// newLoadFunc returns the loader that every output format drives.
-func newLoadFunc(
+// NewLoadFunc returns the loader that sends each component it finds to the
+// channel it is given. It loads repoURL alone when one is given, and every
+// source discovery finds otherwise. The clones it keeps are recorded on
+// tempDirs, which the caller cleans up.
+func NewLoadFunc(
 	l log.Logger,
 	v *venv.Venv,
 	opts *Options,
@@ -136,6 +140,8 @@ func newLoadFunc(
 	return func(
 		ctx context.Context, status tui.StatusFunc, componentCh chan<- *tui.ComponentEntry,
 	) error {
+		ctx = spinner.ContextWithLogOnly(ctx)
+
 		if repoURL != "" {
 			status("Loading " + repoURL + "...")
 
@@ -157,8 +163,15 @@ func discoverAndLoad(
 
 	g, gctx := errgroup.WithContext(ctx)
 
+	var configErr error
+
 	g.Go(func() error {
-		return discoverCatalogConfigURLs(gctx, l, v, opts.TerragruntOptions, urlCh)
+		err := discoverCatalogConfigURLs(gctx, l, v, opts.TerragruntOptions, urlCh)
+		if gctx.Err() == nil {
+			configErr = err
+		}
+
+		return nil
 	})
 
 	g.Go(func() error {
@@ -229,12 +242,19 @@ func discoverAndLoad(
 		return fmt.Errorf("loading components: %w", err)
 	}
 
+	attempted := len(seen)
+
+	if configErr != nil && opts.UnreadableConfig == ReportUnreadableConfig {
+		failures = append(failures, tui.SourceFailure{URL: opts.ScaffoldRootFileName, Err: configErr})
+		attempted++
+	}
+
 	if len(failures) > 0 {
 		slices.SortFunc(failures, func(a, b tui.SourceFailure) int {
 			return strings.Compare(a.URL, b.URL)
 		})
 
-		return &tui.SourceLoadError{Failures: failures, Attempted: len(seen)}
+		return &tui.SourceLoadError{Failures: failures, Attempted: attempted}
 	}
 
 	if err := <-discoverErrCh; err != nil {
@@ -272,8 +292,11 @@ func dedupKey(repoURL string) string {
 	return strings.TrimSuffix(strings.TrimSuffix(key, "/"), ".git")
 }
 
-// discoverCatalogConfigURLs reads catalog URLs from the root config and
-// sends each to urlCh.
+// discoverCatalogConfigURLs reads catalog URLs from the root config and sends
+// each to urlCh.
+//
+// Returns the read error when the config has a `catalog` block that cannot be
+// read. [UnreadableConfig] decides what the load does with it.
 func discoverCatalogConfigURLs(
 	ctx context.Context,
 	l log.Logger,
@@ -286,7 +309,7 @@ func discoverCatalogConfigURLs(
 	catalogCfg, err := config.ReadCatalogConfig(ctx, l, v, pctx)
 	if err != nil {
 		l.Debugf("No catalog config found: %v", err)
-		return nil
+		return err
 	}
 
 	if catalogCfg == nil {

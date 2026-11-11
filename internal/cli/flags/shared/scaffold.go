@@ -2,17 +2,27 @@ package shared
 
 import (
 	"context"
+	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 const (
-	RootFileNameFlagName  = "root-file-name"
+	// RootFileNameFlagName is the flag name for `--root-file-name`, the file name of the root Terragrunt
+	// config that scaffolded units include.
+	RootFileNameFlagName = "root-file-name"
+	// NoIncludeRootFlagName is the flag name for `--no-include-root`, which leaves the root config include
+	// out of scaffolded units.
 	NoIncludeRootFlagName = "no-include-root"
-	NoShellFlagName       = "no-shell"
-	NoHooksFlagName       = "no-hooks"
+	// NoShellFlagName is the flag name for `--no-shell`, which turns off shell commands in boilerplate
+	// templates.
+	NoShellFlagName = "no-shell"
+	// NoHooksFlagName is the flag name for `--no-hooks`, which turns off hooks in boilerplate templates.
+	NoHooksFlagName = "no-hooks"
 )
 
 // NewScaffoldingFlags creates the flags shared between catalog and scaffold commands.
@@ -33,13 +43,13 @@ func NewScaffoldingFlags(opts *options.TerragruntOptions, prefix flags.Prefix) c
 					)
 				}
 
-				if value != opts.TerragruntConfigPath {
+				if filepath.Clean(value) != config.DefaultTerragruntConfigPath {
 					opts.ScaffoldRootFileName = value
 
 					return nil
 				}
 
-				if err := opts.StrictControls.FilterByNames("RootTerragruntHCL").
+				if err := opts.StrictControls.FilterByNames(controls.RootTerragruntHCL).
 					Evaluate(ctx); err != nil {
 					return clihelper.NewExitError(err, clihelper.ExitCodeGeneralError)
 				}

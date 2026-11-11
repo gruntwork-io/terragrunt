@@ -12,6 +12,8 @@ import (
 // Formatter implements logrus.Formatter.
 var _ log.Formatter = new(Formatter)
 
+// Formatter writes each log entry as one line built from its placeholders, which
+// [Formatter.SetFormat] or [Formatter.SetCustomFormat] replace.
 type Formatter struct {
 	relativePather *options.RelativePather
 	baseDir        string

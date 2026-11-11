@@ -49,24 +49,33 @@ import (
 )
 
 const (
+	// TerraformFolder is the OpenTofu/Terraform data directory name.
 	TerraformFolder = ".terraform"
 
+	// TerraformState is the local state file name.
 	TerraformState = "terraform.tfstate"
 
+	// TerraformRemoteStateS3Region is the AWS region for S3 remote state in tests.
 	TerraformRemoteStateS3Region = "us-west-2"
 
+	// TerraformStateBackup is the local state backup file name.
 	TerraformStateBackup = "terraform.tfstate.backup"
-	TerragruntCache      = ".terragrunt-cache"
+	// TerragruntCache is the Terragrunt download directory name.
+	TerragruntCache = ".terragrunt-cache"
 
+	// TerraformBinary is the Terraform executable name.
 	TerraformBinary = "terraform"
-	TofuBinary      = "tofu"
+	// TofuBinary is the OpenTofu executable name.
+	TofuBinary = "tofu"
 
+	// TerragruntDebugFile is the inputs file that --inputs-debug writes.
 	TerragruntDebugFile = "terragrunt-debug.tfvars.json"
 
 	// TestFixtureOutDir is the out-dir fixture path. It duplicates testFixtureOutDir in the test package for now,
 	// but the two might diverge later.
 	TestFixtureOutDir = "fixtures/out-dir"
 
+	// ReportFile is the run report file name.
 	ReportFile = "report.json"
 
 	readPermissions      = 0o444
@@ -103,6 +112,7 @@ func CleanupContext(t *testing.T) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.WithoutCancel(t.Context()), cleanupTimeout)
 }
 
+// TerraformOutput is one output in the JSON that `tofu output -json` prints.
 type TerraformOutput struct {
 	Type      any  `json:"Type"`
 	Value     any  `json:"Value"`
@@ -116,6 +126,9 @@ func nestUnder(root, path string) string {
 	return filepath.Join(root, strings.TrimPrefix(path, filepath.VolumeName(path)))
 }
 
+// CopyEnvironment copies the fixture at environmentPath into a new temporary directory and returns that
+// directory. The copy sits at environmentPath beneath it and leaves out .terraform, .terragrunt-cache, and
+// terragrunt-debug.tfvars.json. includeInCopy lists glob patterns to copy even when they are hidden.
 func CopyEnvironment(t *testing.T, environmentPath string, includeInCopy ...string) string {
 	t.Helper()
 
@@ -148,6 +161,8 @@ func CopyEnvironment(t *testing.T, environmentPath string, includeInCopy ...stri
 	return tmpDir
 }
 
+// CreateTmpTerragruntConfig copies configFileName from templatesPath into a new temporary directory, filling in
+// s3BucketName and lockTableName, and returns the path of the copy.
 func CreateTmpTerragruntConfig(
 	t *testing.T,
 	templatesPath string,
@@ -173,6 +188,8 @@ func CreateTmpTerragruntConfig(
 	return tmpTerragruntConfigFile
 }
 
+// CreateTmpTerragruntConfigContent writes contents to a read-only file named configFileName in a new temporary
+// directory and returns the file's path.
 func CreateTmpTerragruntConfigContent(t *testing.T, contents string, configFileName string) string {
 	t.Helper()
 
@@ -186,6 +203,8 @@ func CreateTmpTerragruntConfigContent(t *testing.T, contents string, configFileN
 	return tmpTerragruntConfigFile
 }
 
+// CopyTerragruntConfigAndFillPlaceholders copies configSrcPath to configDestPath, filling in the bucket, lock
+// table, region, and logs bucket placeholders. The logs bucket is s3BucketName with a -tf-state-logs suffix.
 func CopyTerragruntConfigAndFillPlaceholders(
 	t *testing.T,
 	configSrcPath string,
@@ -204,6 +223,8 @@ func CopyTerragruntConfigAndFillPlaceholders(
 	})
 }
 
+// CopyAndFillMapPlaceholders copies srcPath to a read-only destPath, replacing each key of placeholders with
+// its value.
 func CopyAndFillMapPlaceholders(
 	t *testing.T,
 	srcPath string,
@@ -389,7 +410,10 @@ func cleanS3Bucket(t *testing.T, ctx context.Context, client *s3.Client, bucketN
 		}
 
 		for i := range out.DeleteMarkers {
-			objects = append(objects, s3types.ObjectIdentifier{Key: out.DeleteMarkers[i].Key, VersionId: out.DeleteMarkers[i].VersionId})
+			objects = append(
+				objects,
+				s3types.ObjectIdentifier{Key: out.DeleteMarkers[i].Key, VersionId: out.DeleteMarkers[i].VersionId},
+			)
 		}
 
 		deleted, err := client.DeleteObjects(ctx, &s3.DeleteObjectsInput{
@@ -416,6 +440,7 @@ func cleanS3Bucket(t *testing.T, ctx context.Context, client *s3.Client, bucketN
 	}
 }
 
+// FileIsInFolder reports whether a file or directory called name exists anywhere under path.
 func FileIsInFolder(t *testing.T, name string, path string) bool {
 	t.Helper()
 
@@ -435,6 +460,9 @@ func FileIsInFolder(t *testing.T, name string, path string) bool {
 	return found
 }
 
+// RunValidateAllWithIncludeAndGetIncludedModules runs `terragrunt run --all validate` in rootModulePath with a
+// --queue-include-dir for each of includeModulePaths, and returns the sorted paths of the units it did not
+// exclude.
 func RunValidateAllWithIncludeAndGetIncludedModules(
 	t *testing.T,
 	rootModulePath string,
@@ -488,6 +516,9 @@ func RunValidateAllWithIncludeAndGetIncludedModules(
 	return includedModules
 }
 
+// RunValidateAllWithFilteredPlusDependenciesAndGetIncludedModules runs `terragrunt run --all validate` in
+// workDir with a `--filter '{unit}...'` for each of units, and returns the sorted paths of the units it did not
+// exclude.
 func RunValidateAllWithFilteredPlusDependenciesAndGetIncludedModules(
 	t *testing.T,
 	workDir string,
@@ -541,6 +572,7 @@ func RunValidateAllWithFilteredPlusDependenciesAndGetIncludedModules(
 	return includedModules
 }
 
+// GetPathRelativeTo returns path relative to basePath.
 func GetPathRelativeTo(t *testing.T, path string, basePath string) string {
 	t.Helper()
 
@@ -550,6 +582,7 @@ func GetPathRelativeTo(t *testing.T, path string, basePath string) string {
 	return relPath
 }
 
+// GetPathsRelativeTo returns each of paths relative to basePath.
 func GetPathsRelativeTo(t *testing.T, basePath string, paths []string) []string {
 	t.Helper()
 
@@ -565,6 +598,7 @@ func GetPathsRelativeTo(t *testing.T, basePath string, paths []string) []string 
 	return relPaths
 }
 
+// FakeProvider is a provider that [FakeProvider.CreateMirror] writes into a provider mirror.
 type FakeProvider struct {
 	RegistryName string
 	Namespace    string
@@ -588,6 +622,8 @@ func (provider *FakeProvider) filename() string {
 	return fmt.Sprintf("terraform-provider-%s_v%s_x5", provider.Name, provider.Version)
 }
 
+// CreateMirror adds the provider to the mirror at rootDir: an entry in index.json and <version>.json, and a zip
+// archive holding a 10 MB placeholder binary.
 func (provider *FakeProvider) CreateMirror(t *testing.T, rootDir string) {
 	t.Helper()
 
@@ -702,6 +738,7 @@ func marshalFile(t *testing.T, filename string, dest any) {
 	require.NoError(t, err)
 }
 
+// ValidateOutput asserts that outputs has an output named key whose value is value.
 func ValidateOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value any) {
 	t.Helper()
 
@@ -882,6 +919,7 @@ func IsNativeS3LockingSupported(t *testing.T) bool {
 	return major > tofuRequiredMajor || (major == tofuRequiredMajor && minor >= tofuRequiredMinor)
 }
 
+// FindFilesWithExtension returns the paths of the files under dir whose extension, dot included, is ext.
 func FindFilesWithExtension(dir string, ext string) ([]string, error) {
 	var files []string
 
@@ -900,6 +938,8 @@ func FindFilesWithExtension(dir string, ext string) ([]string, error) {
 	return files, err
 }
 
+// CleanupTerraformFolder removes the state file, its backup, terragrunt-debug.tfvars.json, and .terraform from
+// templatesPath.
 func CleanupTerraformFolder(t *testing.T, templatesPath string) {
 	t.Helper()
 
@@ -909,12 +949,14 @@ func CleanupTerraformFolder(t *testing.T, templatesPath string) {
 	RemoveFolder(t, filepath.Join(templatesPath, TerraformFolder))
 }
 
+// CleanupTerragruntFolder removes .terragrunt-cache from templatesPath.
 func CleanupTerragruntFolder(t *testing.T, templatesPath string) {
 	t.Helper()
 
 	RemoveFolder(t, filepath.Join(templatesPath, TerragruntCache))
 }
 
+// RemoveFile removes the file at path. A missing file is not an error.
 func RemoveFile(t *testing.T, path string) {
 	t.Helper()
 
@@ -923,6 +965,7 @@ func RemoveFile(t *testing.T, path string) {
 	}
 }
 
+// RemoveFolder removes path and everything under it.
 func RemoveFolder(t *testing.T, path string) {
 	t.Helper()
 
@@ -948,6 +991,9 @@ func RunVenv(t *testing.T) *venv.Venv {
 		WithUserCacheDir(func() (string, error) { return cacheDir, nil })
 }
 
+// RunTerragruntCommandWithContext runs the `terragrunt ...` command line in-process under ctx, writing stdout to
+// writer and stderr to errwriter. The run gets its own [RunVenv], and logs in key-value format unless command
+// sets a log format.
 func RunTerragruntCommandWithContext(
 	t *testing.T,
 	ctx context.Context,
@@ -1048,6 +1094,7 @@ func runTerragruntCommandWithVenv(
 	return app.RunContext(ctx, l, v, args)
 }
 
+// RunTerragruntCommand is [RunTerragruntCommandWithContext] under the test's context.
 func RunTerragruntCommand(
 	t *testing.T,
 	command string,
@@ -1073,12 +1120,14 @@ func RunTerragruntVersionCommand(
 	return runTerragruntCommand(t, t.Context(), ver, command, writer, errwriter)
 }
 
+// RunTerragrunt runs command with output on the process's stdout and stderr, and fails the test on error.
 func RunTerragrunt(t *testing.T, command string) {
 	t.Helper()
 
 	RunTerragruntRedirectOutput(t, command, os.Stdout, os.Stderr)
 }
 
+// LogBufferContentsLineByLine logs out one line at a time, under label.
 func LogBufferContentsLineByLine(t *testing.T, out bytes.Buffer, label string) {
 	t.Helper()
 	t.Logf("[%s] Full contents of %s:", t.Name(), label)
@@ -1089,6 +1138,8 @@ func LogBufferContentsLineByLine(t *testing.T, out bytes.Buffer, label string) {
 	}
 }
 
+// RunTerragruntCommandWithOutputWithContext runs command under ctx, logs its output, and returns its stdout and
+// stderr.
 func RunTerragruntCommandWithOutputWithContext(
 	t *testing.T,
 	ctx context.Context,
@@ -1105,6 +1156,7 @@ func RunTerragruntCommandWithOutputWithContext(
 	return stdout.String(), stderr.String(), err
 }
 
+// RunTerragruntCommandWithOutput is [RunTerragruntCommandWithOutputWithContext] under the test's context.
 func RunTerragruntCommandWithOutput(t *testing.T, command string) (string, string, error) {
 	t.Helper()
 
@@ -1130,6 +1182,8 @@ func RunTerragruntCommandWithOutputWithVenv(
 	return stdout.String(), stderr.String(), err
 }
 
+// RunTerragruntRedirectOutput runs command, writing stdout to writer and stderr to errwriter, and fails the test
+// on error. The failure message includes the output of whichever writers are [bytes.Buffer] values.
 func RunTerragruntRedirectOutput(
 	t *testing.T,
 	command string,
@@ -1160,6 +1214,7 @@ func RunTerragruntRedirectOutput(
 	}
 }
 
+// CreateEmptyStateFile creates an empty terraform.tfstate in testPath.
 func CreateEmptyStateFile(t *testing.T, testPath string) {
 	t.Helper()
 
@@ -1169,6 +1224,9 @@ func CreateEmptyStateFile(t *testing.T, testPath string) {
 	require.NoError(t, file.Close())
 }
 
+// RunTerragruntValidateInputs runs `terragrunt hcl validate --inputs` with extraArgs on a copy of moduleDir, or
+// of its module subdirectory when it has one. It asserts the run succeeds when isSuccessTest is set and fails
+// otherwise.
 func RunTerragruntValidateInputs(
 	t *testing.T,
 	moduleDir string,
@@ -1202,6 +1260,9 @@ func RunTerragruntValidateInputs(
 	}
 }
 
+// CreateTmpTerragruntConfigWithParentAndChild copies the parent config in parentPath and the child config at
+// childRelPath beneath it into a new temporary directory, filling in s3BucketName, and returns the path of the
+// child copy.
 func CreateTmpTerragruntConfigWithParentAndChild(
 	t *testing.T,
 	parentPath string,
@@ -1243,6 +1304,8 @@ func CreateTmpTerragruntConfigWithParentAndChild(
 	return childTerragruntDestPath
 }
 
+// IsTerragruntProviderCacheEnabled reports whether TG_PROVIDER_CACHE or TERRAGRUNT_PROVIDER_CACHE is set to
+// true. It fails the test when either holds a value that is not a boolean.
 func IsTerragruntProviderCacheEnabled(t *testing.T) bool {
 	t.Helper()
 

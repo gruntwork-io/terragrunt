@@ -9,16 +9,21 @@ import (
 	"runtime/debug"
 	"slices"
 	"strings"
+	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/panicreport"
 	"github.com/gruntwork-io/terragrunt/internal/providercache"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -64,6 +69,8 @@ const (
 	MainCommandsCategoryName = "Main commands"
 	// CatalogCommandsCategoryName represents commands for managing Terragrunt catalogs.
 	CatalogCommandsCategoryName = "Catalog commands"
+	// PortalCommandsCategoryName represents commands for the Gruntwork Developer Portal.
+	PortalCommandsCategoryName = "Gruntwork Developer Portal commands"
 	// DiscoveryCommandsCategoryName represents commands for discovering Terragrunt configurations.
 	DiscoveryCommandsCategoryName = "Discovery commands"
 	// ConfigurationCommandsCategoryName represents commands for managing Terragrunt configurations.
@@ -76,18 +83,19 @@ const (
 const (
 	mainCommandsOrder = iota + 1
 	catalogCommandsOrder
+	portalCommandsOrder
 	discoveryCommandsOrder
 	configurationCommandsOrder
 	shortcutsCommandsOrder
 )
 
 // New returns the set of Terragrunt commands, grouped into categories.
-func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.Commands {
+func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *rewrite.Store) clihelper.Commands {
 	mainCommands := clihelper.Commands{
-		runcmd.NewCommand(l, opts, v),  // run
-		stack.NewCommand(l, opts, v),   // stack
-		execcmd.NewCommand(l, opts, v), // exec
-		backend.NewCommand(l, opts, v), // backend
+		runcmd.NewCommand(l, opts, v, s),  // run
+		stack.NewCommand(l, opts, v, s),   // stack
+		execcmd.NewCommand(l, opts, v),    // exec
+		backend.NewCommand(l, opts, v, s), // backend
 	}.SetCategory(
 		&clihelper.Category{
 			Name:  MainCommandsCategoryName,
@@ -98,7 +106,6 @@ func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.
 	catalogCommands := clihelper.Commands{
 		catalog.NewCommand(l, opts, v),  // catalog
 		scaffold.NewCommand(l, opts, v), // scaffold
-		login.NewCommand(l, opts, v),    // login
 	}.SetCategory(
 		&clihelper.Category{
 			Name:  CatalogCommandsCategoryName,
@@ -106,10 +113,19 @@ func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.
 		},
 	)
 
+	portalCommands := clihelper.Commands{
+		login.NewCommand(l, opts, v), // login
+	}.SetCategory(
+		&clihelper.Category{
+			Name:  PortalCommandsCategoryName,
+			Order: portalCommandsOrder,
+		},
+	)
+
 	discoveryCommands := clihelper.Commands{
-		find.NewCommand(l, opts, v),   // find
-		list.NewCommand(l, opts, v),   // list
-		browse.NewCommand(l, opts, v), // browse
+		find.NewCommand(l, opts, v, s),   // find
+		list.NewCommand(l, opts, v, s),   // list
+		browse.NewCommand(l, opts, v, s), // browse
 	}.SetCategory(
 		&clihelper.Category{
 			Name:  DiscoveryCommandsCategoryName,
@@ -118,14 +134,14 @@ func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.
 	)
 
 	configurationCommands := clihelper.Commands{
-		hcl.NewCommand(l, opts, v),              // hcl
-		info.NewCommand(l, opts, v),             // info
-		dag.NewCommand(l, opts, v),              // dag
-		render.NewCommand(l, opts, v),           // render
-		mcpcmd.NewCommand(l, opts, v),           // mcp
-		helpcmd.NewCommand(l, opts),             // help (hidden)
-		versioncmd.NewCommand(),                 // version (hidden)
-		awsproviderpatch.NewCommand(l, opts, v), // aws-provider-patch (hidden)
+		hcl.NewCommand(l, opts, v, s),              // hcl
+		info.NewCommand(l, opts, v, s),             // info
+		dag.NewCommand(l, opts, v, s),              // dag
+		render.NewCommand(l, opts, v, s),           // render
+		mcpcmd.NewCommand(l, opts, v),              // mcp
+		helpcmd.NewCommand(l, opts),                // help (hidden)
+		versioncmd.NewCommand(),                    // version (hidden)
+		awsproviderpatch.NewCommand(l, opts, v, s), // aws-provider-patch (hidden)
 	}.SetCategory(
 		&clihelper.Category{
 			Name:  ConfigurationCommandsCategoryName,
@@ -133,7 +149,7 @@ func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.
 		},
 	)
 
-	shortcutsCommands := NewShortcutsCommands(l, opts, v).SetCategory(
+	shortcutsCommands := NewShortcutsCommands(l, opts, v, s).SetCategory(
 		&clihelper.Category{
 			Name:  ShortcutsCommandsCategoryName,
 			Order: shortcutsCommandsOrder,
@@ -142,12 +158,16 @@ func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.
 
 	allCommands := mainCommands.
 		Merge(catalogCommands...).
+		Merge(portalCommands...).
 		Merge(discoveryCommands...).
 		Merge(configurationCommands...).
 		Merge(shortcutsCommands...)
 
 	return allCommands
 }
+
+// telemetryShutdownTimeout limits how long the telemetry flush can delay exit.
+const telemetryShutdownTimeout = 30 * time.Second
 
 // WrapWithTelemetry wraps CLI command execution with telemetry initialization,
 // context setting and labels. If telemetry is disabled, just runs the command.
@@ -178,8 +198,12 @@ func WrapWithTelemetry(
 			return err
 		}
 
+		// Flush even after an interrupt cancels ctx, but do not wait forever.
 		defer func() {
-			if err := telemeter.Shutdown(ctx); err != nil {
+			shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), telemetryShutdownTimeout)
+			defer cancel()
+
+			if err := telemeter.Shutdown(shutdownCtx); err != nil {
 				if _, writeErr := cliCtx.App.ErrWriter.Write([]byte(err.Error())); writeErr != nil {
 					l.Debugf("Failed to report telemetry shutdown error %v: %v", err, writeErr)
 				}
@@ -188,14 +212,10 @@ func WrapWithTelemetry(
 
 		ctx = telemetry.ContextWithTelemeter(ctx, telemeter)
 
-		cmdName := fmt.Sprintf(
-			"%s %s", cliCtx.Command.Name, opts.TerraformCommand,
-		)
+		resolveErr := resolveWorkingDir(v, opts)
 
-		return telemeter.Collect(ctx, l, cmdName, map[string]any{
-			"terraformCommand": opts.TerraformCommand,
-			"args":             opts.TerraformCliArgs,
-			"dir":              opts.WorkingDir,
+		return telemeter.Collect(ctx, l, cliCtx.Command.Name, map[string]any{
+			"dir": opts.WorkingDir,
 		}, func(childCtx context.Context, l log.Logger) error {
 			// Engines emit telemetry during shutdown, so stop them while the
 			// command span is still open (and before the telemeter's deferred
@@ -213,9 +233,15 @@ func WrapWithTelemetry(
 				}
 			}()
 
+			if resolveErr != nil {
+				return resolveErr
+			}
+
 			if err := initialSetup(cliCtx, l, v, opts); err != nil {
 				return err
 			}
+
+			setCommandSpanAttributes(childCtx, cliCtx, opts)
 
 			if err := RunAction(childCtx, cliCtx, l, opts, v, action); err != nil {
 				opts.Tips.Find(tips.DebuggingDocs).Evaluate(l)
@@ -323,6 +349,15 @@ func RunAction(
 	// [github.com/gruntwork-io/terragrunt/internal/git.GoRepoRoot] and
 	// the version probes below share state across the whole action.
 	actionCtx := cache.ContextWithCache(ctx)
+
+	if opts.Experiments.Evaluate(experiment.SlowTaskReporting) {
+		reporter := newProgressReporter(l, opts, v)
+		actionCtx = spinner.ContextWithReporter(actionCtx, reporter)
+
+		if reporter.Animated() {
+			defer guardTerminal(l, v, reporter)()
+		}
+	}
 
 	// Set up automatic provider caching if enabled
 	if !opts.NoAutoProviderCacheDir {
@@ -529,6 +564,36 @@ func setupAutoProviderCacheDir(
 	return nil
 }
 
+// resolveWorkingDir makes opts.WorkingDir a clean absolute path, using the
+// current directory when it is unset.
+func resolveWorkingDir(v *venv.Venv, opts *options.TerragruntOptions) error {
+	if opts.WorkingDir == "" {
+		currentDir, err := v.Platform.Getwd()
+		if err != nil {
+			return err
+		}
+
+		opts.WorkingDir = filepath.Clean(currentDir)
+
+		return nil
+	}
+
+	if filepath.IsAbs(opts.WorkingDir) {
+		opts.WorkingDir = filepath.Clean(opts.WorkingDir)
+
+		return nil
+	}
+
+	workingDir, err := filepath.Abs(opts.WorkingDir)
+	if err != nil {
+		return err
+	}
+
+	opts.WorkingDir = filepath.Clean(workingDir)
+
+	return nil
+}
+
 // mostly preparing terragrunt options
 func initialSetup(
 	cliCtx *clihelper.Context,
@@ -554,27 +619,8 @@ func initialSetup(
 		args = append(args, tf.FlagNameNoColor)
 	}
 
-	opts.TerraformCommand = cmdName
+	opts.TofuCommand = cmdName
 	opts.TerraformCliArgs = iacargs.New(args...)
-
-	// --- Working Dir
-	if opts.WorkingDir == "" {
-		currentDir, err := v.Platform.Getwd()
-		if err != nil {
-			return err
-		}
-
-		opts.WorkingDir = currentDir
-	} else if !filepath.IsAbs(opts.WorkingDir) {
-		workingDir, err := filepath.Abs(opts.WorkingDir)
-		if err != nil {
-			return err
-		}
-
-		opts.WorkingDir = workingDir
-	}
-
-	opts.WorkingDir = filepath.Clean(opts.WorkingDir)
 
 	l = l.WithField(placeholders.WorkDirKeyName, opts.WorkingDir)
 
@@ -685,7 +731,7 @@ func initialSetup(
 	}
 
 	opts.OriginalTerragruntConfigPath = opts.TerragruntConfigPath
-	opts.OriginalTerraformCommand = opts.TerraformCliArgs.CommandName(opts.TerraformCommand)
+	opts.OriginalTofuCommand = opts.TerraformCliArgs.CommandName(opts.TofuCommand)
 	opts.OriginalIAMRoleOptions = opts.IAMRoleOptions
 
 	if !exec.PrepareConsole(l) {
@@ -694,4 +740,65 @@ func initialSetup(
 	}
 
 	return nil
+}
+
+// newProgressReporter returns a reporter that draws only next to text logs at info level or lower.
+func newProgressReporter(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *spinner.Reporter {
+	textLogs := !opts.JSONLogFormat && !l.Formatter().DisabledOutput()
+
+	return spinner.New(v, spinner.Options{
+		Threshold:     spinner.DefaultThreshold,
+		LogsForHumans: textLogs && l.Level() >= log.InfoLevel,
+	})
+}
+
+// guardTerminal wraps the logger, stderr and stdout around the progress line and returns a function that unwraps them.
+func guardTerminal(l log.Logger, v *venv.Venv, reporter *spinner.Reporter) func() {
+	writers := v.Writers
+	restoreLogger := reporter.GuardLogger(l)
+
+	v.Writers = writers.WithErrWriter(reporter.Guard(writers.ErrWriter))
+	if v.Terminal.StdoutIsTTY() {
+		v.Writers = v.Writers.WithWriter(reporter.Guard(writers.Writer))
+	}
+
+	return func() {
+		v.Writers = writers
+
+		restoreLogger()
+	}
+}
+
+// setCommandSpanAttributes records on the command span the tofu command and
+// arguments that initialSetup resolves, for a command that runs OpenTofu/Terraform.
+func setCommandSpanAttributes(ctx context.Context, cliCtx *clihelper.Context, opts *options.TerragruntOptions) {
+	span := trace.SpanFromContext(ctx)
+	if !span.IsRecording() {
+		return
+	}
+
+	if !runsTofu(cliCtx) || opts.TofuCommand == "" {
+		return
+	}
+
+	span.SetAttributes(
+		attribute.String("tofu_command", opts.TofuCommand),
+		attribute.StringSlice("args", opts.TerraformCliArgs.Slice()),
+	)
+}
+
+// runsTofu reports whether cliCtx is a command that passes its arguments to
+// OpenTofu/Terraform: run, stack run, a subcommand of run, or a shortcut.
+func runsTofu(cliCtx *clihelper.Context) bool {
+	if cliCtx.Command.Name == runcmd.CommandName {
+		return true
+	}
+
+	if cliCtx.Command.Category != nil && cliCtx.Command.Category.Name == ShortcutsCommandsCategoryName {
+		return true
+	}
+
+	parent := cliCtx.Parent().Command
+
+	return parent != nil && parent.Name == runcmd.CommandName
 }

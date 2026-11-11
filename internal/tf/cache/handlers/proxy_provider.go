@@ -2,11 +2,9 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
-	"path"
-	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/helpers"
@@ -20,8 +18,10 @@ import (
 const (
 	// ProviderDownloadURLName, ProviderSHASumsURLName and ProviderSHASumsSignatureURLName name the three URLs of a
 	// provider's assets: zipped binary, hashes and signature.
-	ProviderDownloadURLName         providerURLName = "download_url"
-	ProviderSHASumsURLName          providerURLName = "shasums_url"
+	ProviderDownloadURLName providerURLName = "download_url"
+	// ProviderSHASumsURLName is the platform response field with the URL of the SHA256SUMS document.
+	ProviderSHASumsURLName providerURLName = "shasums_url"
+	// ProviderSHASumsSignatureURLName is the platform response field with the URL of the SHA256SUMS signature.
 	ProviderSHASumsSignatureURLName providerURLName = "shasums_signature_url"
 )
 
@@ -36,11 +36,13 @@ var (
 
 type providerURLName string
 
+// ProxyProviderHandler forwards provider requests to the registry and rewrites the asset URLs in its answers to point back at the cache server.
 type ProxyProviderHandler struct {
 	*CommonProviderHandler
 	*helpers.ReverseProxy
 }
 
+// NewProxyProviderHandler returns a handler that sends requests over the transport of c and authenticates to registries with credsSource.
 func NewProxyProviderHandler(
 	l log.Logger,
 	c vhttp.Client,
@@ -73,52 +75,25 @@ func (handler *ProxyProviderHandler) GetPlatform(
 		return err
 	}
 
-	platformURL := &url.URL{
-		Scheme: schemeHTTPS,
-		Host:   provider.RegistryName,
-		Path: path.Join(
-			apiURLs.ProvidersV1,
-			provider.Namespace,
-			provider.Name,
-			provider.Version,
-			"download",
-			provider.OS,
-			provider.Arch,
-		),
+	platformURL, err := ResolveProviderURL(apiURLs.ProvidersV1, provider.RegistryName,
+		provider.Namespace, provider.Name, provider.Version, "download", provider.OS, provider.Arch)
+	if err != nil {
+		return err
 	}
 
 	return handler.ReverseProxy.
 		WithModifyResponse(func(resp *http.Response) error {
-			return modifyDownloadURLsInJSONBody(resp, downloaderController)
+			return modifyDownloadURLsInJSONBody(resp, platformURL, downloaderController)
 		}).
 		NewRequest(w, r, platformURL)
 }
 
-// Download streams the provider archive from its registry. A bare file name
-// in the provider's download URL is resolved against the registry's providers
-// endpoint.
-func (handler *ProxyProviderHandler) Download(w router.ResponseWriter, r *http.Request, provider *models.Provider) error {
-	if !strings.Contains(provider.DownloadURL, "://") {
-		apiURLs, err := handler.DiscoveryURL(r.Context(), provider.RegistryName)
-		if err != nil {
-			return err
-		}
-
-		downloadURL := &url.URL{
-			Scheme: schemeHTTPS,
-			Host:   provider.RegistryName,
-			Path: filepath.Join(
-				apiURLs.ProvidersV1,
-				provider.RegistryName,
-				provider.Namespace,
-				provider.Name,
-				provider.DownloadURL,
-			),
-		}
-
-		return handler.NewRequest(w, r, downloadURL)
-	}
-
+// Download streams the provider archive from the absolute download URL of provider.
+func (handler *ProxyProviderHandler) Download(
+	w router.ResponseWriter,
+	r *http.Request,
+	provider *models.Provider,
+) error {
 	downloadURL, err := url.Parse(provider.DownloadURL)
 	if err != nil {
 		return err
@@ -127,9 +102,10 @@ func (handler *ProxyProviderHandler) Download(w router.ResponseWriter, r *http.R
 	return handler.NewRequest(w, r, downloadURL)
 }
 
-// modifyDownloadURLsInJSONBody modifies the response to redirect the download URLs to the local server.
+// modifyDownloadURLsInJSONBody points the download URLs of the response at the local server.
 func modifyDownloadURLsInJSONBody(
 	resp *http.Response,
+	platformURL *url.URL,
 	downloaderController router.Controller,
 ) error {
 	var data map[string]json.RawMessage
@@ -137,31 +113,58 @@ func modifyDownloadURLsInJSONBody(
 	return helpers.ModifyJSONBody(resp, &data, func() error {
 		for _, name := range providerURLNames {
 			linkBytes, ok := data[string(name)]
-			if !ok || linkBytes == nil {
+			if !ok {
 				continue
 			}
 
-			link := string(linkBytes)
+			var link string
+			if err := json.Unmarshal(linkBytes, &link); err != nil {
+				return fmt.Errorf("decoding %s in the provider platform response: %w", name, err)
+			}
 
-			link, err := strconv.Unquote(link)
+			if link == "" {
+				continue
+			}
+
+			linkURL, err := models.ResolveRelativeReference(platformURL, link)
+			if err != nil {
+				return fmt.Errorf("resolving %s in the provider platform response: %w", name, err)
+			}
+
+			rewritten, err := json.Marshal(downloadLink(downloaderController.URL(), linkURL))
 			if err != nil {
 				return err
 			}
 
-			linkURL, err := url.Parse(link)
-			if err != nil {
-				return err
-			}
-
-			// Modify link to http://{localhost_host}/downloads/provider/{remote_host}/{remote_path}
-			linkURL.Path = path.Join(downloaderController.URL().Path, linkURL.Host, linkURL.Path)
-			linkURL.Scheme = downloaderController.URL().Scheme
-			linkURL.Host = downloaderController.URL().Host
-
-			link = strconv.Quote(linkURL.String())
-			data[string(name)] = []byte(link)
+			data[string(name)] = rewritten
 		}
 
 		return nil
 	})
+}
+
+// downloadLink points remote at downloader as {scheme}/{host}{path}, escaping the path again and keeping user info.
+func downloadLink(downloader, remote *url.URL) string {
+	segments := strings.Split(remote.EscapedPath(), "/")
+	for i, segment := range segments {
+		if segment == "." || segment == ".." {
+			segments[i] = strings.Repeat("%2E", len(segment))
+
+			continue
+		}
+
+		segments[i] = strings.ReplaceAll(segment, "%", "%25")
+	}
+
+	remotePath := strings.ReplaceAll(strings.Join(segments, "/"), "//", "/%2F")
+
+	local := *downloader
+	local.User = remote.User
+
+	link := local.JoinPath(remote.Scheme, remote.Host).String() + remotePath
+	if remote.RawQuery != "" {
+		link += "?" + remote.RawQuery
+	}
+
+	return link
 }

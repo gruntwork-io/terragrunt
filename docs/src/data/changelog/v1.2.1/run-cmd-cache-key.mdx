@@ -1,0 +1,10 @@
+---
+version: "v1.2.1"
+category: "bug-fixes"
+---
+
+#### `run_cmd` results are cached per environment and exact arguments
+
+A `run_cmd` call in a file shared via `read_terragrunt_config` returned the first unit's output to every unit, even when `--auth-provider-cmd` gave each unit different credentials. `run_cmd("printf", "%s|", "x y")` and `run_cmd("printf", "%s|", "x", "y")` also shared one cached result.
+
+Terragrunt now caches each result per environment and exact arguments, so every unit gets the output its own credentials produce.

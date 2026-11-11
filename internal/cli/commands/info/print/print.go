@@ -11,8 +11,9 @@ import (
 
 	"errors"
 
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/discoverysetup"
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
@@ -33,10 +34,17 @@ const (
 	lineJSON
 )
 
-func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
+// Run prints the context of the unit at opts.TerragruntConfigPath as an
+// indented JSON [InfoOutput]. With
+// opts.RunAll set, it prints one JSON line per discovered unit, using the
+// options `run --all` would give that unit.
+//
+// A unit whose config or source fails to prepare still prints the context
+// known so far, and Run returns nil for it.
+func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, opts *options.TerragruntOptions) error {
 	// If --all flag is set, use discovery to find all units and print info for each one
 	if opts.RunAll {
-		return runAll(ctx, l, v, opts)
+		return runAll(ctx, l, v, s, opts)
 	}
 
 	return runPrint(ctx, l, v, opts, prettyJSON)
@@ -88,16 +96,16 @@ func runAll(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	opts *options.TerragruntOptions,
 ) error {
-	d := discovery.NewDiscovery(opts.WorkingDir)
+	units, cleanupWorktrees, err := discoverysetup.Units(ctx, l, v, s, opts)
 
-	components, err := d.Discover(ctx, l, v, opts)
+	defer cleanupWorktrees(ctx)
+
 	if err != nil {
 		return err
 	}
-
-	units := components.Filter(component.UnitKind).Sort()
 
 	var errs []error
 
@@ -157,7 +165,7 @@ func printTerragruntContext(
 		DownloadDir:      opts.DownloadDir,
 		IAMRole:          opts.IAMRoleOptions.RoleARN,
 		TerraformBinary:  opts.TFPath,
-		TerraformCommand: opts.TerraformCommand,
+		TerraformCommand: opts.TofuCommand,
 		WorkingDir:       opts.WorkingDir,
 	}
 

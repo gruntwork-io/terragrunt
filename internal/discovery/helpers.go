@@ -161,7 +161,7 @@ func componentFromDependencyPath(
 	path string,
 	components *component.ThreadSafeComponents,
 ) component.Component {
-	if existing := components.FindByPath(fsys, path); existing != nil {
+	if existing := components.FindByPath(path); existing != nil {
 		return existing
 	}
 
@@ -276,7 +276,7 @@ func sanitizeReadFiles(files []string) []string {
 // extractDependencyPaths extracts all dependency paths from a Terragrunt
 // configuration, sorted and deduplicated.
 func extractDependencyPaths(
-	fsys vfs.FS,
+	paths *vfs.PathResolver,
 	cfg *config.TerragruntConfig,
 	c component.Component,
 ) ([]string, error) {
@@ -284,56 +284,36 @@ func extractDependencyPaths(
 		return nil, nil
 	}
 
-	maxDedupLen := len(cfg.TerragruntDependencies)
-	if cfg.Dependencies != nil {
-		maxDedupLen += len(cfg.Dependencies.Paths)
-	}
+	configPaths, unresolved := cfg.DependencyPaths()
 
-	depPaths := make([]string, 0, maxDedupLen)
+	depPaths := make([]string, 0, len(configPaths))
 
-	errs := make([]error, 0, maxDedupLen)
-
-	for _, dependency := range cfg.TerragruntDependencies {
-		if dependency.Enabled != nil && !*dependency.Enabled {
-			continue
-		}
-
-		if !config.IsValidConfigPath(dependency.ConfigPath) {
-			errs = append(errs, fmt.Errorf(
-				"skipping dependency %q in %q: "+
-					"config_path could not be resolved",
-				dependency.Name, c.Path()))
-
-			continue
-		}
-
-		depPath := dependency.ConfigPath.AsString()
+	for _, depPath := range configPaths {
 		if !filepath.IsAbs(depPath) {
 			depPath = filepath.Clean(filepath.Join(c.Path(), depPath))
 		}
 
-		depPaths = append(depPaths, vfs.ResolveForCompare(fsys, depPath))
-	}
-
-	if cfg.Dependencies != nil {
-		for _, dependency := range cfg.Dependencies.Paths {
-			if !filepath.IsAbs(dependency) {
-				dependency = filepath.Clean(filepath.Join(c.Path(), dependency))
-			}
-
-			depPaths = append(depPaths, vfs.ResolveForCompare(fsys, dependency))
-		}
+		depPaths = append(depPaths, paths.Resolve(depPath))
 	}
 
 	slices.Sort(depPaths)
 
 	depPaths = slices.Compact(depPaths)
 
-	if len(errs) > 0 {
-		return depPaths, errors.Join(errs...)
+	if len(unresolved) == 0 {
+		return depPaths, nil
 	}
 
-	return depPaths, nil
+	errs := make([]error, 0, len(unresolved))
+
+	for _, name := range unresolved {
+		errs = append(errs, fmt.Errorf(
+			"skipping dependency %q in %q: "+
+				"config_path could not be resolved",
+			name, c.Path()))
+	}
+
+	return depPaths, errors.Join(errs...)
 }
 
 // storeStackConfigs parses each discovered stack's config file and stores the

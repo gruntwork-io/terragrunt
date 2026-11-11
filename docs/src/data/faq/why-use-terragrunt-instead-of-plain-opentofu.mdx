@@ -20,7 +20,7 @@ Per-unit state also makes least-privilege practical. Because each unit has its o
 
 ## Making module reuse explicit
 
-A unit points at one module through its [`terraform` block](/reference/hcl/blocks#terraform) and supplies inputs. The fact that this is the lowest friction way to use Terragrunt is an advantage by design. There is a persistent temptation to write new infrastructure by hand, and to quietly bolt one more resource onto a root module that was supposed to be a clean instantiation of a shared pattern. When instantiating a module is the easiest thing to do, reuse is explicit, and drift from the pattern shows up in review.
+A unit points at one module through its [`terraform` block](/reference/hcl/blocks/terraform/) and supplies inputs. The fact that this is the lowest friction way to use Terragrunt is an advantage by design. There is a persistent temptation to write new infrastructure by hand, and to quietly bolt one more resource onto a root module that was supposed to be a clean instantiation of a shared pattern. When instantiating a module is the easiest thing to do, reuse is explicit, and drift from the pattern shows up in review.
 
 ## Dependencies between units
 
@@ -66,7 +66,7 @@ Large runs fail for boring reasons: rate limits, eventual consistency, an API ha
 
 ## Authentication that differs by context
 
-Terragrunt can acquire credentials as part of a run rather than expecting them to already exist in the environment. It can [assume an IAM role](/features/units/authentication/) via `--iam-assume-role` or the `iam_role` attribute, including through OIDC. For anything more involved, [`--auth-provider-cmd`](/features/units/authentication/) runs a program of your choosing to produce credentials at runtime, which is how you give different units, accounts, and pipeline stages different roles: a read-only role on pull requests and a read-write role on merge, for example.
+Terragrunt can acquire credentials as part of a run rather than expecting them to already exist in the environment. It can [assume an IAM role](/features/units/authentication/aws/) via `--iam-assume-role` or the `iam_role` attribute, including through OIDC. For anything more involved, [`--auth-provider-cmd`](/features/units/authentication/#auth-provider-command) runs a program of your choosing to produce credentials at runtime, which is how you give different units, accounts, and pipeline stages different roles: a read-only role on pull requests and a read-write role on merge, for example.
 
 ## Caching
 

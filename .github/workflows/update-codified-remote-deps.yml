@@ -21,18 +21,7 @@ jobs:
 
       - name: Check for update
         id: check
-        run: |
-          LATEST_COMMIT=$(git ls-remote https://github.com/gruntwork-io/terragrunt-infrastructure-live-stacks-example.git HEAD | awk '{print $1}')
-          CURRENT_COMMIT=$(grep -oP 'git", "checkout", "\K[0-9a-f]{40}' test/integration_example_live_stacks_test.go)
-
-          echo "latest=$LATEST_COMMIT" >> "$GITHUB_OUTPUT"
-          echo "current=$CURRENT_COMMIT" >> "$GITHUB_OUTPUT"
-
-          if [[ "$LATEST_COMMIT" == "$CURRENT_COMMIT" ]]; then
-            echo "needs_update=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "needs_update=true" >> "$GITHUB_OUTPUT"
-          fi
+        run: .github/scripts/update-codified-remote-deps/check-live-stacks-example.sh
 
       - name: Update commit hash
         if: steps.check.outputs.needs_update == 'true'
@@ -57,4 +46,102 @@ jobs:
             - `${{ steps.check.outputs.latest }}`
 
             [Compare changes](https://github.com/gruntwork-io/terragrunt-infrastructure-live-stacks-example/compare/${{ steps.check.outputs.current }}...${{ steps.check.outputs.latest }})
+          labels: automated
+
+  opentofu:
+    permissions:
+      contents: write
+      pull-requests: write
+    name: OpenTofu Version
+    runs-on: ubuntu-slim
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+
+      - name: Set up mise
+        uses: jdx/mise-action@8418fedb1110381a0d3ba51a7a415d7c1b884550 # v5.2.2
+        with:
+          version: 2026.11.0
+          install: false
+          cache: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check for update
+        id: check
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: .github/scripts/update-codified-remote-deps/check-opentofu.sh
+
+      - name: Update version
+        if: steps.check.outputs.needs_update == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LATEST_VERSION: ${{ steps.check.outputs.latest }}
+        run: |
+          mise lock "opentofu@$LATEST_VERSION"
+
+      - name: Create pull request
+        if: steps.check.outputs.needs_update == 'true'
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v7
+        with:
+          sign-commits: true
+          branch: chore/update-opentofu-version
+          commit-message: 'chore: Bump OpenTofu to `v${{ steps.check.outputs.latest }}`'
+          title: 'chore: Bump OpenTofu to `v${{ steps.check.outputs.latest }}`'
+          body: |
+            Bumps the OpenTofu version in `mise.toml` and `mise.lock` from `v${{ steps.check.outputs.current }}` to `v${{ steps.check.outputs.latest }}`.
+
+            [Release notes](https://github.com/opentofu/opentofu/releases/tag/v${{ steps.check.outputs.latest }})
+
+            For a new minor version, add it to `docs/src/data/compatibility/compatibility.json` before merging.
+          labels: automated
+
+  terraform:
+    permissions:
+      contents: write
+      pull-requests: write
+    name: Terraform Version
+    runs-on: ubuntu-slim
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+
+      - name: Set up mise
+        uses: jdx/mise-action@8418fedb1110381a0d3ba51a7a415d7c1b884550 # v5.2.2
+        with:
+          version: 2026.11.0
+          install: false
+          cache: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check for update
+        id: check
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: .github/scripts/update-codified-remote-deps/check-terraform.sh
+
+      - name: Update version
+        if: steps.check.outputs.needs_update == 'true'
+        env:
+          CURRENT_VERSION: ${{ steps.check.outputs.current }}
+          LATEST_VERSION: ${{ steps.check.outputs.latest }}
+        run: |
+          sed -i "s/${CURRENT_VERSION//./\\.}/$LATEST_VERSION/g" .github/scripts/setup/terraform-switch-latest.sh
+
+      - name: Create pull request
+        if: steps.check.outputs.needs_update == 'true'
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v7
+        with:
+          sign-commits: true
+          branch: chore/update-terraform-version
+          commit-message: 'chore: Bump Terraform to `v${{ steps.check.outputs.latest }}`'
+          title: 'chore: Bump Terraform to `v${{ steps.check.outputs.latest }}`'
+          body: |
+            Bumps the Terraform version used by `.github/scripts/setup/terraform-switch-latest.sh` from `v${{ steps.check.outputs.current }}` to `v${{ steps.check.outputs.latest }}`.
+
+            [Release notes](https://github.com/hashicorp/terraform/releases/tag/v${{ steps.check.outputs.latest }})
+
+            For a new minor version, add it to `docs/src/data/compatibility/compatibility.json` before merging.
           labels: automated

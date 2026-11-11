@@ -13,8 +13,8 @@ import (
 
 	"errors"
 
-	"github.com/gruntwork-io/terragrunt/internal/component"
-	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/discoverysetup"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -27,9 +27,13 @@ import (
 
 const defaultKeyParts = 2
 
-func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
+// Run prepares and initializes the unit at opts.WorkingDir, then overwrites the
+// attributes in opts.AwsProviderPatchOverrides in every provider "aws" block of
+// the modules that init downloaded. With opts.RunAll set, it patches every
+// discovered unit instead.
+func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, opts *options.TerragruntOptions) error {
 	if opts.RunAll {
-		return runAll(ctx, l, v, opts)
+		return runAll(ctx, l, v, s, opts)
 	}
 
 	return runSingle(ctx, l, v, opts)
@@ -70,16 +74,16 @@ func runAll(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	opts *options.TerragruntOptions,
 ) error {
-	d := discovery.NewDiscovery(opts.WorkingDir)
+	units, cleanupWorktrees, err := discoverysetup.Units(ctx, l, v, s, opts)
 
-	components, err := d.Discover(ctx, l, v, opts)
+	defer cleanupWorktrees(ctx)
+
 	if err != nil {
 		return err
 	}
-
-	units := components.Filter(component.UnitKind).Sort()
 
 	var errs []error
 
@@ -169,6 +173,9 @@ type TerraformModulesJSON struct {
 	Modules []TerraformModule `json:"Modules"`
 }
 
+// TerraformModule is one entry of the Modules list in
+// .terraform/modules/modules.json, naming a module call and the directory init
+// downloaded its source into.
 type TerraformModule struct {
 	Key    string `json:"Key"`
 	Source string `json:"Source"`

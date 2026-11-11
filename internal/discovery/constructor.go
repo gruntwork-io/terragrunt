@@ -35,8 +35,8 @@ type DiscoveryCommandOptions struct {
 	WithRelationships bool
 }
 
-// HCLCommandOptions contains options for HCL commands like hcl validate & format.
-type HCLCommandOptions struct {
+// FilteredOptions contains options for [NewFiltered].
+type FilteredOptions struct {
 	WorkingDir        string
 	DiscoveryBoundary string
 	Filters           filter.Filters
@@ -133,8 +133,12 @@ func NewForDiscoveryCommand(l log.Logger, fsys vfs.FS, opts *DiscoveryCommandOpt
 	return d, nil
 }
 
-// NewForHCLCommand creates a Discovery configured for HCL commands (hcl validate/format).
-func NewForHCLCommand(l log.Logger, fsys vfs.FS, opts HCLCommandOptions) (*Discovery, error) {
+// NewFiltered creates a Discovery that selects the components opts.Filters
+// match, within opts.DiscoveryBoundary when it is set.
+//
+// Returns a [DiscoveryBoundaryDirError] or [DiscoveryBoundaryScopeError] when
+// opts.DiscoveryBoundary is not a directory the filters can use.
+func NewFiltered(l log.Logger, fsys vfs.FS, opts FilteredOptions) (*Discovery, error) {
 	d := NewDiscovery(opts.WorkingDir)
 
 	if len(opts.Filters) > 0 {

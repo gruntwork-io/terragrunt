@@ -38,6 +38,10 @@ type Control interface {
 
 	// Evaluate evaluates the strict control.
 	Evaluate(ctx context.Context) error
+
+	// WarnDetail logs detail, one occurrence of what the control guards, the first time the
+	// control sees it. It logs nothing when the control is enabled or its warning is suppressed.
+	WarnDetail(l log.Logger, detail string)
 }
 
 // Controls are multiple of Controls.

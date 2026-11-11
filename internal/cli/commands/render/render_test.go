@@ -3,12 +3,17 @@ package render_test
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/render"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
+	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -33,8 +38,7 @@ func TestRenderJSON_Basic(t *testing.T) {
 	err := render.Run(
 		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
-		venvtest.NewOSWithEmptyEnv().WithWriter(&outputBuffer),
-		opts,
+		venvtest.NewOSWithEmptyEnv().WithWriter(&outputBuffer), new(rewrite.Store), opts,
 	)
 	require.NoError(t, err)
 
@@ -61,8 +65,7 @@ func TestRenderJSON_WithMetadata(t *testing.T) {
 	err := render.Run(
 		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
-		venvtest.NewOSWithEmptyEnv().WithWriter(&outputBuffer),
-		opts,
+		venvtest.NewOSWithEmptyEnv().WithWriter(&outputBuffer), new(rewrite.Store), opts,
 	)
 	require.NoError(t, err)
 
@@ -88,8 +91,7 @@ func TestRenderJSON_WriteToFile(t *testing.T) {
 	err := render.Run(
 		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
-		venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard),
-		opts,
+		venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard), new(rewrite.Store), opts,
 	)
 	require.NoError(t, err)
 
@@ -151,8 +153,7 @@ func TestRenderWriteWithoutOutputPath(t *testing.T) {
 			err := render.Run(
 				config.WithCaches(t.Context()),
 				logger.CreateLogger(),
-				venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard),
-				opts,
+				venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard), new(rewrite.Store), opts,
 			)
 			require.NoError(t, err)
 
@@ -229,8 +230,7 @@ func renderToFilePerm(t *testing.T, format, outputPath string) os.FileMode {
 	err := render.Run(
 		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
-		venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard),
-		opts,
+		venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard), new(rewrite.Store), opts,
 	)
 	require.NoError(t, err)
 
@@ -249,8 +249,7 @@ func TestRenderJSON_InvalidFormat(t *testing.T) {
 	err := render.Run(
 		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
-		venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard),
-		opts,
+		venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard), new(rewrite.Store), opts,
 	)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid format")
@@ -267,8 +266,7 @@ func TestRenderJSON_HCLFormat(t *testing.T) {
 	err := render.Run(
 		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
-		venvtest.NewOSWithEmptyEnv().WithWriter(&renderedBuffer),
-		opts,
+		venvtest.NewOSWithEmptyEnv().WithWriter(&renderedBuffer), new(rewrite.Store), opts,
 	)
 	require.NoError(t, err)
 
@@ -289,8 +287,7 @@ func TestRenderJSON_NumberOutOfRange(t *testing.T) {
 	err := render.Run(
 		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
-		venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard),
-		opts,
+		venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard), new(rewrite.Store), opts,
 	)
 
 	var diags hcl.Diagnostics
@@ -299,6 +296,131 @@ func TestRenderJSON_NumberOutOfRange(t *testing.T) {
 	require.Len(t, diags, 1)
 	assert.Equal(t, "Number out of range", diags[0].Summary)
 	assert.Equal(t, 6, diags[0].Subject.Start.Line)
+}
+
+func TestRenderAllFilter(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+
+	for _, name := range []string{"a", "b"} {
+		unitDir := filepath.Join(tmpDir, name)
+		require.NoError(t, os.MkdirAll(unitDir, 0755))
+		require.NoError(t, os.WriteFile(
+			filepath.Join(unitDir, "terragrunt.hcl"),
+			[]byte(`inputs = { name = "`+name+`" }`+"\n"),
+			0644,
+		))
+	}
+
+	tgOptions, err := options.NewTerragruntOptionsForTest(filepath.Join(tmpDir, "terragrunt.hcl"))
+	require.NoError(t, err)
+
+	l := logger.CreateLogger()
+
+	tgOptions.WorkingDir = tmpDir
+	tgOptions.RunAll = true
+	tgOptions.Filters, err = filter.ParseFilterQueries(l, []string{"a"})
+	require.NoError(t, err)
+
+	opts := render.NewOptions(tgOptions)
+	opts.Format = render.FormatHCL
+
+	var outputBuffer bytes.Buffer
+
+	err = render.Run(
+		config.WithCaches(t.Context()),
+		l,
+		venvtest.NewOSWithEmptyEnv().WithWriter(&outputBuffer), new(rewrite.Store), opts,
+	)
+	require.NoError(t, err)
+
+	assert.Equal(t, "inputs = {\n  name = \"a\"\n}\n", outputBuffer.String())
+}
+
+func TestRenderAllDiscoveryBoundaryMustExist(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+
+	tgOptions, err := options.NewTerragruntOptionsForTest(filepath.Join(tmpDir, "terragrunt.hcl"))
+	require.NoError(t, err)
+
+	tgOptions.WorkingDir = tmpDir
+	tgOptions.RunAll = true
+	tgOptions.DiscoveryBoundary = filepath.Join(tmpDir, "missing")
+
+	err = render.Run(
+		config.WithCaches(t.Context()),
+		logger.CreateLogger(),
+		venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), render.NewOptions(tgOptions),
+	)
+
+	var boundaryErr discovery.DiscoveryBoundaryDirError
+
+	require.ErrorAs(t, err, &boundaryErr)
+}
+
+func TestRenderAllGitFilterReadsUnchangedIncludes(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+	runner := helpers.InitTestGitRunner(t, tmpDir)
+
+	unitDir := filepath.Join(tmpDir, "a")
+	unitPath := filepath.Join(unitDir, "terragrunt.hcl")
+	unitConfig := func(name string) []byte {
+		return []byte(`include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+
+inputs = { name = "` + name + `" }
+`)
+	}
+
+	require.NoError(t, os.MkdirAll(unitDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "root.hcl"), []byte(`inputs = { env = "prod" }`+"\n"), 0644))
+	require.NoError(t, os.WriteFile(unitPath, unitConfig("before"), 0644))
+	require.NoError(t, runner.Add(t.Context(), "."))
+	require.NoError(t, runner.Commit(t.Context(), "Add unit"))
+
+	require.NoError(t, os.WriteFile(unitPath, unitConfig("after"), 0644))
+	require.NoError(t, runner.Add(t.Context(), "."))
+	require.NoError(t, runner.Commit(t.Context(), "Change unit"))
+
+	l := logger.CreateLogger()
+
+	tgOptions, err := options.NewTerragruntOptionsForTest(filepath.Join(tmpDir, "terragrunt.hcl"))
+	require.NoError(t, err)
+
+	tgOptions.WorkingDir = tmpDir
+	tgOptions.RunAll = true
+	tgOptions.Filters, err = filter.ParseFilterQueries(l, []string{"[HEAD~1...HEAD]"})
+	require.NoError(t, err)
+
+	opts := render.NewOptions(tgOptions)
+	opts.Format = render.FormatJSON
+
+	var outputBuffer bytes.Buffer
+
+	require.NoError(t, render.Run(
+		config.WithCaches(t.Context()),
+		l,
+		venvtest.NewOSWithEmptyEnv().WithWriter(&outputBuffer), new(rewrite.Store), opts,
+	))
+
+	var rendered struct {
+		Inputs map[string]string `json:"inputs"`
+	}
+
+	require.NoError(t, json.Unmarshal(outputBuffer.Bytes(), &rendered))
+	assert.Equal(t, map[string]string{"env": "prod", "name": "after"}, rendered.Inputs)
+
+	worktrees, err := os.ReadDir(filepath.Join(tmpDir, ".git", "worktrees"))
+	if !errors.Is(err, fs.ErrNotExist) {
+		require.NoError(t, err)
+		assert.Empty(t, worktrees, "render removes the worktrees it checked out")
+	}
 }
 
 // setupTest writes config to a terragrunt.hcl in a fresh temporary directory

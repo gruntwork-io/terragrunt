@@ -1,0 +1,159 @@
+---
+title: Stacks
+description: Learn how to configure a Terragrunt stack in a terragrunt.stack.hcl file
+slug: reference/hcl/stacks
+sidebar:
+  order: 6
+---
+
+import FileTree from '@components/vendored/starlight/FileTree.astro';
+import HclItemTable from '@components/HclItemTable.astro';
+
+A [stack](/getting-started/terminology#stack) is a directory of units. A `terragrunt.stack.hcl` file in the stack's directory defines the units for Terragrunt to generate: where each unit's configuration comes from, where in the stack it goes, and the values it receives. For an introduction to stacks, see the [Stacks](/features/stacks) guide.
+
+## Unit and stack blocks
+
+A `unit` block generates a unit. A `stack` block generates a nested stack, whose own `terragrunt.stack.hcl` file generates more units:
+
+```hcl title="terragrunt.stack.hcl" {1,6}
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = "vpc"
+}
+
+stack "dev" {
+  source = "../catalog/stacks/environment"
+  path   = "dev"
+}
+```
+
+Running `terragrunt stack generate` creates:
+
+<FileTree>
+
+- terragrunt.stack.hcl
+- .terragrunt-stack
+  - vpc
+    - **terragrunt.hcl** from `unit "vpc"`
+  - dev
+    - **terragrunt.stack.hcl** from `stack "dev"`
+    - .terragrunt-stack
+      - vpc
+        - terragrunt.hcl
+      - database
+        - terragrunt.hcl
+
+</FileTree>
+
+Use a `stack` block for a group of units you deploy more than once, e.g. one per environment.
+
+## Generating units
+
+[`terragrunt stack generate`](/reference/cli/commands/stack/generate) writes the units and stacks that a `terragrunt.stack.hcl` file defines, by default under a `.terragrunt-stack` directory. [`stack run`](/reference/cli/commands/stack/run) and `run --all` generate them before they run, so `terragrunt stack run apply` generates and deploys a stack in one step.
+
+A generated unit is an ordinary unit configuration, and Terragrunt reads it as if you had written it.
+
+## Examples
+
+### Passing values to units
+
+```hcl title="terragrunt.stack.hcl"
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = "vpc"
+  values = {
+    vpc_name = "main"
+    cidr     = "10.0.0.0/16"
+  }
+}
+
+unit "database" {
+  source = "../catalog/units/database"
+  path   = "database"
+  values = {
+    engine   = "postgres"
+    version  = "13"
+    vpc_path = "../vpc"
+  }
+}
+```
+
+Terragrunt writes each unit's `values` to a `terragrunt.values.hcl` file next to its `terragrunt.hcl` file:
+
+<FileTree>
+
+- terragrunt.stack.hcl
+- .terragrunt-stack
+  - vpc
+    - terragrunt.hcl
+    - **terragrunt.values.hcl**
+  - database
+    - terragrunt.hcl
+    - **terragrunt.values.hcl**
+
+</FileTree>
+
+The unit's `terragrunt.hcl` file reads them as `values.<name>`, e.g. `values.cidr`.
+
+### Reusing a stack
+
+Two `stack` blocks can share a source and pass it different values:
+
+```hcl
+# terragrunt.stack.hcl
+
+stack "dev" {
+  source = "git::git@github.com:acme/infrastructure-catalog.git//stacks/environment?ref=v0.0.1"
+  path   = "dev"
+  values = {
+    environment = "development"
+    cidr        = "10.0.0.0/16"
+  }
+}
+
+stack "prod" {
+  source = "git::git@github.com:acme/infrastructure-catalog.git//stacks/environment?ref=v0.0.1"
+  path   = "prod"
+  values = {
+    environment = "production"
+    cidr        = "10.1.0.0/16"
+  }
+}
+```
+
+The stack at that source reads them the same way:
+
+```hcl
+# stacks/environment/terragrunt.stack.hcl
+
+unit "vpc" {
+  source = "git::git@github.com:acme/infrastructure-catalog.git//units/vpc?ref=v0.0.1"
+  path   = "vpc"
+  values = {
+    vpc_name = values.environment
+    cidr     = values.cidr
+  }
+}
+
+unit "database" {
+  source = "git::git@github.com:acme/infrastructure-catalog.git//units/database?ref=v0.0.1"
+  path   = "database"
+  values = {
+    environment = values.environment
+
+    vpc_path = "../vpc"
+  }
+}
+```
+
+## Blocks
+
+<HclItemTable kind="blocks" config="stack" />
+
+A `terragrunt.stack.hcl` file also accepts [`include`](/reference/hcl/blocks#includes-in-stack-files) and [`locals`](/reference/hcl/blocks#locals) blocks.
+
+## Functions
+
+<HclItemTable kind="functions" config="stack" />
+
+The [Functions](/reference/hcl/functions) page documents the functions not listed here.

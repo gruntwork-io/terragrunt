@@ -200,7 +200,7 @@ git commit -m "Remove live stack"
 
 ### Changed stack files
 
-When a stack file changes between references without being added or removed, Terragrunt generates the stack in both references and compares the results. e.g. a stack that generates one [expanded](/reference/hcl/blocks#expansion) unit per region:
+When a stack file changes between references without being added or removed, Terragrunt generates the stack in both references and compares the results. e.g. a stack that generates one [expanded](/reference/hcl/blocks/expansion/) unit per region:
 
 ```hcl
 # live/terragrunt.stack.hcl
@@ -274,7 +274,7 @@ The stack in `HEAD^` generates `app/us-west-2` and the stack in `HEAD` does not,
 
 ### Changed files read by a stack
 
-Terragrunt also compares the generated stacks when the stack file itself is unchanged but the diff includes [a file the stack reads](/features/filter/attributes#reading-based-expressions). e.g. a stack that reads its regions from `regions.hcl`:
+Terragrunt also compares the generated stacks when the stack file itself is unchanged but the diff includes [a file the stack reads](/features/filter/attributes#files-read-by-stacks). e.g. a stack that reads its regions from `regions.hcl`:
 
 <FileTree>
 

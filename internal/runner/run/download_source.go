@@ -10,7 +10,6 @@ import (
 	"slices"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -98,7 +97,21 @@ func DownloadTerraformSource(
 	// is checking for them (e.g. during CheckFolderContainsTerraformCode).
 	rawLock, _ := sourceChangeLocks.LoadOrStore(terraformSource.DownloadDir, &sync.Mutex{})
 	dirLock := rawLock.(*sync.Mutex)
-	dirLock.Lock()
+	shownDir := util.RelPathForLog(opts.RootWorkingDir, terraformSource.DownloadDir, opts.LogShowAbsPaths)
+
+	if err := spinner.ShowAfter(ctx, l, spinner.Messages{
+		Working: "Acquiring lock on " + shownDir + "...",
+		Done:    "Acquired lock on " + shownDir,
+	}, func() error {
+		dirLock.Lock()
+
+		return ctx.Err()
+	}); err != nil {
+		dirLock.Unlock()
+
+		return nil, err
+	}
+
 	defer dirLock.Unlock()
 
 	downloaded, err := DownloadTerraformSourceIfNecessary(ctx, l, v, terraformSource, opts, cfg, r)
@@ -384,28 +397,24 @@ func DownloadTerraformSourceIfNecessary(
 		cfg,
 		r,
 		func(childCtx context.Context) error {
-			if opts.Experiments.Evaluate(experiment.SlowTaskReporting) {
-				sourceURL := strings.TrimPrefix(
-					redact.NewURL(terraformSource.CanonicalSourceURL.String()).String(),
-					fileURIScheme,
-				)
+			sourceURL := util.RelPathForLog(
+				opts.RootWorkingDir,
+				strings.TrimPrefix(redact.NewURL(terraformSource.CanonicalSourceURL.String()).String(), fileURIScheme),
+				opts.LogShowAbsPaths,
+			)
 
-				return spinner.ShowAfter(
-					childCtx,
-					l,
-					spinner.Writer(v),
-					time.Second,
-					spinner.Messages{
-						Working: "Downloading source from " + sourceURL + "...",
-						Done:    "Downloaded source from " + sourceURL,
-					},
-					func() error {
-						return downloadSource(childCtx, l, v, terraformSource, opts, cfg, r)
-					},
-				)
-			}
-
-			return downloadSource(childCtx, l, v, terraformSource, opts, cfg, r)
+			return spinner.ShowAfter(
+				childCtx,
+				l,
+				spinner.Messages{
+					Working: "Downloading source from " + sourceURL + "...",
+					Done:    "Downloaded source from " + sourceURL,
+					Started: true,
+				},
+				func() error {
+					return downloadSource(childCtx, l, v, terraformSource, opts, cfg, r)
+				},
+			)
 		},
 	)
 	if downloadErr != nil {
@@ -728,8 +737,11 @@ func tryCASDownload(
 // outright, and while --cas-offline is set no source reaching here has a
 // fallback left: a local path never gets this far, so every route the
 // standard getter has is to the remote the flag forbids.
+// A checksum mismatch or an unresolved subdir glob fails the same way after a second download.
 func casFailureIsFatal(opts *Options, err error) bool {
-	if errors.Is(err, cas.ErrCASOffline) {
+	var checksumErr *getter.ChecksumError
+
+	if errors.Is(err, cas.ErrCASOffline) || errors.Is(err, getter.ErrSubdirNotResolved) || errors.As(err, &checksumErr) {
 		return true
 	}
 
@@ -798,6 +810,8 @@ func ValidateWorkingDir(fsys vfs.FS, terraformSource *tf.Source) error {
 	return nil
 }
 
+// WorkingDirNotFound is returned by [ValidateWorkingDir] when the working directory inside the downloaded source
+// does not exist.
 type WorkingDirNotFound struct {
 	Source string
 	Dir    string
@@ -807,6 +821,8 @@ func (err WorkingDirNotFound) Error() string {
 	return fmt.Sprintf("Working dir %s from source %s does not exist", err.Dir, err.Source)
 }
 
+// WorkingDirNotDir is returned by [ValidateWorkingDir] when the working directory path inside the downloaded
+// source is not a directory.
 type WorkingDirNotDir struct {
 	Source string
 	Dir    string
@@ -816,6 +832,8 @@ func (err WorkingDirNotDir) Error() string {
 	return fmt.Sprintf("Valid working dir %s from source %s", err.Dir, err.Source)
 }
 
+// DownloadingTerraformSourceErr is the error for a terraform source that failed to download. It wraps the
+// download error.
 type DownloadingTerraformSourceErr struct {
 	ErrMsg error
 	URL    redact.URL

@@ -1,0 +1,25 @@
+---
+version: "v1.2.2"
+category: "bug-fixes"
+---
+
+#### `exclude` blocks with a null or missing `if` fail `run --all` before any unit runs
+
+An [`exclude`](/reference/hcl/blocks#exclude) block whose `if` was `null`, or that left `if` out, excluded nothing from `run --all`. The unit itself then failed, but the dependencies its `exclude_dependencies = true` was meant to keep out of the run still ran:
+
+```hcl
+# app/terragrunt.hcl
+exclude {
+  if                   = local.skip # null
+  actions              = ["all"]
+  exclude_dependencies = true
+}
+```
+
+`run --all` now fails while it builds the run queue, with the error a single unit run already gave:
+
+```text
+Unsuitable value: null value is not allowed
+```
+
+Set `if` to `true` or `false`.

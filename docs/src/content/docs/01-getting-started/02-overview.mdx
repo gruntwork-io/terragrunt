@@ -299,7 +299,7 @@ If you want to try this configuration locally:
 
    The example sets `assign_blob_data_role = true`. To use it, your identity needs permission to create role assignments, such as subscription **Owner**.
 
-   If you cannot assign roles, remove the option. Ask an **Owner** or **User Access Administrator** to grant you **Storage Blob Data Contributor** before you apply. They can grant it on the subscription or on a resource group they create first and name in `resource_group_name`. The storage account does not exist until bootstrap runs. A Contributor cannot assign roles to itself. See [Required Azure permissions](/features/units/authentication/#required-azure-permissions).
+   If you cannot assign roles, remove the option. Ask an **Owner** or **User Access Administrator** to grant you **Storage Blob Data Contributor** before you apply. They can grant it on the subscription or on a resource group they create first and name in `resource_group_name`. The storage account does not exist until bootstrap runs. A Contributor cannot assign roles to itself. See [Required Azure permissions](/features/units/authentication/azure/#required-permissions).
 
    The [Azure Verified Modules](https://azure.github.io/Azure-Verified-Modules/) used in this guide require OpenTofu/Terraform 1.9 or newer.
 
@@ -323,7 +323,7 @@ If you want to try this configuration locally:
    gcloud services enable compute.googleapis.com --project my-project
    ```
 
-   Terragrunt and the Google provider both read these Application Default Credentials, so one login covers creating the state bucket and the network. Your account needs permission to create Cloud Storage buckets and VPC networks in the project (e.g. the **Storage Admin** and **Compute Network Admin** roles). See the [GCS backend](/features/units/state-backend/#gcs-backend) documentation for other ways to authenticate.
+   Terragrunt and the Google provider both read these Application Default Credentials, so one login covers creating the state bucket and the network. Your account needs permission to create Cloud Storage buckets and VPC networks in the project (e.g. the **Storage Admin** and **Compute Network Admin** roles). See the [GCS backend](/features/units/state-backend/gcs) documentation for other ways to authenticate.
 
 5. Run `terragrunt run --backend-bootstrap -- apply -auto-approve` in the directory where you created the `terragrunt.hcl` file.
 
@@ -478,7 +478,7 @@ You want to be mindful not to do too much with this configuration block, as it c
 
 The `terraform` block is used to indicate where to source the OpenTofu/Terraform module from (it's called `terraform` for historical reasons, but it controls behavior pertinent to both OpenTofu and Terraform).
 
-In this example, all it is doing is controlling where Terragrunt should fetch the OpenTofu/Terraform module from. The configuration block [can do a lot more](/reference/hcl/blocks#terraform), but the `source` attribute is the most common attribute you'll set on the `terraform` block.
+In this example, all it is doing is controlling where Terragrunt should fetch the OpenTofu/Terraform module from. The configuration block [can do a lot more](/reference/hcl/blocks/terraform/), but the `source` attribute is the most common attribute you'll set on the `terraform` block.
 
 You'll notice that in the examples above, we were using `find` to locate the `.tf` files being generated and placed within the OpenTofu/Terraform module being downloaded here within the `.terragrunt-cache` directory. This is because Terragrunt aims to operate as an orchestrator, at a level of abstraction higher than OpenTofu/Terraform.
 

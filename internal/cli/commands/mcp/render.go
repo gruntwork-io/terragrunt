@@ -12,10 +12,10 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/venv"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/zclconf/go-cty/cty"
 )
@@ -100,7 +100,7 @@ func runRenderConfig(
 		return renderConfigOutput{}, err
 	}
 
-	if d.allowExec {
+	if d.granted.Has(venv.CapabilityExec) {
 		// Dependency-output fetches on this path drive real runs (init,
 		// source download) into the shared per-unit cache dirs.
 		release, err := d.acquireRunSlot(ctx)
@@ -176,16 +176,16 @@ func renderParseFormat(name string) (renderFormat, error) {
 // guidance the agent can act on. A dependency with neither applied outputs nor
 // mock_outputs surfaces as an HCL evaluation error long after the denied `tofu
 // output` call, so a recorded denial marks the failure as an artifact of the
-// sandbox as much as [ErrExecDenied] in the chain does.
+// sandbox as much as [venv.ErrExecDenied] in the chain does.
 func renderExplainDenials(err error, rec *execRecorder) error {
-	if errors.Is(err, ErrExecDenied) {
+	if errors.Is(err, venv.ErrExecDenied) {
 		return fmt.Errorf(
 			"rendering this unit needs subprocess execution; restart the MCP server with --allow=exec: %w",
 			err,
 		)
 	}
 
-	if errors.Is(err, ErrSopsDenied) {
+	if errors.Is(err, venv.ErrSopsDenied) {
 		return fmt.Errorf(
 			"rendering this unit needs a SOPS decrypt; restart the MCP server with --allow=sops: %w",
 			err,
@@ -219,7 +219,7 @@ func renderExplainDenials(err error, rec *execRecorder) error {
 func renderSummarize(cfg *config.TerragruntConfig) *renderSummary {
 	s := &renderSummary{
 		IAMRole:        cfg.IamRole,
-		InputKeys:      slices.Sorted(maps.Keys(cfg.Inputs)),
+		InputKeys:      slices.Sorted(maps.Keys(cfg.ResolveInputs())),
 		GenerateBlocks: slices.Sorted(maps.Keys(cfg.GenerateConfigs)),
 	}
 

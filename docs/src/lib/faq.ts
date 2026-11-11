@@ -13,6 +13,6 @@ export function sortFaqEntries(entries: FaqEntry[]): FaqEntry[] {
     const orderA = a.data.order ?? Number.POSITIVE_INFINITY;
     const orderB = b.data.order ?? Number.POSITIVE_INFINITY;
     if (orderA !== orderB) return orderA - orderB;
-    return a.data.question.localeCompare(b.data.question);
+    return a.data.question.localeCompare(b.data.question, 'en');
   });
 }

@@ -18,14 +18,21 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/awshelper"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 const (
-	SidRootPolicy        = "RootAccess"
+	// SidRootPolicy is the statement ID of the bucket policy statement that grants the account root user
+	// full access to the state bucket.
+	SidRootPolicy = "RootAccess"
+	// SidEnforcedTLSPolicy is the statement ID of the bucket policy statement that denies requests made
+	// without TLS.
 	SidEnforcedTLSPolicy = "EnforcedTLS"
+	// SidAccessLogDelivery is the statement ID of the logs bucket policy statement that lets S3 server
+	// access logging write log objects.
 	SidAccessLogDelivery = "AccessLogDelivery"
 
 	s3MaxRetries          = 3
@@ -97,6 +104,7 @@ const (
 
 var tableCreateDeleteSemaphore = NewCountingSemaphore(dynamoParallelOperations)
 
+// Client is a pair of S3 and DynamoDB clients bound to the remote state config they act on.
 type Client struct {
 	*ExtendedRemoteStateConfigS3
 
@@ -107,6 +115,8 @@ type Client struct {
 	failIfBucketCreationRequired bool
 }
 
+// NewClient returns a Client for config, authenticated with the session settings in config and the IAM role in
+// opts. It validates the credentials unless config sets skip_credentials_validation.
 func NewClient(
 	ctx context.Context,
 	l log.Logger,
@@ -235,6 +245,12 @@ func (client *Client) CreateS3BucketIfNecessary(
 	return nil
 }
 
+// UpdateS3BucketIfNecessary compares the bucket's versioning, encryption, policies, access logging, and public
+// access blocking with the config and, after the user confirms, applies the missing settings. Settings the
+// config skips are left alone.
+//
+// Returns [backend.BucketCreationNotAllowed] when the bucket does not exist and
+// [backend.Options.FailIfBucketCreationRequired] is set.
 func (client *Client) UpdateS3BucketIfNecessary(
 	ctx context.Context,
 	l log.Logger,
@@ -484,6 +500,7 @@ func (client *Client) configureAccessLogBucket(
 	return nil
 }
 
+// S3BucketUpdatesRequired lists the state bucket settings that differ from the config.
 type S3BucketUpdatesRequired struct {
 	Versioning    bool
 	SSEEncryption bool
@@ -737,6 +754,11 @@ func (client *Client) CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(
 	return nil
 }
 
+// CreateLogsS3BucketIfNecessary creates the access logging bucket, tagged with accesslogging_bucket_tags, when it
+// does not exist and the user confirms. It returns [LogsBucketCreated] only when it created the bucket.
+//
+// Returns [backend.BucketCreationNotAllowed] when the bucket does not exist and
+// [backend.Options.FailIfBucketCreationRequired] is set.
 func (client *Client) CreateLogsS3BucketIfNecessary(
 	ctx context.Context,
 	l log.Logger,
@@ -787,6 +809,8 @@ func (client *Client) CreateLogsS3BucketIfNecessary(
 	return LogsBucketCreated, nil
 }
 
+// TagS3BucketAccessLogging applies accesslogging_bucket_tags to the access logging bucket. It logs a warning and
+// returns nil when S3 answers MethodNotAllowed.
 func (client *Client) TagS3BucketAccessLogging(ctx context.Context, l log.Logger) error {
 	if len(client.AccessLoggingBucketTags) == 0 {
 		l.Debugf("No tags specified for bucket %s.", client.AccessLoggingBucketName)
@@ -889,6 +913,20 @@ func convertToDynamoTags(tags map[string]string) []dynamodbtypes.Tag {
 // AWS is eventually consistent, so after creating an S3 bucket, this method can be used to wait until the information
 // about that S3 bucket has propagated everywhere.
 func (client *Client) WaitUntilS3BucketExists(
+	ctx context.Context,
+	l log.Logger,
+	bucketName string,
+) error {
+	return spinner.ShowAfter(ctx, l, spinner.Messages{
+		Working: "Creating S3 bucket " + bucketName + "...",
+		Done:    "S3 bucket " + bucketName + " created",
+	}, func() error {
+		return client.pollUntilS3BucketExists(ctx, l, bucketName)
+	})
+}
+
+// pollUntilS3BucketExists checks for the bucket up to maxRetriesWaitingForS3Bucket times, sleeping between checks.
+func (client *Client) pollUntilS3BucketExists(
 	ctx context.Context,
 	l log.Logger,
 	bucketName string,
@@ -1191,6 +1229,8 @@ func (client *Client) EnableRootAccesstoS3Bucket(ctx context.Context, l log.Logg
 	return nil
 }
 
+// EnableEnforcedTLSAccesstoS3Bucket adds a [SidEnforcedTLSPolicy] statement denying non-TLS requests to the
+// bucket policy, keeping the existing statements. It does nothing when the statement is already present.
 func (client *Client) EnableEnforcedTLSAccesstoS3Bucket(
 	ctx context.Context,
 	l log.Logger,
@@ -1272,6 +1312,7 @@ func (client *Client) EnableEnforcedTLSAccesstoS3Bucket(
 	return nil
 }
 
+// EnablePublicAccessBlockingForS3Bucket turns on all four public access block settings for the bucket.
 func (client *Client) EnablePublicAccessBlockingForS3Bucket(
 	ctx context.Context,
 	l log.Logger,
@@ -1297,6 +1338,9 @@ func (client *Client) EnablePublicAccessBlockingForS3Bucket(
 	return nil
 }
 
+// EnableAccessLoggingForS3BucketWide turns on server access logging for the state bucket into the configured logs
+// bucket and prefix. It grants log delivery on the logs bucket as [DecideAccessLogDelivery] decides for
+// logsBucketOrigin.
 func (client *Client) EnableAccessLoggingForS3BucketWide(
 	ctx context.Context,
 	l log.Logger,
@@ -1814,6 +1858,8 @@ func (client *Client) DoesS3ObjectExist(ctx context.Context, bucketName, key str
 	return true, nil
 }
 
+// DoesS3ObjectExistWithLogging returns the result of [Client.DoesS3ObjectExist] and logs a debug message when the
+// object is missing or inaccessible.
 func (client *Client) DoesS3ObjectExistWithLogging(
 	ctx context.Context,
 	l log.Logger,
@@ -1897,6 +1943,11 @@ func (client *Client) DoesLockTableExistAndIsActive(
 		return false, err
 	}
 
+	// Some DynamoDB-compatible endpoints return 200 with no Table.
+	if res.Table == nil {
+		return false, TableDescriptionMissingError{TableName: tableName}
+	}
+
 	return res.Table.TableStatus == dynamodbtypes.TableStatusActive, nil
 }
 
@@ -1935,6 +1986,11 @@ func (client *Client) LockTableCheckSSEncryptionIsOn(
 		}
 
 		return false, err
+	}
+
+	// Some DynamoDB-compatible endpoints return 200 with no Table.
+	if output.Table == nil {
+		return false, TableDescriptionMissingError{TableName: tableName}
 	}
 
 	return output.Table.SSEDescription != nil &&
@@ -2104,14 +2160,19 @@ func (client *Client) waitForTableToBeActive(
 	maxRetries int,
 	sleepBetweenRetries time.Duration,
 ) error {
-	return client.WaitForTableToBeActiveWithRandomSleep(
-		ctx,
-		l,
-		tableName,
-		maxRetries,
-		sleepBetweenRetries,
-		sleepBetweenRetries,
-	)
+	return spinner.ShowAfter(ctx, l, spinner.Messages{
+		Working: "Waiting for availability of DynamoDB table " + tableName + "...",
+		Done:    "DynamoDB table " + tableName + " is available",
+	}, func() error {
+		return client.WaitForTableToBeActiveWithRandomSleep(
+			ctx,
+			l,
+			tableName,
+			maxRetries,
+			sleepBetweenRetries,
+			sleepBetweenRetries,
+		)
+	})
 }
 
 // WaitForTableToBeActiveWithRandomSleep waits for the given table as described above,
@@ -2189,7 +2250,13 @@ func (client *Client) UpdateLockTableSetSSEncryptionOnIfNecessary(
 		)
 	}
 
-	if err := client.waitForEncryptionToBeEnabled(ctx, l, tableName); err != nil {
+	err = spinner.ShowAfter(ctx, l, spinner.Messages{
+		Working: "Enabling encryption on DynamoDB table " + tableName + "...",
+		Done:    "DynamoDB table " + tableName + " is encrypted",
+	}, func() error {
+		return client.waitForEncryptionToBeEnabled(ctx, l, tableName)
+	})
+	if err != nil {
 		return err
 	}
 
@@ -2463,6 +2530,11 @@ func (client *Client) checkIfSSEForS3MatchesConfig(
 		}
 
 		return false, err
+	}
+
+	// The SDK leaves this nil when an S3-compatible store returns 200 with an empty body.
+	if output.ServerSideEncryptionConfiguration == nil {
+		return false, nil
 	}
 
 	expectedAlgorithm := client.FetchEncryptionAlgorithm()

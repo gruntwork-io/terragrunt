@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -16,30 +17,55 @@ import (
 )
 
 const (
-	CommandName  = "list"
+	// CommandName is the name of the `terragrunt list` command.
+	CommandName = "list"
+	// CommandAlias is the short alias of `terragrunt list`.
 	CommandAlias = "ls"
 
+	// FormatFlagName is the name of the flag that selects the output format:
+	// [FormatText], [FormatTree], [FormatLong], or [FormatDot].
 	FormatFlagName = "format"
 
-	TreeFlagName  = "tree"
+	// TreeFlagName is the name of the flag that is shorthand for --format=tree.
+	TreeFlagName = "tree"
+	// TreeFlagAlias is the short alias of the --tree flag.
 	TreeFlagAlias = "T"
 
-	LongFlagName  = "long"
+	// LongFlagName is the name of the flag that is shorthand for --format=long.
+	LongFlagName = "long"
+	// LongFlagAlias is the short alias of the --long flag.
 	LongFlagAlias = "l"
 
-	HiddenFlagName       = "hidden"
-	NoHiddenFlagName     = "no-hidden"
+	// HiddenFlagName is the name of the hidden, deprecated flag that includes
+	// hidden directories. Setting it evaluates the deprecated hidden flag
+	// strict control.
+	HiddenFlagName = "hidden"
+	// NoHiddenFlagName is the name of the flag that excludes hidden directories
+	// from the results.
+	NoHiddenFlagName = "no-hidden"
+	// DependenciesFlagName is the name of the flag that adds each component's
+	// dependencies to the output.
 	DependenciesFlagName = "dependencies"
-	ExternalFlagName     = "external"
+	// ExternalFlagName is the name of the hidden flag that adds the
+	// dependencies of every discovered component, including those outside the
+	// working directory, to the results.
+	ExternalFlagName = "external"
 
+	// DAGFlagName is the name of the flag that sorts and groups output in DAG
+	// order.
 	DAGFlagName = "dag"
 
-	QueueConstructAsFlagName  = "queue-construct-as"
+	// QueueConstructAsFlagName is the name of the flag that orders the results
+	// as the run queue for the given command would. It implies DAG mode.
+	QueueConstructAsFlagName = "queue-construct-as"
+	// QueueConstructAsFlagAlias is the short alias of the --queue-construct-as
+	// flag.
 	QueueConstructAsFlagAlias = "as"
 )
 
-func NewFlags(l log.Logger, opts *Options, v *venv.Venv, prefix flags.Prefix) clihelper.Flags {
-	tgPrefix := prefix.Prepend(flags.TgPrefix)
+// NewFlags returns the flags of `terragrunt list`, bound to opts.
+func NewFlags(l log.Logger, opts *Options, v *venv.Venv) clihelper.Flags {
+	tgPrefix := flags.Prefix{flags.TgPrefix}
 	filterFlags := shared.NewFilterFlags(l, opts.TerragruntOptions, v)
 
 	const numLocalFlags = 9
@@ -132,18 +158,22 @@ func NewFlags(l log.Logger, opts *Options, v *venv.Venv, prefix flags.Prefix) cl
 		}),
 	)
 
+	flags.DeprecateEnvVarPrefix(result, flags.Prefix{flags.TgPrefix, CommandName}, opts.StrictControls)
+
 	return append(result, filterFlags...)
 }
 
-func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *clihelper.Command {
+// NewCommand returns the `terragrunt list` command.
+func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *rewrite.Store) *clihelper.Command {
 	cmdOpts := NewOptions(opts)
-	prefix := flags.Prefix{CommandName}
+
+	sharedFlags := shared.NewBackendFlags(opts, nil)
+	sharedFlags = append(sharedFlags, shared.NewFeatureFlags(opts, nil)...)
+	sharedFlags = append(sharedFlags, shared.NewNoDiscoveryAuthProviderCmdFlag(opts, nil))
+	flags.DeprecateEnvVarPrefix(sharedFlags, flags.Prefix{flags.TgPrefix, CommandName}, opts.StrictControls)
 
 	// Base flags for list plus backend/feature flags
-	flags := NewFlags(l, cmdOpts, v, prefix)
-	flags = append(flags, shared.NewBackendFlags(opts, prefix)...)
-	flags = append(flags, shared.NewFeatureFlags(opts, prefix)...)
-	flags = append(flags, shared.NewNoDiscoveryAuthProviderCmdFlag(opts, prefix))
+	flags := append(NewFlags(l, cmdOpts, v), sharedFlags...)
 
 	return &clihelper.Command{
 		Name:    CommandName,
@@ -176,7 +206,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *cl
 			return nil
 		},
 		Action: func(ctx context.Context, _ *clihelper.Context) error {
-			return Run(ctx, l, v, cmdOpts)
+			return Run(ctx, l, v, s, cmdOpts)
 		},
 	}
 }

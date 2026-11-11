@@ -17,12 +17,19 @@ import (
 )
 
 const (
+	// CommandName is the name of the `terragrunt catalog` command.
 	CommandName = "catalog"
 
+	// IgnoreFileFlagName is the name of the flag that adds an ignore file on top
+	// of each repo's .terragrunt-catalog-ignore during discovery.
 	IgnoreFileFlagName = "ignore-file"
-	FormatFlagName     = "format"
+	// FormatFlagName is the name of the flag that selects the output format:
+	// [FormatTUI], [FormatJSONL], or [FormatMD].
+	FormatFlagName = "format"
 )
 
+// NewFlags returns the flags of `terragrunt catalog`, bound to opts. fsys
+// checks that the ignore file exists and is not a directory.
 func NewFlags(fsys vfs.FS, opts *Options, prefix flags.Prefix) clihelper.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 
@@ -80,6 +87,9 @@ func NewFlags(fsys vfs.FS, opts *Options, prefix flags.Prefix) clihelper.Flags {
 	return append(shared.NewScaffoldingFlags(opts.TerragruntOptions, prefix), catalogFlags...)
 }
 
+// NewCommand returns the `terragrunt catalog` command, which takes an optional
+// repository path as its argument. Without --format, it picks [DefaultFormat]
+// for the current terminal.
 func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *clihelper.Command {
 	cmdOpts := NewOptions(opts)
 

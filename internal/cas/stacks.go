@@ -16,6 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/detect"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/redact"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -56,12 +57,36 @@ func DetectRemoteSource(src string) (string, error) {
 	return src, nil
 }
 
+// maxRewriteDepth bounds how deep update_source_with_cas sources may nest before the rewrite stops.
+const maxRewriteDepth = 64
+
 // StackCASResult holds the results of CAS processing for a stack component.
 type StackCASResult struct {
 	// Cleanup removes the temporary directory when called.
 	Cleanup func()
 	// ContentDir is the path to the directory containing rewritten content to copy.
 	ContentDir string
+	// SourcesInsideStack lists the rewritten blocks whose source lies inside the directory of
+	// their stack file.
+	SourcesInsideStack []SourceInsideStack
+}
+
+// SourceInsideStack is a unit or stack block with update_source_with_cas whose source lies
+// inside the directory of the stack file that declares it.
+//
+// Stack generation copies that directory whole, so the generated stack contains the source
+// twice: once as the cas:: reference, and once as a copy that `run --all` discovers as its own
+// unit or stack.
+type SourceInsideStack struct {
+	// StackFile is the path of the stack file that declares the block, relative to the root of
+	// the component source.
+	StackFile string
+	// BlockType is "unit" or "stack".
+	BlockType string
+	// Name is the label of the block.
+	Name string
+	// Source is the source of the block, as written.
+	Source string
 }
 
 // ProcessStackComponent resolves update_source_with_cas references for a stack
@@ -80,11 +105,13 @@ type StackCASResult struct {
 //
 // Returns the [NewGitStoreVenv] error for a remote source when v cannot
 // back the git store.
+// Extra cloneOpts, such as [WithMutable], apply to the remote clone.
 func (c *CAS) ProcessStackComponent(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	source, kind string,
+	cloneOpts ...CloneOption,
 ) (*StackCASResult, error) {
 	v.RequireFS()
 
@@ -106,7 +133,8 @@ func (c *CAS) ProcessStackComponent(
 		return nil, fmt.Errorf("failed to parse source URL %q: %w", redact.NewURL(detectedURL), err)
 	}
 
-	strippedURL, ref := StripGitURLParams(parsedURL)
+	strippedURL, params := StripGitURLParams(parsedURL)
+	ref := params.Ref
 
 	cleanURL := redact.NewURL(strings.TrimPrefix(strippedURL.String(), "git::"))
 
@@ -121,7 +149,7 @@ func (c *CAS) ProcessStackComponent(
 	// stacks; CommitHash returns the user input as-is for the
 	// commit-ref path, and the canonical hash for the symbolic-ref
 	// path.
-	resolved, err := c.resolveReference(ctx, l, gv, cleanURL, ref)
+	resolved, err := c.resolveReference(ctx, l, gv, cleanURL, ref, params.SSHKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve reference %q: %w", ref, err)
 	}
@@ -141,9 +169,14 @@ func (c *CAS) ProcessStackComponent(
 
 	cloneDir := filepath.Join(tempDir, "repo")
 
-	if err := c.Clone(ctx, l, v, cleanURL, WithDir(cloneDir),
+	cloneOpts = append([]CloneOption{
+		WithDir(cloneDir),
 		WithBranch(ref),
-		WithDepth(c.cloneDepth)); err != nil {
+		WithDepth(c.cloneDepth),
+		WithSSHKey(params.SSHKey),
+	}, cloneOpts...)
+
+	if err := c.Clone(ctx, l, v, cleanURL, cloneOpts...); err != nil {
 		cleanup()
 
 		return nil, fmt.Errorf("failed to CAS clone %q: %w", cleanURL, err)
@@ -181,16 +214,37 @@ func (c *CAS) ProcessStackComponent(
 		return nil, fmt.Errorf("subdir %q not found in cloned repo: %w", subdir, err)
 	}
 
-	if err := c.processDirectory(ctx, l, v, cloneDir, contentDir, refHash, hashAlg); err != nil {
+	inside, err := c.processDirectory(ctx, l, v, cloneDir, contentDir, refHash, hashAlg, 0)
+	if err != nil {
 		cleanup()
 
 		return nil, fmt.Errorf("failed to process directory for CAS: %w", err)
 	}
 
 	return &StackCASResult{
-		ContentDir: contentDir,
-		Cleanup:    cleanup,
+		ContentDir:         contentDir,
+		Cleanup:            cleanup,
+		SourcesInsideStack: inside,
 	}, nil
+}
+
+// ProcessStoredStackComponent rewrites, in place, the component at contentDir of root, a tree
+// stored under treeKey, and returns the rewritten blocks whose source lies inside the directory of
+// their stack file.
+func (c *CAS) ProcessStoredStackComponent(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	root, contentDir, treeKey string,
+) ([]SourceInsideStack, error) {
+	v.RequireFS()
+
+	inside, err := c.processDirectory(ctx, l, v, root, contentDir, treeKey, DefaultLocalHashAlgorithm, 0)
+	if err != nil {
+		return nil, fmt.Errorf("failed to process stored tree %s for CAS: %w", treeKey, err)
+	}
+
+	return inside, nil
 }
 
 // DeterministicTreeHash returns a deterministic tree hash derived from the
@@ -263,41 +317,57 @@ func detectRepoHashAlgorithm(
 }
 
 // processDirectory recursively processes a stack or unit directory, rewriting
-// sources and creating synthetic CAS entries.
+// sources and creating synthetic CAS entries. It returns the rewritten blocks,
+// at any depth, whose source lies inside the directory of their stack file.
 func (c *CAS) processDirectory(
 	ctx context.Context, l log.Logger, v *venv.Venv,
-	repoRoot, dirPath, refHash string, hashAlg HashAlgorithm,
-) error {
+	repoRoot, dirPath, refHash string, hashAlg HashAlgorithm, depth int,
+) ([]SourceInsideStack, error) {
+	if depth > maxRewriteDepth {
+		return nil, fmt.Errorf("%w (%d levels): %s", ErrRewriteTooDeep, maxRewriteDepth, dirPath)
+	}
+
 	stackFile := filepath.Join(dirPath, "terragrunt.stack.hcl")
 	unitFile := filepath.Join(dirPath, "terragrunt.hcl")
 
 	if _, err := v.FS.Stat(stackFile); err == nil {
-		return c.processStackFile(ctx, l, v, repoRoot, dirPath, stackFile, refHash, hashAlg)
+		return c.processStackFile(ctx, l, v, repoRoot, dirPath, stackFile, refHash, hashAlg, depth)
 	}
 
 	if _, err := v.FS.Stat(unitFile); err == nil {
-		return c.processUnitFile(l, v, repoRoot, dirPath, unitFile, refHash, hashAlg)
+		return nil, c.processUnitFile(l, v, repoRoot, dirPath, unitFile, refHash, hashAlg)
 	}
 
-	return nil
+	return nil, nil
 }
 
 // processStackFile processes a terragrunt.stack.hcl file, rewriting sources
 // for blocks that have update_source_with_cas = true, including the blocks a
-// stack block's autoinclude injects into its nested stack.
+// stack block's autoinclude injects into its nested stack. It returns the
+// rewritten blocks, here and in nested stacks, whose source lies inside the
+// directory of their stack file.
 func (c *CAS) processStackFile(
 	ctx context.Context, l log.Logger, v *venv.Venv,
-	repoRoot, dirPath, stackFile, refHash string, hashAlg HashAlgorithm,
-) error {
+	repoRoot, dirPath, stackFile, refHash string, hashAlg HashAlgorithm, depth int,
+) ([]SourceInsideStack, error) {
 	content, err := vfs.ReadFile(v.FS, stackFile)
 	if err != nil {
-		return fmt.Errorf("failed to read stack file %s: %w", stackFile, err)
+		return nil, fmt.Errorf("failed to read stack file %s: %w", stackFile, err)
 	}
 
 	f, blocks, err := ReadStackBlocks(content)
 	if err != nil {
-		return fmt.Errorf("failed to parse stack file %s: %w", stackFile, err)
+		return nil, fmt.Errorf("failed to parse stack file %s: %w", stackFile, err)
 	}
+
+	stackFileInRepo, err := filepath.Rel(repoRoot, stackFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to compute path of stack file %s in its source: %w", stackFile, err)
+	}
+
+	var inside []SourceInsideStack
+
+	rewritten := false
 
 	for _, block := range blocks {
 		if !block.UpdateSourceWithCAS {
@@ -317,48 +387,66 @@ func (c *CAS) processStackFile(
 
 		targetDir, err := ResolveInRepoSource(repoRoot, dirPath, block.Source)
 		if err != nil {
-			return fmt.Errorf(
-				"failed to resolve source for %s %q: %w",
+			return nil, fmt.Errorf(
+				"%w: failed to resolve source for %s %q: %w",
+				ErrRewriteIncomplete,
 				block.BlockType,
 				block.Name,
 				err,
 			)
 		}
 
-		if err := c.processDirectory(ctx, l, v, repoRoot, targetDir, refHash, hashAlg); err != nil {
-			return fmt.Errorf(
-				"failed to process %s %q source: %w",
+		nested, err := c.processDirectory(ctx, l, v, repoRoot, targetDir, refHash, hashAlg, depth+1)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"%w: failed to process %s %q source: %w",
+				ErrRewriteIncomplete,
 				block.BlockType,
 				block.Name,
 				err,
 			)
 		}
+
+		inside = append(inside, nested...)
 
 		synthHash, err := c.buildSyntheticTree(l, v, targetDir, refHash, repoRoot, hashAlg)
 		if err != nil {
-			return fmt.Errorf(
-				"failed to build synthetic tree for %s %q: %w",
+			return nil, fmt.Errorf(
+				"%w: failed to build synthetic tree for %s %q: %w",
+				ErrRewriteIncomplete,
 				block.BlockType,
 				block.Name,
 				err,
 			)
+		}
+
+		if util.HasPathPrefix(targetDir, dirPath) {
+			inside = append(inside, SourceInsideStack{
+				StackFile: filepath.ToSlash(stackFileInRepo),
+				BlockType: block.BlockType,
+				Name:      block.Name,
+				Source:    block.Source,
+			})
 		}
 
 		newSource := FormatCASRef(synthHash)
 
 		block.SetSource(newSource)
 
+		rewritten = true
+
 		l.Debugf("Rewrote %s %q source to %s", block.BlockType, block.Name, newSource)
 	}
 
-	// The file may be a read-only hard link from the CAS store, so remove it
-	// before writing the rewritten content to avoid permission errors and to
-	// avoid mutating the stored blob.
-	if err := v.FS.Remove(stackFile); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("failed to remove stack file before rewrite %s: %w", stackFile, err)
+	if err := replaceFile(v.FS, stackFile, f.Bytes()); err != nil {
+		if rewritten {
+			return nil, fmt.Errorf("%w: failed to rewrite stack file %s: %w", ErrRewriteIncomplete, stackFile, err)
+		}
+
+		return nil, fmt.Errorf("failed to rewrite stack file %s: %w", stackFile, err)
 	}
 
-	return vfs.WriteFile(v.FS, stackFile, f.Bytes(), RegularFilePerms)
+	return inside, nil
 }
 
 // processUnitFile processes a terragrunt.hcl file, rewriting the
@@ -401,7 +489,7 @@ func (c *CAS) processUnitFile(
 
 	treeDir, err := ResolveInRepoSource(repoRoot, dirPath, basePath)
 	if err != nil {
-		return fmt.Errorf("failed to resolve terraform source %q: %w", source, err)
+		return fmt.Errorf("%w: failed to resolve terraform source %q: %w", ErrRewriteIncomplete, source, err)
 	}
 
 	if subdir != "" {
@@ -409,17 +497,17 @@ func (c *CAS) processUnitFile(
 
 		rel, relErr := filepath.Rel(treeDir, moduleDir)
 		if relErr != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-			return fmt.Errorf("%w: %q", ErrSourceEscapesRepo, source)
+			return fmt.Errorf("%w: %w: %q", ErrRewriteIncomplete, ErrSourceEscapesRepo, source)
 		}
 
 		if _, err := v.FS.Stat(moduleDir); err != nil {
-			return fmt.Errorf("subdir %q not found under %s: %w", subdir, treeDir, err)
+			return fmt.Errorf("%w: subdir %q not found under %s: %w", ErrRewriteIncomplete, subdir, treeDir, err)
 		}
 	}
 
 	synthHash, err := c.buildSyntheticTree(l, v, treeDir, refHash, repoRoot, hashAlg)
 	if err != nil {
-		return fmt.Errorf("failed to build synthetic tree for terraform source %q: %w", source, err)
+		return fmt.Errorf("%w: failed to build synthetic tree for terraform source %q: %w", ErrRewriteIncomplete, source, err)
 	}
 
 	newSource := FormatCASRef(synthHash)
@@ -429,19 +517,16 @@ func (c *CAS) processUnitFile(
 
 	content, err = RewriteTerraformSource(content, newSource)
 	if err != nil {
-		return fmt.Errorf("failed to rewrite terraform source: %w", err)
+		return fmt.Errorf("%w: failed to rewrite terraform source: %w", ErrRewriteIncomplete, err)
 	}
 
 	l.Debugf("Rewrote terraform source to %s", newSource)
 
-	// The file may be a read-only hard link from the CAS store, so remove it
-	// before writing the rewritten content to avoid permission errors and to
-	// avoid mutating the stored blob.
-	if err := v.FS.Remove(unitFile); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("failed to remove unit file before rewrite %s: %w", unitFile, err)
+	if err := replaceFile(v.FS, unitFile, content); err != nil {
+		return fmt.Errorf("%w: failed to rewrite unit file %s: %w", ErrRewriteIncomplete, unitFile, err)
 	}
 
-	return vfs.WriteFile(v.FS, unitFile, content, RegularFilePerms)
+	return nil
 }
 
 // buildSyntheticTree creates a synthetic CAS tree entry for a directory. It
@@ -660,7 +745,7 @@ func (c *CAS) processLocalStackComponent(
 		return nil, fmt.Errorf("failed to compute local root hash: %w", err)
 	}
 
-	if err := c.processDirectory(
+	inside, err := c.processDirectory(
 		ctx,
 		l,
 		v,
@@ -668,15 +753,18 @@ func (c *CAS) processLocalStackComponent(
 		contentDir,
 		rootHash,
 		DefaultLocalHashAlgorithm,
-	); err != nil {
+		0,
+	)
+	if err != nil {
 		cleanup()
 
 		return nil, fmt.Errorf("failed to process local source for CAS: %w", err)
 	}
 
 	return &StackCASResult{
-		ContentDir: contentDir,
-		Cleanup:    cleanup,
+		ContentDir:         contentDir,
+		Cleanup:            cleanup,
+		SourcesInsideStack: inside,
 	}, nil
 }
 
@@ -761,4 +849,24 @@ func (c *CAS) copyFileInFS(v *venv.Venv, srcPath, dstPath string, perm fs.FileMo
 	}
 
 	return out.Close()
+}
+
+// replaceFile unlinks path and writes content with the mode of the replaced file, or [RegularFilePerms] for a new one.
+func replaceFile(fsys vfs.FS, path string, content []byte) error {
+	perm := RegularFilePerms
+
+	info, err := fsys.Stat(path)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+
+	if err == nil {
+		perm = info.Mode().Perm()
+	}
+
+	if err := fsys.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+
+	return vfs.WriteFile(fsys, path, content, perm)
 }

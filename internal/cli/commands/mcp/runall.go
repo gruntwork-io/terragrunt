@@ -7,13 +7,14 @@ import (
 	"path/filepath"
 	"strings"
 
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/venv"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -123,7 +124,7 @@ func runAllCommand(
 	command string,
 	sensitivity outputsSensitivity,
 ) (runAllOutput, error) {
-	if !d.allowExec {
+	if !d.granted.Has(venv.CapabilityExec) {
 		return runAllOutput{}, fmt.Errorf(
 			"%s requires subprocess execution; restart the MCP server with --allow=exec",
 			command,
@@ -155,8 +156,8 @@ func runAllCommand(
 		opts.Parallelism = input.Parallelism
 	}
 
-	opts.TerraformCommand = command
-	opts.OriginalTerraformCommand = command
+	opts.TofuCommand = command
+	opts.OriginalTofuCommand = command
 	opts.TerraformCliArgs = iacargs.New(command)
 	opts.RunAll = true
 	// Stack generation lives in runall.Run, which this bypasses. Running an
@@ -214,12 +215,14 @@ func runAllCommand(
 	// the real stdout, which is meaningless under the MCP transport.
 	r := report.NewReport().WithWorkingDir(dir).WithDisableColor().WithFormat(report.FormatJSON)
 
-	rnr, err := runner.New(ctx, l, cv, opts, runnerOpts...)
+	s := new(rewrite.Store)
+
+	rnr, err := runner.New(ctx, l, cv, s, opts, runnerOpts...)
 	if err != nil {
 		return runAllOutput{}, err
 	}
 
-	runErr := runall.RunAllOnStack(ctx, l, cv, opts, rnr, r)
+	runErr := runall.RunAllOnStack(ctx, l, cv, s, opts, rnr, r)
 
 	capture.close(l)
 

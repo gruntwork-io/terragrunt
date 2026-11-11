@@ -13,11 +13,13 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/tips"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/ociregistry"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1032,6 +1034,110 @@ func findStackFiles(t *testing.T, dir string) []string {
 	return stackFiles
 }
 
+// TestCASInStacksSourceInsideStack pins that a unit block with update_source_with_cas whose
+// source lies inside the stack directory still generates by default, and fails once the
+// cas-source-inside-stack strict control is enabled, alone or through its group or strict mode.
+// A stack selected with a // subdirectory and its unit outside it passes under strict mode.
+func TestCASInStacksSourceInsideStack(t *testing.T) {
+	t.Parallel()
+
+	const unitConfig = "inputs = {}\n"
+
+	insideFiles := map[string]string{
+		"catalog/terragrunt.stack.hcl": `unit "foo" {
+  source                 = "./units/foo"
+  update_source_with_cas = true
+  path                   = "foo"
+}
+`,
+		"catalog/units/foo/terragrunt.hcl": unitConfig,
+		"live/terragrunt.stack.hcl": `stack "bar" {
+  source = "../catalog"
+  path   = "bar"
+}
+`,
+	}
+
+	outsideFiles := map[string]string{
+		"catalog/stacks/bar/terragrunt.stack.hcl": `unit "foo" {
+  source                 = "../../units/foo"
+  update_source_with_cas = true
+  path                   = "foo"
+}
+`,
+		"catalog/units/foo/terragrunt.hcl": unitConfig,
+		"live/terragrunt.stack.hcl": `stack "bar" {
+  source = "../catalog//stacks/bar"
+  path   = "bar"
+}
+`,
+	}
+
+	testCases := []struct {
+		files   map[string]string
+		name    string
+		flags   string
+		wantErr bool
+	}{
+		{name: "no strict mode or control", files: insideFiles},
+		{
+			name:    "cas-source-inside-stack strict control",
+			files:   insideFiles,
+			flags:   "--strict-control " + controls.CASSourceInsideStack,
+			wantErr: true,
+		},
+		{
+			name:    "deprecated-configs strict control",
+			files:   insideFiles,
+			flags:   "--strict-control " + controls.DeprecatedConfigs,
+			wantErr: true,
+		},
+		{name: "strict mode", files: insideFiles, flags: "--strict-mode", wantErr: true},
+		{name: "stack selected with a subdirectory under strict mode", files: outsideFiles, flags: "--strict-mode"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmp := helpers.TmpDirWOSymlinks(t)
+
+			for rel, body := range tc.files {
+				full := filepath.Join(tmp, rel)
+				require.NoError(t, os.MkdirAll(filepath.Dir(full), 0o755))
+				require.NoError(t, os.WriteFile(full, []byte(body), 0o644))
+			}
+
+			liveDir := filepath.Join(tmp, "live")
+
+			_, _, err := helpers.RunTerragruntCommandWithOutput(
+				t,
+				"terragrunt stack generate "+tc.flags+" --non-interactive --working-dir "+liveDir,
+			)
+
+			if !tc.wantErr {
+				require.NoError(t, err)
+				assert.FileExists(
+					t,
+					filepath.Join(liveDir, ".terragrunt-stack", "bar", ".terragrunt-stack", "foo", "terragrunt.hcl"),
+				)
+
+				return
+			}
+
+			var typed config.CASSourceInsideStackError
+			require.ErrorAs(t, err, &typed)
+			assert.Equal(t, "stack bar", typed.Component)
+			assert.Equal(t, &cas.SourceInsideStack{
+				StackFile: "terragrunt.stack.hcl",
+				BlockType: "unit",
+				Name:      "foo",
+				Source:    "./units/foo",
+			}, typed.Block)
+		})
+	}
+}
+
 // TestCASInStacksRejectsUpdateSourceWithCASWithNoCAS verifies that stack generation
 // errors when a unit or stack block declares update_source_with_cas = true while
 // --no-cas is set. CAS is enabled by default, so --no-cas is the way to disable it
@@ -1180,6 +1286,54 @@ terraform {
 			assert.Equal(t, "terraform", requiresCASErr.BlockType)
 		})
 	}
+}
+
+// TestStacksGenerateOCICatalogRewritesSourcesWithCAS generates an OCI catalog end to end through both waves.
+func TestStacksGenerateOCICatalogRewritesSourcesWithCAS(t *testing.T) {
+	t.Parallel()
+
+	registry := ociregistry.Start(t)
+	registry.PushModule(t, "catalog", "v1", map[string]string{
+		"stacks/svc/terragrunt.stack.hcl": `unit "a" {
+  source                 = "../..//units/a"
+  update_source_with_cas = true
+  path                   = "a"
+}
+`,
+		"units/a/terragrunt.hcl": `terraform {
+  source = "."
+}
+`,
+	})
+
+	liveDir := filepath.Join(helpers.TmpDirWOSymlinks(t), "live")
+	require.NoError(t, os.MkdirAll(liveDir, 0o755))
+
+	stackConfig := `stack "svc" {
+  source = "oci://` + registry.Address() + `/catalog//stacks/svc?tag=v1"
+  path   = "svc"
+}
+`
+	require.NoError(t, os.WriteFile(filepath.Join(liveDir, "terragrunt.stack.hcl"), []byte(stackConfig), 0o644))
+
+	// A hermetic home keeps the developer's registry credentials out of the pull.
+	home := t.TempDir()
+	v := helpers.RunVenv(t).WithEnvCloned().WithUserHomeDir(func() (string, error) { return home, nil })
+	v.Env["HOME"] = home
+	v.HTTP = registry.Client()
+
+	_, _, err := helpers.RunTerragruntCommandWithOutputWithVenv(
+		t,
+		v,
+		"terragrunt stack generate --non-interactive --working-dir "+liveDir,
+	)
+	require.NoError(t, err)
+
+	nestedStack, err := os.ReadFile(filepath.Join(liveDir, ".terragrunt-stack", "svc", "terragrunt.stack.hcl"))
+	require.NoError(t, err)
+
+	assert.Regexp(t, `"cas::sha256:[a-f0-9]{64}"`, string(nestedStack))
+	assert.FileExists(t, filepath.Join(liveDir, ".terragrunt-stack", "svc", ".terragrunt-stack", "a", "terragrunt.hcl"))
 }
 
 // readCachedFiles returns the contents of every file with the given name

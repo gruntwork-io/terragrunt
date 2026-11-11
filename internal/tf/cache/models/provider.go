@@ -10,8 +10,10 @@ import (
 	semver "github.com/gruntwork-io/terragrunt/internal/semver"
 )
 
+// Providers is a list of provider address patterns.
 type Providers []*Provider
 
+// ParseProviders parses each of strs with [ParseProvider].
 func ParseProviders(strs ...string) Providers {
 	var providers Providers
 
@@ -24,6 +26,7 @@ func ParseProviders(strs ...string) Providers {
 	return providers
 }
 
+// Find returns the first pattern in providers that matches target, or nil when none does.
 func (providers Providers) Find(target *Provider) *Provider {
 	for _, provider := range providers {
 		if provider.Match(target) {
@@ -40,10 +43,12 @@ type SigningKey struct {
 	TrustSignature string `json:"trust_signature"`
 }
 
+// SigningKeyList is the `signing_keys` object of a registry platform response.
 type SigningKeyList struct {
 	GPGPublicKeys []*SigningKey `json:"gpg_public_keys"`
 }
 
+// Keys maps the ASCII-armored form of each key in list to its trust signature.
 func (list SigningKeyList) Keys() map[string]string {
 	keys := make(map[string]string)
 
@@ -54,8 +59,10 @@ func (list SigningKeyList) Keys() map[string]string {
 	return keys
 }
 
+// Versions is the list of versions a registry or mirror offers for one provider.
 type Versions []*Version
 
+// Version is one provider version in a registry versions response, with the platforms it supports.
 type Version struct {
 	Version   string    `json:"version"`
 	Protocols []string  `json:"protocols"`
@@ -90,8 +97,10 @@ func (versions Versions) FilterValid() (Versions, []string) {
 	return valid, invalid
 }
 
+// Platforms is the list of platforms a provider version supports.
 type Platforms []*Platform
 
+// Platform is an operating system and CPU architecture pair.
 type Platform struct {
 	OS   string `json:"os"`
 	Arch string `json:"arch"`
@@ -139,11 +148,13 @@ type ResponseBody struct {
 	Origin                 PackageOrigin  `json:"-"`
 }
 
+// ResolveRelativeReferences returns a copy of body whose download, SHA256SUMS, and signature URLs
+// are resolved against base. A relative path without a leading slash is joined to the path of base.
 func (body *ResponseBody) ResolveRelativeReferences(base *url.URL) *ResponseBody {
 	clone := *body
-	clone.DownloadURL = resolveRelativeReference(base, body.DownloadURL)
-	clone.SHA256SumsSignatureURL = resolveRelativeReference(base, body.SHA256SumsSignatureURL)
-	clone.SHA256SumsURL = resolveRelativeReference(base, body.SHA256SumsURL)
+	clone.DownloadURL = resolveLink(base, body.DownloadURL)
+	clone.SHA256SumsSignatureURL = resolveLink(base, body.SHA256SumsSignatureURL)
+	clone.SHA256SumsURL = resolveLink(base, body.SHA256SumsURL)
 
 	return &clone
 }
@@ -163,6 +174,8 @@ type Provider struct {
 	OriginalConstraints string
 }
 
+// ParseProvider parses a provider address pattern of the form `registry/namespace/name`,
+// `namespace/name`, or `registry`. A `*` part, or a part the pattern leaves out, matches any value.
 func ParseProvider(str string) *Provider {
 	parts := strings.Split(str, "/")
 	for i := range parts {
@@ -206,14 +219,17 @@ func (provider *Provider) String() string {
 	return fmt.Sprintf("%s/%s/%s", provider.RegistryName, provider.Namespace, provider.Name)
 }
 
+// Platform returns the `os_arch` name of the platform of provider, such as `linux_amd64`.
 func (provider *Provider) Platform() string {
 	return fmt.Sprintf("%s_%s", provider.OS, provider.Arch)
 }
 
+// Address returns the `registry/namespace/name` source address of provider.
 func (provider *Provider) Address() string {
 	return path.Join(provider.RegistryName, provider.Namespace, provider.Name)
 }
 
+// Constraints returns the version constraints from the module's `required_providers` block, or an empty string when it has none.
 func (provider *Provider) Constraints() string {
 	return provider.OriginalConstraints
 }

@@ -13,10 +13,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	thlogger "github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 func TestLogUnitDeployOrder_Flat(t *testing.T) {
@@ -25,7 +25,7 @@ func TestLogUnitDeployOrder_Flat(t *testing.T) {
 	rnr := buildTestRunner(t, "/tmp/test", []string{"/tmp/test/vpc", "/tmp/test/app"})
 	l := thlogger.CreateLogger()
 
-	err := rnr.LogUnitDeployOrder(l, venvtest.New(), false, false, nil)
+	err := rnr.LogUnitDeployOrder(l, venv.MemVenv(), false, false, nil)
 	require.NoError(t, err)
 }
 
@@ -35,7 +35,7 @@ func TestLogUnitDeployOrder_Destroy(t *testing.T) {
 	rnr := buildTestRunner(t, "/tmp/test", []string{"/tmp/test/vpc", "/tmp/test/app"})
 	l := thlogger.CreateLogger()
 
-	err := rnr.LogUnitDeployOrder(l, venvtest.New(), true, false, nil)
+	err := rnr.LogUnitDeployOrder(l, venv.MemVenv(), true, false, nil)
 	require.NoError(t, err)
 }
 
@@ -113,7 +113,7 @@ func TestLogUnitDeployOrder_DAGExperiment(t *testing.T) {
 
 	exps := experiment.NewExperiments()
 
-	err := rnr.LogUnitDeployOrder(l, venvtest.New(), false, false, exps)
+	err := rnr.LogUnitDeployOrder(l, venv.MemVenv(), false, false, exps)
 	require.NoError(t, err)
 }
 
@@ -130,7 +130,7 @@ func TestNewFromComponents_WithPreventDestroy(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("/tmp/test/terragrunt.hcl")
 	require.NoError(t, err)
 
-	opts.TerraformCommand = tf.CommandNameDestroy
+	opts.TofuCommand = tf.CommandNameDestroy
 
 	l := thlogger.CreateLogger()
 
@@ -172,7 +172,7 @@ func TestNewFromComponents_FilterAllowDestroy(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("/tmp/test/terragrunt.hcl")
 	require.NoError(t, err)
 
-	opts.TerraformCommand = "apply"
+	opts.TofuCommand = "apply"
 	opts.FilterAllowDestroy = false
 
 	l := thlogger.CreateLogger()
@@ -217,7 +217,7 @@ func TestNewFromComponents_PreventDestroyExcludesDependencies(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("/tmp/test/terragrunt.hcl")
 	require.NoError(t, err)
 
-	opts.TerraformCommand = tf.CommandNameDestroy
+	opts.TofuCommand = tf.CommandNameDestroy
 
 	rnr, err := runner.NewFromComponents(
 		config.WithCaches(t.Context()),
@@ -240,7 +240,7 @@ func TestNewFromComponents_DestroyWithoutProtectedUnits(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("/tmp/test/terragrunt.hcl")
 	require.NoError(t, err)
 
-	opts.TerraformCommand = tf.CommandNameDestroy
+	opts.TofuCommand = tf.CommandNameDestroy
 
 	rnr, err := runner.NewFromComponents(
 		config.WithCaches(t.Context()),
@@ -265,7 +265,7 @@ func TestNewFromComponents_FilterAllowDestroyKeepsUnit(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("/tmp/test/terragrunt.hcl")
 	require.NoError(t, err)
 
-	opts.TerraformCommand = "apply"
+	opts.TofuCommand = "apply"
 	opts.FilterAllowDestroy = true
 
 	rnr, err := runner.NewFromComponents(
@@ -381,7 +381,7 @@ func TestNewFromComponents_PreventDestroyWalksTheDependencyGraph(t *testing.T) {
 			opts, err := options.NewTerragruntOptionsForTest("/tmp/test/terragrunt.hcl")
 			require.NoError(t, err)
 
-			opts.TerraformCommand = tf.CommandNameDestroy
+			opts.TofuCommand = tf.CommandNameDestroy
 
 			rnr, err := runner.NewFromComponents(
 				config.WithCaches(t.Context()),
@@ -434,7 +434,7 @@ func TestNewFromComponents_PreventDestroyStopsAtTraversalDepth(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("/tmp/test/terragrunt.hcl")
 	require.NoError(t, err)
 
-	opts.TerraformCommand = tf.CommandNameDestroy
+	opts.TofuCommand = tf.CommandNameDestroy
 
 	rnr, err := runner.NewFromComponents(
 		config.WithCaches(t.Context()),
@@ -569,7 +569,7 @@ func TestNewFromComponents_FilterAllowDestroyWithoutDiscoveryContext(t *testing.
 	opts, err := options.NewTerragruntOptionsForTest("/tmp/test/terragrunt.hcl")
 	require.NoError(t, err)
 
-	opts.TerraformCommand = "plan"
+	opts.TofuCommand = "plan"
 
 	rnr, err := runner.NewFromComponents(
 		config.WithCaches(t.Context()),

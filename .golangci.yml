@@ -147,6 +147,16 @@ linters:
           deny:
             - pkg: github.com/gobwas/glob
               desc: use github.com/gruntwork-io/terragrunt/internal/glob instead
+        no-config-rewrite-in-pkg-config:
+          # The config parsing rewrite in internal/config/rewrite imports
+          # pkg/config, never the reverse, so the rewrite can be deleted or
+          # merged without touching pkg/config or its subpackages.
+          list-mode: lax
+          files:
+            - "**/pkg/config/**"
+          deny:
+            - pkg: github.com/gruntwork-io/terragrunt/internal/config/rewrite
+              desc: pkg/config must not import the config parsing rewrite
     dupl:
       threshold: 120
     # Terragrunt routes every side effect through the virtualized environment
@@ -234,6 +244,9 @@ linters:
       ignore-map-keys: true
       min-len: 3
       min-occurrences: 5
+    godoclint:
+      enable:
+        - require-doc
     gocritic:
       enabled-tags:
         - performance
@@ -273,6 +286,16 @@ linters:
           - mnd
           - unparam
         path: _test\.go
+      # Test files have no API to document.
+      - linters:
+          - godoclint
+        text: should have a godoc
+        path: _test\.go
+      # These methods satisfy error and fmt.Stringer; a godoc would only
+      # restate the interface.
+      - linters:
+          - godoclint
+        text: should have a godoc \("(Error|Unwrap|String)"\)
       # Tests frequently drive real fixtures on disk, so tests
       # are allowed to bypass venv. The text match lifts only the venv rules,
       # so the testify rule still applies here.
@@ -379,9 +402,13 @@ issues:
 formatters:
   enable:
     - goimports
+    - golines
   settings:
     gofmt:
       simplify: true
+    golines:
+      max-len: 120
+      tab-len: 1
   exclusions:
     generated: lax
     paths:

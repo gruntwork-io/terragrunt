@@ -24,8 +24,11 @@ import (
 type UnitStatus int
 
 const (
+	// Waiting is the status of a unit that has not started.
 	Waiting UnitStatus = iota
+	// Running is the status of a unit whose run is in progress.
 	Running
+	// Finished is the status of a unit whose run has ended, with or without an error.
 	Finished
 )
 
@@ -162,9 +165,9 @@ func (runner *UnitRunner) Run(
 
 		jsonOptions.ForwardTFStdout = true
 		jsonOptions.JSONLogFormat = false
-		jsonOptions.TerraformCommand = tf.CommandNameShow
+		jsonOptions.TofuCommand = tf.CommandNameShow
 		planFile := runner.Unit.PlanFile(
-			opts.RootWorkingDir, opts.OutputFolder, opts.JSONOutputFolder, opts.TerraformCommand,
+			opts.RootWorkingDir, opts.OutputFolder, opts.JSONOutputFolder, opts.TofuCommand,
 		)
 		jsonOptions.TerraformCliArgs = iacargs.New(tf.CommandNameShow, "-json", planFile)
 

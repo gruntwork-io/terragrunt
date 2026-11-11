@@ -107,6 +107,8 @@ const (
 	// LegacyBase64Gzip is the control that switches base64gzip() from the Go 1.26 gzip bytes to the current encoder.
 	LegacyBase64Gzip = "legacy-base64gzip"
 
+	// OptionalHooks is the control named for the `--no-hooks` flag of `terragrunt run`, which skips
+	// before_hook, after_hook, and error_hook blocks.
 	OptionalHooks = "optional-hooks"
 
 	// DuplicateDependencyLabels is the control that prevents two `dependency` blocks in one
@@ -116,6 +118,10 @@ const (
 	// DependencyConfigPathFile is the control that prevents a `dependency` block from setting
 	// `config_path` to a file instead of a directory.
 	DependencyConfigPathFile = "dependency-config-path-file"
+
+	// CASSourceInsideStack is the control that prevents a `unit` or `stack` block with
+	// `update_source_with_cas` from setting a source inside the directory of its stack file.
+	CASSourceInsideStack = "cas-source-inside-stack"
 )
 
 // LegacyGCSDeprecationWarning is the warning text emitted when a plain
@@ -131,6 +137,7 @@ func IsFastCopyEnabled(strictControls strict.Controls) bool {
 	return len(strictControls.FilterByNames(FastCopy).FilterByEnabled()) > 0
 }
 
+// New returns every strict control Terragrunt knows, each disabled, with its subcontrols attached.
 func New() strict.Controls {
 	skipDependenciesInputsControl := &Control{
 		Name:        SkipDependenciesInputs,
@@ -179,6 +186,15 @@ func New() strict.Controls {
 		Warning: "Setting the `config_path` of a `dependency` block to a file is deprecated and will be removed in a future version of Terragrunt. Set it to the directory of the unit or stack instead.",
 	}
 
+	casSourceInsideStackControl := &Control{
+		Name:        CASSourceInsideStack,
+		Description: "Prevents a `unit` or `stack` block with `update_source_with_cas` from setting a source inside the directory of its stack file. Stack generation copies that directory whole, so the generated stack also contains a copy of the source, and `run --all` runs that copy as well.",
+		Error: errors.New(
+			"Setting the source of a `unit` or `stack` block with `update_source_with_cas` to a directory inside the stack directory is no longer supported. Move the source out of the stack directory, and select the stack with a `//` subdirectory in its source.",
+		),
+		Warning: "Setting the source of a `unit` or `stack` block with `update_source_with_cas` to a directory inside the stack directory is deprecated and will be removed in a future version of Terragrunt. Stack generation copies the stack directory whole, so `run --all` also runs the copy. Move the source out of the stack directory, and select the stack with a `//` subdirectory in its source.",
+	}
+
 	controls := strict.Controls{
 		&Control{
 			Name:        DeprecatedCommands,
@@ -201,6 +217,7 @@ func New() strict.Controls {
 				skipAccessLoggingBucketACLControl,
 				skipBucketRootAccessControl,
 				dependencyConfigPathFileControl,
+				casSourceInsideStackControl,
 			},
 		},
 		skipDependenciesInputsControl,
@@ -208,6 +225,7 @@ func New() strict.Controls {
 		skipAccessLoggingBucketACLControl,
 		skipBucketRootAccessControl,
 		dependencyConfigPathFileControl,
+		casSourceInsideStackControl,
 		&Control{
 			Name:        CLIRedesign,
 			Description: "Prevents the use of commands deprecated as part of the CLI Redesign.",

@@ -38,6 +38,12 @@ This will generate a `dist` directory with the built documentation.
 
 Running this locally can be useful if you see that the build fails in CI, as additional checks are performed in the build process, like ensuring that all links are valid.
 
+The build asks the GitHub API for the latest release, and gates content on it. A build that logs `API rate limit exceeded` cannot tell what has shipped, so it leaves out every page, experiment, and `<Since>` block gated on a version. Pass a token to lift the limit:
+
+```bash
+GITHUB_TOKEN=$(gh auth token) bun run build
+```
+
 ## Hosting
 
 The website is hosted on [Vercel](https://vercel.com/), and is automatically deployed when a new commit is pushed to the `main` branch.

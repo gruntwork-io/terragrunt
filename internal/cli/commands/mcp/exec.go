@@ -1,51 +1,14 @@
 package mcp
 
 import (
-	"context"
-	"errors"
 	"fmt"
 	"io"
 	"maps"
-	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
 
-	"github.com/gruntwork-io/terragrunt/internal/redact"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
-	"github.com/gruntwork-io/terragrunt/internal/vhttp"
-	"github.com/gruntwork-io/terragrunt/internal/view/tui"
-	"github.com/gruntwork-io/terragrunt/internal/vsops"
-)
-
-// ErrExecDenied is the error every subprocess denial wraps. Tool handlers
-// match it with errors.Is to convert hard failures into actionable guidance.
-var ErrExecDenied = errors.New(
-	"subprocess execution disabled; restart the MCP server with --allow=exec",
-)
-
-// ErrSopsDenied is the error every refused decrypt wraps, so a tool handler
-// can turn it into guidance rather than letting it read as a broken file.
-var ErrSopsDenied = errors.New("SOPS decryption disabled; restart the MCP server with --allow=sops")
-
-// ErrCmdNotAllowed is the error a program a configuration named fails with
-// during apply and destroy, when no --allow-cmd pattern allows it.
-var ErrCmdNotAllowed = errors.New(
-	"the configuration names a program no --allow-cmd pattern allows; restart the MCP server with a pattern that matches it",
-)
-
-// refusal selects what a program a configuration named gets back when nothing
-// allowed it.
-type refusal int
-
-const (
-	// refusalStubs answers with empty output and a zero exit, so the tools
-	// that read a configuration can still evaluate it.
-	refusalStubs refusal = iota
-	// refusalFails answers with an error, so a run that changes
-	// infrastructure stops rather than proceeding on a stubbed answer.
-	refusalFails
+	"github.com/gruntwork-io/terragrunt/pkg/venv"
 )
 
 const (
@@ -160,231 +123,67 @@ func (r *execRecorder) record(note string) {
 	r.entries = slices.Insert(r.entries, i, execNote{text: note, count: 1})
 }
 
+// observer returns the [venv.Policy] observer that turns each refusal into
+// one of this call's degraded notes. A program a configuration named also
+// feeds the approval prompt, whose wording depends on mode.
+func (r *execRecorder) observer(mode venv.Refusal) func(venv.Denial) {
+	return func(dn venv.Denial) {
+		note := truncateRunes(dn.Cmdline, execCmdlineMaxLen)
+
+		switch dn.Kind {
+		case venv.DeniedIaC:
+			r.record(fmt.Sprintf("denied %q: dependency outputs degraded to mock_outputs where configured", note))
+		case venv.DeniedTrustedCommand:
+			r.record(fmt.Sprintf("denied %q: sources that need it were not downloaded", note))
+		case venv.StubbedCommand:
+			r.record(fmt.Sprintf("stubbed %q: run_cmd returned empty output", note))
+		case venv.RefusedCommand:
+			r.refuse(dn.Program)
+
+			if mode == venv.RefuseWithError {
+				r.record(fmt.Sprintf(
+					"refused %q: apply and destroy fail a unit whose configuration names a program no --allow-cmd pattern allows",
+					note,
+				))
+
+				return
+			}
+
+			r.record(fmt.Sprintf(
+				"stubbed %q: --allow=exec runs Terragrunt's own commands, not programs a configuration names",
+				note,
+			))
+		case venv.DeniedSops:
+			r.record(fmt.Sprintf("refused decrypting %q: secrets stay encrypted without --allow=sops",
+				truncateRunes(dn.Path, execCmdlineMaxLen)))
+		}
+	}
+}
+
 // callVenv returns the venv one tool call runs against. Every refusal it
 // arranges is noted on d.rec, whose notes become that call's degraded field.
 //
 // The two denials are independent. --allow=exec governs the processes
 // Terragrunt spawns, --allow=http the requests it makes itself. Neither
 // constrains a spawned process, which reaches the network on its own account.
+//
+// A program a person approved for this call runs with any arguments, as one
+// an --allow-cmd pattern matches does.
 func (d *serverDeps) callVenv(
 	rootVenv *venv.Venv,
 	env map[string]string,
 	w io.Writer,
 ) *venv.Venv {
-	v := rootVenv.WithEnv(env).WithWriter(w)
-
-	if !d.allowHTTP {
-		v = v.WithHTTP(vhttp.NewNoNetworkClient())
+	allowCmds := slices.Clone(d.allowCmds)
+	for _, program := range d.approved {
+		allowCmds = append(allowCmds, venv.AllowProgram(program))
 	}
 
-	if !d.allowSops {
-		v = v.WithSops(vsops.NewMemDecrypter(denySopsHandler(d.rec)))
-	}
-
-	if !d.allowExec {
-		return v.WithHandler(denyAllHandler(d.rec, d.operatorTFPath()))
-	}
-
-	return v.WithExec(&allowlistExec{
-		Exec:      v.Exec,
-		denied:    vexec.NewMemExec(configCommandHandler(d.rec, d.refusal)),
-		approved:  d.approved,
-		allowCmds: d.allowCmds,
+	return venv.Restrict(rootVenv.WithEnv(env).WithWriter(w), venv.Policy{
+		Granted:   d.granted,
+		AllowCmds: allowCmds,
+		Refusal:   d.refusal,
+		TFPath:    d.operatorTFPath(),
+		Observe:   d.rec.observer(d.refusal),
 	})
-}
-
-type allowlistExec struct {
-	vexec.Exec
-	denied    vexec.Exec
-	approved  []string
-	allowCmds []AllowCmd
-}
-
-func (e *allowlistExec) Command(ctx context.Context, name string, args ...string) vexec.Cmd {
-	if vexec.IsTrustedCommand(ctx) || e.permits(name, args) {
-		return e.Exec.Command(ctx, name, args...)
-	}
-
-	return e.denied.Command(ctx, name, args...)
-}
-
-// permits reports whether an invocation a configuration named may reach the
-// real executor. Terragrunt's own tofu, terraform, and git arrive marked (see
-// [vexec.WithTrustedCommand]) and never reach here; this decides the programs
-// a configuration names, through run_cmd(), a hook, or an auth-provider
-// command.
-//
-// A program runs only when a person approved it for this call, with any
-// arguments, or an --allow-cmd pattern matches it and its arguments. A tofu or
-// git a configuration names is not one of Terragrunt's own, so it is refused
-// like any other program unless one of those allowed it.
-func (e *allowlistExec) permits(name string, args []string) bool {
-	return slices.ContainsFunc(e.programs(name), func(program string) bool {
-		return slices.Contains(e.approved, program) ||
-			slices.ContainsFunc(e.allowCmds, func(c AllowCmd) bool { return c.Matches(program, args) })
-	})
-}
-
-// programs returns every program an approval or an allowlist entry may name to
-// cover an invocation. A bare name answers to itself. A name with a path
-// answers to that path, and to the bare program only when the path is exactly
-// where the server's PATH resolves it, because matching on the base alone lets
-// a configuration ship a file named git beside itself and reach the real
-// executor with ./git.
-func (e *allowlistExec) programs(name string) []string {
-	program := execProgram(name)
-	base := execBinaryName(name)
-
-	if program == base {
-		return []string{program}
-	}
-
-	if path, err := e.Exec.LookPath(base); err != nil || path != name {
-		return []string{program}
-	}
-
-	return []string{program, base}
-}
-
-// denySopsHandler returns a [vsops.Handler] that decrypts nothing. It fails
-// rather than answering with empty cleartext, because a configuration that
-// reads a secret and gets an empty string computes a wrong value silently,
-// where an error says what happened.
-//
-// Refusing also keeps the real decrypter from publishing credentials into the
-// process environment, which it does for the length of a decrypt.
-func denySopsHandler(rec *execRecorder) vsops.Handler {
-	return func(_ map[string]string, path, _ string) ([]byte, error) {
-		rec.record(fmt.Sprintf("refused decrypting %q: secrets stay encrypted without --allow=sops",
-			truncateRunes(tui.SanitizeLabel(path), execCmdlineMaxLen)))
-
-		return nil, fmt.Errorf("%w: %s", ErrSopsDenied, path)
-	}
-}
-
-// configCommandHandler answers a program a configuration named. Under
-// [refusalStubs] it returns empty output and a zero exit for the same reason
-// the deny-all handler does for run_cmd: an error there aborts the whole HCL
-// parse, which would turn a refused command into an unreadable configuration.
-//
-// Under [refusalFails] it fails instead. A stub reads as success, so a
-// before_hook meant to block an apply would let it through, and a run_cmd
-// would feed an empty string into the inputs being applied.
-func configCommandHandler(rec *execRecorder, mode refusal) vexec.Handler {
-	return func(_ context.Context, inv vexec.Invocation) vexec.Result {
-		cmdline := execCmdline(&inv)
-		note := truncateRunes(cmdline, execCmdlineMaxLen)
-
-		rec.refuse(execProgram(inv.Name))
-
-		if mode == refusalFails {
-			rec.record(fmt.Sprintf(
-				"refused %q: apply and destroy fail a unit whose configuration names a program no --allow-cmd pattern allows",
-				note,
-			))
-
-			return vexec.Result{Err: fmt.Errorf("%w: %s", ErrCmdNotAllowed, cmdline), ExitCode: 1}
-		}
-
-		rec.record(fmt.Sprintf(
-			"stubbed %q: --allow=exec runs Terragrunt's own commands, not programs a configuration names",
-			note,
-		))
-
-		return vexec.Result{}
-	}
-}
-
-// execBinaryName reduces an invocation name to the bare program, so a Windows
-// .exe matches the same allowlist entry as the name without it.
-func execBinaryName(name string) string {
-	return strings.TrimSuffix(filepath.Base(name), ".exe")
-}
-
-// execProgram reduces an invocation name to the program an approval or an
-// allowlist entry names. A bare name loses any .exe suffix. A name with a path
-// becomes its lexically cleaned, slash-separated path, without any .exe suffix.
-// A relative path that cleans down to a bare name keeps a leading ./, so the
-// git a tree ships beside itself never reads as the git the server's PATH
-// finds.
-func execProgram(name string) string {
-	if filepath.Base(name) == name {
-		return strings.TrimSuffix(name, ".exe")
-	}
-
-	path := filepath.ToSlash(filepath.Clean(name))
-	if !strings.Contains(path, "/") {
-		path = "./" + path
-	}
-
-	return strings.TrimSuffix(path, ".exe")
-}
-
-// execCmdline renders an invocation for a note, with the credentials taken out
-// of every argument that is a URL. The dir is deliberately left out: the same
-// command evaluated from a root config included by N units differs only by
-// dir, and per-dir notes would defeat the recorder's dedup.
-func execCmdline(inv *vexec.Invocation) string {
-	words := make([]string, 0, len(inv.Args)+1)
-	words = append(words, inv.Name)
-
-	for _, arg := range inv.Args {
-		if strings.Contains(arg, "://") {
-			arg = redact.NewURL(arg).String()
-		}
-
-		words = append(words, arg)
-	}
-
-	return tui.SanitizeLabel(strings.TrimSpace(strings.Join(words, " ")))
-}
-
-// denyAllHandler returns a [vexec.Handler] that never spawns a process. Each
-// shape of invocation gets the answer that degrades its caller least. A tofu
-// invocation fails with [ErrExecDenied], so a dependency fetch falls back to
-// mock_outputs. So does an invocation of tfPath, the binary the operator named
-// with --tf-path, whatever its file is called.
-//
-// Any other command Terragrunt starts on its own account (see
-// [vexec.WithTrustedCommand]), such as the git, hg or smbclient that downloads
-// a source, fails with [ErrExecDenied] too.
-//
-// A run_cmd invocation returns empty output and a zero exit, because a run_cmd
-// error aborts the whole HCL parse. A git command from a configuration
-// answers with the dir it was called from, standing in for `git rev-parse
-// --show-toplevel`.
-//
-// Nothing here allocates a PTY. Only `tofu console` asks for one, only when
-// stdin is a TTY, and no tool on this server runs console.
-func denyAllHandler(rec *execRecorder, tfPath string) vexec.Handler {
-	return func(ctx context.Context, inv vexec.Invocation) vexec.Result {
-		cmdline := execCmdline(&inv)
-		note := truncateRunes(cmdline, execCmdlineMaxLen)
-
-		switch binary := execBinaryName(inv.Name); {
-		case inv.Name == tfPath, binary == "tofu", binary == "terraform", binary == "opentofu":
-			rec.record(
-				fmt.Sprintf(
-					"denied %q: dependency outputs degraded to mock_outputs where configured",
-					note,
-				),
-			)
-
-			return vexec.Result{Err: fmt.Errorf("%w: %s", ErrExecDenied, cmdline)}
-		case vexec.IsTrustedCommand(ctx):
-			rec.record(fmt.Sprintf("denied %q: sources that need it were not downloaded", note))
-
-			return vexec.Result{Err: fmt.Errorf("%w: %s", ErrExecDenied, cmdline)}
-		case binary == "git":
-			rec.record(
-				fmt.Sprintf("stubbed %q: repo-root paths approximated by the invocation dir", note),
-			)
-
-			return vexec.Result{Stdout: []byte(inv.Dir + "\n")}
-		default:
-			rec.record(fmt.Sprintf("stubbed %q: run_cmd returned empty output", note))
-
-			return vexec.Result{}
-		}
-	}
 }

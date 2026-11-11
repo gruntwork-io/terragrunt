@@ -70,6 +70,7 @@ type ExtendedRemoteStateConfigS3 struct {
 	SkipCredentialsValidation                    bool                `mapstructure:"skip_credentials_validation"`
 }
 
+// FetchEncryptionAlgorithm returns bucket_sse_algorithm, or aws:kms when the config leaves it unset.
 func (cfg *ExtendedRemoteStateConfigS3) FetchEncryptionAlgorithm() string {
 	// Encrypt with KMS by default
 	algorithm := string(s3types.ServerSideEncryptionAwsKms)
@@ -103,7 +104,7 @@ func (cfg *ExtendedRemoteStateConfigS3) GetAwsSessionConfig() *awshelper.AwsSess
 		ExternalID:              cfg.RemoteStateConfigS3.GetExternalID(),
 		SessionName:             cfg.RemoteStateConfigS3.GetSessionName(),
 		CredsFilename:           cfg.RemoteStateConfigS3.CredsFilename,
-		S3ForcePathStyle:        cfg.RemoteStateConfigS3.S3ForcePathStyle,
+		S3ForcePathStyle:        cfg.RemoteStateConfigS3.S3ForcePathStyle || cfg.RemoteStateConfigS3.UsePathStyle,
 		DisableComputeChecksums: cfg.DisableAWSClientChecksums,
 	}
 }
@@ -157,6 +158,7 @@ func (cfg *ExtendedRemoteStateConfigS3) Validate() error {
 	return nil
 }
 
+// RemoteStateConfigS3AssumeRole is the assume_role block of an s3 remote_state config.
 type RemoteStateConfigS3AssumeRole struct {
 	RoleArn           string            `mapstructure:"role_arn"`
 	Duration          string            `mapstructure:"duration"`
@@ -169,6 +171,8 @@ type RemoteStateConfigS3AssumeRole struct {
 	TransitiveTagKeys []string          `mapstructure:"transitive_tag_keys"`
 }
 
+// RemoteStateConfigS3Endpoints is the endpoints block of an s3 remote_state config. A value set here takes
+// precedence over the top-level endpoint and dynamodb_endpoint attributes.
 type RemoteStateConfigS3Endpoints struct {
 	S3       string `mapstructure:"s3"`
 	DynamoDB string `mapstructure:"dynamodb"`
@@ -193,6 +197,7 @@ type RemoteStateConfigS3 struct {
 	AssumeRole       RemoteStateConfigS3AssumeRole `mapstructure:"assume_role"`
 	Encrypt          bool                          `mapstructure:"encrypt"`
 	S3ForcePathStyle bool                          `mapstructure:"force_path_style"`
+	UsePathStyle     bool                          `mapstructure:"use_path_style"`
 	UseLockfile      bool                          `mapstructure:"use_lockfile"`
 }
 
@@ -230,6 +235,7 @@ func (cfg *RemoteStateConfigS3) GetSessionRoleArn() string {
 	return cfg.RoleArn
 }
 
+// GetSessionTags returns the session tags from the assume_role block, or nil when it sets none.
 func (cfg *RemoteStateConfigS3) GetSessionTags() map[string]string {
 	if len(cfg.AssumeRole.Tags) != 0 {
 		return cfg.AssumeRole.Tags
@@ -249,6 +255,8 @@ func (cfg *RemoteStateConfigS3) GetExternalID() string {
 	return cfg.ExternalID
 }
 
+// GetSessionName returns the session name from the assume_role block, falling back to the top-level
+// session_name attribute.
 func (cfg *RemoteStateConfigS3) GetSessionName() string {
 	if cfg.AssumeRole.SessionName != "" {
 		return cfg.AssumeRole.SessionName

@@ -13,6 +13,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
@@ -66,6 +67,11 @@ type sourceSpelling struct {
 }
 
 func (e *sourceError) Unwrap() error { return e.err }
+
+// ExitCode returns [clihelper.ExitCodeGeneralError], so a failed download
+// exits Terragrunt with 1 rather than the exit status of the git, hg or
+// smbclient process it ran.
+func (e *sourceError) ExitCode() int { return int(clihelper.ExitCodeGeneralError) }
 
 // runDownloadCommand runs name with args through v's exec in dir and returns
 // the last [maxCommandOutput] bytes of the command's combined output.

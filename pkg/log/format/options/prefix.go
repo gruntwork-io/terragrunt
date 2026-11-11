@@ -3,6 +3,7 @@ package options
 // PrefixOptionName is the option name.
 const PrefixOptionName = "prefix"
 
+// PrefixOption is the `prefix` option. It prepends its value to the text.
 type PrefixOption struct {
 	*CommonOption[string]
 }

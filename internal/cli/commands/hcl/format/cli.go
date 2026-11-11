@@ -12,16 +12,29 @@ import (
 )
 
 const (
-	CommandName      = "format"
+	// CommandName is the name of the `terragrunt hcl format` command.
+	CommandName = "format"
+	// CommandNameAlias is the short alias of `terragrunt hcl format`.
 	CommandNameAlias = "fmt"
 
-	FileFlagName       = "file"
+	// FileFlagName is the name of the flag that formats one file in place of
+	// the whole working directory tree.
+	FileFlagName = "file"
+	// ExcludeDirFlagName is the name of the flag that skips the given
+	// directories.
 	ExcludeDirFlagName = "exclude-dir"
-	CheckFlagName      = "check"
-	DiffFlagName       = "diff"
-	StdinFlagName      = "stdin"
+	// CheckFlagName is the name of the flag that fails on an unformatted file
+	// without rewriting it.
+	CheckFlagName = "check"
+	// DiffFlagName is the name of the flag that prints a diff for each file
+	// that formatting changes.
+	DiffFlagName = "diff"
+	// StdinFlagName is the name of the flag that formats HCL read from stdin and
+	// writes the result to stdout.
+	StdinFlagName = "stdin"
 )
 
+// NewFlags returns the flags of `terragrunt hcl format`, bound to opts.
 func NewFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, prefix flags.Prefix) clihelper.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
@@ -120,6 +133,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, prefi
 	return flagSet
 }
 
+// NewCommand returns the `terragrunt hcl format` command.
 func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *clihelper.Command {
 	cmd := &clihelper.Command{
 		Name:    CommandName,
