@@ -147,7 +147,7 @@ func parseConfig(
 		return config.PartialParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
 	}
 
-	return s.ResolveUnitQueueConfig(ctx, l, v, rewrite.NewParseContext(pctx), cfgPath)
+	return s.ResolveUnitQueueConfig(ctx, l, v, rewrite.NewParseContext(v, pctx), cfgPath)
 }
 
 // ParsePhase parses HCL configurations for filter evaluation.

@@ -1,7 +1,9 @@
 package config_test
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"path/filepath"
 	"testing"
 
@@ -76,7 +78,7 @@ func parseForBenchmark(b *testing.B, l log.Logger, v *venv.Venv, store *config.S
 
 	ctx, run := newTestParsingContext(b, path)
 
-	_, err := store.ResolveUnitConfig(ctx, l, v, config.NewParseContext(run), path)
+	_, err := store.ResolveUnitConfig(ctx, l, v, config.NewParseContext(v, run), path)
 	require.NoError(b, err)
 }
 
@@ -92,7 +94,7 @@ func TestResolveUnitConfigSharesTheParse(t *testing.T) {
 	ctx, run := newTestParsingContext(t, paths[0])
 	run = run.WithFileReadTracking()
 
-	firstCfg, err := store.ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(run), paths[0])
+	firstCfg, err := store.ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(v, run), paths[0])
 	require.NoError(t, err)
 	assert.Equal(
 		t,
@@ -108,7 +110,7 @@ func TestResolveUnitConfigSharesTheParse(t *testing.T) {
 		secondCtx,
 		l,
 		v,
-		config.NewParseContext(secondRun),
+		config.NewParseContext(v, secondRun),
 		paths[0],
 	)
 	require.NoError(t, err)
@@ -125,12 +127,12 @@ func TestResolveUnitConfigSharesTheParse(t *testing.T) {
 	assert.Equal(t, run.FilesRead.Paths(), secondRun.FilesRead.Paths())
 	assert.Contains(t, secondRun.FilesRead.Paths(), filepath.Join(root, "common.yaml"))
 
-	firstPC := config.NewParseContext(run)
+	firstPC := config.NewParseContext(v, run)
 
 	first, err := store.ResolveUnitConfig(ctx, l, v, firstPC, paths[0])
 	require.NoError(t, err)
 
-	secondPC := config.NewParseContext(secondRun)
+	secondPC := config.NewParseContext(v, secondRun)
 
 	second, err := store.ResolveUnitConfig(secondCtx, l, v, secondPC, paths[0])
 	require.NoError(t, err)
@@ -161,7 +163,7 @@ func TestResolveUnitQueueConfigReturnsPartialConfigWithParseError(t *testing.T) 
 
 	cfg, err := new(
 		config.Store,
-	).ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(run), path)
+	).ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(v, run), path)
 	require.ErrorAs(t, err, new(pkgconfig.IncludeConfigNotFoundError))
 	require.NotNil(t, cfg)
 	assert.Equal(t, "us-east-1", cfg.Locals["region"])
@@ -190,7 +192,7 @@ func TestResolveUnitQueueConfigGivesCallersOfAFailedParseTheirOwnConfigWithRacin
 					ctx,
 					l,
 					v,
-					config.NewParseContext(run),
+					config.NewParseContext(v, run),
 					path,
 				)
 				assert.ErrorAs(t, err, new(pkgconfig.IncludeConfigNotFoundError))
@@ -290,7 +292,7 @@ inputs = {
 	ctx, parseRun := newTestParsingContext(t, path)
 	parseRun = parseRun.WithFileReadTracking()
 
-	parsed, err := new(config.Store).ResolveUnitConfig(ctx, l, v, config.NewParseContext(parseRun), path)
+	parsed, err := new(config.Store).ResolveUnitConfig(ctx, l, v, config.NewParseContext(v, parseRun), path)
 	require.NoError(t, err)
 
 	var g errgroup.Group
@@ -300,7 +302,7 @@ inputs = {
 			runCtx, run := newTestParsingContext(t, path)
 			run = run.WithFileReadTracking()
 
-			if _, err := parsed.ToV1(runCtx, l, v, config.NewParseContext(run)); err != nil {
+			if _, err := parsed.ToV1(runCtx, l, v, config.NewParseContext(v, run)); err != nil {
 				return err
 			}
 
@@ -334,7 +336,7 @@ func TestResolveUnitConfigSendsDiagnosticsToItsCallersHandler(t *testing.T) {
 		return diags, nil
 	}
 
-	_, err := new(config.Store).ResolveUnitConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(run), path)
+	_, err := new(config.Store).ResolveUnitConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, run), path)
 	require.Error(t, err)
 	assert.NotEmpty(t, received)
 }
@@ -389,7 +391,7 @@ engine {
 				ctx,
 				logger.CreateLogger(),
 				v,
-				config.NewParseContext(run),
+				config.NewParseContext(v, run),
 				path,
 			)
 			require.NoError(t, err)
@@ -440,10 +442,10 @@ errors {
 
 	ctx, run := newTestParsingContext(t, path)
 
-	_, err := store.ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(run), path)
+	_, err := store.ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(v, run), path)
 	require.NoError(t, err)
 
-	hit, err := store.ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(run), path)
+	hit, err := store.ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(v, run), path)
 	require.NoError(t, err)
 	clear(hit.Errors.Ignore[0].Signals)
 
@@ -453,7 +455,7 @@ errors {
 		g.Go(func() error {
 			callerCtx, callerRun := newTestParsingContext(t, path)
 
-			cfg, err := store.ResolveUnitQueueConfig(callerCtx, l, v, config.NewParseContext(callerRun), path)
+			cfg, err := store.ResolveUnitQueueConfig(callerCtx, l, v, config.NewParseContext(v, callerRun), path)
 			if err != nil {
 				return err
 			}
@@ -503,7 +505,7 @@ include "r" {
 	v := venv.MemVenv().WithFS(fsys)
 	ctx, run := newTestParsingContext(t, path)
 
-	cfg, err := new(config.Store).ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(run), path)
+	cfg, err := new(config.Store).ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, run), path)
 
 	var unparsed config.UnparsedIncludeError
 
@@ -523,11 +525,11 @@ func TestResolveRunConfigAddsTheRunPartsToTheSharedParse(t *testing.T) {
 
 	ctx, run := newTestParsingContext(t, paths[0])
 
-	queueCfg, err := store.ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(run), paths[0])
+	queueCfg, err := store.ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(v, run), paths[0])
 	require.NoError(t, err)
 	assert.Nil(t, queueCfg.Inputs)
 
-	runCfg, err := store.ResolveRunConfig(ctx, l, v, config.NewParseContext(run), paths[0])
+	runCfg, err := store.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, run), paths[0])
 	require.NoError(t, err)
 	assert.Equal(
 		t,
@@ -546,7 +548,7 @@ func TestResolveRunConfigReturnsNoConfigForAMissingFile(t *testing.T) {
 
 	cfg, err := new(
 		config.Store,
-	).ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(run), path)
+	).ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, run), path)
 	require.ErrorAs(t, err, new(pkgconfig.TerragruntConfigNotFoundError))
 	assert.Nil(t, cfg)
 }
@@ -612,14 +614,14 @@ func TestDependencyReadsReachOnlyARun(t *testing.T) {
 	ctx, queueRun := newTestParsingContext(t, path)
 	queueRun = queueRun.WithFileReadTracking()
 
-	_, err := store.ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(queueRun), path)
+	_, err := store.ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(v, queueRun), path)
 	require.NoError(t, err)
 	assert.NotContains(t, queueRun.FilesRead.Paths(), readByDependency)
 
 	runCtx, run := newTestParsingContext(t, path)
 	run = run.WithFileReadTracking()
 
-	_, err = store.ResolveRunConfig(runCtx, l, v, config.NewParseContext(run), path)
+	_, err = store.ResolveRunConfig(runCtx, l, v, config.NewParseContext(v, run), path)
 	require.NoError(t, err)
 	assert.Contains(t, run.FilesRead.Paths(), readByDependency)
 }
@@ -637,7 +639,7 @@ func TestInvalidateFindsAParseByTheFilesItsDependenciesRead(t *testing.T) {
 		ctx, run := newTestParsingContext(t, path)
 		run = run.WithFileReadTracking()
 
-		_, err := store.ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(run), path)
+		_, err := store.ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(v, run), path)
 		require.NoError(t, err)
 	}
 
@@ -675,11 +677,11 @@ dependency "vpc" {
 
 	ctx, run := newTestParsingContext(t, path)
 
-	vars, err := store.ResolveUnitBaseVariables(ctx, l, v, config.NewParseContext(run), path)
+	vars, err := store.ResolveUnitBaseVariables(ctx, l, v, config.NewParseContext(v, run), path)
 	require.NoError(t, err)
 	assert.Equal(t, "us-east-1", vars[pkgconfig.MetadataLocal].GetAttr("region").AsString())
 
-	_, err = store.ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(run), path)
+	_, err = store.ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(v, run), path)
 	require.Error(t, err)
 }
 
@@ -694,11 +696,11 @@ func TestResolveUnitQueueConfigBuildsOnTheBaseVariables(t *testing.T) {
 
 	ctx, run := newTestParsingContext(t, paths[0])
 
-	_, err := store.ResolveUnitBaseVariables(ctx, l, v, config.NewParseContext(run), paths[0])
+	_, err := store.ResolveUnitBaseVariables(ctx, l, v, config.NewParseContext(v, run), paths[0])
 	require.NoError(t, err)
 	assert.Equal(t, config.Stats{Hits: 0, Misses: 2}, store.Stats(), "the syntax tree and the base")
 
-	_, err = store.ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(run), paths[0])
+	_, err = store.ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(v, run), paths[0])
 	require.NoError(t, err)
 
 	stats := store.Stats()
@@ -723,7 +725,7 @@ func TestResolveUnitBaseVariablesEvaluatesOnceWithRacing(t *testing.T) {
 			ctx, run := newTestParsingContext(t, paths[0])
 			run = run.WithFileReadTracking()
 
-			vars, err := store.ResolveUnitBaseVariables(ctx, l, v, config.NewParseContext(run), paths[0])
+			vars, err := store.ResolveUnitBaseVariables(ctx, l, v, config.NewParseContext(v, run), paths[0])
 			if err != nil {
 				return err
 			}
@@ -750,12 +752,12 @@ func TestResolveUnitBaseVariablesGivesEachCallerItsOwnMap(t *testing.T) {
 
 	ctx, run := newTestParsingContext(t, paths[0])
 
-	first, err := store.ResolveUnitBaseVariables(ctx, l, v, config.NewParseContext(run), paths[0])
+	first, err := store.ResolveUnitBaseVariables(ctx, l, v, config.NewParseContext(v, run), paths[0])
 	require.NoError(t, err)
 
 	delete(first, pkgconfig.MetadataLocal)
 
-	second, err := store.ResolveUnitBaseVariables(ctx, l, v, config.NewParseContext(run), paths[0])
+	second, err := store.ResolveUnitBaseVariables(ctx, l, v, config.NewParseContext(v, run), paths[0])
 	require.NoError(t, err)
 	assert.Contains(t, second, pkgconfig.MetadataLocal)
 }
@@ -779,7 +781,7 @@ locals {
 	resolve := func() error {
 		ctx, run := newTestParsingContext(t, path)
 
-		_, err := store.ResolveUnitBaseVariables(ctx, l, v, config.NewParseContext(run), path)
+		_, err := store.ResolveUnitBaseVariables(ctx, l, v, config.NewParseContext(v, run), path)
 
 		return err
 	}
@@ -819,7 +821,7 @@ include "exposed" {
 	resolve := func() (map[string]cty.Value, error) {
 		ctx, run := newTestParsingContext(t, path)
 
-		return store.ResolveUnitBaseVariables(ctx, l, v, config.NewParseContext(run), path)
+		return store.ResolveUnitBaseVariables(ctx, l, v, config.NewParseContext(v, run), path)
 	}
 
 	vars, err := resolve()
@@ -844,7 +846,7 @@ func TestResolveUnitBaseVariablesReturnsNoVariablesForAMissingFile(t *testing.T)
 		ctx,
 		logger.CreateLogger(),
 		v,
-		config.NewParseContext(run),
+		config.NewParseContext(v, run),
 		path,
 	)
 	require.ErrorAs(t, err, new(pkgconfig.TerragruntConfigNotFoundError))
@@ -863,7 +865,7 @@ func TestResolveUnitConfigSharesIncludedFilesAcrossUnits(t *testing.T) {
 	for _, path := range paths {
 		ctx, run := newTestParsingContext(t, path)
 
-		pc := config.NewParseContext(run)
+		pc := config.NewParseContext(v, run)
 
 		parsed, err := store.ResolveUnitConfig(ctx, l, v, pc, path)
 		require.NoError(t, err)
@@ -915,7 +917,7 @@ include {
 					ctx,
 					l,
 					v,
-					config.NewParseContext(run),
+					config.NewParseContext(v, run),
 					unit,
 				)
 				if err != nil {
@@ -945,7 +947,7 @@ func TestResolveUnitConfigParsesAgainAfterInvalidate(t *testing.T) {
 		ctx, run := newTestParsingContext(t, paths[0])
 		run = run.WithFileReadTracking()
 
-		cfg, err := store.ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(run), paths[0])
+		cfg, err := store.ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(v, run), paths[0])
 		require.NoError(t, err)
 
 		return cfg.Locals["region"]
@@ -982,7 +984,7 @@ func TestResolveUnitConfigRunsUnmemoizedForSuppliedValues(t *testing.T) {
 	run.Locals = &locals
 
 	for range 2 {
-		_, err := store.ResolveUnitConfig(ctx, l, v, config.NewParseContext(run), paths[0])
+		_, err := store.ResolveUnitConfig(ctx, l, v, config.NewParseContext(v, run), paths[0])
 		require.NoError(t, err)
 	}
 
@@ -994,13 +996,39 @@ func TestResolveUnitConfigRunsUnmemoizedForSuppliedValues(t *testing.T) {
 	)
 }
 
+func TestResolveUnitQueueConfigParsesAgainForAnotherEnvironment(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "unit", pkgconfig.DefaultTerragruntConfigPath)
+
+	fsys := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(fsys, path, []byte(`
+locals {
+  token = get_env("AWS_SESSION_TOKEN")
+}
+`), 0o644))
+
+	l := logger.CreateLogger()
+	store := &config.Store{}
+
+	for _, token := range []string{"fake-token", "fake-refreshed-token"} {
+		v := venv.MemVenv().WithFS(fsys).WithEnv(map[string]string{"AWS_SESSION_TOKEN": token})
+		ctx, run := newTestParsingContext(t, path)
+
+		cfg, err := store.ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(v, run), path)
+		require.NoError(t, err)
+		assert.Equal(t, token, cfg.Locals["token"])
+	}
+}
+
 func TestParseContextStoreContextCoversEachInput(t *testing.T) {
 	t.Parallel()
 
 	cfgPath := filepath.Join(t.TempDir(), pkgconfig.DefaultTerragruntConfigPath)
+	v := venv.MemVenv().WithWriter(new(bytes.Buffer))
 
 	_, base := newTestParsingContext(t, cfgPath)
-	baseKey, memoized := config.NewParseContext(base).StoreContext()
+	baseKey, memoized := config.NewParseContext(v, base).StoreContext()
 	require.True(t, memoized)
 	require.NotEmpty(t, baseKey)
 
@@ -1047,7 +1075,7 @@ func TestParseContextStoreContextCoversEachInput(t *testing.T) {
 			_, run := newTestParsingContext(t, cfgPath)
 			mutate(run)
 
-			key, memoized := config.NewParseContext(run).StoreContext()
+			key, memoized := config.NewParseContext(v, run).StoreContext()
 			require.True(t, memoized)
 			assert.NotEqual(t, baseKey, key)
 		})
@@ -1070,7 +1098,42 @@ func TestParseContextStoreContextCoversEachInput(t *testing.T) {
 			_, run := newTestParsingContext(t, cfgPath)
 			mutate(run)
 
-			key, memoized := config.NewParseContext(run).StoreContext()
+			key, memoized := config.NewParseContext(v, run).StoreContext()
+			require.True(t, memoized)
+			assert.Equal(t, baseKey, key)
+		})
+	}
+
+	keyedByVenv := map[string]*venv.Venv{
+		"environment":      v.WithEnv(map[string]string{"AWS_SESSION_TOKEN": "fake-token"}),
+		"discarded output": v.WithWriter(io.Discard),
+	}
+
+	for name, other := range keyedByVenv {
+		t.Run("keyed/"+name, func(t *testing.T) {
+			t.Parallel()
+
+			_, run := newTestParsingContext(t, cfgPath)
+
+			key, memoized := config.NewParseContext(other, run).StoreContext()
+			require.True(t, memoized)
+			assert.NotEqual(t, baseKey, key)
+		})
+	}
+
+	fixedByVenv := map[string]*venv.Venv{
+		"another writer":   v.WithWriter(new(bytes.Buffer)),
+		"error writer":     v.WithErrWriter(io.Discard),
+		"same environment": v.WithEnvCloned(),
+	}
+
+	for name, other := range fixedByVenv {
+		t.Run("fixed/"+name, func(t *testing.T) {
+			t.Parallel()
+
+			_, run := newTestParsingContext(t, cfgPath)
+
+			key, memoized := config.NewParseContext(other, run).StoreContext()
 			require.True(t, memoized)
 			assert.Equal(t, baseKey, key)
 		})
@@ -1095,7 +1158,7 @@ func TestParseContextStoreContextCoversEachInput(t *testing.T) {
 			_, run := newTestParsingContext(t, cfgPath)
 			mutate(run)
 
-			_, memoized := config.NewParseContext(run).StoreContext()
+			_, memoized := config.NewParseContext(v, run).StoreContext()
 			assert.False(t, memoized)
 		})
 	}
