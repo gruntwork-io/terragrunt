@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"slices"
 
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/report"
@@ -167,7 +168,7 @@ func outputsFetchViaRun(
 
 	pctx := configbridge.NewParsingContext(opts)
 
-	cfg, err := config.ReadTerragruntConfig(ctx, l, cv, pctx)
+	cfg, err := new(rewrite.Store).ReadTerragruntConfig(ctx, l, cv, pctx)
 	if err != nil {
 		return getOutputsOutput{}, err
 	}

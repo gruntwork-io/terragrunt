@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/exec"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -45,7 +46,7 @@ func TestNewCommandShowsHelpWithoutATargetCommand(t *testing.T) {
 	rec := &recorder{}
 	v := rec.venv(t, map[string]string{"unit/terragrunt.hcl": "", "unit/main.tf": ""})
 
-	cmd := exec.NewCommand(logger.CreateLogger(), newOpts(t, v), v)
+	cmd := exec.NewCommand(logger.CreateLogger(), newOpts(t, v), v, new(rewrite.Store))
 	cmd.CustomHelpTemplate = "exec help"
 
 	out, err := runCommand(t, cmd)
@@ -79,7 +80,7 @@ func TestNewCommandRunsTheTargetCommand(t *testing.T) {
 			rec := &recorder{}
 			v := rec.venv(t, map[string]string{"unit/terragrunt.hcl": inputsHCL, "unit/main.tf": ""})
 
-			_, err := runCommand(t, exec.NewCommand(logger.CreateLogger(), newOpts(t, v), v), tc.args...)
+			_, err := runCommand(t, exec.NewCommand(logger.CreateLogger(), newOpts(t, v), v, new(rewrite.Store)), tc.args...)
 			require.NoError(t, err)
 
 			inv := rec.find(targetCommand)
@@ -184,7 +185,7 @@ func TestNewCommandReportsPreparationFailures(t *testing.T) {
 
 			args := append(slices.Clone(tc.args), "--", targetCommand)
 
-			_, err := runCommand(t, exec.NewCommand(logger.CreateLogger(), newOpts(t, v), v), args...)
+			_, err := runCommand(t, exec.NewCommand(logger.CreateLogger(), newOpts(t, v), v, new(rewrite.Store)), args...)
 			tc.check(t, err)
 			assert.Nil(t, rec.find(targetCommand), "the target command never ran")
 		})
@@ -202,6 +203,7 @@ func TestRunReportsATargetCommandFailure(t *testing.T) {
 		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
 		v,
+		new(rewrite.Store),
 		newOpts(t, v),
 		exec.NewOptions(),
 		clihelper.Args{targetCommand},

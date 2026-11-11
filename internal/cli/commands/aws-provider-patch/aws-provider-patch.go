@@ -36,16 +36,17 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, opts
 		return runAll(ctx, l, v, s, opts)
 	}
 
-	return runSingle(ctx, l, v, opts)
+	return runSingle(ctx, l, v, s, opts)
 }
 
 func runSingle(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	opts *options.TerragruntOptions,
 ) error {
-	prepared, err := prepare.PrepareConfig(ctx, l, v, opts)
+	prepared, err := prepare.PrepareConfig(ctx, l, v, s, opts)
 	if err != nil {
 		return err
 	}
@@ -101,7 +102,7 @@ func runAll(
 		// Preparation writes obtained credentials into the env, so each
 		// unit gets its own clone to keep them from leaking to siblings.
 		unitV := v.WithEnvCloned()
-		if err := runSingle(ctx, l, unitV, unitOpts); err != nil {
+		if err := runSingle(ctx, l, unitV, s, unitOpts); err != nil {
 			if opts.FailFast {
 				return err
 			}

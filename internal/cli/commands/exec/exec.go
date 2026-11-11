@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
 	"github.com/gruntwork-io/terragrunt/internal/report"
@@ -24,11 +25,12 @@ func Run(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	opts *options.TerragruntOptions,
 	cmdOpts *Options,
 	args clihelper.Args,
 ) error {
-	prepared, err := prepare.PrepareConfig(ctx, l, v, opts)
+	prepared, err := prepare.PrepareConfig(ctx, l, v, s, opts)
 	if err != nil {
 		return err
 	}
