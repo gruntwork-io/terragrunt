@@ -11,9 +11,9 @@ import (
 
 	"errors"
 
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/discoverysetup"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
-	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
@@ -99,14 +99,13 @@ func runAll(
 	s *rewrite.Store,
 	opts *options.TerragruntOptions,
 ) error {
-	d := discovery.NewDiscovery(opts.WorkingDir)
+	units, cleanupWorktrees, err := discoverysetup.Units(ctx, l, v, s, opts)
 
-	components, err := d.Discover(ctx, l, v, s, opts)
+	defer cleanupWorktrees(ctx)
+
 	if err != nil {
 		return err
 	}
-
-	units := components.Filter(component.UnitKind).Sort()
 
 	var errs []error
 

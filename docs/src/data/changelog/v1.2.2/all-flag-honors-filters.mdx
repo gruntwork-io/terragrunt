@@ -1,0 +1,16 @@
+---
+version: "v1.2.2"
+category: "bug-fixes"
+---
+
+#### `--all` honors filters outside `run`
+
+These commands accepted `--filter` with `--all` and then acted on every unit:
+
+- `render --all`
+- `info print --all`
+- `aws-provider-patch --all`
+
+`backend bootstrap --all` and `backend delete --all` ignored the queries in a [`.terragrunt-filters`](/features/filter/filters-file) or `.terragrunt-excludes` file, and `render --all` ignored `--discovery-boundary`.
+
+All five now act only on the units the [filters](/features/filter) select, the way `run --all` does.

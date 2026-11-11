@@ -1,11 +1,13 @@
 // Package discoverysetup shares setup steps common to the discovery
-// commands (find, list, browse).
+// commands (find, list, browse) and the commands that act on every unit
+// with --all.
 package discoverysetup
 
 import (
 	"context"
 	"fmt"
 
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
@@ -30,16 +32,75 @@ func Worktrees(
 	opts *options.TerragruntOptions,
 	d *discovery.Discovery,
 ) (*discovery.Discovery, func(context.Context), error) {
-	wts, err := worktrees.NewWorktrees(ctx, l, v, worktrees.WorktreeOpts{
+	return attachWorktrees(ctx, l, v, s, opts, d, DiscoveryCheckout(d, opts.Filters))
+}
+
+// Units discovers the units under opts.WorkingDir that opts.Filters select,
+// within opts.DiscoveryBoundary, sorted by path. Units of a Git filter come
+// from comparison worktrees, so callers defer the returned cleanup
+// immediately, even when an error is returned, and keep it deferred until
+// they are done with the units.
+func Units(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	s *rewrite.Store,
+	opts *options.TerragruntOptions,
+) (component.Components, func(context.Context), error) {
+	d, err := discovery.NewFiltered(l, v.FS, discovery.FilteredOptions{
 		WorkingDir:        opts.WorkingDir,
-		GitExpressions:    opts.Filters.UniqueGitFilters(),
-		Experiments:       opts.Experiments,
-		FilteredPathsOnly: FilteredPathsOnly(d, opts.Filters),
+		DiscoveryBoundary: opts.DiscoveryBoundary,
+		Filters:           opts.Filters,
 	})
 	if err != nil {
-		return d, func(context.Context) {
-			// Nothing was checked out, so there is nothing to clean up.
-		}, fmt.Errorf("failed to create worktrees: %w", err)
+		return nil, noCleanup, err
+	}
+
+	d, cleanup, err := attachWorktrees(ctx, l, v, s, opts, d, worktrees.CheckoutEverything)
+	if err != nil {
+		return nil, cleanup, err
+	}
+
+	components, err := d.Discover(ctx, l, v, s, opts)
+	if err != nil {
+		return nil, cleanup, err
+	}
+
+	return components.Filter(component.UnitKind).Sort(), cleanup, nil
+}
+
+// DiscoveryCheckout returns how much of the repository the worktrees for
+// filters hold when d is all that reads them.
+//
+// They hold only the directories the Git expressions in filters expand to when
+// discovery reads nothing else. Parsing a configuration reads more, and so does
+// another filter query: those reach the worktree discovery too, and can name a
+// component the expansion never mentions.
+func DiscoveryCheckout(d *discovery.Discovery, filters filter.Filters) worktrees.Checkout {
+	if d.ParsesConfigs() || len(filters.ExcludingGitFilters()) > 0 {
+		return worktrees.CheckoutEverything
+	}
+
+	return worktrees.CheckoutFilteredPaths
+}
+
+func attachWorktrees(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	s *rewrite.Store,
+	opts *options.TerragruntOptions,
+	d *discovery.Discovery,
+	checkout worktrees.Checkout,
+) (*discovery.Discovery, func(context.Context), error) {
+	wts, err := worktrees.NewWorktrees(ctx, l, v, worktrees.WorktreeOpts{
+		WorkingDir:     opts.WorkingDir,
+		GitExpressions: opts.Filters.UniqueGitFilters(),
+		Experiments:    opts.Experiments,
+		Checkout:       checkout,
+	})
+	if err != nil {
+		return d, noCleanup, fmt.Errorf("failed to create worktrees: %w", err)
 	}
 
 	cleanup := func(ctx context.Context) {
@@ -55,12 +116,5 @@ func Worktrees(
 	return d.WithWorktrees(wts), cleanup, nil
 }
 
-// FilteredPathsOnly reports whether the worktrees for filters can be checked
-// out with only the directories the Git expressions in them expand to.
-//
-// They can when discovery reads nothing else. Parsing a configuration reads
-// more, and so does another filter query: those reach the worktree discovery
-// too, and can name a component the expansion never mentions.
-func FilteredPathsOnly(d *discovery.Discovery, filters filter.Filters) bool {
-	return !d.ParsesConfigs() && len(filters.ExcludingGitFilters()) == 0
-}
+// noCleanup is the cleanup for a setup that checked nothing out.
+func noCleanup(context.Context) {}

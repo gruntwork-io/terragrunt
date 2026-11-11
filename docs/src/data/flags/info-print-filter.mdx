@@ -1,0 +1,14 @@
+---
+name: filter
+description: Print the context of only the units that match a filter query
+type: list(string)
+env:
+  - TG_FILTER
+since: "v1.2.2"
+---
+
+Print the context of only the units that match the [filter](/features/filter) query. Passing `--filter` turns on `--all`.
+
+```bash
+terragrunt info print --filter './prod/**'
+```

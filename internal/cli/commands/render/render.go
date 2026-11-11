@@ -10,10 +10,9 @@ import (
 
 	"errors"
 
-	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/discoverysetup"
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
-	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -25,7 +24,7 @@ import (
 
 // Run renders the fully resolved config of the unit at opts.TerragruntConfigPath
 // in opts.Format, to stdout or, with opts.Write set, to opts.OutputPath. With
-// opts.RunAll set, it renders every discovered unit.
+// opts.RunAll set, it renders every discovered unit that opts.Filters selects.
 func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, opts *Options) error {
 	if err := opts.Validate(); err != nil {
 		return err
@@ -44,14 +43,13 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, opts
 }
 
 func runAll(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, opts *Options) error {
-	d := discovery.NewDiscovery(opts.WorkingDir)
+	units, cleanupWorktrees, err := discoverysetup.Units(ctx, l, v, s, opts.TerragruntOptions)
 
-	components, err := d.Discover(ctx, l, v, s, opts.TerragruntOptions)
+	defer cleanupWorktrees(ctx)
+
 	if err != nil {
 		return err
 	}
-
-	units := components.Filter(component.UnitKind).Sort()
 
 	var errs []error
 
