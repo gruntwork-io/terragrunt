@@ -20,6 +20,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/errfmt"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -318,6 +319,7 @@ func (rnr *Runner) Run(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	stackOpts *options.TerragruntOptions,
 	r *report.Report,
 ) error {
@@ -512,7 +514,7 @@ func (rnr *Runner) Run(
 
 						var readErr error
 
-						cfg, readErr = config.ReadTerragruntConfig(
+						cfg, readErr = s.ReadTerragruntConfig(
 							readCtx,
 							unitLogger,
 							unitV,

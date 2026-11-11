@@ -334,6 +334,32 @@ func TestDependencyConfigPathFileControlIsRegistered(t *testing.T) {
 	}
 }
 
+// TestCASSourceInsideStackControlIsRegistered pins that the control stack generation looks up by
+// name is one the registry hands back, both standalone and under `deprecated-configs`.
+func TestCASSourceInsideStackControlIsRegistered(t *testing.T) {
+	t.Parallel()
+
+	registry := controls.New()
+
+	ctrl := registry.Find(controls.CASSourceInsideStack)
+
+	if assert.NotNil(t, ctrl, "cas-source-inside-stack must be registered") {
+		assert.Equal(t, strict.ActiveStatus, ctrl.GetStatus())
+		assert.Error(t, ctrl.(*controls.Control).Error)
+		assert.NotEmpty(t, ctrl.(*controls.Control).Warning)
+	}
+
+	parent := registry.Find(controls.DeprecatedConfigs)
+
+	if assert.NotNil(t, parent, "deprecated-configs must be registered") {
+		assert.NotNil(
+			t,
+			parent.GetSubcontrols().Find(controls.CASSourceInsideStack),
+			"cas-source-inside-stack must be a deprecated-configs subcontrol",
+		)
+	}
+}
+
 // TestSkipAccessLoggingBucketACLControlIsRegistered pins that the control the S3 backend looks
 // up by name is one the registry hands back, both standalone and under `deprecated-configs`.
 func TestSkipAccessLoggingBucketACLControlIsRegistered(t *testing.T) {

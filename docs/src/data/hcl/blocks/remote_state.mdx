@@ -1,0 +1,738 @@
+---
+name: remote_state
+description: Configures the OpenTofu/Terraform backend that stores a unit's state.
+configs: [unit]
+attributes:
+  - name: backend
+    type: string
+    required: true
+    description: The [backend](https://opentofu.org/docs/language/settings/backends/configuration/#available-backends) to store state in, e.g. `s3`, `gcs`, or `azurerm`.
+    example: |
+      # terragrunt.hcl
+
+      remote_state {
+        backend = "s3"
+        config = {
+          bucket = "my-tofu-state"
+          key    = "vpc/tofu.tfstate"
+          region = "us-east-1"
+        }
+      }
+  - name: config
+    type: map(any)
+    required: true
+    description: The backend's configuration. Terragrunt passes it to the OpenTofu/Terraform `backend` block, except for the keys Terragrunt uses to create the backend's storage. See [Backend config keys](/reference/hcl/blocks/remote_state#backend-config-keys).
+    example: |
+      # terragrunt.hcl
+
+      remote_state {
+        backend = "s3"
+        config = {
+          bucket       = "my-tofu-state"
+          key          = "${path_relative_to_include()}/tofu.tfstate"
+          region       = "us-east-1"
+          encrypt      = true
+          use_lockfile = true
+        }
+      }
+    keyGroups:
+      slug: backend-config-keys
+      title: Backend config keys
+      selector: backend
+      description: For the `s3`, `gcs`, and `azurerm` backends, Terragrunt reads these `config` keys to provision the backend's storage. It passes every key on to the OpenTofu/Terraform backend except the ones used only for provisioning.
+      groups:
+        - name: s3
+          title: S3
+          keys:
+            - name: bucket
+              type: string
+              required: true
+              description: The S3 bucket that stores state. Terragrunt creates it when it bootstraps the backend.
+            - name: key
+              type: string
+              required: true
+              description: The path of the state file in the bucket.
+            - name: region
+              type: string
+              required: true
+              description: The bucket's AWS region.
+            - name: profile
+              type: string
+              description: The AWS profile name, as set in the shared credentials file.
+            - name: shared_credentials_file
+              type: string
+              description: The path to the shared credentials file. With a `profile` and no file, Terragrunt uses `~/.aws/credentials`.
+            - name: role_arn
+              type: string
+              description: The role to assume. `assume_role.role_arn` takes precedence.
+            - name: external_id
+              type: string
+              description: The external ID to use when assuming the role. `assume_role.external_id` takes precedence.
+            - name: session_name
+              type: string
+              description: The session name to use when assuming the role. `assume_role.session_name` takes precedence.
+            - name: assume_role
+              type: object
+              description: Settings for assuming a role, for Terraform 1.6 or later.
+              keys:
+                - name: role_arn
+                  type: string
+                  required: true
+                  description: The role to assume.
+                - name: duration
+                  type: string
+                  description: How long the credentials are valid.
+                - name: external_id
+                  type: string
+                  description: The external ID to use when assuming the role.
+                - name: policy
+                  type: string
+                  description: A JSON policy that further restricts the role.
+                - name: policy_arns
+                  type: list(string)
+                  description: Policy ARNs that further restrict the role.
+                - name: session_name
+                  type: string
+                  description: The session name to use when assuming the role.
+                - name: source_identity
+                  type: string
+                  description: The source identity to use when assuming the role.
+                - name: tags
+                  type: map(string)
+                  description: Session tags for the assumed role.
+                - name: transitive_tag_keys
+                  type: list(string)
+                  description: Tag keys to pass on to later sessions.
+            - name: assume_role_with_web_identity
+              type: object
+              description: Settings for assuming a role with a web identity token. Terragrunt passes them on to OpenTofu/Terraform and doesn't use them itself.
+              keys:
+                - name: role_arn
+                  type: string
+                  required: true
+                  description: The role to assume.
+                - name: duration
+                  type: string
+                  description: How long the credentials are valid.
+                - name: policy
+                  type: string
+                  description: A JSON policy that further restricts the role.
+                - name: policy_arns
+                  type: list(string)
+                  description: Policy ARNs that further restrict the role.
+                - name: session_name
+                  type: string
+                  description: The session name to use when assuming the role.
+                - name: web_identity_token
+                  type: string
+                  description: The web identity token. Set this or `web_identity_token_file`.
+                - name: web_identity_token_file
+                  type: string
+                  description: The path to a file holding the web identity token.
+            - name: endpoint
+              type: string
+              description: A custom endpoint for the S3 API. OpenTofu deprecates it in favor of `endpoints.s3`.
+            - name: dynamodb_endpoint
+              type: string
+              description: A custom endpoint for the DynamoDB API. OpenTofu deprecates it in favor of `endpoints.dynamodb`.
+            - name: endpoints
+              type: object
+              description: Custom service endpoints, for Terraform 1.6 or later. They take precedence over `endpoint` and `dynamodb_endpoint`.
+              keys:
+                - name: s3
+                  type: string
+                  description: A custom endpoint for the S3 API. Set this or `endpoint`, because OpenTofu rejects both together.
+                - name: dynamodb
+                  type: string
+                  description: A custom endpoint for the DynamoDB API. Set this or `dynamodb_endpoint`, because OpenTofu rejects both together.
+            - name: force_path_style
+              type: bool
+              default: "false"
+              description: Addresses the bucket with path-style URLs, which most S3-compatible object stores need. OpenTofu deprecates it in favor of `use_path_style`.
+            - name: use_path_style
+              type: bool
+              default: "false"
+              description: The newer name for `force_path_style`. Set this or `force_path_style`, because OpenTofu rejects both together.
+            - name: encrypt
+              type: bool
+              default: "false"
+              description: Enables server-side encryption of the state file. When it's off, Terragrunt logs a warning, or a debug message if `skip_bucket_ssencryption` is set.
+            - name: dynamodb_table
+              type: string
+              description: A DynamoDB table for state locking, with a primary key named `LockID`. Terragrunt creates it when it bootstraps the backend. Without it, DynamoDB locking is off.
+            - name: lock_table
+              type: string
+              deprecated: true
+              description: The old name for `dynamodb_table`. Terragrunt logs a warning and uses it as `dynamodb_table`.
+            - name: use_lockfile
+              type: bool
+              default: "false"
+              description: Locks state with S3 conditional writes. It needs OpenTofu 1.10 or later. It can run with `dynamodb_table` during a migration, when both locks must succeed.
+            - name: skip_credentials_validation
+              type: bool
+              default: "false"
+              description: Skips Terragrunt's check that the AWS credentials are valid.
+            - name: skip_bucket_versioning
+              type: bool
+              default: "false"
+              provisioning: true
+              description: Skips enabling versioning on the bucket Terragrunt creates.
+            - name: skip_bucket_ssencryption
+              type: bool
+              default: "false"
+              provisioning: true
+              description: Skips configuring server-side encryption on the bucket Terragrunt creates.
+            - name: skip_bucket_enforced_tls
+              type: bool
+              default: "false"
+              provisioning: true
+              description: Skips adding a bucket policy that requires TLS.
+            - name: skip_bucket_public_access_blocking
+              type: bool
+              default: "false"
+              provisioning: true
+              description: Skips blocking public access to the bucket.
+            - name: enable_bucket_root_access
+              type: bool
+              default: "false"
+              provisioning: true
+              description: Adds a bucket policy statement granting `s3:*` on the bucket and its objects to `arn:aws:iam::<account-id>:root`. Despite its name, that ARN grants access to the whole AWS account, not only its root user. Terragrunt adds the statement to existing buckets as well as ones it creates.
+            - name: disable_bucket_update
+              type: bool
+              default: "false"
+              provisioning: true
+              description: Stops Terragrunt from updating an existing bucket to match the configuration.
+            - name: bucket_sse_algorithm
+              type: string
+              default: aws:kms
+              provisioning: true
+              description: The server-side encryption algorithm for the bucket.
+            - name: bucket_sse_kms_key_id
+              type: string
+              provisioning: true
+              description: The KMS key for `aws:kms` encryption. Defaults to the AWS managed `aws/s3` key.
+            - name: s3_bucket_tags
+              type: map(string)
+              provisioning: true
+              description: Tags for the bucket Terragrunt creates.
+            - name: enable_lock_table_ssencryption
+              type: bool
+              default: "false"
+              provisioning: true
+              description: Enables server-side encryption on the DynamoDB lock table.
+            - name: dynamodb_table_tags
+              type: map(string)
+              provisioning: true
+              description: Tags for the DynamoDB lock table Terragrunt creates.
+            - name: disable_aws_client_checksums
+              type: bool
+              default: "false"
+              provisioning: true
+              description: Turns off request and response checksums, such as the CRC32 check for DynamoDB. See [#1059](https://github.com/gruntwork-io/terragrunt/issues/1059) for when this helps.
+            - name: accesslogging_bucket_name
+              type: string
+              provisioning: true
+              description: A bucket for the state bucket's access logs, which Terragrunt creates. Without a valid bucket name, access logging is off. With access logging on, the state bucket supports only `AES256` encryption. See [S3 server access logging](https://docs.aws.amazon.com/AmazonS3/latest/userguide/enable-server-access-logging.html).
+            - name: accesslogging_target_prefix
+              type: string
+              default: TFStateLogs/
+              provisioning: true
+              description: The prefix for access log objects. An empty string sets an empty prefix. It needs `accesslogging_bucket_name`.
+            - name: accesslogging_target_object_partition_date_source
+              type: string
+              provisioning: true
+              description: The `PartitionDateSource` of the access log object key format. See [Logging requests with server access logging](https://docs.aws.amazon.com/AmazonS3/latest/userguide/ServerLogs.html).
+            - name: accesslogging_bucket_tags
+              type: map(string)
+              provisioning: true
+              description: Tags for the access log bucket Terragrunt creates.
+            - name: skip_accesslogging_bucket_policy
+              type: bool
+              default: "false"
+              provisioning: true
+              description: Skips the bucket policy that lets S3 deliver access logs to the access log bucket.
+            - name: skip_accesslogging_bucket_enforced_tls
+              type: bool
+              default: "false"
+              provisioning: true
+              description: Skips adding a policy that requires TLS to the access log bucket.
+            - name: skip_accesslogging_bucket_public_access_blocking
+              type: bool
+              default: "false"
+              provisioning: true
+              description: Skips blocking public access to the access log bucket.
+            - name: skip_accesslogging_bucket_ssencryption
+              type: bool
+              default: "false"
+              provisioning: true
+              description: Skips configuring server-side encryption on the access log bucket.
+            - name: skip_bucket_accesslogging
+              type: bool
+              provisioning: true
+              deprecated: true
+              description: Ignored. Terragrunt logs a warning.
+            - name: skip_bucket_root_access
+              type: bool
+              provisioning: true
+              deprecated: true
+              description: Ignored. Terragrunt logs a warning when it bootstraps the backend. The [`skip-bucket-root-access`](/reference/strict-controls/active#skip-bucket-root-access) strict control turns the warning into an error.
+            - name: skip_accesslogging_bucket_acl
+              type: bool
+              provisioning: true
+              deprecated: true
+              description: Has no effect, since Terragrunt sets no ACL. Use `skip_accesslogging_bucket_policy` to skip the grant. Terragrunt logs a warning. See the [`skip-accesslogging-bucket-acl`](/reference/strict-controls/active#skip-accesslogging-bucket-acl) strict control.
+        - name: gcs
+          title: GCS
+          keys:
+            - name: bucket
+              type: string
+              required: true
+              description: The GCS bucket that stores state. Terragrunt creates it when it bootstraps the backend.
+            - name: credentials
+              type: string
+              description: The local path to a GCP service account credentials file in JSON format. Terragrunt takes only a path here.
+            - name: access_token
+              type: string
+              description: A temporary [OAuth 2.0 access token](https://developers.google.com/identity/protocols/oauth2).
+            - name: impersonate_service_account
+              type: string
+              description: A service account to impersonate. Terragrunt creates and checks the bucket as this account.
+            - name: impersonate_service_account_delegates
+              type: list(string)
+              description: The delegation chain for impersonating `impersonate_service_account`.
+            - name: project
+              type: string
+              provisioning: true
+              description: The GCP project to create the bucket in.
+            - name: location
+              type: string
+              provisioning: true
+              description: The GCP location to create the bucket in.
+            - name: gcs_bucket_labels
+              type: map(string)
+              provisioning: true
+              description: Labels for the bucket Terragrunt creates.
+            - name: skip_bucket_creation
+              type: bool
+              default: "false"
+              provisioning: true
+              description: Stops Terragrunt from creating the bucket.
+            - name: skip_bucket_versioning
+              type: bool
+              default: "false"
+              provisioning: true
+              description: Skips enabling versioning on the bucket Terragrunt creates.
+            - name: enable_bucket_policy_only
+              type: bool
+              default: "false"
+              provisioning: true
+              description: Gives the bucket Terragrunt creates uniform bucket-level access.
+          note: See [GCS backend](/features/units/state-backend/gcs) for the authentication order and known limitations.
+        - name: azurerm
+          title: Azure Storage
+          description: Terragrunt also reads the backend's authentication keys, e.g. `use_azuread_auth`, `client_id`, or `sas_token`, and passes them on.
+          keys:
+            - name: storage_account_name
+              type: string
+              required: true
+              description: The storage account that stores state.
+            - name: container_name
+              type: string
+              required: true
+              description: The blob container that stores state.
+            - name: key
+              type: string
+              required: true
+              description: The name of the state blob in the container.
+            - name: resource_group_name
+              type: string
+              description: The resource group of the storage account. Terragrunt needs it to create or inspect the account, but not to authenticate with a SAS token or an access key.
+            - name: location
+              type: string
+              provisioning: true
+              description: The Azure region for the resource group and storage account, e.g. `eastus`. Required when Terragrunt creates them.
+            - name: account_kind
+              type: string
+              default: StorageV2
+              provisioning: true
+              description: The storage account kind.
+            - name: account_tier
+              type: string
+              default: Standard
+              provisioning: true
+              description: The storage account tier, `Standard` or `Premium`.
+            - name: account_replication_type
+              type: string
+              default: LRS
+              provisioning: true
+              description: The replication type, e.g. `LRS`, `GRS`, or `ZRS`.
+            - name: access_tier
+              type: string
+              default: Hot
+              provisioning: true
+              description: The blob access tier, `Hot`, `Cool`, `Cold`, or `Premium`.
+            - name: minimum_tls_version
+              type: string
+              default: TLS1_2
+              provisioning: true
+              description: The minimum TLS version for requests to the storage account, `TLS1_2` or `TLS1_3`. It applies only when Terragrunt creates the account.
+            - name: tags
+              type: map(string)
+              provisioning: true
+              description: Tags for the storage account Terragrunt creates.
+            - name: skip_resource_group_creation
+              type: bool
+              default: "false"
+              provisioning: true
+              description: Stops Terragrunt from creating the resource group.
+            - name: skip_storage_account_creation
+              type: bool
+              default: "false"
+              provisioning: true
+              description: Stops Terragrunt from creating the storage account, so it must exist.
+            - name: skip_container_creation
+              type: bool
+              default: "false"
+              provisioning: true
+              description: Stops Terragrunt from creating the blob container, so it must exist.
+            - name: skip_versioning
+              type: bool
+              default: "false"
+              provisioning: true
+              description: Skips enabling blob versioning on the account.
+            - name: enable_soft_delete
+              type: bool
+              default: "false"
+              provisioning: true
+              description: Enables blob and container soft delete.
+            - name: soft_delete_retention_days
+              type: number
+              default: "7"
+              provisioning: true
+              description: The soft delete retention in days, from 1 to 365.
+            - name: allow_blob_public_access
+              type: bool
+              default: "false"
+              provisioning: true
+              description: Lets containers on the account allow anonymous access.
+            - name: assign_blob_data_role
+              type: bool
+              default: "false"
+              provisioning: true
+              description: Makes bootstrapping grant **Storage Blob Data Contributor** on the storage account to `principal_id`, or to the identity Terragrunt authenticated as when it's unset. It needs permission to create role assignments.
+            - name: principal_id
+              type: string
+              provisioning: true
+              description: The Microsoft Entra object ID that receives the data-plane role when `assign_blob_data_role` is `true`.
+            - name: msi_resource_id
+              type: string
+              provisioning: true
+              description: The resource ID of a user-assigned managed identity to use with `use_msi`.
+          note: |
+            For a premium account that stores state as block blobs, set `account_kind = "BlockBlobStorage"`, `account_tier = "Premium"`, and `access_tier = "Premium"`, with `LRS` or `ZRS` replication. Setting only `account_tier = "Premium"` keeps the `StorageV2` and `Hot` defaults, which don't form a valid block blob account.
+
+            See [Azure Storage backend](/features/units/state-backend/azurerm) for the authentication order and known limitations.
+  - name: generate
+    type: object({path = string, if_exists = string})
+    description: |
+      Writes the backend configuration to a `.tf` file, so the module needs no `backend` block of its own. `path` is the file to write, relative to the directory Terragrunt runs OpenTofu/Terraform in. `if_exists` sets what happens when the file exists: `overwrite`, `overwrite_terragrunt` to overwrite only a file Terragrunt generated and fail otherwise, `skip`, or `error`.
+    example: |
+      # terragrunt.hcl
+
+      remote_state {
+        backend = "s3"
+        config = {
+          bucket = "my-tofu-state"
+          key    = "vpc/tofu.tfstate"
+          region = "us-east-1"
+        }
+
+        generate = {
+          path      = "backend.tf"
+          if_exists = "overwrite_terragrunt"
+        }
+      }
+  - name: disable_init
+    type: bool
+    default: "false"
+    description: Stops Terragrunt from creating or updating the backend's storage, e.g. an S3 bucket. OpenTofu/Terraform still initializes the backend, and `generate` still writes the backend configuration. Terragrunt can create storage for the `s3`, `gcs`, and `azurerm` backends. See [Backend bootstrapping](/reference/hcl/blocks/remote_state#backend-bootstrapping).
+    example: |
+      # terragrunt.hcl
+
+      remote_state {
+        backend = "s3"
+        config = {
+          bucket = "my-tofu-state"
+          key    = "vpc/tofu.tfstate"
+          region = "us-east-1"
+        }
+
+        disable_init = true
+      }
+  - name: disable_dependency_optimization
+    type: bool
+    default: "false"
+    description: Turns off Terragrunt's optimized fetching of [`dependency`](/reference/hcl/blocks#dependency) outputs for units with this `remote_state` block.
+    example: |
+      # terragrunt.hcl
+
+      remote_state {
+        backend = "s3"
+        config = {
+          bucket = "my-tofu-state"
+          key    = "vpc/tofu.tfstate"
+          region = "us-east-1"
+        }
+
+        disable_dependency_optimization = true
+      }
+  - name: encryption
+    type: map(any)
+    description: State and plan encryption for OpenTofu. Its `key_provider` key names an OpenTofu [key provider](https://opentofu.org/docs/language/state/encryption/#key-providers), and the other keys configure it. See [Encrypting state](/reference/hcl/blocks/remote_state#encrypting-state).
+    example: |
+      # terragrunt.hcl
+
+      remote_state {
+        backend = "s3"
+        config = {
+          bucket = "my-tofu-state"
+          key    = "vpc/tofu.tfstate"
+          region = "us-east-1"
+        }
+
+        encryption = {
+          key_provider = "pbkdf2"
+          passphrase   = get_env("PBKDF2_PASSPHRASE")
+        }
+      }
+examples:
+  - description: Stores state in the S3 bucket `my-tofu-state`, with a key per unit, e.g. `child/tofu.tfstate` for a unit in `child`. Terragrunt can create the bucket and the DynamoDB lock table.
+    code: |
+      # root.hcl
+
+      remote_state {
+        backend = "s3"
+        config = {
+          bucket         = "my-tofu-state"
+          key            = "${path_relative_to_include()}/tofu.tfstate"
+          region         = "us-east-1"
+          encrypt        = true
+          dynamodb_table = "my-lock-table"
+        }
+      }
+  - description: Stores state in the GCS bucket `my-tofu-state`, and labels the bucket if Terragrunt creates it.
+    code: |
+      # root.hcl
+
+      remote_state {
+        backend = "gcs"
+        config = {
+          project  = "my-tofu"
+          location = "eu"
+          bucket   = "my-tofu-state"
+          prefix   = path_relative_to_include()
+
+          gcs_bucket_labels = {
+            owner = "terragrunt_test"
+            name  = "tofu_state_storage"
+          }
+        }
+      }
+  - description: Stores state in the `tfstate` container of the Azure storage account `mytofustate`. Reading and writing state with `use_azuread_auth` needs the Storage Blob Data Contributor role on the account. Set `assign_blob_data_role = true` to have bootstrapping grant it.
+    code: |
+      # root.hcl
+
+      remote_state {
+        backend = "azurerm"
+        config = {
+          resource_group_name  = "my-tofu-state"
+          storage_account_name = "mytofustate"
+          container_name       = "tfstate"
+          key                  = "${path_relative_to_include()}/tofu.tfstate"
+          location             = "eastus"
+          use_azuread_auth     = true
+        }
+      }
+  - description: Locks state with S3 native locking instead of DynamoDB. It needs OpenTofu 1.10 or later.
+    code: |
+      # root.hcl
+
+      remote_state {
+        backend = "s3"
+        config = {
+          bucket       = "my-tofu-state"
+          key          = "${path_relative_to_include()}/tofu.tfstate"
+          region       = "us-east-1"
+          encrypt      = true
+          use_lockfile = true
+        }
+      }
+  - description: Takes both locks while you migrate from DynamoDB to S3 native locking. Once the migration is done, remove `dynamodb_table`. Terragrunt doesn't delete the table.
+    code: |
+      # root.hcl
+
+      remote_state {
+        backend = "s3"
+        config = {
+          bucket         = "my-tofu-state"
+          key            = "${path_relative_to_include()}/tofu.tfstate"
+          region         = "us-east-1"
+          encrypt        = true
+          dynamodb_table = "my-lock-table"
+          use_lockfile   = true
+        }
+      }
+---
+
+import SideBySide from '@components/SideBySide.astro';
+
+The `remote_state` block configures the backend that stores a unit's state, so you can set it once in a file every unit includes. See [State backend](/features/units/state-backend/).
+
+Terragrunt passes the `config` map to the OpenTofu/Terraform `backend` block:
+
+<SideBySide>
+
+```hcl title="terragrunt.hcl"
+remote_state {
+  backend = "s3"
+  config = {
+    bucket = "mybucket"
+    key    = "path/to/my/key"
+    region = "us-east-1"
+  }
+}
+```
+
+```hcl title="Equivalent OpenTofu/Terraform"
+terraform {
+  backend "s3" {
+    bucket = "mybucket"
+    key    = "path/to/my/key"
+    region = "us-east-1"
+  }
+}
+```
+
+</SideBySide>
+
+Without [`generate`](/reference/hcl/blocks/remote_state#generate), the module needs an empty `backend` block of the same type, e.g. `terraform { backend "s3" {} }`, for Terragrunt to fill in.
+
+### Setting `remote_state` as an attribute
+
+`remote_state` also works as an attribute, so a unit can set it from another file:
+
+```hcl
+# terragrunt.hcl
+
+locals {
+  common = read_terragrunt_config(find_in_parent_folders("common.hcl"))
+}
+
+remote_state = local.common.remote_state
+```
+
+### Backend bootstrapping
+
+With `--backend-bootstrap`, or with [`terragrunt backend bootstrap`](/reference/cli/commands/backend/bootstrap), Terragrunt creates the backend's storage before `init` if it's missing, e.g. an S3 bucket, and checks its configuration if it exists. It can do that for the `s3`, `gcs`, and `azurerm` backends.
+
+Otherwise, Terragrunt leaves the storage alone, and `init` fails if the storage doesn't exist. [`disable_init = true`](/reference/hcl/blocks/remote_state#disable_init) makes Terragrunt leave it alone even with `--backend-bootstrap`.
+
+### Encrypting state
+
+The [`encryption`](/reference/hcl/blocks/remote_state#encryption) map needs a `key_provider` key, set to any [key provider OpenTofu supports](https://opentofu.org/docs/language/state/encryption/#key-providers), e.g. `pbkdf2`, `aws_kms`, `gcp_kms`, or `openbao`. Its other keys configure that provider. Terragrunt turns the map into an `encryption` block in the OpenTofu `terraform` block:
+
+<SideBySide>
+
+```hcl title="terragrunt.hcl"
+remote_state {
+  backend = "s3"
+  config = {
+    bucket = "mybucket"
+    key    = "path/to/my/key"
+    region = "us-east-1"
+  }
+
+  encryption = {
+    key_provider = "pbkdf2"
+    passphrase   = get_env("PBKDF2_PASSPHRASE")
+  }
+}
+```
+
+```hcl title="Generated OpenTofu"
+terraform {
+  backend "s3" {
+    bucket = "mybucket"
+    key    = "path/to/my/key"
+    region = "us-east-1"
+  }
+  encryption {
+    key_provider "pbkdf2" "default" {
+      passphrase = "SUPERSECRETPASSPHRASE"
+    }
+    method "aes_gcm" "default" {
+      keys = key_provider.pbkdf2.default
+    }
+    state {
+      method = method.aes_gcm.default
+    }
+    plan {
+      method = method.aes_gcm.default
+    }
+  }
+}
+```
+
+</SideBySide>
+
+Two keys in the `encryption` map go to the generated `state` and `plan` blocks instead of the key provider:
+
+- `fallback`: Set to `{ method = "unencrypted" }` to let OpenTofu read state and plan files written before encryption was enabled. Any other value is an error.
+- `enforced`: Set to `true` to make OpenTofu error instead of writing unencrypted state or plan files.
+
+Once encryption is configured, OpenTofu refuses to read plaintext state. A unit with existing state therefore needs the fallback for one run, as described under [pre-existing project](https://opentofu.org/docs/language/state/encryption/#pre-existing-project) in the OpenTofu docs:
+
+```hcl
+# terragrunt.hcl
+
+remote_state {
+  backend = "s3"
+  config = {
+    bucket = "mybucket"
+    key    = "path/to/my/key"
+    region = "us-east-1"
+  }
+
+  encryption = {
+    key_provider = "pbkdf2"
+    passphrase   = get_env("PBKDF2_PASSPHRASE")
+    fallback     = { method = "unencrypted" }
+  }
+}
+```
+
+Terragrunt adds an `unencrypted` method and points both blocks at it:
+
+```hcl
+# backend.tf
+
+  encryption {
+    # key_provider and method "aes_gcm" as above
+    method "unencrypted" "fallback" {
+    }
+    state {
+      method = method.aes_gcm.default
+      fallback {
+        method = method.unencrypted.fallback
+      }
+    }
+    plan {
+      method = method.aes_gcm.default
+      fallback {
+        method = method.unencrypted.fallback
+      }
+    }
+  }
+```
+
+Run `terragrunt apply` so OpenTofu writes the state back encrypted. Then replace `fallback` with `enforced = true`.

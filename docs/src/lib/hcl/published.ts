@@ -1,6 +1,6 @@
 import { getCollection, getEntry } from 'astro:content';
 import { isPublished } from '@lib/release';
-import { HCL_COLLECTIONS, hclItemSlug, type HclEntry, type HclKind } from '.';
+import { HCL_COLLECTIONS, hclItemSlug, type BlockAttribute, type HclEntry, type HclKind } from '.';
 
 /**
  * Returns the entries of one kind whose `since` release has shipped, or every
@@ -38,11 +38,58 @@ export async function getPublishedHclItems(kind: HclKind): Promise<HclEntry[]> {
 				);
 			}
 
-			return visible ? entry : null;
+			return visible ? withPublishedAttributes(entry) : null;
 		}),
 	);
 
 	return published
 		.filter((entry): entry is HclEntry => entry !== null)
 		.sort((a, b) => a.data.name.localeCompare(b.data.name));
+}
+
+/**
+ * Returns a block entry without the attributes, its own or its nested blocks',
+ * and the map keys whose `since` release hasn't shipped.
+ */
+async function withPublishedAttributes(entry: HclEntry): Promise<HclEntry> {
+	if (entry.collection !== 'hclBlocks') return entry;
+
+	const { attributes, blocks } = entry.data;
+	return {
+		...entry,
+		data: {
+			...entry.data,
+			attributes:
+				attributes &&
+				(await Promise.all((await publishedOnly(attributes)).map(withPublishedKeys))),
+			blocks:
+				blocks &&
+				(await Promise.all(
+					blocks.map(async (block) => ({ ...block, attributes: await publishedOnly(block.attributes) })),
+				)),
+		},
+	};
+}
+
+async function withPublishedKeys(attribute: BlockAttribute): Promise<BlockAttribute> {
+	const { keyGroups } = attribute;
+	if (!keyGroups) return attribute;
+
+	const groups = await Promise.all(
+		keyGroups.groups.map(async (group) => ({
+			...group,
+			keys: await Promise.all(
+				(await publishedOnly(group.keys)).map(async (key) => ({
+					...key,
+					keys: key.keys && (await publishedOnly(key.keys)),
+				})),
+			),
+		})),
+	);
+	return { ...attribute, keyGroups: { ...keyGroups, groups } };
+}
+
+async function publishedOnly<T extends { since?: string }>(items: T[]): Promise<T[]> {
+	const visible = await Promise.all(items.map((item) => isPublished(item.since)));
+	return items.filter((_, i) => visible[i]);
 }

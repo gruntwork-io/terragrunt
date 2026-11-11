@@ -1,0 +1,49 @@
+---
+import { Code } from '@astrojs/starlight/components';
+import HclKeyList, { type KeyRow } from '@components/HclKeyList.astro';
+import ReferenceCard from '@components/ReferenceCard.astro';
+import type { NestedBlock } from '@lib/hcl';
+import { renderMarkdownField } from '@lib/hcl/markdown';
+
+interface Props {
+	block: NestedBlock;
+}
+
+const { block } = Astro.props;
+const labels = block.labels ?? [];
+const syntax = [block.name, ...labels.map((label) => `"<${label.name}>"`)].join(' ');
+
+const rows: KeyRow[] = [
+	...labels.map((label) => ({
+		id: `${block.name}-${label.name}`,
+		name: label.name,
+		type: 'label',
+		description: label.description,
+	})),
+	...block.attributes.map((attribute) => ({
+		id: `${block.name}-${attribute.name}`,
+		name: attribute.name,
+		type: attribute.type,
+		optional: !attribute.required,
+		defaultVal: attribute.default,
+		description: attribute.description,
+	})),
+];
+const descriptionHtml = await renderMarkdownField(block.description);
+---
+
+<section id={block.name}>
+	<ReferenceCard title={block.name}>
+		<code slot="meta" class="syntax">{syntax} {'{ … }'}</code>
+		<Fragment set:html={descriptionHtml} />
+		<HclKeyList rows={rows} />
+		<Code code={block.example.trim()} lang="hcl" />
+	</ReferenceCard>
+</section>
+
+<style>
+	.syntax {
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-2);
+	}
+</style>

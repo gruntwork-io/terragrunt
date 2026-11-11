@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 )
@@ -602,6 +603,31 @@ func (err DependencyConfigPathFileError) Error() string {
 		err.ConfigPath,
 		err.Address,
 		err.DependencyPath,
+	)
+}
+
+// CASSourceInsideStackError reports a unit or stack block with update_source_with_cas whose
+// source lies inside the directory of its stack file. It is returned when the
+// cas-source-inside-stack strict control is enabled, and its message is logged as a warning
+// otherwise.
+type CASSourceInsideStackError struct {
+	// Block is the block whose source lies inside the stack directory.
+	Block *cas.SourceInsideStack
+	// Component is the kind and address of the generated component whose source contains the
+	// stack file.
+	Component string
+}
+
+func (err CASSourceInsideStackError) Error() string {
+	return fmt.Sprintf(
+		"%s: %s %q in %s sets update_source_with_cas on source %q inside the stack directory, "+
+			"so the generated stack also contains a copy of it; move the source out of the stack directory "+
+			"and select the stack with a // subdirectory in its source",
+		err.Component,
+		err.Block.BlockType,
+		err.Block.Name,
+		err.Block.StackFile,
+		err.Block.Source,
 	)
 }
 

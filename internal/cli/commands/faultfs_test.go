@@ -4,7 +4,9 @@ import (
 	"errors"
 	"io/fs"
 	"path/filepath"
+	"slices"
 	"strings"
+	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 )
@@ -21,14 +23,21 @@ type fault struct {
 // faultFS fails each call a fault matches with errInjected, including writes and closes of files it opens.
 type faultFS struct {
 	vfs.FS
-	faults []fault
+	faults   []fault
+	injected []injection
+	mu       sync.Mutex
 }
 
 // faultFile fails Write or Close with errInjected.
 type faultFile struct {
 	vfs.File
-	failWrite bool
-	failClose bool
+	fsys *faultFS
+	name string
+}
+
+type injection struct {
+	op   string
+	path string
 }
 
 func newFaultFS(base vfs.FS, faults ...fault) *faultFS {
@@ -63,11 +72,7 @@ func (f *faultFS) OpenFile(name string, flag int, perm fs.FileMode) (vfs.File, e
 		return nil, err
 	}
 
-	return &faultFile{
-		File:      file,
-		failWrite: f.fail("write", name) != nil,
-		failClose: f.fail("close", name) != nil,
-	}, nil
+	return &faultFile{File: file, fsys: f, name: name}, nil
 }
 
 func (f *faultFS) Mkdir(name string, perm fs.FileMode) error {
@@ -110,9 +115,21 @@ func (f *faultFS) RemoveAll(name string) error {
 	return f.FS.RemoveAll(name)
 }
 
+// injections returns the operations f failed, in order.
+func (f *faultFS) injections() []injection {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return slices.Clone(f.injected)
+}
+
 func (f *faultFS) fail(op, name string) error {
 	for _, flt := range f.faults {
 		if flt.op == op && flt.match(name) {
+			f.mu.Lock()
+			f.injected = append(f.injected, injection{op: op, path: name})
+			f.mu.Unlock()
+
 			return &fs.PathError{Op: op, Path: name, Err: errInjected}
 		}
 	}
@@ -121,7 +138,7 @@ func (f *faultFS) fail(op, name string) error {
 }
 
 func (f *faultFile) Write(p []byte) (int, error) {
-	if f.failWrite {
+	if f.fsys.fail("write", f.name) != nil {
 		return 0, errInjected
 	}
 
@@ -133,7 +150,7 @@ func (f *faultFile) Close() error {
 		return err
 	}
 
-	if f.failClose {
+	if f.fsys.fail("close", f.name) != nil {
 		return errInjected
 	}
 

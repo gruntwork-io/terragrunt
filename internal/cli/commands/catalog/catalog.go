@@ -19,6 +19,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/portal"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -139,6 +140,8 @@ func NewLoadFunc(
 	return func(
 		ctx context.Context, status tui.StatusFunc, componentCh chan<- *tui.ComponentEntry,
 	) error {
+		ctx = spinner.ContextWithLogOnly(ctx)
+
 		if repoURL != "" {
 			status("Loading " + repoURL + "...")
 

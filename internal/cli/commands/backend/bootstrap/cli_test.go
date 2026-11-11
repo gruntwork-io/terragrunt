@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
+	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -196,6 +197,32 @@ func TestRunUsesTheConfiguredConfigFilename(t *testing.T) {
 	var diags hcl.Diagnostics
 
 	require.ErrorAs(t, err, &diags, "the unit's custom.hcl is the config that fails to parse")
+}
+
+// TestRunAllBootstrapsOnlyFilteredUnits pins that --all bootstraps only the units opts.Filters select.
+func TestRunAllBootstrapsOnlyFilteredUnits(t *testing.T) {
+	t.Parallel()
+
+	v := venv.MemVenv().WithFS(venvtest.NewFS(t, memRoot, map[string]string{
+		"a/terragrunt.hcl": localBackendHCL,
+		"b/terragrunt.hcl": invalidHCL,
+	}))
+
+	l := logger.CreateLogger()
+
+	opts := newOpts(t, v, "")
+	opts.RunAll = true
+
+	var err error
+
+	opts.Filters, err = filter.ParseFilterQueries(l, []string{"a"})
+	require.NoError(t, err)
+
+	require.NoError(
+		t,
+		bootstrap.Run(config.WithCaches(t.Context()), l, v, new(rewrite.Store), opts),
+		"b fails to parse if bootstrapped",
+	)
 }
 
 // newOpts returns options rooted at the in-memory fixture, reading configPath when set.

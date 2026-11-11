@@ -258,6 +258,32 @@ func TestNetworkMirrorProviderHandlerGetPlatformResolvesArchiveURL(t *testing.T)
 	)
 }
 
+func TestNetworkMirrorProviderHandlerGetPlatformKeepsEscapedMirrorPath(t *testing.T) {
+	t.Parallel()
+
+	c := vhttp.NewMemClient(registryRoutes(map[string]string{
+		"/group/mirror/registry.example.com/example/example/1.0.0.json": mirrorVersionIndex,
+	}))
+
+	handler, err := handlers.NewNetworkMirrorProviderHandler(
+		logger.CreateLogger(),
+		c,
+		cliconfig.NewProviderInstallationNetworkMirror("https://mirror.example.com/group%2Fmirror/", nil, nil),
+		nil,
+	)
+	require.NoError(t, err)
+
+	body, err := handler.GetPlatform(t.Context(), mirroredProvider())
+	require.NoError(t, err)
+	require.NotNil(t, body)
+
+	assert.Equal(
+		t,
+		"https://mirror.example.com/group%2Fmirror/registry.example.com/example/example/terraform-provider-example_1.0.0_linux_amd64.zip",
+		body.DownloadURL,
+	)
+}
+
 func TestNetworkMirrorProviderHandlerPlatformNotMirrored(t *testing.T) {
 	t.Parallel()
 

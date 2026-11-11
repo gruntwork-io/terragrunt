@@ -19,7 +19,11 @@ examples:
         "terraform_command": "print",
         "working_dir": "/example/path"
       }
-
+flags:
+  - info-print-all
+  - info-print-filter
+  - info-print-filter-affected
+  - info-print-discovery-boundary
 ---
 
 With `--all`, each unit is written on one line, so the output is JSON Lines and a reader can take it a line at a time. Each unit reports the context `run --all` gives it, including the `download_dir` it caches into:

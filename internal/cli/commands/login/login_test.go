@@ -16,6 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -154,6 +155,72 @@ func TestRunSignsInAndKeepsTheCredential(t *testing.T) {
 		require.Len(t, credentials.Valid, 1)
 		assert.Equal(t, "fake-access-token", credentials.Valid[organizationID].AccessToken.Reveal())
 	})
+}
+
+// TestRunApprovalWaitProgress checks that the approval wait is drawn on a terminal at any log level, and nowhere else.
+func TestRunApprovalWaitProgress(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name      string
+		level     log.Level
+		terminal  bool
+		dumb      bool
+		noEscapes bool
+		jsonLogs  bool
+		wantDrawn bool
+	}{
+		{name: "terminal", level: log.InfoLevel, terminal: true, wantDrawn: true},
+		{name: "terminal with only errors logged", level: log.ErrorLevel, terminal: true, wantDrawn: true},
+		{name: "dumb terminal", level: log.InfoLevel, terminal: true, dumb: true},
+		{name: "console without escape sequences", level: log.InfoLevel, terminal: true, noEscapes: true},
+		{name: "terminal with JSON logs", level: log.InfoLevel, terminal: true, jsonLogs: true},
+		{name: "no terminal", level: log.InfoLevel},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			synctest.Test(t, func(t *testing.T) {
+				var (
+					out    bytes.Buffer
+					term   bytes.Buffer
+					opened string
+				)
+
+				v := venv.MemVenv().
+					WithHTTP(approvingPortal(t, issuedTokenBody)).
+					WithBrowser(recordingBrowser(&opened)).
+					WithWriter(&out).
+					WithErrWriter(&term).
+					WithEnv(map[string]string{"TERM": "xterm-256color", "LANG": "en_US.UTF-8"})
+				if tc.dumb {
+					v.Env["TERM"] = "dumb"
+				}
+
+				v.Terminal = &venv.Terminal{
+					StdinIsTTY:           func() bool { return tc.terminal },
+					StdoutIsTTY:          func() bool { return tc.terminal },
+					StderrIsTTY:          func() bool { return tc.terminal },
+					StderrHandlesEscapes: func() bool { return !tc.noEscapes },
+					Width:                func() int { return 120 },
+					ErrWidth:             func() int { return 120 },
+				}
+
+				l := logger.CreateLogger()
+				l.SetOptions(log.WithOutput(new(bytes.Buffer)), log.WithLevel(tc.level))
+
+				opts := newOptions(portalBaseURL)
+				opts.JSONLogFormat = tc.jsonLogs
+
+				require.NoError(t, login.Run(t.Context(), l, v, opts))
+
+				assert.Equal(t, tc.wantDrawn, strings.Contains(term.String(), "\x1b"), term.String())
+				assert.Contains(t, out.String(), "Signed in as "+accountEmail)
+			})
+		})
+	}
 }
 
 // TestRunDoesNotPrintTheCredential pins that the token the portal issued stays

@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
+	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -176,6 +177,33 @@ func TestNewCommandAllDeletesEveryUnit(t *testing.T) {
 			assert.Len(t, joined.Unwrap(), tc.wantJoined, "one error per failed unit")
 		})
 	}
+}
+
+// TestRunAllDeletesOnlyFilteredUnits pins that --all deletes the state of only the units opts.Filters select.
+func TestRunAllDeletesOnlyFilteredUnits(t *testing.T) {
+	t.Parallel()
+
+	v := venv.MemVenv().WithFS(venvtest.NewFS(t, memRoot, map[string]string{
+		"a/terragrunt.hcl": localBackendHCL,
+		"b/terragrunt.hcl": invalidHCL,
+	}))
+
+	l := logger.CreateLogger()
+
+	opts := newOpts(t, v, "")
+	opts.RunAll = true
+	opts.ForceBackendDelete = true
+
+	var err error
+
+	opts.Filters, err = filter.ParseFilterQueries(l, []string{"a"})
+	require.NoError(t, err)
+
+	require.NoError(
+		t,
+		delete.Run(config.WithCaches(t.Context()), l, v, new(rewrite.Store), opts),
+		"b fails to parse if deleted",
+	)
 }
 
 // TestNewCommandAllFailsOnAMissingWorkingDir pins that --all surfaces the discovery failure.

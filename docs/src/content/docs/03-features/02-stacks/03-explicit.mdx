@@ -525,6 +525,8 @@ Requirements:
 - The `--no-cas` flag must not be set.
 - Sources using `update_source_with_cas` must be relative paths within the same catalog.
 
+- The source of a `unit` or `stack` block using `update_source_with_cas` should sit outside the directory of its stack file. Stack generation copies that directory whole, so a source inside it is generated twice, and `run --all` runs the copy too. Terragrunt warns about such a source, and the [`cas-source-inside-stack`](/reference/strict-controls/active#cas-source-inside-stack) strict control makes it an error.
+
 ### Local catalog sources
 
 The consumer stack's `source` can be a local filesystem path in addition to a remote URL. Both go through the same CAS-backed rewrite pipeline:

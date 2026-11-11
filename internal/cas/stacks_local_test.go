@@ -683,7 +683,7 @@ func TestProcessStoredStackComponent_WriteFailureIsRewriteIncomplete(t *testing.
 	v := venvtest.NewOSWithEmptyEnv()
 	v.FS = &unwritableFS{FS: v.FS, path: filepath.Join(contentDir, "terragrunt.stack.hcl")}
 
-	err = c.ProcessStoredStackComponent(
+	_, err = c.ProcessStoredStackComponent(
 		t.Context(),
 		logger.CreateLogger(),
 		v,
@@ -706,14 +706,15 @@ func storedServiceUnitCASRef(t *testing.T, treeKey string) string {
 
 	contentDir := filepath.Join(root, "stacks", "my-stack")
 
-	require.NoError(t, c.ProcessStoredStackComponent(
+	_, err = c.ProcessStoredStackComponent(
 		t.Context(),
 		logger.CreateLogger(),
 		venvtest.NewOSWithEmptyEnv(),
 		root,
 		contentDir,
 		treeKey,
-	))
+	)
+	require.NoError(t, err)
 
 	content, err := os.ReadFile(filepath.Join(contentDir, "terragrunt.stack.hcl"))
 	require.NoError(t, err)
@@ -1374,4 +1375,184 @@ func TestProcessStackComponent_LocalSource_SelfReferencingSourceFails(t *testing
 	)
 	require.ErrorIs(t, err, cas.ErrRewriteTooDeep)
 	require.ErrorIs(t, err, cas.ErrRewriteIncomplete)
+}
+
+func TestProcessStackComponent_LocalSource_ReportsSourcesInsideStack(t *testing.T) {
+	t.Parallel()
+
+	const unitConfig = "inputs = {}\n"
+
+	testCases := []struct {
+		files  map[string]string
+		name   string
+		subdir string
+		want   []cas.SourceInsideStack
+	}{
+		{
+			name: "stack at the root of its source",
+			files: map[string]string{
+				"terragrunt.stack.hcl": `unit "foo" {
+  source                 = "./units/foo"
+  update_source_with_cas = true
+  path                   = "foo"
+}
+`,
+				"units/foo/terragrunt.hcl": unitConfig,
+			},
+			want: []cas.SourceInsideStack{{
+				StackFile: "terragrunt.stack.hcl",
+				BlockType: "unit",
+				Name:      "foo",
+				Source:    "./units/foo",
+			}},
+		},
+		{
+			name: "unit inside a stack selected with a subdirectory",
+			files: map[string]string{
+				"stacks/bar/terragrunt.stack.hcl": `unit "foo" {
+  source                 = "./units/foo"
+  update_source_with_cas = true
+  path                   = "foo"
+}
+`,
+				"stacks/bar/units/foo/terragrunt.hcl": unitConfig,
+			},
+			subdir: "stacks/bar",
+			want: []cas.SourceInsideStack{{
+				StackFile: "stacks/bar/terragrunt.stack.hcl",
+				BlockType: "unit",
+				Name:      "foo",
+				Source:    "./units/foo",
+			}},
+		},
+		{
+			name: "unit inside a nested stack",
+			files: map[string]string{
+				"stacks/bar/terragrunt.stack.hcl": `stack "baz" {
+  source                 = "../baz"
+  update_source_with_cas = true
+  path                   = "baz"
+}
+`,
+				"stacks/baz/terragrunt.stack.hcl": `unit "foo" {
+  source                 = "./units/foo"
+  update_source_with_cas = true
+  path                   = "foo"
+}
+`,
+				"stacks/baz/units/foo/terragrunt.hcl": unitConfig,
+			},
+			subdir: "stacks/bar",
+			want: []cas.SourceInsideStack{{
+				StackFile: "stacks/baz/terragrunt.stack.hcl",
+				BlockType: "unit",
+				Name:      "foo",
+				Source:    "./units/foo",
+			}},
+		},
+		{
+			name: "stack inside a stack",
+			files: map[string]string{
+				"stacks/bar/terragrunt.stack.hcl": `stack "baz" {
+  source                 = "./baz"
+  update_source_with_cas = true
+  path                   = "baz"
+}
+`,
+				"stacks/bar/baz/terragrunt.stack.hcl": `unit "foo" {
+  source                 = "../../../units/foo"
+  update_source_with_cas = true
+  path                   = "foo"
+}
+`,
+				"units/foo/terragrunt.hcl": unitConfig,
+			},
+			subdir: "stacks/bar",
+			want: []cas.SourceInsideStack{{
+				StackFile: "stacks/bar/terragrunt.stack.hcl",
+				BlockType: "stack",
+				Name:      "baz",
+				Source:    "./baz",
+			}},
+		},
+		{
+			name: "unit outside the stack directory",
+			files: map[string]string{
+				"stacks/bar/terragrunt.stack.hcl": `unit "foo" {
+  source                 = "../../units/foo"
+  update_source_with_cas = true
+  path                   = "foo"
+}
+`,
+				"units/foo/terragrunt.hcl": unitConfig,
+			},
+			subdir: "stacks/bar",
+		},
+		{
+			name: "unit inside the stack directory without update_source_with_cas",
+			files: map[string]string{
+				"terragrunt.stack.hcl": `unit "foo" {
+  source = "./units/foo"
+  path   = "foo"
+}
+`,
+				"units/foo/terragrunt.hcl": unitConfig,
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := writeLocalFixture(t, tc.files)
+
+			source := root
+			if tc.subdir != "" {
+				source = root + "//" + tc.subdir
+			}
+
+			c, v := newCAS(t)
+
+			result, err := c.ProcessStackComponent(t.Context(), logger.CreateLogger(), v, source, "stack")
+			require.NoError(t, err)
+
+			defer result.Cleanup()
+
+			assert.Equal(t, tc.want, result.SourcesInsideStack)
+		})
+	}
+}
+
+func TestProcessStoredStackComponent_ReportsSourcesInsideStack(t *testing.T) {
+	t.Parallel()
+
+	root := writeLocalFixture(t, map[string]string{
+		"terragrunt.stack.hcl": `unit "foo" {
+  source                 = "./units/foo"
+  update_source_with_cas = true
+  path                   = "foo"
+}
+`,
+		"units/foo/terragrunt.hcl": "inputs = {}\n",
+	})
+
+	c, v := newCAS(t)
+
+	inside, err := c.ProcessStoredStackComponent(
+		t.Context(),
+		logger.CreateLogger(),
+		v,
+		root,
+		root,
+		strings.Repeat("foo", sha256.Size*2),
+	)
+	require.NoError(t, err)
+
+	assert.Equal(t, []cas.SourceInsideStack{{
+		StackFile: "terragrunt.stack.hcl",
+		BlockType: "unit",
+		Name:      "foo",
+		Source:    "./units/foo",
+	}}, inside)
 }

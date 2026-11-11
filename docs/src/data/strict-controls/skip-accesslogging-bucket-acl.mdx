@@ -9,7 +9,7 @@ Throw an error when the `remote_state` block for the `s3` backend sets `skip_acc
 
 S3 needs write access to the access logging bucket before it will deliver server access logs there. Terragrunt used to grant that with a bucket ACL, and `skip_accesslogging_bucket_acl` turned the grant off.
 
-AWS [recommends granting it with a bucket policy instead](https://docs.aws.amazon.com/AmazonS3/latest/userguide/enable-server-access-logging.html#grant-log-delivery-permissions-general), and a bucket with ACLs disabled, [the default for new buckets](https://docs.aws.amazon.com/AmazonS3/latest/userguide/about-object-ownership.html), rejects the ACL outright. Terragrunt writes the policy now, and [`skip_accesslogging_bucket_policy`](/reference/hcl/blocks/#remote_state) is the attribute that turns that off:
+AWS [recommends granting it with a bucket policy instead](https://docs.aws.amazon.com/AmazonS3/latest/userguide/enable-server-access-logging.html#grant-log-delivery-permissions-general), and a bucket with ACLs disabled, [the default for new buckets](https://docs.aws.amazon.com/AmazonS3/latest/userguide/about-object-ownership.html), rejects the ACL outright. Terragrunt writes the policy now, and [`skip_accesslogging_bucket_policy`](/reference/hcl/blocks/remote_state/) is the attribute that turns that off:
 
 ```hcl
 remote_state {

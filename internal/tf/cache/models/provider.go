@@ -152,9 +152,9 @@ type ResponseBody struct {
 // are resolved against base. A relative path without a leading slash is joined to the path of base.
 func (body *ResponseBody) ResolveRelativeReferences(base *url.URL) *ResponseBody {
 	clone := *body
-	clone.DownloadURL = resolveRelativeReference(base, body.DownloadURL)
-	clone.SHA256SumsSignatureURL = resolveRelativeReference(base, body.SHA256SumsSignatureURL)
-	clone.SHA256SumsURL = resolveRelativeReference(base, body.SHA256SumsURL)
+	clone.DownloadURL = resolveLink(base, body.DownloadURL)
+	clone.SHA256SumsSignatureURL = resolveLink(base, body.SHA256SumsSignatureURL)
+	clone.SHA256SumsURL = resolveLink(base, body.SHA256SumsURL)
 
 	return &clone
 }
