@@ -8,6 +8,7 @@ import retargetOpenPRs, {
   type PullRequest,
   type PullRequestFile,
   type RetargetClient,
+  type RetargetPullRequest,
 } from "./docs-retarget-open-prs";
 
 const OWNER = "gruntwork-io";
@@ -163,6 +164,7 @@ async function plan(files: PullRequestFile[], contents: Record<string, string>) 
       expect(contents).toHaveProperty([path]);
       return contents[path];
     },
+    exists: async (path) => path in contents,
     warn: (message) => warnings.push(message),
   });
   return { changes, warnings };
@@ -234,6 +236,36 @@ describe("planRetarget", () => {
     expect(warnings[0]).toContain(to);
   });
 
+  test("does not overwrite an entry the PR head has at the destination", async () => {
+    const from = "docs/src/data/changelog/v1.2.2/auto-init.mdx";
+    const to = "docs/src/data/changelog/v1.2.3/auto-init.mdx";
+    const { changes, warnings } = await plan([file({ filename: from })], {
+      [from]: ENTRY,
+      [to]: "from main",
+    });
+    expect(changes).toEqual({ additions: [], deletions: [] });
+    expect(warnings).toEqual([expect.stringContaining(to)]);
+  });
+
+  test("moves only the first of two entries bound for the same destination", async () => {
+    const first = "docs/src/data/changelog/v1.2.1/auto-init.mdx";
+    const second = "docs/src/data/changelog/v1.2.2/auto-init.mdx";
+    const { changes, warnings } = await plan(
+      [file({ filename: first }), file({ filename: second })],
+      { [first]: ENTRY.replace("v1.2.2", "v1.2.1"), [second]: ENTRY },
+    );
+    expect(changes).toEqual({
+      additions: [
+        {
+          path: "docs/src/data/changelog/v1.2.3/auto-init.mdx",
+          contents: ENTRY.replace("v1.2.2", "v1.2.3"),
+        },
+      ],
+      deletions: [{ path: first }],
+    });
+    expect(warnings).toEqual([expect.stringContaining(second)]);
+  });
+
   test("warns when a changed page has no diff", async () => {
     const path = "docs/src/content/docs/big.mdx";
     const { changes, warnings } = await plan(
@@ -259,18 +291,23 @@ function pr(overrides: Partial<PullRequest> & { number: number }): PullRequest {
   };
 }
 
+const RETARGET_HEAD = `${OWNER}:docs/retarget-pr-7291`;
+const GENERATED_TIP = { sha: "tip-7291", message: "docs: Re-targeting #7291 to `v1.2.2`" };
+
 function fakeGithub({
   prs,
   files,
   contents,
-  existingBranches = [],
-  openRetargetPRs = {},
+  branchTips = {},
+  comparisons = {},
+  retargetPRs = {},
 }: {
   prs: PullRequest[];
   files: Record<number, PullRequestFile[]>;
   contents: Record<string, string>;
-  existingBranches?: string[];
-  openRetargetPRs?: Record<string, number>;
+  branchTips?: Record<string, { sha: string; message: string }>;
+  comparisons?: Record<string, string>;
+  retargetPRs?: Record<string, RetargetPullRequest[]>;
 }) {
   const calls: Call[] = [];
   const record = (name: string) => async (params: Record<string, unknown>) => {
@@ -286,8 +323,8 @@ function fakeGithub({
         return files[opts.pull_number as number] ?? [];
       }
       if (typeof opts.head === "string") {
-        const number = openRetargetPRs[opts.head];
-        return number === undefined ? [] : [{ number }];
+        expect(opts.state).toBe("all");
+        return retargetPRs[opts.head] ?? [];
       }
       return prs;
     },
@@ -303,12 +340,13 @@ function fakeGithub({
           calls.push({ name: "pulls.create", params });
           return { data: { number: 9000 } };
         },
+        update: record("pulls.update"),
       },
       repos: {
         getContent: async ({ path, ref }: { path: string; ref: string }) => {
           const content = contents[`${ref}:${path}`];
           if (content === undefined) {
-            throw new Error(`unexpected read of ${ref}:${path}`);
+            throw Object.assign(new Error("Not Found"), { status: 404 });
           }
           return {
             data: {
@@ -317,14 +355,28 @@ function fakeGithub({
             },
           };
         },
+        compareCommits: async ({ base, head }: { base: string; head: string }) => ({
+          data: { status: comparisons[`${base}...${head}`] ?? "diverged" },
+        }),
       },
       git: {
         createRef: async (params: Record<string, unknown>) => {
-          if (existingBranches.includes(params.ref as string)) {
+          const branch = (params.ref as string).replace(/^refs\/heads\//, "");
+          if (branch in branchTips) {
             throw Object.assign(new Error("Reference already exists"), { status: 422 });
           }
           calls.push({ name: "git.createRef", params });
           return {};
+        },
+        getRef: async ({ ref }: { ref: string }) => ({
+          data: { object: { sha: branchTips[ref.replace(/^heads\//, "")].sha } },
+        }),
+        getCommit: async ({ commit_sha }: { commit_sha: string }) => {
+          const tip = Object.values(branchTips).find((t) => t.sha === commit_sha);
+          if (tip === undefined) {
+            throw new Error(`unexpected commit ${commit_sha}`);
+          }
+          return { data: { message: tip.message, parents: [{ sha: "parent" }] } };
         },
         updateRef: record("git.updateRef"),
       },
@@ -452,22 +504,111 @@ describe("retargetOpenPRs", () => {
     expect(fake.calls).toEqual([]);
   });
 
-  test("resets an existing branch and reuses its open PR", async () => {
+  test("resets an existing branch and refreshes its open PR", async () => {
     const fake = fakeGithub({
       prs: [pr({ number: 7291 })],
       files: { 7291: [file({ filename: ENTRY_PATH })] },
       contents: { [`sha-7291:${ENTRY_PATH}`]: ENTRY },
-      existingBranches: ["refs/heads/docs/retarget-pr-7291"],
-      openRetargetPRs: { [`${OWNER}:docs/retarget-pr-7291`]: 7400 },
+      branchTips: { "docs/retarget-pr-7291": GENERATED_TIP },
+      retargetPRs: {
+        [RETARGET_HEAD]: [{ number: 7400, state: "open", merged_at: null }],
+      },
     });
     await runWith(fake);
 
-    expect(fake.calls.map((call) => call.name)).toEqual(["git.updateRef", "graphql"]);
+    expect(fake.calls.map((call) => call.name)).toEqual([
+      "git.updateRef",
+      "graphql",
+      "pulls.update",
+    ]);
     expect(fake.calls[0].params).toMatchObject({
       ref: "heads/docs/retarget-pr-7291",
       sha: "sha-7291",
       force: true,
     });
+    expect(fake.calls[2].params).toMatchObject({
+      pull_number: 7400,
+      title: "docs: Re-targeting #7291 to `v1.2.3`",
+      body: expect.stringContaining("`v1.2.3`"),
+    });
+  });
+
+  test("skips a PR whose re-target PR was closed without merging", async () => {
+    const fake = fakeGithub({
+      prs: [pr({ number: 7291 })],
+      files: { 7291: [file({ filename: ENTRY_PATH })] },
+      contents: { [`sha-7291:${ENTRY_PATH}`]: ENTRY },
+      branchTips: { "docs/retarget-pr-7291": GENERATED_TIP },
+      retargetPRs: {
+        [RETARGET_HEAD]: [{ number: 7400, state: "closed", merged_at: null }],
+      },
+    });
+    const log = await runWith(fake);
+
+    expect(fake.calls).toEqual([]);
+    expect(log.failed).toEqual([]);
+    expect(log.info).toContain("Skipping #7291: #7400 was closed without merging.");
+  });
+
+  test("opens a new PR after the previous re-target PR merged", async () => {
+    const fake = fakeGithub({
+      prs: [pr({ number: 7291 })],
+      files: { 7291: [file({ filename: ENTRY_PATH })] },
+      contents: { [`sha-7291:${ENTRY_PATH}`]: ENTRY },
+      branchTips: { "docs/retarget-pr-7291": GENERATED_TIP },
+      retargetPRs: {
+        [RETARGET_HEAD]: [
+          { number: 7400, state: "closed", merged_at: "2026-11-01T00:00:00Z" },
+        ],
+      },
+    });
+    await runWith(fake);
+
+    expect(fake.calls.map((call) => call.name)).toEqual([
+      "git.updateRef",
+      "graphql",
+      "pulls.create",
+      "issues.addLabels",
+    ]);
+  });
+
+  test("leaves a re-target branch with someone else's commits alone", async () => {
+    const fake = fakeGithub({
+      prs: [pr({ number: 7291 })],
+      files: { 7291: [file({ filename: ENTRY_PATH })] },
+      contents: { [`sha-7291:${ENTRY_PATH}`]: ENTRY },
+      branchTips: {
+        "docs/retarget-pr-7291": { sha: "tip-7291", message: "Fix a typo" },
+      },
+      retargetPRs: {
+        [RETARGET_HEAD]: [{ number: 7400, state: "open", merged_at: null }],
+      },
+    });
+    const log = await runWith(fake);
+
+    expect(fake.calls).toEqual([]);
+    expect(log.failed).toEqual([]);
+    expect(log.warning).toEqual([expect.stringContaining("docs/retarget-pr-7291")]);
+  });
+
+  test("resets a re-target branch the PR head already contains", async () => {
+    const fake = fakeGithub({
+      prs: [pr({ number: 7291 })],
+      files: { 7291: [file({ filename: ENTRY_PATH })] },
+      contents: { [`sha-7291:${ENTRY_PATH}`]: ENTRY },
+      branchTips: {
+        "docs/retarget-pr-7291": { sha: "sha-7290", message: "Earlier PR commit" },
+      },
+      comparisons: { "sha-7290...sha-7291": "ahead" },
+    });
+    await runWith(fake);
+
+    expect(fake.calls.map((call) => call.name)).toEqual([
+      "git.updateRef",
+      "graphql",
+      "pulls.create",
+      "issues.addLabels",
+    ]);
   });
 
   test("keeps going after one PR fails and reports the failure", async () => {

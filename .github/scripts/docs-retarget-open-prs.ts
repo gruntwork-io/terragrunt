@@ -15,7 +15,8 @@
  *
  * The result is one commit on a `docs/retarget-pr-<number>` branch, proposed as
  * a PR into the original PR's branch. PRs from forks are skipped because the
- * workflow token cannot push to them.
+ * workflow token cannot push to them. Closing the re-target PR without merging
+ * it stops later runs from re-targeting the original PR.
  *
  * Loaded by `github-script`, which runs on Node 24 and type-strips this file,
  * so imports must carry explicit extensions and the syntax must stay erasable.
@@ -55,6 +56,12 @@ export type FileChanges = {
   deletions: Array<{ path: string }>;
 };
 
+export type RetargetPullRequest = {
+  number: number;
+  state: string;
+  merged_at: string | null;
+};
+
 type RepoParams = { owner: string; repo: string };
 
 export type RetargetClient = {
@@ -72,16 +79,32 @@ export type RetargetClient = {
           body: string;
         },
       ): Promise<{ data: { number: number } }>;
+      update(
+        params: RepoParams & {
+          pull_number: number;
+          title: string;
+          body: string;
+        },
+      ): Promise<unknown>;
     };
     repos: {
       getContent(
         params: RepoParams & { path: string; ref: string },
       ): Promise<{ data: unknown }>;
+      compareCommits(
+        params: RepoParams & { base: string; head: string },
+      ): Promise<{ data: { status: string } }>;
     };
     git: {
       createRef(
         params: RepoParams & { ref: string; sha: string },
       ): Promise<unknown>;
+      getRef(
+        params: RepoParams & { ref: string },
+      ): Promise<{ data: { object: { sha: string } } }>;
+      getCommit(
+        params: RepoParams & { commit_sha: string },
+      ): Promise<{ data: { message: string; parents: unknown[] } }>;
       updateRef(
         params: RepoParams & { ref: string; sha: string; force: boolean },
       ): Promise<unknown>;
@@ -281,46 +304,63 @@ export function retargetFrontmatter({
 
 /**
  * Computes the file changes that move one PR's docs from released versions to
- * `nextTag`. `readFile` returns a file's content at the PR's head commit.
+ * `nextTag`. `readFile` returns a file's content at the PR's head commit, and
+ * `exists` reports whether a path exists there.
+ *
+ * A changelog entry stays where it is, with a warning, when its destination
+ * already exists or another file in the plan already writes it.
  */
 export async function planRetarget({
   files,
   latestTag,
   nextTag,
   readFile,
+  exists,
   warn,
 }: {
   files: PullRequestFile[];
   latestTag: string;
   nextTag: string;
   readFile: (path: string) => Promise<string>;
+  exists: (path: string) => Promise<boolean>;
   warn: (message: string) => void;
 }): Promise<FileChanges> {
-  const touched = new Set(files.map((file) => file.filename));
+  const docs = files.filter(
+    (file) => DOCS_FILE.test(file.filename) && file.status !== "removed",
+  );
   const plans = await Promise.all(
-    files
-      .filter(
-        (file) => DOCS_FILE.test(file.filename) && file.status !== "removed",
-      )
-      .map((file) => {
-        if (file.status === "added") {
-          return planAddedFile({
-            file,
-            touched,
-            latestTag,
-            nextTag,
-            readFile,
-            warn,
-          });
-        }
-        return planModifiedFile({ file, latestTag, nextTag, readFile, warn });
-      }),
+    docs.map((file) => {
+      if (file.status === "added") {
+        return planAddedFile({
+          file,
+          latestTag,
+          nextTag,
+          readFile,
+          exists,
+          warn,
+        });
+      }
+      return planModifiedFile({ file, latestTag, nextTag, readFile, warn });
+    }),
   );
 
-  return {
-    additions: plans.flatMap((plan) => plan.additions),
-    deletions: plans.flatMap((plan) => plan.deletions),
-  };
+  const changes: FileChanges = { additions: [], deletions: [] };
+  const planned = new Set<string>();
+  plans.forEach((plan, index) => {
+    const clash = plan.additions.find((addition) => planned.has(addition.path));
+    if (clash) {
+      warn(
+        `Not moving ${docs[index].filename}: another file already moves to ${clash.path}.`,
+      );
+      return;
+    }
+    for (const addition of plan.additions) {
+      planned.add(addition.path);
+    }
+    changes.additions.push(...plan.additions);
+    changes.deletions.push(...plan.deletions);
+  });
+  return changes;
 }
 
 const NO_CHANGES: FileChanges = { additions: [], deletions: [] };
@@ -366,17 +406,17 @@ async function planModifiedFile({
 
 async function planAddedFile({
   file,
-  touched,
   latestTag,
   nextTag,
   readFile,
+  exists,
   warn,
 }: {
   file: PullRequestFile;
-  touched: Set<string>;
   latestTag: string;
   nextTag: string;
   readFile: (path: string) => Promise<string>;
+  exists: (path: string) => Promise<boolean>;
   warn: (message: string) => void;
 }): Promise<FileChanges> {
   const source = await readFile(file.filename);
@@ -399,8 +439,8 @@ async function planAddedFile({
   }
 
   const path = `${entry[1]}${matchPrefix(nextTag, entry[2])}${entry[3]}`;
-  if (touched.has(path)) {
-    warn(`Not moving ${file.filename}: ${path} is already part of the PR.`);
+  if (await exists(path)) {
+    warn(`Not moving ${file.filename}: ${path} already exists.`);
     return NO_CHANGES;
   }
   return {
@@ -496,6 +536,7 @@ async function retargetPR({
     nextTag,
     readFile: (path) =>
       readFileAt({ github, owner, repo, path, ref: pr.head.sha }),
+    exists: (path) => existsAt({ github, owner, repo, path, ref: pr.head.sha }),
     warn: (message) => core.warning(`#${pr.number}: ${message}`),
   });
   if (changes.additions.length === 0) {
@@ -503,9 +544,37 @@ async function retargetPR({
   }
 
   const branch = `${BRANCH_PREFIX}${pr.number}`;
-  await resetBranch({ github, owner, repo, branch, sha: pr.head.sha });
+  const retargetPRs = await github.paginate<RetargetPullRequest>(
+    github.rest.pulls.list,
+    { owner, repo, state: "all", head: `${owner}:${branch}`, per_page: 100 },
+  );
+  const declined = retargetPRs.find(
+    (retarget) => retarget.state === "closed" && retarget.merged_at === null,
+  );
+  if (declined) {
+    core.info(
+      `Skipping #${pr.number}: #${declined.number} was closed without merging.`,
+    );
+    return false;
+  }
 
-  const title = `docs: Re-targeting #${pr.number} to \`${nextTag}\``;
+  const titlePrefix = `docs: Re-targeting #${pr.number} to `;
+  const title = `${titlePrefix}\`${nextTag}\``;
+  const reset = await resetBranch({
+    github,
+    owner,
+    repo,
+    branch,
+    sha: pr.head.sha,
+    titlePrefix,
+  });
+  if (!reset) {
+    core.warning(
+      `#${pr.number}: ${branch} has commits this workflow did not make, so it was left alone.`,
+    );
+    return false;
+  }
+
   // createCommitOnBranch signs the commit, which the REST git endpoints do not.
   await github.graphql(
     `mutation ($input: CreateCommitOnBranchInput!) {
@@ -527,12 +596,17 @@ async function retargetPR({
     },
   );
 
-  const existing = await github.paginate<{ number: number }>(
-    github.rest.pulls.list,
-    { owner, repo, state: "open", head: `${owner}:${branch}`, per_page: 100 },
-  );
-  if (existing.length > 0) {
-    core.info(`Refreshed #${existing[0].number} for #${pr.number}.`);
+  const body = buildBody({ prNumber: pr.number, tagName, nextTag, changes });
+  const open = retargetPRs.find((retarget) => retarget.state === "open");
+  if (open) {
+    await github.rest.pulls.update({
+      owner,
+      repo,
+      pull_number: open.number,
+      title,
+      body,
+    });
+    core.info(`Refreshed #${open.number} for #${pr.number}.`);
     return true;
   }
 
@@ -542,7 +616,7 @@ async function retargetPR({
     title,
     head: branch,
     base: pr.head.ref,
-    body: buildBody({ prNumber: pr.number, tagName, nextTag, changes }),
+    body,
   });
   await github.rest.issues.addLabels({
     owner,
@@ -575,9 +649,37 @@ async function readFileAt({
   return Buffer.from(file.content, "base64").toString("utf8");
 }
 
+async function existsAt({
+  github,
+  owner,
+  repo,
+  path,
+  ref,
+}: {
+  github: RetargetClient;
+  owner: string;
+  repo: string;
+  path: string;
+  ref: string;
+}): Promise<boolean> {
+  try {
+    await github.rest.repos.getContent({ owner, repo, path, ref });
+    return true;
+  } catch (error) {
+    if ((error as { status?: number }).status !== 404) {
+      throw error;
+    }
+    return false;
+  }
+}
+
 /**
  * Points `branch` at `sha`, creating it if needed, so a rerun starts from the
  * PR's current head.
+ *
+ * Returns false, leaving the branch as it is, when resetting it would drop a
+ * commit that neither this workflow nor the PR made. A tip whose headline
+ * starts with `titlePrefix` counts as this workflow's.
  */
 async function resetBranch({
   github,
@@ -585,13 +687,15 @@ async function resetBranch({
   repo,
   branch,
   sha,
+  titlePrefix,
 }: {
   github: RetargetClient;
   owner: string;
   repo: string;
   branch: string;
   sha: string;
-}): Promise<void> {
+  titlePrefix: string;
+}): Promise<boolean> {
   try {
     await github.rest.git.createRef({
       owner,
@@ -599,19 +703,47 @@ async function resetBranch({
       ref: `refs/heads/${branch}`,
       sha,
     });
+    return true;
   } catch (error) {
     // 422 is GitHub's answer when the ref already exists.
     if ((error as { status?: number }).status !== 422) {
       throw error;
     }
-    await github.rest.git.updateRef({
+  }
+
+  const { data: ref } = await github.rest.git.getRef({
+    owner,
+    repo,
+    ref: `heads/${branch}`,
+  });
+  const tip = ref.object.sha;
+  const { data: commit } = await github.rest.git.getCommit({
+    owner,
+    repo,
+    commit_sha: tip,
+  });
+  const generated =
+    commit.parents.length === 1 && commit.message.startsWith(titlePrefix);
+  if (!generated) {
+    const { data: comparison } = await github.rest.repos.compareCommits({
       owner,
       repo,
-      ref: `heads/${branch}`,
-      sha,
-      force: true,
+      base: tip,
+      head: sha,
     });
+    if (comparison.status !== "identical" && comparison.status !== "ahead") {
+      return false;
+    }
   }
+
+  await github.rest.git.updateRef({
+    owner,
+    repo,
+    ref: `heads/${branch}`,
+    sha,
+    force: true,
+  });
+  return true;
 }
 
 function matchPrefix(nextTag: string, original: string): string {
