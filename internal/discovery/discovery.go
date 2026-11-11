@@ -796,7 +796,7 @@ func (d *Discovery) buildComponentDependencies(
 
 	cfg := unit.Config()
 
-	depPaths, err := extractDependencyPaths(d.paths, cfg, c)
+	depPaths, err := extractDependencyPaths(ctx, d.paths, cfg, c)
 	if err != nil {
 		return err
 	}
@@ -806,15 +806,25 @@ func (d *Discovery) buildComponentDependencies(
 		return err
 	}
 
-	return linkGraphDependencies(v.FS, c, depPaths, configbridge.AmbiguousConfigCheck(opts), threadSafeComponents)
+	return linkGraphDependencies(
+		ctx,
+		v.FS,
+		c,
+		depPaths,
+		configbridge.AmbiguousConfigCheck(opts),
+		threadSafeComponents,
+	)
 }
 
 // linkGraphDependencies links c to the component at each of depPaths, taking it from components or adding it there
 // as one the graph reached from c.
 //
+// Returns the error of ctx when ctx ends before every path is linked.
+//
 // Returns a [config.AmbiguousConfigError] when check is [config.RejectAmbiguousConfig] and a dependency path that
 // components does not hold has both default unit config files.
 func linkGraphDependencies(
+	ctx context.Context,
 	fsys vfs.FS,
 	c component.Component,
 	depPaths []string,
@@ -827,6 +837,10 @@ func linkGraphDependencies(
 	}
 
 	for _, depPath := range depPaths {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+
 		depComponent, err := componentFromDependencyPath(fsys, depPath, check, components)
 		if err != nil {
 			return err

@@ -227,6 +227,7 @@ func (p *GraphPhase) linkUnitsOf(
 		linked, _ := state.threadSafeComponents.EnsureComponent(unit.found)
 
 		if err := linkReached(
+			ctx,
 			v.FS,
 			linked,
 			relocation.move(declared.paths),

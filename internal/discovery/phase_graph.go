@@ -417,6 +417,10 @@ func (p *GraphPhase) discoverDependencies(
 	depthRemaining int,
 	boundary string,
 ) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
 	if depthRemaining <= 0 {
 		return nil
 	}
@@ -438,7 +442,7 @@ func (p *GraphPhase) discoverDependencies(
 
 	cfg := unit.Config()
 
-	depPaths, err := extractDependencyPaths(state.discovery.paths, cfg, c)
+	depPaths, err := extractDependencyPaths(ctx, state.discovery.paths, cfg, c)
 	if err != nil {
 		return err
 	}
@@ -856,7 +860,7 @@ func (p *GraphPhase) processUpstreamCandidate(
 
 	cfg := parseUnit.Config()
 
-	deps, err := extractDependencyPaths(graphState.discovery.paths, cfg, candidate)
+	deps, err := extractDependencyPaths(ctx, graphState.discovery.paths, cfg, candidate)
 	if err != nil {
 		state.errMu.Lock()
 
@@ -889,6 +893,14 @@ func (p *GraphPhase) processUpstreamCandidate(
 	parentCtx := canonicalCandidate.DiscoveryContext()
 
 	for _, dep := range deps {
+		if err := ctx.Err(); err != nil {
+			state.errMu.Lock()
+			*state.errs = append(*state.errs, err)
+			state.errMu.Unlock()
+
+			return nil
+		}
+
 		depComponent, err := componentFromDependencyPath(
 			v.FS,
 			dep,

@@ -153,6 +153,10 @@ func (p *RelationshipPhase) discoverRelationships(
 	tracker *terminalTracker,
 	depthRemaining int,
 ) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
 	if depthRemaining <= 0 {
 		return nil
 	}
@@ -174,7 +178,7 @@ func (p *RelationshipPhase) discoverRelationships(
 
 	cfg := unit.Config()
 
-	paths, err := extractDependencyPaths(state.discovery.paths, cfg, c)
+	paths, err := extractDependencyPaths(ctx, state.discovery.paths, cfg, c)
 	if err != nil {
 		return err
 	}
@@ -191,6 +195,10 @@ func (p *RelationshipPhase) discoverRelationships(
 	depsToDiscover := make(component.Components, 0, len(paths))
 
 	for _, path := range paths {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+
 		if err := config.RejectAmbiguousDefaultConfig(
 			v.FS,
 			path,
