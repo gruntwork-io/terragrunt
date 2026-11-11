@@ -193,6 +193,11 @@ func discoverCorpus(t *testing.T, useRewrite bool, store *rewrite.Store) []compo
 	components, err := d.Discover(config.WithCaches(t.Context()), l, v, store, opts)
 	require.NoError(t, err)
 
+	return componentViews(components)
+}
+
+// componentViews returns the view of each of components, in path order.
+func componentViews(components component.Components) []componentView {
 	views := make([]componentView, 0, len(components))
 
 	for _, c := range components {
