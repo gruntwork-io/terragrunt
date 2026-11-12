@@ -141,6 +141,27 @@ func TestDiscoveryPipelineMatchesPhasesWithRacing(t *testing.T) {
 				return d.WithSuppressParseErrors()
 			},
 		},
+		{
+			name:    "relationships of the dependents of a unit",
+			queries: []string{"...db"},
+			configure: func(d *discovery.Discovery) *discovery.Discovery {
+				return d.WithRelationships().WithSuppressParseErrors()
+			},
+		},
+		{
+			name:    "relationships of the dependencies of a unit",
+			queries: []string{"web..."},
+			configure: func(d *discovery.Discovery) *discovery.Discovery {
+				return d.WithRelationships().WithSuppressParseErrors()
+			},
+		},
+		{
+			name:    "relationships of a path filter beside a graph filter",
+			queries: []string{"./infra/**", "worker..."},
+			configure: func(d *discovery.Discovery) *discovery.Discovery {
+				return d.WithRelationships().WithSuppressParseErrors()
+			},
+		},
 	}
 
 	for _, tt := range tests {

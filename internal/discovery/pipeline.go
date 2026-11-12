@@ -91,7 +91,7 @@ type pipeline struct {
 
 // runPipeline walks the working directory and parses the components that need it, as the filesystem and parse
 // phases do one after the other. It also reads the dependencies of the components it finds when discovery relates
-// components and no filter traverses the graph, and returns them unlinked. The relations are nil otherwise.
+// components, and returns them unlinked. The relations are nil otherwise.
 //
 // Returns the error of the walk when it fails, and otherwise the parse errors joined. suppressParseErrors drops
 // both, as it does for the phases. A [CoexistenceError] is returned either way.
@@ -112,7 +112,7 @@ func (d *Discovery) runPipeline(
 		work:           make(chan DiscoveryResult, workers*workQueuePerWorker),
 		events:         make(chan pipelineEvent, workers*workQueuePerWorker),
 		parseRequested: parseRequested,
-		relates:        d.discoverRelationships && !d.classifier.HasGraphFilters(),
+		relates:        d.discoverRelationships,
 	}
 
 	var stages errgroup.Group
