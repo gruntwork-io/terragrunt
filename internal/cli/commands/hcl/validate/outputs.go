@@ -29,7 +29,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/gruntwork-io/terragrunt/internal/view/diagnostic"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -39,7 +38,6 @@ import (
 const (
 	summaryDeclaredOutputNotInModule  = "Declared output not in module"
 	summaryUndeclaredDependencyOutput = "Undeclared dependency output"
-	summaryDependencyConfigUnreadable = "Dependency config not readable"
 	summaryUnknownMockValue           = "Unknown mock value"
 )
 
@@ -852,7 +850,6 @@ func (p ComponentParser) pointAtOutputsErrors(
 	l log.Logger,
 	v *venv.Venv,
 	pctx *config.ParsingContext,
-	configPaths []string,
 	err error,
 ) error {
 	if err == nil {
@@ -862,92 +859,19 @@ func (p ComponentParser) pointAtOutputsErrors(
 	var rest []error
 
 	for _, leaf := range joinedErrors(err) {
-		pointed, pointErr := p.pointAtOutputsError(l, v, pctx, configPaths, leaf)
-		if pointErr != nil {
-			rest = append(rest, leaf, pointErr)
+		unknownErr, ok := errors.AsType[config.UnknownMockValueError](leaf)
+		if !ok {
+			rest = append(rest, leaf)
 
 			continue
 		}
 
-		if !pointed {
-			rest = append(rest, leaf)
+		if pointErr := p.pointAtUnknownMockValue(l, v, pctx, unknownErr); pointErr != nil {
+			rest = append(rest, leaf, pointErr)
 		}
 	}
 
 	return errors.Join(rest...)
-}
-
-// pointAtOutputsError collects the diagnostic for leaf and reports whether leaf is dealt with.
-func (p ComponentParser) pointAtOutputsError(
-	l log.Logger,
-	v *venv.Venv,
-	pctx *config.ParsingContext,
-	configPaths []string,
-	leaf error,
-) (bool, error) {
-	if unknownErr, ok := errors.AsType[config.UnknownMockValueError](leaf); ok {
-		return p.pointAtUnknownMockValue(l, v, pctx, unknownErr)
-	}
-
-	blockErr, ok := errors.AsType[config.DependencyBlockError](leaf)
-	if !ok {
-		return false, nil
-	}
-
-	readErr, ok := errors.AsType[config.DeclaredOutputsReadError](blockErr.Err)
-	if !ok {
-		return false, nil
-	}
-
-	if _, parsed := p.UnitConfigs[readErr.TargetConfig]; parsed {
-		return true, nil
-	}
-
-	return p.pointAtDependencyRead(v.FS, configPaths, blockErr.Name, readErr)
-}
-
-// pointAtDependencyRead collects a diagnostic at the config_path of the dependency block named name in configPaths.
-func (p ComponentParser) pointAtDependencyRead(
-	fsys vfs.FS,
-	configPaths []string,
-	name string,
-	readErr config.DeclaredOutputsReadError,
-) (bool, error) {
-	errs := make([]error, 0, len(configPaths))
-
-	for _, configPath := range configPaths {
-		source, err := readDependencySource(fsys, configPath)
-		if err != nil {
-			errs = append(errs, err)
-
-			continue
-		}
-
-		expr, ok := source.configPaths[name]
-		if !ok {
-			continue
-		}
-
-		diag, err := diagnostic.NewDiagnostic(source.file, &hcl.Diagnostic{
-			Severity: hcl.DiagError,
-			Summary:  summaryDependencyConfigUnreadable,
-			Detail: fmt.Sprintf(
-				"Reading the outputs block of %s failed: %s. Fix that file first.",
-				readErr.TargetConfig,
-				strings.TrimSuffix(readErr.Err.Error(), "."),
-			),
-			Subject: expr.Range().Ptr(),
-		})
-		if err != nil {
-			return false, err
-		}
-
-		p.Collector.addDistinct(diag)
-
-		return true, nil
-	}
-
-	return false, errors.Join(errs...)
 }
 
 // pointAtUnknownMockValue collects a diagnostic at the output block that declares the mock value unknownErr reports.
@@ -956,10 +880,10 @@ func (p ComponentParser) pointAtUnknownMockValue(
 	v *venv.Venv,
 	pctx *config.ParsingContext,
 	unknownErr config.UnknownMockValueError,
-) (bool, error) {
+) error {
 	file, err := pctx.NewParser(l, v).ParseFromFile(v.FS, unknownErr.ConfigPath)
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	ranges := config.OutputDeclarationRanges(file)
@@ -971,11 +895,7 @@ func (p ComponentParser) pointAtUnknownMockValue(
 		Subject:  declarationSubject(file, ranges, unknownErr.Output),
 	}
 
-	if err := p.Collector.keepDistinct(file.File, hcl.Diagnostics{diag}); err != nil {
-		return false, err
-	}
-
-	return true, nil
+	return p.Collector.keepDistinct(file.File, hcl.Diagnostics{diag})
 }
 
 // ErrOutputsExperimentRequired is returned when --outputs is set without the outputs-block experiment enabled.

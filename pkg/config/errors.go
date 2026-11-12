@@ -1050,20 +1050,6 @@ func (err InvalidOutputsMergeStrategyError) Error() string {
 	)
 }
 
-// DeclaredOutputsReadError reports that the outputs block of TargetConfig could not be read.
-type DeclaredOutputsReadError struct {
-	Err          error
-	TargetConfig string
-}
-
-func (err DeclaredOutputsReadError) Error() string {
-	return fmt.Sprintf("reading the outputs block of %s: %v", err.TargetConfig, err.Err)
-}
-
-func (err DeclaredOutputsReadError) Unwrap() error {
-	return err.Err
-}
-
 // DeclaredOutputMissingError reports a declared output that the state of TargetConfig lacks.
 type DeclaredOutputMissingError struct {
 	TargetConfig string

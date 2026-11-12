@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"slices"
 
-	"github.com/gruntwork-io/terragrunt/internal/component"
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -201,10 +200,9 @@ const (
 // ComponentParser parses discovered components one at a time, collecting what
 // each reports into Collector.
 type ComponentParser struct {
-	Collector   *DiagnosticsCollector
-	Store       *rewrite.Store
-	UnitConfigs map[string]struct{}
-	Options     ParserOptions
+	Collector *DiagnosticsCollector
+	Store     *rewrite.Store
+	Options   ParserOptions
 }
 
 // Unit parses the unit configuration in unitDir.
@@ -236,27 +234,19 @@ func (p ComponentParser) Unit(
 
 	cfg, err := config.ReadTerragruntConfig(ctx, l, v, pctx)
 	if err != nil {
-		err = p.pointAtOutputsErrors(l, v, pctx, []string{configPath}, err)
+		err = p.pointAtOutputsErrors(l, v, pctx, err)
 
 		return p.Collector.pointAtDependencyErrors(v.FS, unitDir, []string{configPath}, err)
 	}
 
-	configPaths := dependencyConfigPaths(configPath, cfg)
-
-	contractErr := p.pointAtOutputsErrors(
-		l,
-		v,
-		pctx,
-		configPaths,
-		p.validateOutputsContracts(ctx, l, v, parseOpts, pctx, cfg),
-	)
+	contractErr := p.pointAtOutputsErrors(l, v, pctx, p.validateOutputsContracts(ctx, l, v, parseOpts, pctx, cfg))
 
 	return errors.Join(
 		contractErr,
 		p.Collector.pointAtDependencyErrors(
 			v.FS,
 			unitDir,
-			configPaths,
+			dependencyConfigPaths(configPath, cfg),
 			config.ValidateDependencyConfigPaths(v.FS, cfg, configPath),
 		),
 	)
@@ -340,20 +330,4 @@ func unitConfigFilename(opts *options.TerragruntOptions) string {
 	}
 
 	return config.DefaultTerragruntConfigPath
-}
-
-// UnitConfigs returns the unit configs a run over components parses, by path, for [ComponentParser].
-func UnitConfigs(opts *options.TerragruntOptions, components component.Components) map[string]struct{} {
-	configFile := unitConfigFilename(opts)
-	paths := make(map[string]struct{}, len(components))
-
-	for _, c := range components {
-		if _, ok := c.(*component.Stack); ok {
-			continue
-		}
-
-		paths[filepath.Join(c.Path(), configFile)] = struct{}{}
-	}
-
-	return paths
 }

@@ -547,7 +547,12 @@ func PartialParseConfigFile(
 		return nil, err
 	}
 
-	cacheKey := partialParseCacheKey(cfgPath, fileInfo)
+	cacheKey := fmt.Sprintf(
+		"configPath-%v-modTime-%v-size-%v",
+		cfgPath,
+		fileInfo.ModTime().UnixMicro(),
+		fileInfo.Size(),
+	)
 
 	cached := cachedHCLFile(ctx, v.FS, hclCache, cacheKey, cfgPath)
 
@@ -574,16 +579,6 @@ func PartialParseConfigFile(
 		})
 
 	return config, err
-}
-
-// partialParseCacheKey returns the HCL cache key of the file at cfgPath that info describes.
-func partialParseCacheKey(cfgPath string, info fs.FileInfo) string {
-	return fmt.Sprintf(
-		"configPath-%v-modTime-%v-size-%v",
-		cfgPath,
-		info.ModTime().UnixMicro(),
-		info.Size(),
-	)
 }
 
 // TerragruntConfigFromPartialConfig is a wrapper of PartialParseConfigString which checks for cached configs.
@@ -1127,8 +1122,6 @@ func registerSiblingAutoInclude(
 	if !vfs.Exists(v.FS, autoIncludePath) {
 		return
 	}
-
-	pctx.FilesRead.Add(autoIncludePath)
 
 	trackInclude.AutoIncludeOverride = &IncludeConfig{Path: autoIncludePath}
 }

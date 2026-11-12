@@ -80,6 +80,7 @@ type Dependencies []Dependency
 // Struct to hold the decoded dependency blocks.
 type dependencyOutputCache struct {
 	Enabled *bool
+	Outputs *OutputsConfig
 	Inputs  cty.Value
 }
 
@@ -794,6 +795,9 @@ func decodeDependencies(
 		}
 
 		depCtx = depCtx.WithDecodeList(TerragruntFlags).WithDiagnosticsSuppressed()
+		if pctx.Experiments.Evaluate(experiment.OutputsBlock) {
+			depCtx = depCtx.WithDecodeList(TerragruntFlags, OutputsBlock).WithSkipOutputsResolution()
+		}
 
 		depConfig, err := PartialParseConfigFile(ctx, l, v, depCtx, depPath, nil)
 		if err != nil {
@@ -808,8 +812,6 @@ func decodeDependencies(
 			continue
 		}
 
-		settleDeclaredOutputs(ctx, v, pctx, depPath, depConfig.ProcessedIncludes)
-
 		inputsCty, err := convertToCtyWithJSON(depConfig.Inputs)
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert inputs for dependency %q: %w", dep.Name, err)
@@ -817,6 +819,7 @@ func decodeDependencies(
 
 		cachedValue := dependencyOutputCache{
 			Enabled: dep.Enabled,
+			Outputs: depConfig.Outputs,
 			Inputs:  inputsCty,
 		}
 		depCache.Put(ctx, cacheKey, &cachedValue)

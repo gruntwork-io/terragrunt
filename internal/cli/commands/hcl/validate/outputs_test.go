@@ -1098,7 +1098,7 @@ outputs {
 			expectedLine:    3,
 		},
 		{
-			name: "an unreadable dependency config the run leaves out is reported at the config_path that names it",
+			name: "an unparsable dependency config the run leaves out is reported once, where it breaks",
 			files: map[string]string{
 				"vpc/terragrunt.hcl": `
 outputs {
@@ -1106,8 +1106,8 @@ outputs {
 `,
 			},
 			queries:         []string{"./app"},
-			expectedSummary: "Dependency config not readable",
-			expectedFile:    "app/terragrunt.hcl",
+			expectedSummary: "Unclosed configuration block",
+			expectedFile:    "vpc/terragrunt.hcl",
 			expectedLine:    3,
 		},
 		{

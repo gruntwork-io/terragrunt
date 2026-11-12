@@ -42,8 +42,6 @@ const (
 	// RunCmdLocksContextKey is the context key of the per-command locks that make concurrent identical `run_cmd`
 	// calls wait for the first.
 	RunCmdLocksContextKey configKey = iota
-	// DeclaredOutputsCacheContextKey is the context key of the cache of the outputs blocks read for dependencies.
-	DeclaredOutputsCacheContextKey configKey = iota
 
 	hclCacheName               = "hclCache"
 	configCacheName            = "configCache"
@@ -54,7 +52,6 @@ const (
 	autoIncludeSuffixCacheName = "autoIncludeSuffixCache"
 	parentFileProbeCacheName   = "parentFileProbeCache"
 	readTerragruntConfigName   = "readTerragruntConfigCache"
-	declaredOutputsCacheName   = "declaredOutputsCache"
 )
 
 // WithCaches installs every cache Terragrunt reads while parsing and running a command.
@@ -76,11 +73,6 @@ func withConfigValues(ctx context.Context) context.Context {
 		cache.NewCache[*RunCmdCacheEntry](runCmdCacheName),
 	)
 	ctx = context.WithValue(ctx, RunCmdLocksContextKey, util.NewKeyLocks())
-	ctx = context.WithValue(
-		ctx,
-		DeclaredOutputsCacheContextKey,
-		cache.NewCache[*declaredOutputsResult](declaredOutputsCacheName),
-	)
 	ctx = azurermbackend.WithStateClientCache(ctx)
 	ctx = context.WithValue(
 		ctx,
