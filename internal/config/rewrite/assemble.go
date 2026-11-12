@@ -64,7 +64,7 @@ func (c *UnitConfig) assemble(
 		v,
 		pctx,
 		bound,
-		evalCtx,
+		dependencyBlockContext(pctx, evalCtx),
 		file,
 		decodeErr,
 	)

@@ -38,6 +38,8 @@ func (r *RunBodies) fill(c *UnitConfig, file *pkgconfig.TerragruntConfigFile) {
 		file.Exclude = c.Exclude.v1(r.Exclude)
 	}
 
+	c.fillRunAttributes(r, file)
+
 	file.Inputs = r.Inputs
 	file.GenerateAttrs = r.GenerateAttrs
 	file.RemoteStateAttr = r.RemoteStateAttr
