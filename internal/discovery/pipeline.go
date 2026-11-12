@@ -68,9 +68,9 @@ type pipelineEvent struct {
 // pipeline walks the working directory and parses the components that need it while the walk is still running.
 //
 // The walk classifies each component, reports it on events, and queues it on work when it needs a parse. Workers
-// parse what work holds, classify the component again, and report it on events. When a filter selects dependents, the
-// walk also queues the components ready for filtering and the candidates its traversals can reach, and a worker reads
-// the dependencies of such a component once it is done with it.
+// parse what work holds, classify the component again, and report it on events. The walk also queues the targets of
+// graph filters, and when a filter selects dependents, the components ready for filtering and the candidates its
+// traversals can reach. A worker reads the dependencies of such a component once it is done with it.
 // One collector receives every event, so the results need no lock.
 //
 // The pipeline ends because its channels form a chain with no way back:
@@ -104,9 +104,9 @@ type pipeline struct {
 }
 
 // runPipeline walks the working directory and parses the components that need it, as the filesystem and parse
-// phases do one after the other. When a filter selects dependents, it also reads the dependencies of the components
-// that filter can reach and returns them unlinked. The relations are nil when discovery neither relates components
-// nor has such a filter.
+// phases do one after the other. It also reads the dependencies of the targets of graph filters and, when a filter
+// selects dependents, of the components that filter can reach, and returns them unlinked. The relations are nil when
+// discovery neither relates components nor has a graph filter.
 //
 // Returns the error of the walk when it fails, and otherwise the parse errors joined. suppressParseErrors drops
 // both, as it does for the phases. A [CoexistenceError], a [config.AmbiguousConfigError], or the error of ctx once
@@ -184,7 +184,7 @@ func (d *Discovery) runPipeline(
 
 	found := walked{discovered: results.Discovered, candidates: results.Candidates}
 
-	if p.relates || p.findsDependents {
+	if p.relates || d.classifier.HasGraphFilters() {
 		found.relations = &pipelineRelations{discovery: d, opts: opts, store: s, declared: collected.declared}
 	}
 
@@ -345,14 +345,18 @@ func (d *Discovery) parsesDiscovered() bool {
 	return d.readFiles || d.parseExclude || d.parseIncludes
 }
 
-// readsDependencies reports whether a worker reads the dependencies of result's component. It reads them only when a
-// filter selects dependents: for a component ready for filtering, and for a candidate one of that filter's traversals
-// can reach.
+// readsDependencies reports whether a worker reads the dependencies of result's component. It reads those of the
+// target of a graph filter, and when a filter selects dependents, those of a component ready for filtering and of a
+// candidate one of that filter's traversals can reach.
 func (p *pipeline) readsDependencies(fsys vfs.FS, result DiscoveryResult) bool {
 	switch result.Status {
 	case filter.StatusReadyForFilter:
 		return p.findsDependents
 	case filter.StatusCandidate:
+		if result.Reason == filter.CandidacyReasonGraphTarget {
+			return true
+		}
+
 		return p.findsDependents && !outsideDependentBoundaries(fsys, p.dependentBoundaries, result)
 	case filter.StatusExcluded:
 	}
