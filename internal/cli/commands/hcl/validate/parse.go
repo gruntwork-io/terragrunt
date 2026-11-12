@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -197,6 +198,7 @@ const (
 // each reports into Collector.
 type ComponentParser struct {
 	Collector   *DiagnosticsCollector
+	Store       *rewrite.Store
 	UnitConfigs map[string]struct{}
 	Options     ParserOptions
 }

@@ -3,23 +3,31 @@ package validate_test
 import (
 	"context"
 	"errors"
+	"io/fs"
 	"maps"
+	"net/http"
 	"path/filepath"
 	"runtime"
 	"slices"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl/validate"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
@@ -246,7 +254,7 @@ inputs = {
 			maps.Copy(files, outputsContractFiles)
 			maps.Copy(files, tc.overrides)
 
-			result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}})
+			result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}, outputs: true})
 
 			if tc.expectedSummary == "" {
 				require.NoError(t, result.err)
@@ -430,7 +438,7 @@ inputs = {
 			maps.Copy(files, expandedContractFiles)
 			files["app/terragrunt.hcl"] = tc.appConfig
 
-			result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}})
+			result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}, outputs: true})
 
 			if tc.expectedSummary == "" {
 				require.NoError(t, result.err)
@@ -626,7 +634,7 @@ inputs = {
 			}
 			maps.Copy(files, tc.files)
 
-			result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}})
+			result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}, outputs: true})
 
 			if tc.expectedFile == "" {
 				require.NoError(t, result.err)
@@ -679,6 +687,7 @@ variables {
 	result := runValidate(t, &validateRun{
 		files:       files,
 		experiments: []string{experiment.OutputsBlock, experiment.VariablesBlock},
+		outputs:     true,
 	})
 
 	require.Error(t, result.err)
@@ -709,7 +718,7 @@ func TestRunValidateOutputsContractsLeavesUnitDirectory(t *testing.T) {
 		"vpc/terragrunt.hcl": generatedOutputsConfig,
 	})
 
-	result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}})
+	result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}, outputs: true})
 
 	require.NoError(t, result.err)
 	assert.Empty(t, result.diags)
@@ -749,7 +758,12 @@ inputs = {
 `,
 	})
 
-	result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}, inputs: true})
+	result := runValidate(t, &validateRun{
+		files:       files,
+		experiments: []string{experiment.OutputsBlock},
+		inputs:      true,
+		outputs:     true,
+	})
 
 	require.Error(t, result.err)
 
@@ -793,7 +807,7 @@ outputs {
 `,
 	})
 
-	result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}})
+	result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}, outputs: true})
 
 	require.NoError(t, result.err)
 	assert.Empty(t, result.diags)
@@ -836,7 +850,7 @@ output {
 
 			files := withFiles(outputsContractFiles, map[string]string{"vpc/main.tf": tc.module})
 
-			result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}})
+			result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}, outputs: true})
 
 			require.Error(t, result.err)
 			assert.NotErrorAs(t, result.err, new(validate.OutputsContractError), "reported as a diagnostic")
@@ -881,7 +895,7 @@ outputs {
 `,
 	})
 
-	result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}})
+	result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}, outputs: true})
 
 	require.ErrorAs(t, result.err, new(validate.OutputsContractError))
 }
@@ -903,6 +917,7 @@ func TestRunValidateOutputsContractsReadsLinkedModuleFiles(t *testing.T) {
 		files:       files,
 		links:       map[string]string{"vpc/outputs.tf": "shared/outputs.tf"},
 		experiments: []string{experiment.OutputsBlock},
+		outputs:     true,
 		onDisk:      true,
 	})
 
@@ -934,7 +949,7 @@ outputs {
 	})
 	delete(files, "vpc/main.tf")
 
-	result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}})
+	result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}, outputs: true})
 
 	require.NoError(t, result.err)
 	assert.Empty(t, result.diags)
@@ -985,7 +1000,7 @@ outputs {
 			})
 			delete(files, "vpc/main.tf")
 
-			result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}})
+			result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}, outputs: true})
 
 			require.NoError(t, result.err)
 			assert.Empty(t, result.diags)
@@ -1038,7 +1053,7 @@ outputs {
 `,
 			})
 
-			result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}})
+			result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}, outputs: true})
 
 			if tc.fails {
 				require.ErrorAs(t, result.err, new(validate.OutputsContractError))
@@ -1146,6 +1161,7 @@ outputs {
 			result := runValidate(t, &validateRun{
 				files:       withFiles(outputsContractFiles, tc.files),
 				experiments: []string{experiment.OutputsBlock},
+				outputs:     true,
 				queries:     tc.queries,
 			})
 
@@ -1184,7 +1200,7 @@ outputs {
 		"web/terragrunt.hcl": outputsContractFiles["app/terragrunt.hcl"],
 	})
 
-	result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}})
+	result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}, outputs: true})
 
 	require.Error(t, result.err)
 	require.Len(t, result.diags, 1)
@@ -1234,7 +1250,7 @@ dependency "vpc" {
 `,
 	})
 
-	result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}})
+	result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}, outputs: true})
 
 	require.Error(t, result.err)
 
@@ -1279,13 +1295,23 @@ func withFiles(base, overrides map[string]string) map[string]string {
 }
 
 // versionProbe returns an exec that answers the version probe of any binary with output and refuses other commands.
-func versionProbe(output string) vexec.Exec {
+const stsAccessDenied = `<ErrorResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">
+  <Error>
+    <Type>Sender</Type>
+    <Code>AccessDenied</Code>
+    <Message>the role cannot be assumed</Message>
+  </Error>
+  <RequestId>00000000-0000-0000-0000-000000000000</RequestId>
+</ErrorResponse>`
+
+func versionProbe(outputs map[string]string) vexec.Exec {
 	return vexec.NewMemExec(func(_ context.Context, inv vexec.Invocation) vexec.Result {
-		if slices.Contains(inv.Args, "-version") {
+		output, known := outputs[filepath.Base(inv.Name)]
+		if known && slices.Contains(inv.Args, "-version") {
 			return vexec.Result{Stdout: []byte(output + "\n")}
 		}
 
-		return vexec.Result{Err: errors.New("only the version probe runs")}
+		return vexec.Result{Err: errors.New("only the version probe of a known binary runs")}
 	})
 }
 
@@ -1359,7 +1385,7 @@ outputs {
 `,
 			}
 
-			result := runValidate(t, &validateRun{files: files, experiments: tc.experiments})
+			result := runValidate(t, &validateRun{files: files, experiments: tc.experiments, outputs: true})
 
 			if !tc.reported {
 				require.NoError(t, result.err)
@@ -1380,18 +1406,53 @@ outputs {
 func TestRunValidateOutputsContractsReadsTheEngineFiles(t *testing.T) {
 	t.Parallel()
 
+	const (
+		openTofu  = "OpenTofu v1.10.0"
+		terraform = "Terraform v1.9.0"
+	)
+
 	testCases := []struct {
+		probes          map[string]string
 		name            string
 		tfPath          string
 		terraformBinary string
-		probe           string
 		missing         string
 	}{
-		{name: "opentofu does not read the .tf file beside its .tofu twin", tfPath: "tofu", missing: "retired"},
-		{name: "terraform does not read .tofu files", tfPath: "terraform", missing: "current"},
-		{name: "terraform_binary names the binary of the run", terraformBinary: "terraform", missing: "current"},
-		{name: "--tf-path wins over terraform_binary", tfPath: "tofu", terraformBinary: "terraform", missing: "retired"},
-		{name: "the probe of the binary wins over its name", tfPath: "tofu", probe: "Terraform v1.9.0", missing: "current"},
+		{
+			name:    "opentofu does not read the .tf file beside its .tofu twin",
+			tfPath:  "tofu",
+			probes:  map[string]string{"tofu": openTofu},
+			missing: "retired",
+		},
+		{
+			name:    "terraform does not read .tofu files",
+			tfPath:  "terraform",
+			probes:  map[string]string{"terraform": terraform},
+			missing: "current",
+		},
+		{
+			name:            "terraform_binary names the binary of the run",
+			terraformBinary: "terraform",
+			probes:          map[string]string{"tofu": openTofu, "terraform": terraform},
+			missing:         "current",
+		},
+		{
+			name:            "--tf-path wins over terraform_binary",
+			tfPath:          "tofu",
+			terraformBinary: "terraform",
+			probes:          map[string]string{"tofu": openTofu, "terraform": terraform},
+			missing:         "retired",
+		},
+		{
+			name:    "the probe of the binary decides, not its name",
+			tfPath:  "tofu",
+			probes:  map[string]string{"tofu": terraform},
+			missing: "current",
+		},
+		{
+			name:   "a binary that cannot be probed reads every module file",
+			tfPath: "tofu",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -1404,8 +1465,8 @@ func TestRunValidateOutputsContractsReadsTheEngineFiles(t *testing.T) {
 			}
 
 			var exec vexec.Exec
-			if tc.probe != "" {
-				exec = versionProbe(tc.probe)
+			if tc.probes != nil {
+				exec = versionProbe(tc.probes)
 			}
 
 			files := map[string]string{
@@ -1427,9 +1488,17 @@ outputs {
 			result := runValidate(t, &validateRun{
 				files:       files,
 				experiments: []string{experiment.OutputsBlock},
+				outputs:     true,
 				tfPath:      tc.tfPath,
 				exec:        exec,
 			})
+
+			if tc.missing == "" {
+				require.NoError(t, result.err)
+				assert.Empty(t, result.diags)
+
+				return
+			}
 
 			require.Error(t, result.err)
 			require.Len(t, result.diags, 1)
@@ -1491,6 +1560,7 @@ outputs {
 		fs:              fsys,
 		files:           files,
 		experiments:     []string{experiment.OutputsBlock},
+		outputs:         true,
 		exec:            exec,
 		authProviderCmd: "fetch-creds",
 	})
@@ -1504,6 +1574,108 @@ outputs {
 	assert.Contains(t, ran, "fetch-creds")
 	assert.False(t, fetchedBefore, "the credentials are obtained before the fetch begins")
 	assert.True(t, vfs.Exists(fsys, cacheDir), "the fetch ran")
+}
+
+// TestRunValidateOutputsContractsAssumesTheUnitRoleBeforeTheFetch expects the unit's iam_role assumed before a fetch.
+func TestRunValidateOutputsContractsAssumesTheUnitRoleBeforeTheFetch(t *testing.T) {
+	t.Parallel()
+
+	files := withFiles(outputsContractFiles, map[string]string{
+		"vpc/terragrunt.hcl": `
+iam_role = "arn:aws:iam::123456789012:role/module-reader"
+
+terraform {
+  source = "${get_terragrunt_dir()}/../modules/vpc"
+}
+` + outputsContractFiles["vpc/terragrunt.hcl"],
+		"modules/vpc/main.tf": outputsContractFiles["vpc/main.tf"],
+	})
+	delete(files, "vpc/main.tf")
+
+	fsys := vfs.NewMemMapFS()
+	cacheDir := filepath.Join(venvtest.Root("/repo"), "vpc", ".terragrunt-cache")
+
+	var (
+		mu    sync.Mutex
+		hosts []string
+	)
+
+	denied := vhttp.NewMemClient(func(_ context.Context, req *http.Request) (*http.Response, error) {
+		mu.Lock()
+		defer mu.Unlock()
+
+		hosts = append(hosts, req.URL.Host)
+
+		return vhttp.Respond(http.StatusForbidden, []byte(stsAccessDenied), nil), nil
+	})
+
+	result := runValidate(t, &validateRun{
+		fs:          fsys,
+		files:       files,
+		experiments: []string{experiment.OutputsBlock},
+		outputs:     true,
+		http:        denied,
+		env: map[string]string{
+			"AWS_REGION":            "us-east-1",
+			"AWS_ACCESS_KEY_ID":     "caller-key-id",
+			"AWS_SECRET_ACCESS_KEY": "caller-secret",
+		},
+	})
+
+	require.Error(t, result.err)
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	require.NotEmpty(t, hosts)
+	assert.Equal(t, "sts.us-east-1.amazonaws.com", hosts[0])
+	assert.False(t, vfs.Exists(fsys, cacheDir), "nothing is fetched without the role")
+}
+
+// TestRunValidateOutputsContractsFetchesFromTheRegistryOfTheUnitEngine expects terraform_binary to pick the registry.
+func TestRunValidateOutputsContractsFetchesFromTheRegistryOfTheUnitEngine(t *testing.T) {
+	t.Parallel()
+
+	files := withFiles(outputsContractFiles, map[string]string{
+		"vpc/terragrunt.hcl": `
+terraform_binary = "terraform"
+
+terraform {
+  source = "tfr:///example/vpc/aws?version=1.0.0"
+}
+` + outputsContractFiles["vpc/terragrunt.hcl"],
+	})
+	delete(files, "vpc/main.tf")
+
+	var (
+		mu    sync.Mutex
+		hosts []string
+	)
+
+	missing := vhttp.NewMemClient(func(_ context.Context, req *http.Request) (*http.Response, error) {
+		mu.Lock()
+		defer mu.Unlock()
+
+		hosts = append(hosts, req.URL.Host)
+
+		return vhttp.Respond(http.StatusNotFound, nil, nil), nil
+	})
+
+	result := runValidate(t, &validateRun{
+		files:       files,
+		experiments: []string{experiment.OutputsBlock},
+		outputs:     true,
+		http:        missing,
+		exec:        versionProbe(map[string]string{"tofu": "OpenTofu v1.10.0", "terraform": "Terraform v1.9.0"}),
+	})
+
+	require.Error(t, result.err)
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	require.NotEmpty(t, hosts)
+	assert.Equal(t, "registry.terraform.io", hosts[0])
 }
 
 // TestRunValidateOutputsContractsRejectsInPlaceWithSource expects the cache guard of a run before any fetch.
@@ -1534,6 +1706,7 @@ outputs {
 	result := runValidate(t, &validateRun{
 		files:       files,
 		experiments: []string{experiment.OutputsBlock, experiment.NoDotTerragruntCache},
+		outputs:     true,
 	})
 
 	require.ErrorAs(t, result.err, new(validate.OutputsContractError))
@@ -1571,7 +1744,7 @@ inputs = {
 `,
 	})
 
-	result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}})
+	result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}, outputs: true})
 
 	require.Error(t, result.err)
 	require.Len(t, result.diags, 1)
@@ -1667,7 +1840,7 @@ dependency "db" {
 			}
 			maps.Copy(files, tc.files)
 
-			result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}})
+			result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}, outputs: true})
 
 			found := 0
 
@@ -1692,6 +1865,121 @@ dependency "db" {
 			require.Error(t, result.err)
 			assert.Equal(t, 1, found, "one undeclared output diagnostic expected")
 		})
+	}
+}
+
+// TestRunValidateChecksOutputsContractsOnlyWithTheFlag expects no contract diagnostic until --outputs asks for one.
+func TestRunValidateChecksOutputsContractsOnlyWithTheFlag(t *testing.T) {
+	t.Parallel()
+
+	files := withFiles(outputsContractFiles, map[string]string{"vpc/main.tf": vpcModuleWithoutSubnets})
+
+	testCases := []struct {
+		name     string
+		outputs  bool
+		reported bool
+	}{
+		{name: "without the flag"},
+		{name: "with the flag", outputs: true, reported: true},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := runValidate(t, &validateRun{
+				files:       files,
+				experiments: []string{experiment.OutputsBlock},
+				outputs:     tc.outputs,
+			})
+
+			if !tc.reported {
+				require.NoError(t, result.err)
+				assert.Empty(t, result.diags)
+
+				return
+			}
+
+			require.Error(t, result.err)
+			require.Len(t, result.diags, 1)
+			assert.Equal(t, "Declared output not in module", result.diags[0].Summary)
+		})
+	}
+}
+
+// TestRunOutputsFlagRequiresExperiment expects --outputs to fail while the outputs-block experiment is off.
+func TestRunOutputsFlagRequiresExperiment(t *testing.T) {
+	t.Parallel()
+
+	root := venvtest.Root("/repo")
+	fsys := venvtest.NewFS(t, root, map[string]string{"app/terragrunt.hcl": "\n"})
+
+	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(root, config.DefaultTerragruntConfigPath))
+	require.NoError(t, err)
+
+	opts.HCLValidateOutputs = true
+
+	v := venv.MemVenv().WithFS(fsys)
+
+	err = validate.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(rewrite.Store), opts)
+
+	var experimentErr validate.OutputsExperimentRequiredError
+
+	require.ErrorAs(t, err, &experimentErr)
+}
+
+// TestRunValidateOutputsContractsParseEachConfigOnce expects one read per config, however many units share it.
+func TestRunValidateOutputsContractsParseEachConfigOnce(t *testing.T) {
+	t.Parallel()
+
+	const rootInclude = `
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+`
+
+	dependent := rootInclude + outputsContractFiles["app/terragrunt.hcl"]
+	files := map[string]string{
+		"root.hcl":           "\n",
+		"vpc/main.tf":        outputsContractFiles["vpc/main.tf"],
+		"vpc/terragrunt.hcl": rootInclude + outputsContractFiles["vpc/terragrunt.hcl"],
+		"app/main.tf":        outputsContractFiles["app/main.tf"],
+		"app/terragrunt.hcl": dependent,
+		"web/main.tf":        outputsContractFiles["app/main.tf"],
+		"web/terragrunt.hcl": dependent,
+		"api/main.tf":        outputsContractFiles["app/main.tf"],
+		"api/terragrunt.hcl": dependent,
+		"api/terragrunt.autoinclude.hcl": `
+dependency "network" {
+  config_path = "../vpc"
+}
+`,
+	}
+
+	opens := func(outputs bool) map[string]int {
+		fsys := newOpenCountingFS()
+		result := runValidate(t, &validateRun{
+			files:       files,
+			fs:          fsys,
+			experiments: []string{experiment.OutputsBlock},
+			outputs:     outputs,
+		})
+
+		require.NoError(t, result.err)
+
+		counts := map[string]int{}
+		for _, path := range []string{"root.hcl", "app/terragrunt.hcl", "api/terragrunt.autoinclude.hcl"} {
+			counts[path] = fsys.count(filepath.Join(result.root, filepath.FromSlash(path)))
+		}
+
+		return counts
+	}
+
+	without := opens(false)
+	with := opens(true)
+
+	for path, count := range without {
+		assert.Equal(t, count+1, with[path], path)
 	}
 }
 
@@ -1726,8 +2014,13 @@ inputs = {
 	}
 
 	opens := func(experiments ...string) int {
-		fsys := &openCountingFS{FS: vfs.NewMemMapFS(), opens: map[string]int{}}
-		result := runValidate(t, &validateRun{files: files, fs: fsys, experiments: experiments})
+		fsys := newOpenCountingFS()
+		result := runValidate(t, &validateRun{
+			files:       files,
+			fs:          fsys,
+			experiments: experiments,
+			outputs:     len(experiments) > 0,
+		})
 
 		require.NoError(t, result.err)
 		assert.Empty(t, result.diags)
@@ -1742,10 +2035,34 @@ inputs = {
 	assert.Equal(t, without, with)
 }
 
+func newOpenCountingFS() *openCountingFS {
+	return &openCountingFS{FS: vfs.NewMemMapFS(), created: time.Now(), opens: map[string]int{}}
+}
+
 type openCountingFS struct {
 	vfs.FS
-	opens map[string]int
-	mu    sync.Mutex
+	created time.Time
+	opens   map[string]int
+	mu      sync.Mutex
+}
+
+// Stat reports every file as an hour old, past the window in which a cache reads a file back to compare it.
+func (fsys *openCountingFS) Stat(name string) (fs.FileInfo, error) {
+	info, err := fsys.FS.Stat(name)
+	if err != nil {
+		return nil, err
+	}
+
+	return settledInfo{FileInfo: info, modTime: fsys.created.Add(-time.Hour)}, nil
+}
+
+type settledInfo struct {
+	fs.FileInfo
+	modTime time.Time
+}
+
+func (info settledInfo) ModTime() time.Time {
+	return info.modTime
 }
 
 func (fsys *openCountingFS) Open(name string) (vfs.File, error) {

@@ -136,7 +136,7 @@ func TestTFOutputsBlockHCLValidateChecksContracts(t *testing.T) {
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt hcl validate --experiment outputs-block --working-dir "+validPath,
+		"terragrunt hcl validate --outputs --experiment outputs-block --working-dir "+validPath,
 	)
 	require.NoError(t, err)
 
@@ -147,7 +147,7 @@ func TestTFOutputsBlockHCLValidateChecksContracts(t *testing.T) {
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt hcl validate --experiment outputs-block --working-dir "+invalidPath,
+		"terragrunt hcl validate --outputs --experiment outputs-block --working-dir "+invalidPath,
 	)
 	require.Error(t, err)
 	assert.Contains(t, stdout, "Declared output not in module")

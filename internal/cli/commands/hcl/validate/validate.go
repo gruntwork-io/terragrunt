@@ -16,6 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
@@ -42,6 +43,10 @@ const splitCount = 2
 // Returns an error when --inputs is combined with --show-config-path or
 // --json, or when --strict is set without --inputs.
 func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, opts *options.TerragruntOptions) error {
+	if opts.HCLValidateOutputs && !opts.Experiments.Evaluate(experiment.OutputsBlock) {
+		return OutputsExperimentRequiredError{}
+	}
+
 	if opts.HCLValidateInputs {
 		if opts.HCLValidateShowConfigPath {
 			return fmt.Errorf(
@@ -81,7 +86,7 @@ func RunValidate(
 	opts *options.TerragruntOptions,
 ) error {
 	collector := &DiagnosticsCollector{}
-	parser := ComponentParser{Collector: collector, Options: CollectorOnly}
+	parser := ComponentParser{Collector: collector, Store: s, Options: CollectorOnly}
 
 	opts.SkipOutput = true
 	opts.NonInteractive = true
@@ -355,6 +360,7 @@ func RunValidateInputs(
 			ctx,
 			l,
 			unitV,
+			s,
 			prepared.Opts,
 			prepared.Cfg,
 			updatedOpts.WorkingDir,

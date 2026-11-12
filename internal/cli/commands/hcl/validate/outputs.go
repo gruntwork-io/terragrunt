@@ -1,7 +1,6 @@
 package validate
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -11,17 +10,19 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"sync"
 
 	"github.com/hashicorp/hcl/v2"
 	hclparser "github.com/hashicorp/hcl/v2/hclparse"
 
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/amazonsts"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
@@ -59,25 +60,22 @@ func (p ComponentParser) validateOutputsContracts(
 	pctx *config.ParsingContext,
 	cfg *config.TerragruntConfig,
 ) error {
-	if !opts.Experiments.Evaluate(experiment.OutputsBlock) {
+	if !opts.HCLValidateOutputs || !opts.Experiments.Evaluate(experiment.OutputsBlock) {
 		return nil
 	}
 
-	var (
-		moduleFS  vfs.FS
-		moduleDir string
-	)
+	var module unitModule
 
 	if cfg.Outputs != nil {
 		var err error
 
-		moduleFS, moduleDir, err = moduleView(ctx, l, v, opts, cfg)
+		module, err = moduleView(ctx, l, v, opts, cfg)
 		if err != nil {
 			return OutputsContractError{ConfigPath: opts.TerragruntConfigPath, Err: err}
 		}
 	}
 
-	checks, err := outputsContractDiagnostics(ctx, l, v, opts, pctx, cfg, moduleFS, moduleDir)
+	checks, err := outputsContractDiagnostics(ctx, l, v, p.Store, opts, pctx, cfg, module)
 	if err != nil {
 		return err
 	}
@@ -98,17 +96,23 @@ func validateOutputsContractsPrepared(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	opts *options.TerragruntOptions,
 	cfg *config.TerragruntConfig,
 	moduleDir string,
 ) error {
-	if !opts.Experiments.Evaluate(experiment.OutputsBlock) {
+	if !opts.HCLValidateOutputs || !opts.Experiments.Evaluate(experiment.OutputsBlock) {
 		return nil
 	}
 
 	pctx := configbridge.NewParsingContext(opts)
+	module := unitModule{fs: v.FS, dir: moduleDir}
 
-	checks, err := outputsContractDiagnostics(ctx, l, v, opts, pctx, cfg, v.FS, moduleDir)
+	if cfg.Outputs != nil {
+		module.engine = moduleEngine(ctx, l, v, opts, cfg)
+	}
+
+	checks, err := outputsContractDiagnostics(ctx, l, v, s, opts, pctx, cfg, module)
 	if err != nil {
 		return err
 	}
@@ -129,27 +133,25 @@ func outputsContractDiagnostics(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	opts *options.TerragruntOptions,
 	pctx *config.ParsingContext,
 	cfg *config.TerragruntConfig,
-	moduleFS vfs.FS,
-	moduleDir string,
+	module unitModule,
 ) ([]contractDiagnostics, error) {
 	contracts := readDependencyContracts(ctx, l, v, pctx, cfg)
 	if cfg.Outputs == nil && !contracts.bind() {
 		return nil, nil
 	}
 
-	unitFile := sync.OnceValues(func() (*hclparse.File, error) {
-		return pctx.NewParser(l, v).ParseFromFile(v.FS, opts.TerragruntConfigPath)
-	})
+	unitFile := func() (*hclparse.File, error) {
+		return syntaxTree(ctx, l, v, s, pctx, opts.TerragruntConfigPath)
+	}
 
 	var checks []contractDiagnostics
 
 	if cfg.Outputs != nil {
-		engine := moduleEngine(ctx, l, v, opts, cfg)
-
-		moduleChecks, err := declaredOutputsDiagnostics(moduleFS, moduleDir, engine, cfg, unitFile)
+		moduleChecks, err := declaredOutputsDiagnostics(module, cfg, unitFile)
 		if err != nil {
 			return nil, OutputsContractError{ConfigPath: opts.TerragruntConfigPath, Err: err}
 		}
@@ -166,7 +168,12 @@ func outputsContractDiagnostics(
 		return nil, OutputsContractError{ConfigPath: opts.TerragruntConfigPath, Err: err}
 	}
 
-	replaced, err := autoIncludeReplacements(l, v, pctx, opts.TerragruntConfigPath)
+	autoInclude, err := autoIncludeTree(ctx, l, v, s, pctx, opts.TerragruntConfigPath)
+	if err != nil {
+		return nil, OutputsContractError{ConfigPath: opts.TerragruntConfigPath, Err: err}
+	}
+
+	replaced, err := autoIncludeReplacements(autoInclude)
 	if err != nil {
 		return nil, OutputsContractError{ConfigPath: opts.TerragruntConfigPath, Err: err}
 	}
@@ -178,22 +185,13 @@ func outputsContractDiagnostics(
 
 	checks = append(checks, contractDiagnostics{file: file, diags: referenceDiags})
 
-	includedPaths, err := includedFiles(ctx, l, v, pctx, opts.TerragruntConfigPath, cfg)
+	includedPaths, err := includedFiles(ctx, l, v, pctx, cfg, autoInclude)
 	if err != nil {
 		return nil, OutputsContractError{ConfigPath: opts.TerragruntConfigPath, Err: err}
 	}
 
 	for _, includedPath := range includedPaths {
-		source, err := vfs.ReadFile(v.FS, includedPath)
-		if err != nil {
-			return nil, OutputsContractError{ConfigPath: includedPath, Err: err}
-		}
-
-		if !bytes.Contains(source, []byte(config.MetadataDependency)) {
-			continue
-		}
-
-		included, err := pctx.NewParser(l, v).ParseFromBytes(source, includedPath)
+		included, err := syntaxTree(ctx, l, v, s, pctx, includedPath)
 		if err != nil {
 			return nil, OutputsContractError{ConfigPath: includedPath, Err: err}
 		}
@@ -209,26 +207,65 @@ func outputsContractDiagnostics(
 	return checks, nil
 }
 
-// includedFiles returns the merged or exposed include files of the unit at configPath, its autoinclude file and theirs.
+// syntaxTree returns the syntax tree of the config at path, parsed once for the run by the parse store.
+func syntaxTree(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	s *rewrite.Store,
+	pctx *config.ParsingContext,
+	path string,
+) (*hclparse.File, error) {
+	info, err := v.FS.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.ParseUnitAST(ctx, v.FS, path, info, pctx.NewParser(l, v))
+}
+
+// autoIncludeTree returns the syntax tree of the autoinclude file beside configPath, or nil when there is none.
+func autoIncludeTree(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	s *rewrite.Store,
+	pctx *config.ParsingContext,
+	configPath string,
+) (*hclparse.File, error) {
+	autoInclude := filepath.Join(filepath.Dir(configPath), config.DefaultAutoIncludeFile)
+
+	info, err := v.FS.Stat(autoInclude)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	return s.ParseUnitAST(ctx, v.FS, autoInclude, info, pctx.NewParser(l, v))
+}
+
+// includedFiles returns the merged or exposed include files of the unit, its autoinclude file and theirs.
 func includedFiles(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	pctx *config.ParsingContext,
-	configPath string,
 	cfg *config.TerragruntConfig,
+	autoInclude *hclparse.File,
 ) ([]string, error) {
 	paths, err := mergedIncludePaths(cfg.ProcessedIncludes)
 	if err != nil {
 		return nil, err
 	}
 
-	autoInclude := autoIncludeFile(configPath)
-	if !vfs.Exists(v.FS, autoInclude) {
+	if autoInclude == nil {
 		return paths, nil
 	}
 
-	l, autoPctx, err := pctx.WithConfigPath(l, autoInclude)
+	l, autoPctx, err := pctx.WithConfigPath(l, autoInclude.ConfigPath)
 	if err != nil {
 		return nil, err
 	}
@@ -240,7 +277,7 @@ func includedFiles(
 		l,
 		v,
 		autoPctx.WithDecodeList(config.TerragruntFlags),
-		autoInclude,
+		autoInclude.ConfigPath,
 		nil,
 	)
 	if err != nil {
@@ -252,7 +289,7 @@ func includedFiles(
 		return nil, err
 	}
 
-	return slices.Concat(paths, []string{autoInclude}, autoPaths), nil
+	return slices.Concat(paths, []string{autoInclude.ConfigPath}, autoPaths), nil
 }
 
 // mergedIncludePaths returns the paths of the includes that are merged or exposed, in label order.
@@ -277,32 +314,16 @@ func mergedIncludePaths(includes config.IncludeConfigsMap) ([]string, error) {
 	return paths, nil
 }
 
-// autoIncludeFile returns the path of the autoinclude file beside the unit config at configPath.
-func autoIncludeFile(configPath string) string {
-	return filepath.Join(filepath.Dir(configPath), config.DefaultAutoIncludeFile)
-}
-
-// autoIncludeReplacements returns the unexpanded dependency labels of the autoinclude file beside configPath.
-func autoIncludeReplacements(
-	l log.Logger,
-	v *venv.Venv,
-	pctx *config.ParsingContext,
-	configPath string,
-) (map[string]struct{}, error) {
-	autoInclude := autoIncludeFile(configPath)
-	if !vfs.Exists(v.FS, autoInclude) {
+// autoIncludeReplacements returns the unexpanded dependency labels of the autoinclude file, none when it is nil.
+func autoIncludeReplacements(autoInclude *hclparse.File) (map[string]struct{}, error) {
+	if autoInclude == nil {
 		return nil, nil
 	}
 
-	file, err := pctx.NewParser(l, v).ParseFromFile(v.FS, autoInclude)
-	if err != nil {
-		return nil, err
-	}
-
-	return file.UnexpandedLabels(config.MetadataDependency, &config.Dependency{})
+	return autoInclude.UnexpandedLabels(config.MetadataDependency, &config.Dependency{})
 }
 
-// moduleEngine returns the implementation of the binary the unit runs, probed as a run probes it.
+// moduleEngine returns the implementation of the binary the unit runs, probed as a run probes it, or Unknown.
 func moduleEngine(
 	ctx context.Context,
 	l log.Logger,
@@ -327,9 +348,9 @@ func moduleEngine(
 		VersionFiles: opts.VersionManagerFileName,
 	})
 	if err != nil {
-		l.Debugf("Reading %s as the binary name of %s says, the probe failed: %v", opts.WorkingDir, engineOpts.TFPath, err)
+		l.Debugf("Reading every module file of %s, the probe of %s failed: %v", opts.WorkingDir, engineOpts.TFPath, err)
 
-		return tfimpl.FromPath(engineOpts.TFPath)
+		return tfimpl.Unknown
 	}
 
 	return impl
@@ -337,20 +358,18 @@ func moduleEngine(
 
 // declaredOutputsDiagnostics reports each declared output the module lacks, or the module files that do not parse.
 func declaredOutputsDiagnostics(
-	moduleFS vfs.FS,
-	moduleDir string,
-	engine tfimpl.Type,
+	module unitModule,
 	cfg *config.TerragruntConfig,
 	unitFile func() (*hclparse.File, error),
 ) ([]contractDiagnostics, error) {
-	moduleOutputs, err := tf.ModuleOutputs(moduleFS, moduleDir, engine)
+	moduleOutputs, err := tf.ModuleOutputs(module.fs, module.dir, module.engine)
 	if err != nil {
 		var moduleDiags hcl.Diagnostics
 		if !errors.As(err, &moduleDiags) {
 			return nil, err
 		}
 
-		return moduleParseDiagnostics(moduleFS, moduleDir, engine, moduleDiags)
+		return moduleParseDiagnostics(module, moduleDiags)
 	}
 
 	missing := slices.DeleteFunc(cfg.Outputs.Names(), func(name string) bool {
@@ -377,7 +396,7 @@ func declaredOutputsDiagnostics(
 				"The outputs block declares output %q, but the OpenTofu/Terraform module at %s has no output %q. "+
 					"Remove the declaration or add the output to the module.",
 				name,
-				moduleDir,
+				module.dir,
 				name,
 			),
 			Subject: declarationSubject(file, ranges, name),
@@ -388,21 +407,16 @@ func declaredOutputsDiagnostics(
 }
 
 // moduleParseDiagnostics reports each module file engine reads that fails to parse, or moduleDiags when none does.
-func moduleParseDiagnostics(
-	moduleFS vfs.FS,
-	moduleDir string,
-	engine tfimpl.Type,
-	moduleDiags hcl.Diagnostics,
-) ([]contractDiagnostics, error) {
-	paths, err := util.ListTfFiles(moduleFS, moduleDir)
+func moduleParseDiagnostics(module unitModule, moduleDiags hcl.Diagnostics) ([]contractDiagnostics, error) {
+	paths, err := util.ListTfFiles(module.fs, module.dir)
 	if err != nil {
 		return nil, err
 	}
 
 	var checks []contractDiagnostics
 
-	for _, path := range tf.EngineFiles(paths, engine) {
-		src, err := vfs.ReadFile(moduleFS, path)
+	for _, path := range tf.EngineFiles(paths, module.engine) {
+		src, err := vfs.ReadFile(module.fs, path)
 		if err != nil {
 			return nil, err
 		}
@@ -447,32 +461,39 @@ func diagnosticsIn(diags hcl.Diagnostics, path string) hcl.Diagnostics {
 	return in
 }
 
-// moduleView returns an in-memory view of the module the unit runs, generate blocks written on top, and its directory.
+type unitModule struct {
+	fs     vfs.FS
+	dir    string
+	engine tfimpl.Type
+}
+
+// moduleView returns the module the unit runs as an in-memory view, generate blocks written on top, with its engine.
 func moduleView(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	cfg *config.TerragruntConfig,
-) (vfs.FS, string, error) {
+) (unitModule, error) {
+	engine := moduleEngine(ctx, l, v, opts, cfg)
 	runCfg := cfg.ToRunConfig(l, v.FS)
 
-	moduleDir, copyFilter, err := moduleSource(ctx, l, v, opts, runCfg)
+	moduleDir, copyFilter, err := moduleSource(ctx, l, v, opts, runCfg, engine)
 	if err != nil {
-		return nil, "", err
+		return unitModule{}, err
 	}
 
 	view := vfs.NewMemMapFS()
 
 	if err := copyModuleFiles(v.FS, view, moduleDir, runCfg, copyFilter); err != nil {
-		return nil, "", err
+		return unitModule{}, err
 	}
 
 	if err := generateInView(ctx, l, v.WithFS(view), moduleDir, runCfg); err != nil {
-		return nil, "", err
+		return unitModule{}, err
 	}
 
-	return view, moduleDir, nil
+	return unitModule{fs: view, dir: moduleDir, engine: engine}, nil
 }
 
 // moduleSource returns the directory holding the module the unit runs and the filter of the files the run copies.
@@ -482,6 +503,7 @@ func moduleSource(
 	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	runCfg *runcfg.RunConfig,
+	engine tfimpl.Type,
 ) (string, util.CopyFilter, error) {
 	inPlace, err := runcfg.ShouldSkipCache(
 		opts.Experiments.Evaluate(experiment.NoDotTerragruntCache),
@@ -508,7 +530,7 @@ func moduleSource(
 	}
 
 	if sourceURL != unitDirSource {
-		moduleDir, err := downloadModule(ctx, l, v, opts, runCfg, sourceURL)
+		moduleDir, err := downloadModule(ctx, l, v, opts, runCfg, sourceURL, engine)
 
 		return moduleDir, keepEveryFile, err
 	}
@@ -525,7 +547,7 @@ func moduleSource(
 
 const unitDirSource = "."
 
-// downloadModule fetches sourceURL into the download directory of the unit, hooks left out, and returns the module dir.
+// downloadModule fetches sourceURL as the unit's engine and role do, hooks left out, and returns the module dir.
 func downloadModule(
 	ctx context.Context,
 	l log.Logger,
@@ -533,13 +555,24 @@ func downloadModule(
 	opts *options.TerragruntOptions,
 	runCfg *runcfg.RunConfig,
 	sourceURL string,
+	engine tfimpl.Type,
 ) (string, error) {
+	v = v.WithEnvCloned()
+	getter := creds.NewGetter()
+
 	provider := externalcmd.NewProvider(l, opts.AuthProviderCmd, configbridge.ShellRunOptsFromOpts(v.Env, opts))
-	if err := creds.NewGetter().ObtainAndUpdateEnvIfNecessary(ctx, l, v, provider); err != nil {
+	if err := getter.ObtainAndUpdateEnvIfNecessary(ctx, l, v, provider); err != nil {
 		return "", err
 	}
 
 	downloadOpts := opts.Clone()
+	downloadOpts.TofuImplementation = engine
+	downloadOpts.IAMRoleOptions = iam.MergeRoleOptions(runCfg.GetIAMRoleOptions(), opts.OriginalIAMRoleOptions)
+
+	role := amazonsts.NewProvider(l, downloadOpts.IAMRoleOptions, v.Env)
+	if err := getter.ObtainAndUpdateEnvIfNecessary(ctx, l, v, role); err != nil {
+		return "", err
+	}
 
 	_, defaultDownloadDir := util.DefaultWorkingAndDownloadDirs(opts.TerragruntConfigPath)
 	if downloadOpts.DownloadDir == defaultDownloadDir && runCfg.DownloadDir != "" {
@@ -886,6 +919,14 @@ func (p ComponentParser) pointAtUnknownMockValue(
 	}
 
 	return true, nil
+}
+
+// OutputsExperimentRequiredError reports that --outputs was set without the outputs-block experiment.
+type OutputsExperimentRequiredError struct{}
+
+func (err OutputsExperimentRequiredError) Error() string {
+	return "the --" + OutputsFlagName + " flag needs the " + experiment.OutputsBlock + " experiment. " +
+		"Enable it with --experiment " + experiment.OutputsBlock + " or TG_EXPERIMENT=" + experiment.OutputsBlock + "."
 }
 
 // OutputsContractError reports that checking the outputs contracts of ConfigPath failed with Err.

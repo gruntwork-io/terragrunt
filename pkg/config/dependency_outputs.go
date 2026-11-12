@@ -2,13 +2,14 @@ package config
 
 import (
 	"context"
-	"io"
+	"fmt"
 	"maps"
 	"path/filepath"
 	"slices"
 	"time"
 
 	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
 
@@ -16,7 +17,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -113,6 +113,14 @@ func readDeclaredOutputs(
 		return result.declared.Clone(), nil
 	}
 
+	key := evaluatedOutputsKey(v, pctx, targetConfig)
+
+	if result, found := declaredCache.Get(ctx, key); found && result.fresh(v.FS) {
+		result.replayFilesRead(pctx)
+
+		return result.declared.Clone(), nil
+	}
+
 	parsePctx := pctx.Clone()
 	parsePctx.FilesRead = NewFilesRead()
 	parsePctx.UsePartialParseConfigCache = false
@@ -136,9 +144,18 @@ func readDeclaredOutputs(
 		return nil, err
 	}
 
-	declaredCache.Put(ctx, targetConfig, result)
+	declaredCache.Put(ctx, key, result)
 
 	return declared.Clone(), nil
+}
+
+// evaluatedOutputsKey returns the cache key of an evaluated outputs block: its config and what it reads of the reader.
+func evaluatedOutputsKey(v *venv.Venv, pctx *ParsingContext, targetConfig string) string {
+	key := NewReadTerragruntConfigKey(v, pctx)
+	key.ConfigPath = targetConfig
+	key.DecodeList = nil
+
+	return fmt.Sprintf("%#v", key)
 }
 
 type declaredOutputsResult struct {
@@ -188,7 +205,17 @@ func parseDeclaredOutputs(
 		return nil, DeclaredOutputsReadError{TargetConfig: targetConfig, Err: err}
 	}
 
-	cfg, err := PartialParseConfigString(ctx, l, v, targetPctx, targetConfig, string(source), nil)
+	file, err := targetPctx.NewParser(l, v).ParseFromString(string(source), targetConfig)
+	if err != nil {
+		return nil, DeclaredOutputsReadError{TargetConfig: targetConfig, Err: err}
+	}
+
+	targetPctx.IAMRoleOptions, err = ResolveIAMRoleOptions(ctx, l, v, targetPctx, file, nil)
+	if err != nil {
+		return nil, DeclaredOutputsReadError{TargetConfig: targetConfig, Err: err}
+	}
+
+	cfg, err := PartialParseConfig(ctx, l, v, targetPctx, file, nil)
 	if err != nil {
 		return nil, DeclaredOutputsReadError{TargetConfig: targetConfig, Err: err}
 	}
@@ -209,7 +236,6 @@ func parseDeclaredOutputs(
 // settleDeclaredOutputs caches the outputs block of the unit config at targetConfig when its files give it unevaluated.
 func settleDeclaredOutputs(
 	ctx context.Context,
-	l log.Logger,
 	v *venv.Venv,
 	pctx *ParsingContext,
 	targetConfig string,
@@ -224,7 +250,7 @@ func settleDeclaredOutputs(
 		return
 	}
 
-	if result := declaredOutputsInFiles(ctx, l, v, pctx, targetConfig, includes); result != nil {
+	if result := declaredOutputsInFiles(ctx, v, pctx, targetConfig, includes); result != nil {
 		declaredCache.Put(ctx, targetConfig, result)
 	}
 }
@@ -232,7 +258,6 @@ func settleDeclaredOutputs(
 // declaredOutputsInFiles returns the outputs block only targetConfig can declare, absent or all constants, else nil.
 func declaredOutputsInFiles(
 	ctx context.Context,
-	l log.Logger,
 	v *venv.Venv,
 	pctx *ParsingContext,
 	targetConfig string,
@@ -240,20 +265,20 @@ func declaredOutputsInFiles(
 ) *declaredOutputsResult {
 	readAt := time.Now()
 
-	source, err := vfs.ReadFile(v.FS, targetConfig)
+	info, err := v.FS.Stat(targetConfig)
 	if err != nil {
 		return nil
 	}
 
-	quiet := hclparse.WithLogger(l.WithOptions(log.WithOutput(io.Discard)))
+	hclCache := cache.ContextCache[*CachedHCLFile](ctx, HclCacheContextKey)
 
-	file, err := hclparse.NewParser(quiet).ParseFromBytes(source, targetConfig)
-	if err != nil {
+	file := cachedHCLFile(ctx, v.FS, hclCache, partialParseCacheKey(targetConfig, info), targetConfig)
+	if file == nil || !file.ParsedClean() {
 		return nil
 	}
 
 	body, ok := file.Body.(*hclsyntax.Body)
-	if !ok || topLevelBlocks(body, MetadataInclude) != len(includes) {
+	if !ok || len(topLevelBlocks(body, MetadataInclude)) != len(includes) {
 		return nil
 	}
 
@@ -265,7 +290,7 @@ func declaredOutputsInFiles(
 			includePath = filepath.Join(filepath.Dir(targetConfig), includePath)
 		}
 
-		if includeDeclaresOutputs(ctx, l, v, pctx, includePath) {
+		if includeDeclaresOutputs(ctx, v, pctx, includePath) {
 			return nil
 		}
 
@@ -276,30 +301,29 @@ func declaredOutputsInFiles(
 		return nil
 	}
 
-	if topLevelBlocks(body, MetadataOutputs) == 0 {
+	blocks := topLevelBlocks(body, MetadataOutputs)
+	if len(blocks) == 0 {
 		return &declaredOutputsResult{files: files}
 	}
 
-	decoded := terragruntOutputs{}
-	if err := file.Decode(&decoded, &hcl.EvalContext{}); err != nil {
+	if len(blocks) > 1 || len(blocks[0].Labels) > 0 {
 		return nil
 	}
 
-	if err := decoded.Outputs.Validate(pctx.Experiments, targetConfig); err != nil {
+	declared := &OutputsConfig{}
+	if diags := gohcl.DecodeBody(blocks[0].Body, &hcl.EvalContext{}, declared); len(diags) > 0 {
 		return nil
 	}
 
-	return &declaredOutputsResult{declared: decoded.Outputs, files: files}
+	if err := declared.Validate(pctx.Experiments, targetConfig); err != nil {
+		return nil
+	}
+
+	return &declaredOutputsResult{declared: declared, files: files}
 }
 
 // includeDeclaresOutputs reports whether the included config at path can add an outputs block, or true when unsure.
-func includeDeclaresOutputs(
-	ctx context.Context,
-	l log.Logger,
-	v *venv.Venv,
-	pctx *ParsingContext,
-	path string,
-) bool {
+func includeDeclaresOutputs(ctx context.Context, v *venv.Venv, pctx *ParsingContext, path string) bool {
 	if autoIncludeBeside(v.FS, pctx, path) {
 		return true
 	}
@@ -310,26 +334,15 @@ func includeDeclaresOutputs(
 	}
 
 	hclCache := cache.ContextCache[*CachedHCLFile](ctx, HclCacheContextKey)
-	key := partialParseCacheKey(path, info)
 
-	file, err := rebindOrParseHCLFile(
-		ctx,
-		l,
-		v,
-		pctx,
-		hclCache,
-		cachedHCLFile(ctx, v.FS, hclCache, key, path),
-		key,
-		path,
-		info.ModTime(),
-	)
-	if err != nil {
+	file := cachedHCLFile(ctx, v.FS, hclCache, partialParseCacheKey(path, info), path)
+	if file == nil {
 		return true
 	}
 
 	body, ok := file.Body.(*hclsyntax.Body)
 
-	return !ok || topLevelBlocks(body, MetadataOutputs) > 0
+	return !ok || len(topLevelBlocks(body, MetadataOutputs)) > 0
 }
 
 // autoIncludeBeside reports whether a parse of the config at path merges an autoinclude file beside it.
@@ -339,17 +352,17 @@ func autoIncludeBeside(fsys vfs.FS, pctx *ParsingContext, path string) bool {
 	return ok && vfs.Exists(fsys, autoInclude)
 }
 
-// topLevelBlocks returns how many top-level blocks of body have the type blockType.
-func topLevelBlocks(body *hclsyntax.Body, blockType string) int {
-	count := 0
+// topLevelBlocks returns the top-level blocks of body that have the type blockType.
+func topLevelBlocks(body *hclsyntax.Body, blockType string) []*hclsyntax.Block {
+	var blocks []*hclsyntax.Block
 
 	for _, block := range body.Blocks {
 		if block.Type == blockType {
-			count++
+			blocks = append(blocks, block)
 		}
 	}
 
-	return count
+	return blocks
 }
 
 // checkDeclaredOutputs returns [DeclaredOutputMissingError] for the first declared output missing from stateOutputs.

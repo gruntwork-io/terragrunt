@@ -1,12 +1,7 @@
 // Package tfimpl defines the Terraform implementation type constants.
 package tfimpl
 
-import (
-	"path/filepath"
-	"strings"
-
-	"github.com/gruntwork-io/terragrunt/internal/venv"
-)
+import "github.com/gruntwork-io/terragrunt/internal/venv"
 
 // Type represents which Terraform implementation is being used.
 type Type string
@@ -33,16 +28,6 @@ func (t Type) DisplayName() string {
 	}
 
 	return "OpenTofu/Terraform"
-}
-
-// FromPath returns the implementation the file name of tfPath says, tofu or terraform with or without .exe, or Unknown.
-func FromPath(tfPath string) Type {
-	name := strings.TrimSuffix(filepath.Base(tfPath), ".exe")
-	if name == string(OpenTofu) || name == string(Terraform) {
-		return Type(name)
-	}
-
-	return Unknown
 }
 
 // Default registry hosts used when a tfr:// URL omits its host.

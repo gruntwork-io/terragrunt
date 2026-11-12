@@ -48,9 +48,9 @@ terragrunt run --all --experiment outputs-block -- plan
 
 A dependent that needs a different mock still sets `mock_outputs`, which wins key by key. `mock_outputs_allowed_terraform_commands` and `mock_outputs_merge_strategy_with_state` on the `dependency` block win over `mock_strategy` when set.
 
-Types are not declared. They come from the OpenTofu/Terraform module the unit runs, and `terragrunt hcl validate` checks that every declared output exists in that module and that every `dependency.<name>.outputs.<output>` reference names an output the dependency declares. A `mock_value` may not read a `dependency` output. When the state of a unit is read, every declared output has to be in it, unless `merge_with_state` fills it from `mock_value`.
+Types are not declared. They come from the OpenTofu/Terraform module the unit runs, and `terragrunt hcl validate --outputs` checks that every declared output exists in that module and that every `dependency.<name>.outputs.<output>` reference names an output the dependency declares. A `mock_value` may not read a `dependency` output. When the state of a unit is read, every declared output has to be in it, unless `merge_with_state` fills it from `mock_value`.
 
-A `dependency` block that reads a unit without an `outputs` block reads its own `mock_outputs`, and Terragrunt gives the `outputs-block` tip once per run. See the [`outputs` block reference](/reference/hcl/blocks#outputs).
+A `dependency` block that reads a unit without an `outputs` block works as it does without the experiment: it reads the outputs in the unit's state, and its own `mock_outputs` only under the usual fallback and merge rules. Terragrunt gives the `outputs-block` tip once per run. See the [`outputs` block reference](/reference/hcl/blocks/outputs/).
 
 ### `outputs-block` - How to provide feedback
 

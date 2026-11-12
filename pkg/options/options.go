@@ -260,6 +260,8 @@ type TerragruntOptions struct {
 	HCLValidateStrict bool
 	// HCLValidateInputs checks if the terragrunt configured inputs align with the terraform defined variables.
 	HCLValidateInputs bool
+	// HCLValidateOutputs checks the outputs each unit declares against its module and what its dependents read.
+	HCLValidateOutputs bool
 	// HCLValidateShowConfigPath shows the paths of the hcl invalid configs.
 	HCLValidateShowConfigPath bool
 	// HCLValidateJSONOutput outputs the hcl validate result as a JSON string.

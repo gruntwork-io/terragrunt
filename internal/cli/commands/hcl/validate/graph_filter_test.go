@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/internal/view/diagnostic"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -35,13 +36,16 @@ type validateRun struct {
 	fs              vfs.FS
 	files           map[string]string
 	links           map[string]string
+	env             map[string]string
 	exec            vexec.Exec
+	http            vhttp.Client
 	authProviderCmd string
 	tfPath          string
 	experiments     []string
 	queries         []string
 	strictControls  []string
 	inputs          bool
+	outputs         bool
 	onDisk          bool
 }
 
@@ -62,6 +66,14 @@ func runValidate(t *testing.T, run *validateRun) validateResult {
 		v = v.WithExec(run.exec)
 	}
 
+	if run.http != nil {
+		v = v.WithHTTP(run.http)
+	}
+
+	if run.env != nil {
+		v = v.WithEnv(run.env)
+	}
+
 	l := logger.CreateLogger()
 
 	opts, err := options.NewTerragruntOptionsForTest(
@@ -71,6 +83,7 @@ func runValidate(t *testing.T, run *validateRun) validateResult {
 
 	opts.HCLValidateJSONOutput = !run.inputs
 	opts.HCLValidateInputs = run.inputs
+	opts.HCLValidateOutputs = run.outputs
 	opts.AuthProviderCmd = run.authProviderCmd
 
 	if run.tfPath != "" {

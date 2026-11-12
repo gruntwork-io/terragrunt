@@ -801,7 +801,7 @@ func decodeDependencies(
 			continue
 		}
 
-		settleDeclaredOutputs(ctx, l, v, pctx, depPath, depConfig.ProcessedIncludes)
+		settleDeclaredOutputs(ctx, v, pctx, depPath, depConfig.ProcessedIncludes)
 
 		inputsCty, err := convertToCtyWithJSON(depConfig.Inputs)
 		if err != nil {

@@ -5,7 +5,10 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"io"
 	"io/fs"
+	"net/http"
+	"net/url"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -21,9 +24,11 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
+	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -1357,6 +1362,8 @@ outputs {
 	first, err := dep.DeclaredOutputs(ctx, l, v, pctx)
 	require.NoError(t, err)
 
+	evaluated := fsys.count(tfvarsPath)
+
 	second, err := dep.DeclaredOutputs(ctx, l, v, pctx)
 	require.NoError(t, err)
 
@@ -1364,14 +1371,15 @@ outputs {
 	assert.Equal(t, "from-tfvars", first.Outputs[0].MockValue.AsString())
 	assert.Equal(t, first.Names(), second.Names())
 	assert.NotSame(t, first, second, "each read gets its own copy")
-	assert.Equal(t, 1, fsys.count(tfvarsPath), "the second read came from the cache")
+	assert.Positive(t, evaluated)
+	assert.Equal(t, evaluated, fsys.count(tfvarsPath), "the second read came from the cache")
 
 	require.NoError(t, vfs.WriteFile(fsys, vpcConfigPath, []byte(vpcConfig+"\n"), 0o644))
 
 	third, err := dep.DeclaredOutputs(ctx, l, v, pctx)
 	require.NoError(t, err)
 	assert.Equal(t, first.Names(), third.Names())
-	assert.Equal(t, 2, fsys.count(tfvarsPath), "a changed unit config is read again")
+	assert.Greater(t, fsys.count(tfvarsPath), evaluated, "a changed unit config is read again")
 
 	require.NoError(t, vfs.WriteFile(fsys, tfvarsPath, []byte(`mock = "from-tfvars-2"`), 0o644))
 
@@ -1773,6 +1781,114 @@ outputs {
 	}
 }
 
+// TestDependencyEvaluatedDeclaredOutputsFollowTheReaderEnvironment expects no reader to get another reader's value.
+func TestDependencyEvaluatedDeclaredOutputsFollowTheReaderEnvironment(t *testing.T) {
+	t.Parallel()
+
+	const vpcConfig = `
+outputs {
+  output "vpc_id" {
+    mock_value = get_env("MOCK_VPC_ID", "unset")
+  }
+}
+`
+
+	root := venvtest.Root("/fixture")
+	fsys := vfs.NewMemMapFS()
+	vpcConfigPath := filepath.Join(root, "vpc", config.DefaultTerragruntConfigPath)
+
+	require.NoError(t, vfs.WriteFile(fsys, vpcConfigPath, []byte(vpcConfig), 0o644))
+
+	l := createLogger()
+	ctx, pctx := newDependentParsingContext(t, filepath.Join(root, "app", config.DefaultTerragruntConfigPath), "plan")
+	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.OutputsBlock))
+
+	dep := config.Dependency{Name: "vpc", ConfigPath: cty.StringVal("../vpc")}
+
+	for _, reader := range []string{"first", "second"} {
+		v := venv.MemVenv().WithFS(fsys).WithEnv(map[string]string{"MOCK_VPC_ID": reader})
+
+		declared, err := dep.DeclaredOutputs(ctx, l, v, pctx)
+		require.NoError(t, err)
+		require.NotNil(t, declared)
+		assert.Equal(t, reader, declared.Outputs[0].MockValue.AsString())
+	}
+}
+
+// TestDependencyDeclaredOutputsEvaluateUnderTheRoleOfTheirUnit expects the dependency's iam_role, not the reader's.
+func TestDependencyDeclaredOutputsEvaluateUnderTheRoleOfTheirUnit(t *testing.T) {
+	t.Parallel()
+
+	const (
+		readerRole = "arn:aws:iam::111111111111:role/reader"
+		unitRole   = "arn:aws:iam::222222222222:role/unit"
+	)
+
+	vpcConfig := `
+iam_role               = "` + unitRole + `"
+iam_web_identity_token = "unit-token"
+
+outputs {
+  output "account_id" {
+    mock_value = get_aws_account_id()
+  }
+}
+`
+
+	root := venvtest.Root("/fixture")
+	fsys := vfs.NewMemMapFS()
+	vpcConfigPath := filepath.Join(root, "vpc", config.DefaultTerragruntConfigPath)
+
+	require.NoError(t, vfs.WriteFile(fsys, vpcConfigPath, []byte(vpcConfig), 0o644))
+
+	var (
+		mu      sync.Mutex
+		assumed []string
+	)
+
+	sts := vhttp.NewMemClient(func(_ context.Context, req *http.Request) (*http.Response, error) {
+		body, err := io.ReadAll(req.Body)
+		if err != nil {
+			return nil, err
+		}
+
+		form, err := url.ParseQuery(string(body))
+		if err != nil {
+			return nil, err
+		}
+
+		if form.Get("Action") != "AssumeRoleWithWebIdentity" {
+			return vhttp.Respond(http.StatusOK, []byte(stsCallerIdentity), nil), nil
+		}
+
+		mu.Lock()
+		defer mu.Unlock()
+
+		assumed = append(assumed, form.Get("RoleArn"))
+
+		return vhttp.Respond(http.StatusOK, []byte(stsAssumedRole), nil), nil
+	})
+
+	l := createLogger()
+	v := venv.MemVenv().WithFS(fsys).WithHTTP(sts).WithEnv(map[string]string{"AWS_REGION": "us-east-1"})
+	ctx, pctx := newDependentParsingContext(t, filepath.Join(root, "app", config.DefaultTerragruntConfigPath), "plan")
+	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.OutputsBlock))
+
+	pctx.IAMRoleOptions = iam.RoleOptions{RoleARN: readerRole, WebIdentityToken: "reader-token"}
+
+	dep := config.Dependency{Name: "vpc", ConfigPath: cty.StringVal("../vpc")}
+
+	declared, err := dep.DeclaredOutputs(ctx, l, v, pctx)
+	require.NoError(t, err)
+	require.NotNil(t, declared)
+	assert.Equal(t, "222222222222", declared.Outputs[0].MockValue.AsString())
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	assert.Equal(t, []string{unitRole}, assumed)
+}
+
 // TestDependencyOnStackDirectoryWithUnitFileReadsNoDeclaredOutputs expects a stack target to keep its unit file out.
 func TestDependencyOnStackDirectoryWithUnitFileReadsNoDeclaredOutputs(t *testing.T) {
 	t.Parallel()
@@ -2014,6 +2130,29 @@ func requireDiagnostic(t *testing.T, err error, summary string) {
 		return diag.Summary == summary
 	}), "no %q diagnostic in: %s", summary, diags.Error())
 }
+
+const stsAssumedRole = `<AssumeRoleWithWebIdentityResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">
+  <AssumeRoleWithWebIdentityResult>
+    <Credentials>
+      <AccessKeyId>assumed-key-id</AccessKeyId>
+      <SecretAccessKey>assumed-secret</SecretAccessKey>
+      <SessionToken>assumed-token</SessionToken>
+      <Expiration>2099-01-01T00:00:00Z</Expiration>
+    </Credentials>
+    <AssumedRoleUser>
+      <AssumedRoleId>AROATEST:session</AssumedRoleId>
+      <Arn>arn:aws:sts::222222222222:assumed-role/unit/session</Arn>
+    </AssumedRoleUser>
+  </AssumeRoleWithWebIdentityResult>
+</AssumeRoleWithWebIdentityResponse>`
+
+const stsCallerIdentity = `<GetCallerIdentityResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">
+  <GetCallerIdentityResult>
+    <Arn>arn:aws:sts::222222222222:assumed-role/unit/session</Arn>
+    <UserId>AROATEST:session</UserId>
+    <Account>222222222222</Account>
+  </GetCallerIdentityResult>
+</GetCallerIdentityResponse>`
 
 type openCountingFS struct {
 	vfs.FS

@@ -1,0 +1,21 @@
+---
+name: outputs
+description: Check the outputs each unit declares against its module and against what its dependents read.
+type: bool
+env:
+  - TG_OUTPUTS
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip" title="Experimental">
+This flag is gated behind the [`outputs-block`](/reference/experiments/active#outputs-block) experiment. Enable it with `--experiment=outputs-block` or `TG_EXPERIMENT=outputs-block`; otherwise setting `--outputs` returns an error. Its behavior may change before the experiment graduates.
+</Aside>
+
+When enabled, Terragrunt checks the [`outputs`](/reference/hcl/blocks/outputs/) block of every unit: each declared output has to exist in the OpenTofu/Terraform module the unit runs, and each `dependency.<name>.outputs.<output>` reference has to name an output its dependency declares. The check fetches the `terraform.source` of a unit that declares outputs, so it takes longer than a plain `hcl validate`.
+
+Example:
+
+```bash
+terragrunt hcl validate --outputs
+```

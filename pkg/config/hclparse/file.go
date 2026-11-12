@@ -18,6 +18,12 @@ type File struct {
 	*Parser
 	*hcl.File
 	ConfigPath string
+	clean      bool
+}
+
+// ParsedClean reports whether the parse that built file raised no diagnostic, kept or dropped by a handler.
+func (file *File) ParsedClean() bool {
+	return file.clean
 }
 
 // Content returns the file's source text.
@@ -48,6 +54,7 @@ func (file *File) Update(content []byte) error {
 	}
 
 	file.File = updatedFile.File
+	file.clean = file.clean && updatedFile.clean
 
 	return nil
 }
@@ -165,5 +172,6 @@ func (file *File) Rebind(parser *Parser) *File {
 		Parser:     parser,
 		File:       file.File,
 		ConfigPath: file.ConfigPath,
+		clean:      file.clean,
 	}
 }
