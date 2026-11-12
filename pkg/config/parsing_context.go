@@ -76,8 +76,6 @@ type ParsingContext struct {
 	StrictControls         strict.Controls
 	PartialParseDecodeList []PartialDecodeSectionType
 
-	OutputsBlockTip func(l log.Logger, configPath string)
-
 	// Parser configures the HCL parsers this context builds.
 	Parser ParserSettings
 

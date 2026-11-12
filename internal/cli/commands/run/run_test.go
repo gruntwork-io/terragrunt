@@ -14,11 +14,13 @@ import (
 	runcommand "github.com/gruntwork-io/terragrunt/internal/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/semver"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/tips"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -480,6 +482,93 @@ func TestRunAllAndGraphRunEveryUnit(t *testing.T) {
 				[]string{filepath.Join(memRoot, "app"), filepath.Join(memRoot, "vpc")},
 				rec.unitsRun(tf.CommandNamePlan),
 			)
+		})
+	}
+}
+
+// TestRunGivesTheOutputsBlockTip expects a run to tip once a dependency reads a unit that declares no outputs block.
+func TestRunGivesTheOutputsBlockTip(t *testing.T) {
+	t.Parallel()
+
+	const dependent = `
+dependency "vpc" {
+  config_path = "../vpc"
+
+  mock_outputs = {
+    vpc_id = "vpc-mock"
+  }
+}
+`
+
+	const declaring = `
+outputs {
+  output "vpc_id" {
+    mock_value = "vpc-mock"
+  }
+}
+`
+
+	testCases := []struct {
+		name        string
+		vpcConfig   string
+		workDir     string
+		experiments []string
+		all         bool
+		tipped      bool
+	}{
+		{
+			name:        "a unit run",
+			workDir:     "app",
+			experiments: []string{experiment.OutputsBlock},
+			tipped:      true,
+		},
+		{
+			name:        "a run of every unit",
+			experiments: []string{experiment.OutputsBlock},
+			all:         true,
+			tipped:      true,
+		},
+		{
+			name:        "a dependency that declares its outputs",
+			vpcConfig:   declaring,
+			workDir:     "app",
+			experiments: []string{experiment.OutputsBlock},
+		},
+		{
+			name:    "without the experiment",
+			workDir: "app",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			rec := &recorder{}
+			v := rec.venv(t, map[string]string{
+				"vpc/terragrunt.hcl": tc.vpcConfig,
+				"vpc/main.tf":        "",
+				"app/terragrunt.hcl": dependent,
+				"app/main.tf":        "",
+			})
+
+			opts := newOpts(t, v, tc.workDir, tf.CommandNamePlan)
+			opts.RunAll = tc.all
+
+			for _, name := range tc.experiments {
+				require.NoError(t, opts.Experiments.EnableExperiment(name))
+			}
+
+			require.NoError(t, runcommand.Run(newCtx(t), logger.CreateLogger(), opts, v, new(rewrite.Store)))
+
+			tip := opts.Tips.Find(tips.OutputsBlock)
+			require.NotNil(t, tip)
+
+			pending := false
+
+			tip.OnceShow.Do(func() { pending = true })
+
+			assert.Equal(t, tc.tipped, !pending)
 		})
 	}
 }

@@ -93,7 +93,6 @@ var parsingContextFieldsOutsideKey = map[string]string{
 	"Experiments":                      sameForCommand,
 	"StrictControls":                   sameForCommand,
 	"UsePartialParseConfigCache":       "it chooses whether partial parses are cached, not what they return",
-	"OutputsBlockTip":                  "it only gives a tip, which changes no value a read returns",
 	"ScaffoldRootFileName":             "only catalog scaffolding reads it",
 	"ProviderCacheOptions":             "parsing doesn't read it",
 	"NoStackValidate":                  "only stack files read it, and they aren't cached",

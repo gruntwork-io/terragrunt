@@ -1,8 +1,11 @@
 package tips
 
 import (
+	"context"
 	"fmt"
 
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -13,4 +16,25 @@ func GiveOutputsBlockTip(l log.Logger, configPath string, allTips Tips) {
 		configPath,
 		outputsBlockFix,
 	))
+}
+
+// GiveOutputsBlockTips emits the OutputsBlock tip for each unit a dependency of cfg reads without an outputs block.
+func GiveOutputsBlockTips(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pctx *config.ParsingContext,
+	cfg *config.TerragruntConfig,
+	allTips Tips,
+) error {
+	targets, err := config.UnitsWithoutOutputs(ctx, l, v, pctx, cfg)
+	if err != nil {
+		return err
+	}
+
+	for _, target := range targets {
+		GiveOutputsBlockTip(l, target, allTips)
+	}
+
+	return nil
 }

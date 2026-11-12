@@ -29,6 +29,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/tips"
 	"github.com/gruntwork-io/terragrunt/internal/view/dag"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -520,8 +521,11 @@ func (rnr *Runner) Run(
 							unitV,
 							pctx,
 						)
+						if readErr != nil {
+							return readErr
+						}
 
-						return readErr
+						return tips.GiveOutputsBlockTips(readCtx, unitLogger, unitV, pctx, cfg, unitOpts.Tips)
 					})
 				if err != nil {
 					logTaskOutcome(childCtx, l, unitPath, unitOpts.TofuCommand, err)

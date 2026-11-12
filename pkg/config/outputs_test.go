@@ -31,7 +31,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
@@ -1221,29 +1220,31 @@ inputs = {
 	}
 }
 
-func TestDependencyReadGivesOutputsBlockTip(t *testing.T) {
+func TestUnitsWithoutOutputsNamesTheUnitsDependenciesRead(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		name          string
-		vpcConfig     string
-		experiments   []string
-		expectedTipAt []string
+		name        string
+		vpcConfig   string
+		experiments []string
+		expected    []string
 	}{
 		{
-			name:          "a unit without an outputs block gets the tip",
-			vpcConfig:     ``,
-			experiments:   []string{experiment.OutputsBlock},
-			expectedTipAt: []string{filepath.Join("vpc", config.DefaultTerragruntConfigPath)},
+			name:        "a unit without an outputs block is named",
+			vpcConfig:   ``,
+			experiments: []string{experiment.OutputsBlock},
+			expected:    []string{filepath.Join("vpc", config.DefaultTerragruntConfigPath)},
 		},
 		{
-			name:        "a unit with an outputs block gets no tip",
+			name:        "a unit with an outputs block is not named",
 			vpcConfig:   outputsBlockConfig,
 			experiments: []string{experiment.OutputsBlock},
+			expected:    []string{},
 		},
 		{
-			name:      "without the experiment there is no tip",
+			name:      "without the experiment no unit is named",
 			vpcConfig: ``,
+			expected:  []string{},
 		},
 	}
 
@@ -1269,15 +1270,19 @@ func TestDependencyReadGivesOutputsBlockTip(t *testing.T) {
 				require.NoError(t, pctx.Experiments.EnableExperiment(name))
 			}
 
-			var tippedAt []string
+			cfg, err := config.ParseConfigFile(ctx, l, v, pctx, appConfigPath, nil)
+			require.NoError(t, err)
 
-			pctx.OutputsBlockTip = func(_ log.Logger, configPath string) {
-				tippedAt = append(tippedAt, strings.TrimPrefix(configPath, root+string(filepath.Separator)))
+			targets, err := config.UnitsWithoutOutputs(ctx, l, v, pctx, cfg)
+			require.NoError(t, err)
+
+			named := make([]string, 0, len(targets))
+
+			for _, target := range targets {
+				named = append(named, strings.TrimPrefix(target, root+string(filepath.Separator)))
 			}
 
-			_, err := config.ParseConfigFile(ctx, l, v, pctx, appConfigPath, nil)
-			require.NoError(t, err)
-			assert.Equal(t, tc.expectedTipAt, tippedAt)
+			assert.Equal(t, tc.expected, named)
 		})
 	}
 }
@@ -1358,16 +1363,13 @@ inputs = {
 	ctx, pctx := newDependentParsingContext(t, appConfigPath, "plan")
 	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.OutputsBlock))
 
-	tipped := false
-
-	pctx.OutputsBlockTip = func(log.Logger, string) {
-		tipped = true
-	}
-
 	cfg, err := config.ParseConfigFile(ctx, l, v, pctx, appConfigPath, nil)
 	require.NoError(t, err)
 	assert.Equal(t, "stack-mock", cfg.Inputs["vpc_id"])
-	assert.False(t, tipped, "a stack target gets no outputs-block tip")
+
+	targets, err := config.UnitsWithoutOutputs(ctx, l, v, pctx, cfg)
+	require.NoError(t, err)
+	assert.Empty(t, targets, "a stack target is not a unit without outputs")
 }
 
 // TestDependencyDeclaredOutputsReadsEachUnitOnce expects one evaluation per unit config until the file changes.
@@ -2003,15 +2005,17 @@ func TestDependencyOnStackDirectoryWithUnitFileReadsNoDeclaredOutputs(t *testing
 	ctx, pctx := newDependentParsingContext(t, filepath.Join(root, "app", config.DefaultTerragruntConfigPath), "plan")
 	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.OutputsBlock))
 
-	tipped := false
-	pctx.OutputsBlockTip = func(log.Logger, string) { tipped = true }
-
 	dep := config.Dependency{Name: "vpc", ConfigPath: cty.StringVal("../vpc")}
 
 	declared, err := dep.DeclaredOutputs(ctx, l, v, pctx)
 	require.NoError(t, err)
 	assert.Nil(t, declared)
-	assert.False(t, tipped)
+
+	targets, err := config.UnitsWithoutOutputs(ctx, l, v, pctx, &config.TerragruntConfig{
+		TerragruntDependencies: config.Dependencies{dep},
+	})
+	require.NoError(t, err)
+	assert.Empty(t, targets)
 }
 
 // TestDependencyDeclaredOutputsConcurrentReadsWithRacing expects a copy per reader and at most one parse per reader.

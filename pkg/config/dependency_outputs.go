@@ -74,21 +74,8 @@ func (dep *Dependency) DeclaredOutputs(
 	v *venv.Venv,
 	pctx *ParsingContext,
 ) (*OutputsConfig, error) {
-	if dep.isDisabled() {
-		return nil, nil
-	}
-
-	configPath, ok := dep.configPathString()
+	targetConfig, ok := dep.unitTarget(v.FS, pctx)
 	if !ok {
-		return nil, nil
-	}
-
-	targetConfig := getCleanedTargetConfigPath(v.FS, configPath, pctx.TerragruntConfigPath)
-	if !vfs.Exists(v.FS, targetConfig) {
-		return nil, nil
-	}
-
-	if stackFile, ok := resolveStackFilePath(configPath, targetConfig); ok && vfs.Exists(v.FS, stackFile) {
 		return nil, nil
 	}
 
@@ -97,11 +84,69 @@ func (dep *Dependency) DeclaredOutputs(
 		return nil, DependencyBlockError{Name: dep.Name, ConfigPath: pctx.TerragruntConfigPath, Err: err}
 	}
 
-	if declared == nil && pctx.OutputsBlockTip != nil {
-		pctx.OutputsBlockTip(l, targetConfig)
+	return declared, nil
+}
+
+// unitTarget returns the config of the unit dep reads, false when dep is disabled or reads a stack or a missing unit.
+func (dep *Dependency) unitTarget(fsys vfs.FS, pctx *ParsingContext) (string, bool) {
+	if dep.isDisabled() {
+		return "", false
 	}
 
-	return declared, nil
+	configPath, ok := dep.configPathString()
+	if !ok {
+		return "", false
+	}
+
+	targetConfig := getCleanedTargetConfigPath(fsys, configPath, pctx.TerragruntConfigPath)
+	if !vfs.Exists(fsys, targetConfig) {
+		return "", false
+	}
+
+	if stackFile, ok := resolveStackFilePath(configPath, targetConfig); ok && vfs.Exists(fsys, stackFile) {
+		return "", false
+	}
+
+	return targetConfig, true
+}
+
+// UnitsWithoutOutputs returns the configs of the units that the dependencies of cfg read and that declare no outputs.
+func UnitsWithoutOutputs(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
+	cfg *TerragruntConfig,
+) ([]string, error) {
+	if !pctx.Experiments.Evaluate(experiment.OutputsBlock) {
+		return nil, nil
+	}
+
+	targets := make([]string, 0, len(cfg.TerragruntDependencies))
+	errs := make([]error, 0, len(cfg.TerragruntDependencies))
+
+	for i := range cfg.TerragruntDependencies {
+		dep := &cfg.TerragruntDependencies[i]
+
+		declared, err := dep.DeclaredOutputs(ctx, l, v, pctx)
+		if err != nil {
+			errs = append(errs, err)
+
+			continue
+		}
+
+		if targetConfig, ok := dep.unitTarget(v.FS, pctx); ok && declared == nil {
+			targets = append(targets, targetConfig)
+		}
+	}
+
+	if err := errors.Join(errs...); err != nil {
+		return nil, err
+	}
+
+	slices.Sort(targets)
+
+	return slices.Compact(targets), nil
 }
 
 // readDeclaredOutputs returns a copy of the outputs block of the unit config at targetConfig, cached per run, or nil.
