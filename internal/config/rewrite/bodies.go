@@ -29,20 +29,27 @@ type QueueBodies struct {
 
 // RunBodies is the parts of a [UnitConfig] that only the run reads, decoded. [UnitConfig.ToV1] decodes them with
 // the `dependency` outputs resolved, and the parse never does. A nil pointer is an absent part, and each slice
-// aligns by index with the HCL slice it decodes. Exclude is set only for an exclude block that reads `dependency`.
+// aligns by index with the HCL slice it decodes. Exclude is set only for an exclude block that reads `dependency`,
+// and so is each of the top-level attributes, which the tagged field of [UnitConfig] holds otherwise.
 type RunBodies struct {
-	Exclude         *ExcludeBody
-	Inputs          *cty.Value
-	GenerateAttrs   *cty.Value
-	RemoteStateAttr *cty.Value
-	Engine          *EngineBody
-	RemoteState     *RemoteStateBody
-	ExtraArgs       []ExtraArgumentsBody
-	BeforeHooks     []HookBody
-	AfterHooks      []HookBody
-	ErrorHooks      []ErrorHookBody
-	Generate        []GenerateBody
-	Variables       []VariablesBody
+	Exclude                     *ExcludeBody
+	Inputs                      *cty.Value
+	GenerateAttrs               *cty.Value
+	RemoteStateAttr             *cty.Value
+	Engine                      *EngineBody
+	RemoteState                 *RemoteStateBody
+	TerraformBinary             *string
+	TerraformVersionConstraint  *string
+	TerragruntVersionConstraint *string
+	DownloadDir                 *string
+	IamAssumeRoleDuration       *int64
+	IamAssumeRoleSessionName    *string
+	ExtraArgs                   []ExtraArgumentsBody
+	BeforeHooks                 []HookBody
+	AfterHooks                  []HookBody
+	ErrorHooks                  []ErrorHookBody
+	Generate                    []GenerateBody
+	Variables                   []VariablesBody
 }
 
 // decodeQueue decodes the queue parts of c with evalCtx, which defines no `dependency` variable in the parse.
@@ -95,6 +102,17 @@ func withUnknownDependency(evalCtx *hcl.EvalContext) *hcl.EvalContext {
 	return &hcl.EvalContext{Variables: vars, Functions: evalCtx.Functions}
 }
 
+// dependencyBlockContext returns the eval context the dependency blocks decode with: evalCtx with `dependency`
+// unknown when pctx skips resolving outputs, as [pkgconfig.PartialParseConfigFile] decodes them, and evalCtx
+// otherwise.
+func dependencyBlockContext(pctx *pkgconfig.ParsingContext, evalCtx *hcl.EvalContext) *hcl.EvalContext {
+	if !pctx.SkipOutputsResolution {
+		return evalCtx
+	}
+
+	return withUnknownDependency(evalCtx)
+}
+
 // decodeRun decodes the run parts of c with evalCtx.
 func (c *UnitConfig) decodeRun(evalCtx *hcl.EvalContext) (*RunBodies, hcl.Diagnostics) {
 	var (
@@ -106,6 +124,7 @@ func (c *UnitConfig) decodeRun(evalCtx *hcl.EvalContext) (*RunBodies, hcl.Diagno
 		diags = append(diags, decodeInto(evalCtx, c.Exclude.Remain, &r.Exclude)...)
 	}
 
+	diags = append(diags, c.decodeRunAttributes(evalCtx, &r)...)
 	diags = append(diags, decodeAttr(evalCtx, c.Inputs, &r.Inputs)...)
 	diags = append(diags, decodeAttr(evalCtx, c.GenerateAttrs, &r.GenerateAttrs)...)
 	diags = append(diags, decodeAttr(evalCtx, c.RemoteStateAttr, &r.RemoteStateAttr)...)
