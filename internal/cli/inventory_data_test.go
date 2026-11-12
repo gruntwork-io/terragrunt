@@ -310,6 +310,7 @@ var cliInventory = cliCommand{
 							envVars:           []string{"TG_JSON"},
 							deprecatedEnvVars: []string{"TG_HCLVALIDATE_JSON", "TERRAGRUNT_HCLVALIDATE_JSON"},
 						},
+						{names: []string{"outputs"}, envVars: []string{"TG_OUTPUTS"}},
 						{
 							names:             []string{"show-config-path"},
 							envVars:           []string{"TG_SHOW_CONFIG_PATH"},
