@@ -19,17 +19,19 @@ import (
 	"hash"
 	"io"
 	"io/fs"
+	"path"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode/utf8"
 
-	"github.com/bmatcuk/doublestar/v4"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 
+	"github.com/gruntwork-io/terragrunt/internal/glob"
 	"github.com/gruntwork-io/terragrunt/internal/vendored/opentofu/upstream/lang/funcs"
 	"github.com/gruntwork-io/terragrunt/internal/vendored/opentofu/upstream/lang/marks"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -204,8 +206,7 @@ func FileExistsFunc(v *venv.Venv, baseDir string, onRead func(path string)) func
 	})
 }
 
-// FileSetFunc returns a function that enumerates the files under a path
-// relative to baseDir whose paths match a glob pattern.
+// FileSetFunc returns a function that lists the files a pattern matches, relative to a path resolved against baseDir.
 func FileSetFunc(v *venv.Venv, baseDir string, onRead func(path string)) function.Function {
 	return function.New(&function.Spec{
 		Params: []function.Parameter{
@@ -500,16 +501,39 @@ func hashFile(
 	return h.Sum(nil), nil
 }
 
-// matchFiles returns the regular files under dir whose path relative to dir
-// matches pattern, in the slash-separated form the pattern is written in.
+// matchFiles returns the regular files that pattern matches after cleaning it as text, relative to dir.
 func matchFiles(fsys vfs.FS, dir, pattern string) ([]cty.Value, error) {
-	if !doublestar.ValidatePattern(pattern) {
-		return nil, doublestar.ErrBadPattern
+	clean := path.Clean(strings.TrimLeft(pattern, "/"))
+	elems := strings.Split(clean, "/")
+
+	lit := slices.IndexFunc(elems, func(elem string) bool { return strings.ContainsAny(elem, `*?[{\`) })
+	if lit < 0 {
+		lit = len(elems) - 1
 	}
+
+	rest := strings.Join(elems[lit:], "/")
+
+	if !glob.ValidOpenTofuPattern(rest) {
+		if glob.ValidOpenTofuPattern(pattern) {
+			return nil, nil
+		}
+
+		return nil, glob.ErrBadPattern
+	}
+
+	root := filepath.Join(append([]string{dir}, elems[:lit]...)...)
+
+	return globFiles(fsys, dir, root, rest)
+}
+
+// globFiles returns the regular files below root that pattern matches, each relative to dir with forward slashes.
+func globFiles(fsys vfs.FS, dir, root, pattern string) ([]cty.Value, error) {
+	bounded := !strings.Contains(pattern, "**") && !strings.ContainsAny(pattern, "{[")
+	maxDepth := strings.Count(pattern, "/") + 1
 
 	var matches []cty.Value
 
-	err := vfs.WalkDirWithSymlinks(fsys, dir, func(path string, d fs.DirEntry, err error) error {
+	err := vfs.WalkDirWithSymlinks(fsys, root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			if d != nil && d.IsDir() {
 				return fs.SkipDir
@@ -518,18 +542,26 @@ func matchFiles(fsys vfs.FS, dir, pattern string) ([]cty.Value, error) {
 			return nil
 		}
 
-		if d.IsDir() {
-			return nil
-		}
-
-		rel, err := filepath.Rel(dir, path)
+		fromRoot, err := filepath.Rel(root, path)
 		if err != nil {
 			return err
 		}
 
-		rel = filepath.ToSlash(rel)
+		if fromRoot == "." && pattern != "." {
+			return nil
+		}
 
-		ok, err := doublestar.Match(pattern, rel)
+		fromRoot = filepath.ToSlash(fromRoot)
+
+		if d.IsDir() {
+			if bounded && strings.Count(fromRoot, "/")+1 >= maxDepth {
+				return fs.SkipDir
+			}
+
+			return nil
+		}
+
+		ok, err := glob.OpenTofuMatch(pattern, fromRoot)
 		if err != nil {
 			return err
 		}
@@ -538,7 +570,12 @@ func matchFiles(fsys vfs.FS, dir, pattern string) ([]cty.Value, error) {
 			return nil
 		}
 
-		matches = append(matches, cty.StringVal(rel))
+		fromDir, err := filepath.Rel(dir, path)
+		if err != nil {
+			return err
+		}
+
+		matches = append(matches, cty.StringVal(filepath.ToSlash(fromDir)))
 
 		return nil
 	})
