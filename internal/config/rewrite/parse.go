@@ -389,19 +389,15 @@ func (s *Store) prepareBase(
 	include := absInclude(pc)
 
 	pc = pc.withInclude(include)
-	pctx = pc.parsingContext()
 
 	var errs []error
 
-	iamRoleOptions, err := pkgconfig.ResolveIAMRoleOptions(ctx, l, v, pctx, file, include)
+	pc, err := withFileIAMRole(ctx, l, v, pc, file)
 	if err != nil {
 		errs = append(errs, err)
 	}
 
-	if err == nil {
-		pc = pc.withIAMRole(iamRoleOptions)
-		pctx.IAMRoleOptions = iamRoleOptions
-	}
+	pctx = pc.parsingContext()
 
 	unitValues, err := pkgconfig.ReadValues(ctx, l, v, pctx, filepath.Dir(file.ConfigPath))
 	if err != nil {
@@ -443,6 +439,29 @@ func (s *Store) prepareBase(
 	base.scope = pc.file
 
 	return base, nil
+}
+
+// withFileIAMRole returns pc with the IAM role options file sets, as [pkgconfig.ParseConfig] resolves them. A partial
+// parse keeps the role of pc, as [pkgconfig.PartialParseConfig] does.
+//
+// Returns pc unchanged with the error when the options fail to resolve.
+func withFileIAMRole(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pc *ParseContext,
+	file *pkghclparse.File,
+) (*ParseContext, error) {
+	if len(pc.settings.PartialParseDecodeList) > 0 {
+		return pc, nil
+	}
+
+	iamRoleOptions, err := pkgconfig.ResolveIAMRoleOptions(ctx, l, v, pc.parsingContext(), file, pc.file.include)
+	if err != nil {
+		return pc, err
+	}
+
+	return pc.withIAMRole(iamRoleOptions), nil
 }
 
 // prepare runs the stages of [pkgconfig.ParseConfig] after base through the block decode. It decodes file's dependency

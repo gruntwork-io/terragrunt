@@ -18,8 +18,8 @@ import (
 // The digest covers the config, original config, working directory, and root working directory; the download
 // directory, source, and source map; the tofu command, original command, and CLI args; the IAM role options and their
 // original values; the feature flag overrides; the auth provider command; the parser settings; the
-// read_terragrunt_config chain; SkipOutput; SkipOutputsResolution; the parse depth; SkipAutoIncludeMerge; and whether
-// reads are tracked.
+// read_terragrunt_config chain; SkipOutput; SkipOutputsResolution; the parse depth; SkipAutoIncludeMerge; whether
+// reads are tracked; and whether the parse is partial.
 //
 // It leaves out the experiments, the strict controls, the maximum number of parent folders to check, the engine,
 // the tofu binary and implementation, the provider cache and CAS options, the environment, and the telemetry and
@@ -63,6 +63,7 @@ func runDigest(run *pkgconfig.ParsingContext) (string, bool) {
 	d.int(run.ParseDepth)
 	d.bool(run.SkipAutoIncludeMerge)
 	d.bool(run.FilesRead.Tracking())
+	d.bool(len(run.PartialParseDecodeList) > 0)
 
 	return d.sum(), true
 }
