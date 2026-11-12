@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/hashicorp/hcl/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -122,9 +123,25 @@ func TestModuleOutputsUnparseableModule(t *testing.T) {
 
 	fsys := vfs.NewMemMapFS()
 	moduleDir := "/module"
+	files := []string{filepath.Join(moduleDir, "main.tf"), filepath.Join(moduleDir, "extra.tf")}
 
-	require.NoError(t, vfs.WriteFile(fsys, filepath.Join(moduleDir, "main.tf"), []byte(`output "broken" {`), 0o644))
+	for _, file := range files {
+		require.NoError(t, vfs.WriteFile(fsys, file, []byte(`output "broken" {`), 0o644))
+	}
 
-	_, err := tf.ModuleOutputs(fsys, []string{filepath.Join(moduleDir, "main.tf")})
-	require.Error(t, err)
+	_, err := tf.ModuleOutputs(fsys, files)
+
+	var diags hcl.Diagnostics
+
+	require.ErrorAs(t, err, &diags)
+
+	reported := make([]string, 0, len(diags))
+
+	for _, diag := range diags {
+		require.NotNil(t, diag.Subject)
+
+		reported = append(reported, diag.Subject.Filename)
+	}
+
+	assert.Subset(t, reported, files)
 }

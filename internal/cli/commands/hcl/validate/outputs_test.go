@@ -1620,15 +1620,16 @@ terraform {
 		return vhttp.Respond(http.StatusForbidden, []byte(stsAccessDenied), nil), nil
 	})
 
-	result := runValidateIn(t, venv.MemVenv().WithFS(fsys).WithHTTP(denied), venvtest.Root("/repo"), &validateRun{
+	v := venv.MemVenv().WithFS(fsys).WithHTTP(denied).WithEnv(map[string]string{
+		"AWS_REGION":            "us-east-1",
+		"AWS_ACCESS_KEY_ID":     "caller-key-id",
+		"AWS_SECRET_ACCESS_KEY": "caller-secret",
+	})
+
+	result := runValidateIn(t, v, venvtest.Root("/repo"), &validateRun{
 		files:       files,
 		experiments: []string{experiment.OutputsBlock},
 		outputs:     true,
-		env: map[string]string{
-			"AWS_REGION":            "us-east-1",
-			"AWS_ACCESS_KEY_ID":     "caller-key-id",
-			"AWS_SECRET_ACCESS_KEY": "caller-secret",
-		},
 	})
 
 	require.Error(t, result.err)
@@ -1939,7 +1940,7 @@ func TestRunOutputsFlagRequiresExperiment(t *testing.T) {
 				outputs: true,
 			})
 
-			require.ErrorAs(t, result.err, new(validate.OutputsExperimentRequiredError))
+			require.ErrorIs(t, result.err, validate.ErrOutputsExperimentRequired)
 		})
 	}
 }

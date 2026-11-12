@@ -32,7 +32,6 @@ type validateResult struct {
 type validateRun struct {
 	files           map[string]string
 	links           map[string]string
-	env             map[string]string
 	authProviderCmd string
 	tfPath          string
 	experiments     []string
@@ -64,9 +63,6 @@ func runValidateIn(t *testing.T, v *venv.Venv, root string, run *validateRun) va
 	}
 
 	v = v.WithWriter(&stdout)
-	if run.env != nil {
-		v = v.WithEnv(run.env)
-	}
 
 	l := logger.CreateLogger()
 

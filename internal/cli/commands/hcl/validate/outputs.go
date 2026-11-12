@@ -136,7 +136,7 @@ func outputsContractChecks(
 	}
 
 	if !opts.Experiments.Evaluate(experiment.OutputsBlock) {
-		return nil, OutputsExperimentRequiredError{}
+		return nil, ErrOutputsExperimentRequired
 	}
 
 	declared, err := declaredOutputsChecks(ctx, l, v, s, opts, pctx, cfg, load)
@@ -978,13 +978,11 @@ func (p ComponentParser) pointAtUnknownMockValue(
 	return true, nil
 }
 
-// OutputsExperimentRequiredError reports that --outputs was set without the outputs-block experiment.
-type OutputsExperimentRequiredError struct{}
-
-func (err OutputsExperimentRequiredError) Error() string {
-	return "the --" + OutputsFlagName + " flag needs the " + experiment.OutputsBlock + " experiment. " +
-		"Enable it with --experiment " + experiment.OutputsBlock + " or TG_EXPERIMENT=" + experiment.OutputsBlock + "."
-}
+// ErrOutputsExperimentRequired is returned when --outputs is set without the outputs-block experiment enabled.
+var ErrOutputsExperimentRequired = errors.New(
+	"the '--" + OutputsFlagName + "' flag requires the '" + experiment.OutputsBlock + "' experiment to be enabled" +
+		" (set --experiment " + experiment.OutputsBlock + " or TG_EXPERIMENT=" + experiment.OutputsBlock + ")",
+)
 
 // OutputsContractError reports that checking the outputs contracts of ConfigPath failed with Err.
 type OutputsContractError struct {

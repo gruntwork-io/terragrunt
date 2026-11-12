@@ -43,7 +43,7 @@ func ModuleOutputs(fsys vfs.FS, files []string) ([]string, error) {
 	return slices.Compact(names), nil
 }
 
-// ImplFiles returns the files impl reads: no dot file, OpenTofu no .tf twin of a .tofu file, Terraform no .tofu file.
+// ImplFiles returns the module files in paths that impl reads.
 func ImplFiles(paths []string, impl tfimpl.Type) []string {
 	files := slices.DeleteFunc(slices.Clone(paths), func(path string) bool {
 		return strings.HasPrefix(filepath.Base(path), ".")

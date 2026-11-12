@@ -41,9 +41,9 @@ type fileStamp struct {
 	digested bool
 }
 
-// stampFile stats path, and digests the file when its mtime is racy as of readAt, a time taken before the file was
+// newFileStamp stats path, and digests the file when its mtime is racy as of readAt, a time taken before the file was
 // read. A file that is missing or unreadable gets the zero stamp.
-func stampFile(fsys vfs.FS, path string, readAt time.Time) fileStamp {
+func newFileStamp(fsys vfs.FS, path string, readAt time.Time) fileStamp {
 	info, err := fsys.Stat(path)
 	if err != nil {
 		return fileStamp{}
@@ -255,12 +255,12 @@ func readTerragruntConfigCached(
 	readAt := time.Now()
 	value, err := parseTerragruntConfigAsCty(parseCtx, l, v, parsePctx)
 
-	files := map[string]fileStamp{pctx.TerragruntConfigPath: stampFile(v.FS, pctx.TerragruntConfigPath, readAt)}
+	files := map[string]fileStamp{pctx.TerragruntConfigPath: newFileStamp(v.FS, pctx.TerragruntConfigPath, readAt)}
 
 	for _, path := range parsePctx.FilesRead.Paths() {
 		pctx.FilesRead.Add(path)
 
-		files[path] = stampFile(v.FS, path, readAt)
+		files[path] = newFileStamp(v.FS, path, readAt)
 	}
 
 	if err != nil {

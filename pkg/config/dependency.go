@@ -271,13 +271,20 @@ func (dep *Dependency) setRenderedOutputs(
 		return nil
 	}
 
-	effective, declared, err := dep.withDeclaredOutputs(ctx, l, v, pctx)
+	declared, err := dep.withDeclaredOutputs(ctx, l, v, pctx)
 	if err != nil {
 		return err
 	}
 
-	if effective.shouldGetOutputs(pctx) || effective.shouldReturnMockOutputs(pctx) {
-		outputVal, err := getTerragruntOutputIfAppliedElseConfiguredDefault(ctx, l, v, pctx, effective, declared)
+	if declared.dep.shouldGetOutputs(pctx) || declared.dep.shouldReturnMockOutputs(pctx) {
+		outputVal, err := getTerragruntOutputIfAppliedElseConfiguredDefault(
+			ctx,
+			l,
+			v,
+			pctx,
+			declared.dep,
+			declared.outputs,
+		)
 		if err != nil {
 			return err
 		}

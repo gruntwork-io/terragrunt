@@ -44,7 +44,7 @@ const splitCount = 2
 // --json, or when --strict is set without --inputs.
 func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, opts *options.TerragruntOptions) error {
 	if opts.HCLValidateOutputs && !opts.Experiments.Evaluate(experiment.OutputsBlock) {
-		return OutputsExperimentRequiredError{}
+		return ErrOutputsExperimentRequired
 	}
 
 	if opts.HCLValidateInputs {

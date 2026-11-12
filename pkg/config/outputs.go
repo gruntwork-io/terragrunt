@@ -140,7 +140,7 @@ func (c *OutputsConfig) Declares(name string) bool {
 
 // MockValues returns an object of the mock values the declared outputs set, by output name, or nil when none is set.
 func (c *OutputsConfig) MockValues() *cty.Value {
-	if c == nil {
+	if c == nil || len(c.Outputs) == 0 {
 		return nil
 	}
 

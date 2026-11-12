@@ -80,6 +80,8 @@ func (c *DiagnosticsCollector) keepWith(
 	hclDiags hcl.Diagnostics,
 	add func(diag *diagnostic.Diagnostic),
 ) error {
+	errs := make([]error, 0, len(hclDiags))
+
 	for _, hclDiag := range hclDiags {
 		if raisedElsewhere(file, hclDiag) {
 			continue
@@ -87,13 +89,15 @@ func (c *DiagnosticsCollector) keepWith(
 
 		diag, err := diagnostic.NewDiagnostic(file, hclDiag)
 		if err != nil {
-			return err
+			errs = append(errs, err)
+
+			continue
 		}
 
 		add(diag)
 	}
 
-	return nil
+	return errors.Join(errs...)
 }
 
 // add keeps diag unless one is already collected at its range.

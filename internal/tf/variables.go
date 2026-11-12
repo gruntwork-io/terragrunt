@@ -1,6 +1,7 @@
 package tf
 
 import (
+	"errors"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -100,11 +101,16 @@ func moduleBody(fsys vfs.FS, modulePath string) (hcl.Body, error) {
 func parseModuleFiles(fsys vfs.FS, paths []string) (hcl.Body, error) {
 	parser := hclparse.NewParser()
 	hclFiles := make([]*hcl.File, 0, len(paths))
+	errs := make([]error, 0, len(paths))
+
+	var diags hcl.Diagnostics
 
 	for _, path := range paths {
 		src, err := vfs.ReadFile(fsys, path)
 		if err != nil {
-			return nil, err
+			errs = append(errs, err)
+
+			continue
 		}
 
 		parseFunc := parser.ParseHCL
@@ -112,12 +118,22 @@ func parseModuleFiles(fsys vfs.FS, paths []string) (hcl.Body, error) {
 			parseFunc = parser.ParseJSON
 		}
 
-		file, diags := parseFunc(src, path)
-		if diags.HasErrors() {
-			return nil, diags
+		file, fileDiags := parseFunc(src, path)
+		if fileDiags.HasErrors() {
+			diags = append(diags, fileDiags...)
+
+			continue
 		}
 
 		hclFiles = append(hclFiles, file)
+	}
+
+	if diags.HasErrors() {
+		errs = append(errs, diags)
+	}
+
+	if err := errors.Join(errs...); err != nil {
+		return nil, err
 	}
 
 	return hcl.MergeFiles(hclFiles), nil

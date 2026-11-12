@@ -18,27 +18,33 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-// withDeclaredOutputs returns dep, or a copy with the declared mock values under dep's own settings and the contract.
+type declaredDependency struct {
+	dep     *Dependency
+	outputs *OutputsConfig
+}
+
+// withDeclaredOutputs returns dep with the outputs block of its unit: a copy that reads the declared mock values.
 func (dep *Dependency) withDeclaredOutputs(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	pctx *ParsingContext,
-) (*Dependency, *OutputsConfig, error) {
+) (declaredDependency, error) {
 	if !pctx.Experiments.Evaluate(experiment.OutputsBlock) {
-		return dep, nil, nil
+		return declaredDependency{dep: dep}, nil
 	}
 
 	declared, err := dep.DeclaredOutputs(ctx, l, v, pctx)
 	if err != nil {
-		return nil, nil, err
+		return declaredDependency{}, err
 	}
 
 	if declared == nil {
-		return dep, nil, nil
+		return declaredDependency{dep: dep}, nil
 	}
 
 	effective := *dep
@@ -46,7 +52,7 @@ func (dep *Dependency) withDeclaredOutputs(
 
 	strategy := declared.MockStrategy
 	if strategy == nil {
-		return &effective, declared, nil
+		return declaredDependency{dep: &effective, outputs: declared}, nil
 	}
 
 	if dep.MockOutputsAllowedTerraformCommands == nil && strategy.AllowedCommands != nil {
@@ -58,7 +64,7 @@ func (dep *Dependency) withDeclaredOutputs(
 		effective.MockOutputsMergeStrategyWithState = strategy.MergeWithState
 	}
 
-	return &effective, declared, nil
+	return declaredDependency{dep: &effective, outputs: declared}, nil
 }
 
 // DeclaredOutputs returns the outputs block of the unit dep reads, nil when there is none, or [DependencyBlockError].
@@ -132,11 +138,11 @@ func readDeclaredOutputs(
 
 	result := &declaredOutputsResult{
 		declared: declared,
-		files:    map[string]fileStamp{targetConfig: stampFile(v.FS, targetConfig, readAt)},
+		files:    map[string]fileStamp{targetConfig: newFileStamp(v.FS, targetConfig, readAt)},
 	}
 
 	for _, path := range parsePctx.FilesRead.Paths() {
-		result.files[path] = stampFile(v.FS, path, readAt)
+		result.files[path] = newFileStamp(v.FS, path, readAt)
 	}
 
 	result.replayFilesRead(pctx)
@@ -164,7 +170,7 @@ type declaredOutputsResult struct {
 	files    map[string]fileStamp
 }
 
-// fresh reports whether every file the read took matches its stamp.
+// fresh reports whether every file that the cached parse read matches its stamp.
 func (r *declaredOutputsResult) fresh(fsys vfs.FS) bool {
 	for path, stamp := range r.files {
 		if !stamp.matches(fsys, path) {
@@ -175,7 +181,7 @@ func (r *declaredOutputsResult) fresh(fsys vfs.FS) bool {
 	return true
 }
 
-// replayFilesRead records every file the read took in the files pctx reads.
+// replayFilesRead adds the files that the cached parse read to the files pctx has read.
 func (r *declaredOutputsResult) replayFilesRead(pctx *ParsingContext) {
 	for _, path := range slices.Sorted(maps.Keys(r.files)) {
 		pctx.FilesRead.Add(path)
@@ -201,12 +207,7 @@ func parseDeclaredOutputs(
 	targetPctx.Parser.IgnoreDiagnostics = false
 	targetPctx.Parser.HaltOnErrorOnlyInBlocks = nil
 
-	source, err := vfs.ReadFile(v.FS, targetConfig)
-	if err != nil {
-		return nil, DeclaredOutputsReadError{TargetConfig: targetConfig, Err: err}
-	}
-
-	file, err := targetPctx.NewParser(l, v).ParseFromString(string(source), targetConfig)
+	file, err := strictlyParsedFile(ctx, l, v, targetPctx, targetConfig)
 	if err != nil {
 		return nil, DeclaredOutputsReadError{TargetConfig: targetConfig, Err: err}
 	}
@@ -232,6 +233,30 @@ func parseDeclaredOutputs(
 	}
 
 	return cfg.Outputs, nil
+}
+
+// strictlyParsedFile returns the config at path from the HCL cache when its parse raised no diagnostic, else parses it.
+func strictlyParsedFile(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
+	path string,
+) (*hclparse.File, error) {
+	info, err := v.FS.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+
+	hclCache := cache.ContextCache[*CachedHCLFile](ctx, HclCacheContextKey)
+	key := partialParseCacheKey(path, info)
+
+	cached := cachedHCLFile(ctx, v.FS, hclCache, key, path)
+	if cached != nil && cached.ParsedClean() {
+		return cached.Rebind(pctx.NewParser(l, v)), nil
+	}
+
+	return rebindOrParseHCLFile(ctx, l, v, pctx, hclCache, nil, key, path, info.ModTime())
 }
 
 // settleDeclaredOutputs caches the outputs block of the unit config at targetConfig when its files give it unevaluated.
@@ -283,7 +308,7 @@ func declaredOutputsInFiles(
 		return nil
 	}
 
-	files := map[string]fileStamp{targetConfig: stampFile(v.FS, targetConfig, readAt)}
+	files := map[string]fileStamp{targetConfig: newFileStamp(v.FS, targetConfig, readAt)}
 
 	for _, include := range includes {
 		includePath := include.Path
@@ -295,7 +320,7 @@ func declaredOutputsInFiles(
 			return nil
 		}
 
-		files[includePath] = stampFile(v.FS, includePath, readAt)
+		files[includePath] = newFileStamp(v.FS, includePath, readAt)
 	}
 
 	if autoIncludeBeside(v.FS, pctx, targetConfig) {

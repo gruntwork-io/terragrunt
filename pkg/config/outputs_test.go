@@ -1437,6 +1437,56 @@ outputs {
 	)
 }
 
+// TestDependencyEvaluatedDeclaredOutputsReuseTheParsedFile expects the declaration read to open no parsed config again.
+func TestDependencyEvaluatedDeclaredOutputsReuseTheParsedFile(t *testing.T) {
+	t.Parallel()
+
+	const vpcConfig = `
+locals {
+  vars = jsondecode(read_tfvars_file("${get_terragrunt_dir()}/vpc.tfvars"))
+}
+
+outputs {
+  output "vpc_id" {
+    mock_value = local.vars.mock
+  }
+}
+`
+
+	root := venvtest.Root("/fixture")
+	fsys := &openCountingFS{FS: vfs.NewMemMapFS(), opens: map[string]int{}}
+	vpcDir := filepath.Join(root, "vpc")
+	vpcConfigPath := filepath.Join(vpcDir, config.DefaultTerragruntConfigPath)
+
+	require.NoError(t, vfs.WriteFile(fsys, vpcConfigPath, []byte(vpcConfig), 0o644))
+	require.NoError(t, vfs.WriteFile(fsys, filepath.Join(vpcDir, "vpc.tfvars"), []byte(`mock = "from-tfvars"`), 0o644))
+
+	l := createLogger()
+	v := venv.MemVenv().WithFS(frozenModTimeFS{FS: fsys, modTime: time.Now().Add(-time.Hour)})
+	ctx, pctx := newDependentParsingContext(t, filepath.Join(root, "app", config.DefaultTerragruntConfigPath), "plan")
+	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.OutputsBlock))
+
+	vpcLogger, vpcPctx, err := pctx.WithConfigPath(l, vpcConfigPath)
+	require.NoError(t, err)
+
+	vpcPctx = vpcPctx.WithDecodeList(config.TerragruntFlags)
+
+	_, err = config.PartialParseConfigFile(ctx, vpcLogger, v, vpcPctx, vpcConfigPath, nil)
+	require.NoError(t, err)
+
+	parsed := fsys.count(vpcConfigPath)
+
+	dep := config.Dependency{Name: "vpc", ConfigPath: cty.StringVal("../vpc")}
+
+	declared, err := dep.DeclaredOutputs(ctx, l, v, pctx)
+	require.NoError(t, err)
+	require.NotNil(t, declared)
+
+	assert.Equal(t, "from-tfvars", declared.Outputs[0].MockValue.AsString())
+	assert.Positive(t, parsed)
+	assert.Equal(t, parsed, fsys.count(vpcConfigPath))
+}
+
 // TestDependencyDeclaredOutputsReplaysFilesRead expects a cached read to record the files the parse took.
 func TestDependencyDeclaredOutputsReplaysFilesRead(t *testing.T) {
 	t.Parallel()
@@ -2048,6 +2098,53 @@ outputs {
 	require.NoError(t, err)
 	require.NotNil(t, second)
 	assert.Equal(t, "vpc-mock-b", second.Outputs[0].MockValue.AsString())
+}
+
+// TestDependentParseReadsARacyRewriteOfDeclaredOutputs expects a same-size rewrite in the racy window to be read.
+func TestDependentParseReadsARacyRewriteOfDeclaredOutputs(t *testing.T) {
+	t.Parallel()
+
+	const vpcConfig = `
+outputs {
+  output "vpc_id" {
+    mock_value = "vpc-mock-%s"
+  }
+}
+`
+
+	const appConfig = `
+dependency "vpc" {
+  config_path = "../vpc"
+}
+
+inputs = {
+  vpc_id = dependency.vpc.outputs.vpc_id
+}
+`
+
+	root := venvtest.Root("/fixture")
+	fsys := frozenModTimeFS{FS: vfs.NewMemMapFS(), modTime: time.Now()}
+	vpcConfigPath := filepath.Join(root, "vpc", config.DefaultTerragruntConfigPath)
+	appConfigPath := filepath.Join(root, "app", config.DefaultTerragruntConfigPath)
+
+	require.NoError(t, vfs.WriteFile(fsys, vpcConfigPath, fmt.Appendf(nil, vpcConfig, "a"), 0o644))
+	require.NoError(t, vfs.WriteFile(fsys, filepath.Join(root, "vpc", "main.tf"), []byte(vpcModule), 0o644))
+	require.NoError(t, vfs.WriteFile(fsys, appConfigPath, []byte(appConfig), 0o644))
+
+	l := createLogger()
+	v := venv.MemVenv().WithFS(fsys).WithExec(vexec.NewMemExec(tofuOutputStub(nil)))
+	ctx, pctx := newDependentParsingContext(t, appConfigPath, "plan")
+	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.OutputsBlock))
+
+	first, err := config.ParseConfigFile(ctx, l, v, pctx, appConfigPath, nil)
+	require.NoError(t, err)
+	assert.Equal(t, "vpc-mock-a", first.Inputs["vpc_id"])
+
+	require.NoError(t, vfs.WriteFile(fsys, vpcConfigPath, fmt.Appendf(nil, vpcConfig, "b"), 0o644))
+
+	second, err := config.ParseConfigFile(ctx, l, v, pctx, appConfigPath, nil)
+	require.NoError(t, err)
+	assert.Equal(t, "vpc-mock-b", second.Inputs["vpc_id"])
 }
 
 // TestOutputsBlockRendersEmptyAllowedCommands expects an empty allowed_commands list to render as an empty list.

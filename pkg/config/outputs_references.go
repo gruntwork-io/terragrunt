@@ -2,6 +2,7 @@ package config
 
 import (
 	"cmp"
+	"errors"
 	"math"
 	"math/big"
 	"slices"
@@ -41,7 +42,7 @@ func DependencyOutputReferences(
 
 	walk := referenceWalk{expanded: dependencies.expandedLabels(), replaced: replaced}
 
-	refs, err := bodyDependencyOutputReferences(file.ConfigPath, body, walk, 0, nil)
+	refs, err := bodyDependencyOutputReferences(file.ConfigPath, body, walk, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -58,17 +59,18 @@ type referenceWalk struct {
 	replaced map[string]struct{}
 }
 
-// bodyDependencyOutputReferences appends the references of body's attributes and nested blocks to refs.
+// bodyDependencyOutputReferences returns the references in the attributes and nested blocks of body.
 func bodyDependencyOutputReferences(
 	configPath string,
 	body *hclsyntax.Body,
 	walk referenceWalk,
 	depth int,
-	refs []DependencyOutputReference,
 ) ([]DependencyOutputReference, error) {
 	if depth > maxBlockNesting {
 		return nil, BlockNestingExceededError{ConfigPath: configPath, Limit: maxBlockNesting}
 	}
+
+	var refs []DependencyOutputReference
 
 	for _, attr := range body.Attributes {
 		for _, traversal := range attr.Expr.Variables() {
@@ -78,17 +80,25 @@ func bodyDependencyOutputReferences(
 		}
 	}
 
+	errs := make([]error, 0, len(body.Blocks))
+
 	for _, block := range body.Blocks {
 		if depth == 0 && replacedDependencyBlock(block, walk.replaced) {
 			continue
 		}
 
-		var err error
-
-		refs, err = bodyDependencyOutputReferences(configPath, block.Body, walk, depth+1, refs)
+		nested, err := bodyDependencyOutputReferences(configPath, block.Body, walk, depth+1)
 		if err != nil {
-			return nil, err
+			errs = append(errs, err)
+
+			continue
 		}
+
+		refs = append(refs, nested...)
+	}
+
+	if err := errors.Join(errs...); err != nil {
+		return nil, err
 	}
 
 	return refs, nil
@@ -137,6 +147,16 @@ func OutputDeclarationRanges(file *hclparse.File) map[string]hcl.Range {
 	return ranges
 }
 
+type namedStep struct {
+	name string
+	rest hcl.Traversal
+}
+
+type instanceKeyStep struct {
+	key  hclparse.InstanceKey
+	rest hcl.Traversal
+}
+
 // dependencyOutputReference reads traversal as dependency.<name>.outputs.<output>, with an instance key when expanded.
 func dependencyOutputReference(
 	traversal hcl.Traversal,
@@ -146,56 +166,56 @@ func dependencyOutputReference(
 		return DependencyOutputReference{}, false
 	}
 
-	name, rest, ok := keyStep(traversal[1:])
+	dependency, ok := keyStep(traversal[1:])
 	if !ok {
 		return DependencyOutputReference{}, false
 	}
 
-	var instance hclparse.InstanceKey
-
-	if _, isExpanded := expanded[name]; isExpanded {
-		instance, rest, ok = instanceStep(rest)
-		if !ok {
-			return DependencyOutputReference{}, false
-		}
-	}
-
-	outputs, rest, ok := keyStep(rest)
-	if !ok || outputs != "outputs" {
+	instance, ok := instanceStep(dependency.rest, expanded, dependency.name)
+	if !ok {
 		return DependencyOutputReference{}, false
 	}
 
-	output, _, ok := keyStep(rest)
+	outputs, ok := keyStep(instance.rest)
+	if !ok || outputs.name != "outputs" {
+		return DependencyOutputReference{}, false
+	}
+
+	output, ok := keyStep(outputs.rest)
 	if !ok {
 		return DependencyOutputReference{}, false
 	}
 
 	return DependencyOutputReference{
-		Instance:   instance,
-		Dependency: name,
-		Output:     output,
+		Instance:   instance.key,
+		Dependency: dependency.name,
+		Output:     output.name,
 		Range:      traversal.SourceRange(),
 	}, true
 }
 
-// instanceStep returns the instance key the first step of steps names, the steps after it, and whether it is literal.
-func instanceStep(steps hcl.Traversal) (hclparse.InstanceKey, hcl.Traversal, bool) {
+// instanceStep returns the literal instance key after the dependency named name, none unless expanded lists name.
+func instanceStep(steps hcl.Traversal, expanded map[string]struct{}, name string) (instanceKeyStep, bool) {
+	if _, isExpanded := expanded[name]; !isExpanded {
+		return instanceKeyStep{rest: steps}, true
+	}
+
 	if len(steps) == 0 {
-		return hclparse.InstanceKey{}, nil, false
+		return instanceKeyStep{}, false
 	}
 
 	switch step := steps[0].(type) {
 	case hcl.TraverseAttr:
-		return hclparse.InstanceKey{EachKey: new(step.Name)}, steps[1:], true
+		return instanceKeyStep{key: hclparse.InstanceKey{EachKey: new(step.Name)}, rest: steps[1:]}, true
 	case hcl.TraverseIndex:
 		key, ok := literalInstanceKey(step.Key)
 		if !ok {
-			return hclparse.InstanceKey{}, nil, false
+			return instanceKeyStep{}, false
 		}
 
-		return key, steps[1:], true
+		return instanceKeyStep{key: key, rest: steps[1:]}, true
 	default:
-		return hclparse.InstanceKey{}, nil, false
+		return instanceKeyStep{}, false
 	}
 }
 
@@ -220,41 +240,41 @@ func literalInstanceKey(key cty.Value) (hclparse.InstanceKey, bool) {
 	}
 }
 
-// attributeStep returns the name of the attribute step at the head of steps and the steps after it.
-func attributeStep(steps hcl.Traversal) (string, hcl.Traversal, bool) {
+// attributeStep returns the attribute step at the head of steps.
+func attributeStep(steps hcl.Traversal) (namedStep, bool) {
 	if len(steps) == 0 {
-		return "", nil, false
+		return namedStep{}, false
 	}
 
 	attr, ok := steps[0].(hcl.TraverseAttr)
 	if !ok {
-		return "", nil, false
+		return namedStep{}, false
 	}
 
-	return attr.Name, steps[1:], true
+	return namedStep{name: attr.Name, rest: steps[1:]}, true
 }
 
-// keyStep returns the name the step at the head of steps addresses: an attribute name or a known string index.
-func keyStep(steps hcl.Traversal) (string, hcl.Traversal, bool) {
-	if name, rest, ok := attributeStep(steps); ok {
-		return name, rest, true
+// keyStep returns the step at the head of steps that names a key: an attribute or a known string index.
+func keyStep(steps hcl.Traversal) (namedStep, bool) {
+	if step, ok := attributeStep(steps); ok {
+		return step, true
 	}
 
 	if len(steps) == 0 {
-		return "", nil, false
+		return namedStep{}, false
 	}
 
 	index, ok := steps[0].(hcl.TraverseIndex)
 	if !ok || index.Key.IsNull() || !index.Key.IsKnown() || !index.Key.Type().Equals(cty.String) {
-		return "", nil, false
+		return namedStep{}, false
 	}
 
-	return index.Key.AsString(), steps[1:], true
+	return namedStep{name: index.Key.AsString(), rest: steps[1:]}, true
 }
 
 // expandedLabels returns the labels of the dependency blocks that declare an expansion.
 func (deps Dependencies) expandedLabels() map[string]struct{} {
-	expanded := map[string]struct{}{}
+	expanded := make(map[string]struct{}, len(deps))
 
 	for i := range deps {
 		if deps[i].Expansion != nil {
