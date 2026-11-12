@@ -1,0 +1,8 @@
+---
+version: "v1.2.3"
+category: "performance-improvements"
+---
+
+#### Faster discovery of units that read files with `dependency` blocks
+
+When dependency outputs are not fetched, as in discovery and `hcl validate`, Terragrunt now parses a file read with [`read_terragrunt_config`](/reference/hcl/functions#read_terragrunt_config) once and shares the result between units even if the file has `dependency` blocks. Such a file used to be parsed again for every unit that read it, along with the dependency cycle check that walks its dependencies' configurations.

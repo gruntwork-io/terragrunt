@@ -217,7 +217,8 @@ func NewReadTerragruntConfigKey(v *venv.Venv, pctx *ParsingContext) ReadTerragru
 //
 // A parse whose value another read with the same key could not reuse marks itself and every parse in flight around it
 // as not shareable, and its value is not shared. That covers reading the reading config's path, a target with
-// dependency blocks, run_cmd with --terragrunt-no-cache, and the functions in perCallFunctionNames.
+// dependency blocks unless output resolution is skipped, run_cmd with --terragrunt-no-cache, and the functions in
+// perCallFunctionNames.
 //
 // The parse records the files it reads whether or not pctx does, so the result knows which files to check.
 func readTerragruntConfigCached(
@@ -287,7 +288,8 @@ func parseTerragruntConfigAsCty(
 		return cty.NilVal, err
 	}
 
-	if len(config.TerragruntDependencies) > 0 {
+	// Only fetched outputs depend on the reader. Mock outputs depend on the command, which is in the key.
+	if len(config.TerragruntDependencies) > 0 && !pctx.SkipOutput {
 		markNotShareable(ctx)
 	}
 
