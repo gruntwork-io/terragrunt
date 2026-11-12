@@ -84,6 +84,11 @@
 // When a filter selects dependents, the workers also read the dependencies of every candidate a dependent traversal
 // can reach, and the pre-graph step of phase 3 links them on one goroutine without parsing anything again.
 //
+// The dependency traversals of phase 3 also run on one goroutine from what the workers read, with the dependencies
+// at each depth read together. Phase 3 stops at a component an earlier traversal reached, even one that had less
+// depth left, so its results depend on which traversal gets there first. The pipeline continues from such a
+// component when it has more depth left.
+//
 // The pipeline takes over one phase at a time. [EnvPipeline] and the phases are removed once it has replaced all
 // of them.
 //

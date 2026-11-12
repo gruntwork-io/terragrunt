@@ -565,7 +565,8 @@ func (d *Discovery) runParsePhase(
 }
 
 // runGraphPhase runs the graph traversal phase over what found holds. When a filter selects dependents, it first
-// links every component to its dependencies, from the dependencies the pipeline read when found has them.
+// links every component to its dependencies. Both steps take dependencies from the ones the pipeline read when
+// found has them.
 func (d *Discovery) runGraphPhase(
 	ctx context.Context,
 	l log.Logger,
@@ -601,6 +602,7 @@ func (d *Discovery) runGraphPhase(
 	}
 
 	phase := NewGraphPhase(d.numWorkers, d.maxDependencyDepth)
+	phase.relations = found.relations
 
 	var result *PhaseResults
 

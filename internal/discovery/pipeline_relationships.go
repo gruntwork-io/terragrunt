@@ -9,7 +9,9 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
+	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -170,6 +172,177 @@ func (r *pipelineRelations) linkForDependents(
 	}
 
 	return errs
+}
+
+// traversedFrom names a component a dependency traversal continued from, and the boundary it stayed within.
+type traversedFrom struct {
+	c        component.Component
+	boundary string
+}
+
+// discoverDependenciesFromRelations adds each of targets to the results of state, and with it the dependencies its
+// graph expression traverses to, as [GraphPhase.discoverDependencies] does. It runs on one goroutine and reads the
+// dependencies of the components at each depth together.
+//
+// A component that several traversals reach is traversed from again only by one with more depth left than any
+// before it, so the results do not depend on the order of the traversals.
+//
+// Returns the errors of reading and resolving the dependencies.
+func (p *GraphPhase) discoverDependenciesFromRelations(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	state *graphTraversalState,
+	graphExprs []*filter.GraphExpressionInfo,
+	targets []DiscoveryResult,
+) []error {
+	ctx = contextWithParsePhase(ctx, parsePhaseTagGraphDependencies)
+
+	var errs []error
+
+	depthLeft := map[traversedFrom]int{}
+
+	exprs := make(map[int]*filter.GraphExpressionInfo, len(graphExprs))
+	for _, graphExpr := range graphExprs {
+		exprs[graphExpr.Index] = graphExpr
+	}
+
+	for _, target := range targets {
+		graphExpr, ok := exprs[target.GraphExpressionIndex]
+		if !ok {
+			continue
+		}
+
+		c := target.Component
+
+		state.addReached(c)
+
+		if !graphExpr.Dependencies.Include {
+			continue
+		}
+
+		boundary, err := dependencyBoundary(v.FS, state.discovery, c, graphExpr)
+		if err != nil {
+			errs = append(errs, err)
+
+			continue
+		}
+
+		traversal := &dependencyTraversal{phase: p, state: state, depthLeft: depthLeft, boundary: boundary}
+		traversal.run(ctx, l, v, c, p.dependencyDepth(graphExpr))
+
+		errs = append(errs, traversal.errs...)
+	}
+
+	return errs
+}
+
+// dependencyTraversal is the traversal of one graph expression from one of its targets to its dependencies.
+type dependencyTraversal struct {
+	// phase is the graph phase the traversal runs in, which holds the dependencies the pipeline read.
+	phase *GraphPhase
+	// state holds the results the traversal adds to.
+	state *graphTraversalState
+	// depthLeft holds the most depth any traversal of the phase had left at each component it continued from.
+	depthLeft map[traversedFrom]int
+	// boundary is the directory the traversal stays within, empty when it has none.
+	boundary string
+	// errs is the errors of reading and resolving the dependencies.
+	errs []error
+}
+
+// run adds the dependencies of target to the results, depth dependencies deep.
+func (t *dependencyTraversal) run(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	target component.Component,
+	depth int,
+) {
+	if !t.continuesFrom(target, depth) {
+		return
+	}
+
+	baseDepth := parseDepthFromContext(ctx)
+	reached := component.Components{target}
+
+	for level := 0; level < depth && len(reached) > 0; level++ {
+		t.phase.relations.readUnread(contextWithParseDepth(ctx, baseDepth+level), l, v, reached, nil)
+
+		var next component.Components
+
+		for _, c := range reached {
+			next = append(next, t.dependenciesOf(l, v.FS, c, depth-level-1)...)
+		}
+
+		reached = next
+	}
+}
+
+// dependenciesOf adds the dependencies of c to the results and returns the ones the traversal continues from with
+// left more depth.
+func (t *dependencyTraversal) dependenciesOf(
+	l log.Logger,
+	fsys vfs.FS,
+	c component.Component,
+	left int,
+) component.Components {
+	declared := t.phase.relations.declared[c]
+	if declared.err != nil {
+		t.errs = append(t.errs, declared.err)
+
+		return nil
+	}
+
+	var next component.Components
+
+	for _, depPath := range declared.paths {
+		dep, ok := t.reach(l, fsys, c, depPath)
+		if ok && t.continuesFrom(dep, left) {
+			next = append(next, dep)
+		}
+	}
+
+	return next
+}
+
+// reach links c to its dependency at depPath and adds the dependency to the results. It reports false for a
+// dependency outside the boundary or one that cannot be resolved.
+func (t *dependencyTraversal) reach(
+	l log.Logger,
+	fsys vfs.FS,
+	c component.Component,
+	depPath string,
+) (component.Component, bool) {
+	if t.boundary != "" && isExternal(fsys, t.boundary, depPath) {
+		l.Debugf("Dependency %s is outside discovery boundary %s; skipping", depPath, t.boundary)
+
+		return nil, false
+	}
+
+	dep, err := t.phase.resolveDependency(fsys, c, depPath, t.state.threadSafeComponents)
+	if err != nil {
+		t.errs = append(t.errs, err)
+
+		return nil, false
+	}
+
+	t.state.addReached(dep)
+
+	return dep, true
+}
+
+// continuesFrom reports whether the traversal goes on from c, which it reached with left more depth: it does when
+// no traversal of the phase within the same boundary went on from c with as much. It records left when it does.
+func (t *dependencyTraversal) continuesFrom(c component.Component, left int) bool {
+	from := traversedFrom{c: c, boundary: t.boundary}
+	if t.depthLeft[from] >= left {
+		return false
+	}
+
+	t.depthLeft[from] = left
+
+	return true
 }
 
 // readUnread reads the dependencies of each unit among components that has none in declared and whose path is not

@@ -68,8 +68,9 @@ type pipelineEvent struct {
 //
 // The walk classifies each component, reports it on events, and queues it on work when it needs a parse. Workers
 // parse what work holds, classify the component again, and report it on events. The walk also queues every component
-// whose dependencies discovery needs: the ones ready for filtering when it relates components, and the candidates as
-// well when a filter selects dependents. A worker reads the dependencies of such a component once it is done with it.
+// whose dependencies discovery needs: the ones ready for filtering when it relates components, the targets of graph
+// filters, and the other candidates as well when a filter selects dependents. A worker reads the dependencies of
+// such a component once it is done with it.
 // One collector receives every event, so the results need no lock.
 //
 // The pipeline ends because its channels form a chain with no way back:
@@ -106,7 +107,7 @@ type pipeline struct {
 
 // runPipeline walks the working directory and parses the components that need it, as the filesystem and parse
 // phases do one after the other. It also reads the dependencies of the components it finds when discovery relates
-// components or a filter selects dependents, and returns them unlinked. The relations are nil otherwise.
+// components or a filter traverses the graph, and returns them unlinked. The relations are nil otherwise.
 //
 // Returns the error of the walk when it fails, and otherwise the parse errors joined. suppressParseErrors drops
 // both, as it does for the phases. A [CoexistenceError] is returned either way.
@@ -180,7 +181,7 @@ func (d *Discovery) runPipeline(
 
 	found := walked{discovered: results.Discovered, candidates: results.Candidates}
 
-	if p.relates || p.findsDependents {
+	if p.relates || d.classifier.HasGraphFilters() {
 		found.relations = &pipelineRelations{discovery: d, opts: opts, store: s, declared: collected.declared}
 	}
 
@@ -295,13 +296,18 @@ func (d *Discovery) parsesDiscovered() bool {
 }
 
 // readsDependencies reports whether a worker reads the dependencies of result's component. It reads those of a
-// component ready for filtering when the pipeline relates components or a filter selects dependents, and those of a
-// candidate when a filter selects dependents and one of their traversals can reach it.
+// component ready for filtering when the pipeline relates components or a filter selects dependents, those of the
+// target of a graph filter, and those of any other candidate when a filter selects dependents and one of their
+// traversals can reach it.
 func (p *pipeline) readsDependencies(fsys vfs.FS, result DiscoveryResult) bool {
 	switch result.Status {
 	case filter.StatusReadyForFilter:
 		return p.relates || p.findsDependents
 	case filter.StatusCandidate:
+		if result.Reason == filter.CandidacyReasonGraphTarget {
+			return true
+		}
+
 		return p.findsDependents && !outsideDependentBoundaries(fsys, p.dependentBoundaries, result)
 	case filter.StatusExcluded:
 	}

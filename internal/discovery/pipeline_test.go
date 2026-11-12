@@ -143,6 +143,34 @@ func TestDiscoveryPipelineMatchesPhasesWithRacing(t *testing.T) {
 			},
 		},
 		{
+			name:    "dependencies of a unit",
+			queries: []string{"web..."},
+			configure: func(d *discovery.Discovery) *discovery.Discovery {
+				return d.WithSuppressParseErrors()
+			},
+		},
+		{
+			name:    "dependencies of a unit one deep",
+			queries: []string{"web...1"},
+			configure: func(d *discovery.Discovery) *discovery.Discovery {
+				return d.WithSuppressParseErrors()
+			},
+		},
+		{
+			name:    "dependencies of a unit without the unit",
+			queries: []string{"^web..."},
+			configure: func(d *discovery.Discovery) *discovery.Discovery {
+				return d.WithSuppressParseErrors()
+			},
+		},
+		{
+			name:    "dependencies of a unit within a boundary",
+			queries: []string{"web..."},
+			configure: func(d *discovery.Discovery) *discovery.Discovery {
+				return d.WithDiscoveryBoundary("apps").WithSuppressParseErrors()
+			},
+		},
+		{
 			name:    "dependents of the dependents of a unit",
 			queries: []string{"...vpc"},
 			configure: func(d *discovery.Discovery) *discovery.Discovery {
@@ -359,6 +387,36 @@ func TestDiscoveryPipelineSkipsUnitsOutsideTheDependentBoundary(t *testing.T) {
 
 	_, err = run.discover(t.Context(), t)
 	require.ErrorAs(t, err, new(hcl.Diagnostics))
+}
+
+func TestDiscoveryPipelineTraversesASharedDependencyToTheGreatestDepth(t *testing.T) {
+	t.Parallel()
+
+	run := pipelineRun{
+		files: map[string]string{
+			"apps/web/terragrunt.hcl":    dependenciesOn("../db"),
+			"apps/worker/terragrunt.hcl": dependenciesOn("../db"),
+			"apps/db/terragrunt.hcl":     dependenciesOn("../../infra/vpc"),
+			"infra/vpc/terragrunt.hcl":   "",
+		},
+		usePipeline: true,
+	}
+
+	want := []string{
+		filepath.Join(corpusRepoRoot, "apps", "db"),
+		filepath.Join(corpusRepoRoot, "apps", "web"),
+		filepath.Join(corpusRepoRoot, "apps", "worker"),
+		filepath.Join(corpusRepoRoot, "infra", "vpc"),
+	}
+
+	for _, queries := range [][]string{{"web...1", "worker..."}, {"worker...", "web...1"}} {
+		run.queries = queries
+
+		got, err := run.discover(t.Context(), t)
+		require.NoError(t, err)
+
+		assert.ElementsMatch(t, want, got.Paths())
+	}
 }
 
 // dependenciesOn returns a unit config that depends on the units at paths.
