@@ -59,6 +59,21 @@ The `engine` block is gated behind the [`iac-engine`](/reference/experiments/act
 
 </Aside>
 
+```hcl
+# terragrunt.hcl
+
+engine {
+  source  = "github.com/gruntwork-io/terragrunt-engine-opentofu"
+  version = "v0.2.0"
+}
+```
+
+```bash
+terragrunt run --experiment iac-engine -- plan
+```
+
+Terragrunt downloads the engine, verifies its checksum, and runs `tofu plan` through it.
+
 Without the experiment, Terragrunt ignores the block and runs `tofu`/`terraform` itself. [`--no-engine`](/reference/cli/commands/run#no-engine) does the same for one run.
 
 See [IaC engines](/features/units/engine) for caching, checksum checks, and how engines use `meta`.

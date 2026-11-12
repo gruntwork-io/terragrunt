@@ -62,12 +62,48 @@ attributes:
 ---
 
 import { Aside } from '@astrojs/starlight/components';
+import FileTree from '@components/vendored/starlight/FileTree.astro';
 
 <Aside type="tip" title="Experimental">
 
 The `variables` block is gated behind the [`variables-block`](/reference/experiments/active#variables-block) experiment. Enable it with `--experiment variables-block` or `TG_EXPERIMENT=variables-block`. Its behavior may change in future releases.
 
 </Aside>
+
+With `kind = "tfvar"`, Terragrunt writes the inputs to a `terragrunt.auto.tfvars` file, which OpenTofu/Terraform loads on its own:
+
+```hcl
+# live/vpc/terragrunt.hcl
+
+terraform {
+  source = "../../modules//vpc"
+}
+
+variables {
+  kind = "tfvar"
+
+  inputs = {
+    cidr_block = "10.0.0.0/16"
+  }
+}
+```
+
+<FileTree>
+
+- live
+  - vpc
+    - terragrunt.hcl
+    - .terragrunt-cache/
+      - zyViUa3fZNBdSZFkV1T2plXXMaM
+        - CVBDdii3ZDizkp-RK1BYQcZ2j4Y
+          - vpc
+            - main.tf
+            - **terragrunt.auto.tfvars** sets `cidr_block = "10.0.0.0/16"`
+- modules
+  - vpc
+    - main.tf
+
+</FileTree>
 
 A configuration can have any number of `variables` blocks, alongside an `inputs` attribute. Terragrunt returns an error when one file sets an input twice, in two `variables` blocks or in a `variables` block and the `inputs` attribute.
 

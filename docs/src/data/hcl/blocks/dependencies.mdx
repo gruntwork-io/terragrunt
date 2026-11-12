@@ -19,6 +19,14 @@ import FileTree from '@components/vendored/starlight/FileTree.astro';
 
 The `dependencies` block orders units in a run queue. To also read a unit's outputs, use a [`dependency`](/reference/hcl/blocks#dependency) block, which orders the run the same way.
 
+```hcl
+# live/app/terragrunt.hcl
+
+dependencies {
+  paths = ["../vpc", "../rds"]
+}
+```
+
 <FileTree>
 
 - live
@@ -27,7 +35,7 @@ The `dependencies` block orders units in a run queue. To also read a unit's outp
   - rds
     - terragrunt.hcl
   - app
-    - **terragrunt.hcl** sets `paths = ["../vpc", "../rds"]`
+    - **terragrunt.hcl**
 
 </FileTree>
 

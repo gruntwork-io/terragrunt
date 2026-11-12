@@ -52,16 +52,35 @@ examples:
       }
 ---
 
+Declare a flag, then read its value as `feature.<name>.value`:
+
+```hcl
+# terragrunt.hcl
+
+feature "enable_monitoring" {
+  default = false
+}
+
+inputs = {
+  enable_monitoring = feature.enable_monitoring.value
+}
+```
+
+```bash
+# Plans with enable_monitoring = false.
+terragrunt run -- plan
+
+# Plans with enable_monitoring = true.
+terragrunt run --feature enable_monitoring=true -- plan
+```
+
 Set a flag for a run with [`--feature`](/reference/cli/commands/run#feature), once per flag, or with the `TG_FEATURE` environment variable, as comma-separated pairs:
 
 ```bash
-terragrunt run --feature run_hook=true --feature string_flag=dev -- apply
+export TG_FEATURE=enable_monitoring=true,s3_version=v1.1.0
+terragrunt run -- plan
 ```
 
-```bash
-TG_FEATURE=run_hook=true,string_flag=dev terragrunt run -- apply
-```
-
-When the flag's `default` is a bool, Terragrunt converts the value to a bool, so `run_hook=true` sets `true`. A value for any other flag is a string. In a `run --all`, the value applies to every unit that declares the flag.
+When the flag's `default` is a bool, Terragrunt converts the value to a bool, so `enable_monitoring=true` sets `true`. A value for any other flag is a string. In a `run --all`, the value applies to every unit that declares the flag.
 
 Feature flags can also turn off a unit with an [`exclude`](/reference/hcl/blocks/exclude) block. See [Feature flags](/features/units/runtime-control#feature-flags) for more uses.

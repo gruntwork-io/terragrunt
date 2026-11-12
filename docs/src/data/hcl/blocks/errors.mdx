@@ -102,7 +102,29 @@ blocks:
       }
 ---
 
-A configuration file can have one `errors` block, holding any number of `retry` and `ignore` blocks.
+A configuration file can have one `errors` block, holding any number of `retry` and `ignore` blocks. This one retries two common network errors:
+
+```hcl
+# terragrunt.hcl
+
+errors {
+  retry "network" {
+    retryable_errors = [
+      "connection reset by peer",
+      "TLS handshake timeout",
+    ]
+    max_attempts       = 3
+    sleep_interval_sec = 5
+  }
+}
+```
+
+When a command fails with either error, Terragrunt logs a warning, waits 5 seconds, and runs the command again, up to 3 runs in total:
+
+```text
+WARN   Encountered retryable error: network
+Attempt 1 of 3. Waiting 5 second(s) before retrying...
+```
 
 ### Matching errors
 
