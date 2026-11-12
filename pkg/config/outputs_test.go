@@ -585,6 +585,10 @@ func TestDependencyReadsDeclaredOutputs(t *testing.T) {
   "undocumented": {"sensitive": false, "type": "string", "value": "real"}
 }`
 
+	const vpcStateWithOnlyUndocumented = `{
+  "undocumented": {"sensitive": false, "type": "string", "value": "real"}
+}`
+
 	const vpcStateWithoutSubnets = `{
   "vpc_id": {"sensitive": false, "type": "string", "value": "vpc-real"},
   "undocumented": {"sensitive": false, "type": "string", "value": "real"}
@@ -705,6 +709,35 @@ func TestDependencyReadsDeclaredOutputs(t *testing.T) {
 
 				require.ErrorAs(t, err, &blockErr)
 				assert.Equal(t, "vpc", blockErr.Name)
+			},
+		},
+		{
+			name:      "every declared output missing from state is reported",
+			vpcConfig: strings.ReplaceAll(outputsBlockConfig, `merge_with_state = "shallow"`, ""),
+			command:   "plan",
+			vpcState:  vpcStateWithOnlyUndocumented,
+			check: func(t *testing.T, _ *config.TerragruntConfig, err error) {
+				t.Helper()
+
+				var blockErr config.DependencyBlockError
+
+				require.ErrorAs(t, err, &blockErr)
+
+				var joined interface{ Unwrap() []error }
+
+				require.ErrorAs(t, blockErr.Err, &joined)
+
+				missing := make([]string, 0, len(joined.Unwrap()))
+
+				for _, leaf := range joined.Unwrap() {
+					var missingErr config.DeclaredOutputMissingError
+
+					require.ErrorAs(t, leaf, &missingErr)
+
+					missing = append(missing, missingErr.Output)
+				}
+
+				assert.ElementsMatch(t, []string{"vpc_id", "subnet_ids"}, missing)
 			},
 		},
 		{

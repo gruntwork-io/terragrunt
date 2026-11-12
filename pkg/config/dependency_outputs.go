@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"path/filepath"
@@ -365,7 +366,7 @@ func topLevelBlocks(body *hclsyntax.Body, blockType string) []*hclsyntax.Block {
 	return blocks
 }
 
-// checkDeclaredOutputs returns [DeclaredOutputMissingError] for the first declared output missing from stateOutputs.
+// checkDeclaredOutputs returns a [DeclaredOutputMissingError] for each declared output missing from stateOutputs.
 func checkDeclaredOutputs(
 	pctx *ParsingContext,
 	dep *Dependency,
@@ -377,15 +378,11 @@ func checkDeclaredOutputs(
 		return nil
 	}
 
-	var mocks map[string]cty.Value
+	mocks := stateFillingMocks(pctx, dep)
+	names := declared.Names()
+	errs := make([]error, 0, len(names))
 
-	if dep.shouldMergeMockOutputsWithState(pctx) {
-		if values, ok := mockValueMap(dep.MockOutputs); ok {
-			mocks = values
-		}
-	}
-
-	for _, name := range declared.Names() {
+	for _, name := range names {
 		if _, ok := stateOutputs[name]; ok {
 			continue
 		}
@@ -394,10 +391,24 @@ func checkDeclaredOutputs(
 			continue
 		}
 
-		return DeclaredOutputMissingError{TargetConfig: targetConfig, Output: name}
+		errs = append(errs, DeclaredOutputMissingError{TargetConfig: targetConfig, Output: name})
 	}
 
-	return nil
+	return errors.Join(errs...)
+}
+
+// stateFillingMocks returns the mock values that stand in for outputs the state lacks, none unless dep merges them.
+func stateFillingMocks(pctx *ParsingContext, dep *Dependency) map[string]cty.Value {
+	if !dep.shouldMergeMockOutputsWithState(pctx) {
+		return nil
+	}
+
+	values, ok := mockValueMap(dep.MockOutputs)
+	if !ok {
+		return nil
+	}
+
+	return values
 }
 
 // mergeDeclaredMockValues returns the mock values a dependent reads, each key of overrides winning over declared.
