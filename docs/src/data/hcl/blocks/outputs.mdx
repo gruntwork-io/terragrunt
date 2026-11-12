@@ -1,10 +1,10 @@
 ---
 name: outputs
-description: Declares the outputs a unit emits and the mock values its dependents read while the unit has no outputs in state.
+description: Declares a unit's outputs and the mock values its dependents read before the unit is applied.
 configs: [unit]
 since: v1.2.3
 examples:
-  - description: The unit declares its outputs once, each with the mock value its dependents read.
+  - description: A unit declares two outputs and a mock value for each.
     code: |
       # vpc/terragrunt.hcl
 
@@ -26,7 +26,7 @@ examples:
           mock_value = ["subnet-mock-1", "subnet-mock-2"]
         }
       }
-  - description: A dependent reads the declared outputs through its `dependency` block without setting `mock_outputs`.
+  - description: A dependent reads them through a `dependency` block and sets no `mock_outputs`.
     code: |
       # eks/terragrunt.hcl
 
@@ -40,15 +40,15 @@ examples:
       }
 blocks:
   - name: mock_strategy
-    description: Says when dependents may read the mock values.
+    description: Controls which commands may use the mock values and how they merge with state.
     attributes:
       - name: allowed_commands
         type: list(string)
-        description: The OpenTofu/Terraform commands for which dependents may read mock values, with the meaning of `mock_outputs_allowed_terraform_commands` on a [`dependency`](/reference/hcl/blocks#dependency) block. Unset or empty allows every command.
+        description: The OpenTofu/Terraform commands that may use the mock values, e.g. `validate` and `plan`. When it is unset or empty, every command may use them. It works like `mock_outputs_allowed_terraform_commands` on a [`dependency`](/reference/hcl/blocks#dependency) block.
       - name: merge_with_state
         type: string
         default: no_merge
-        description: How the state of the unit is merged into the mock values, with the meaning of `mock_outputs_merge_strategy_with_state` on a `dependency` block. One of `no_merge`, `shallow`, or `deep_map_only`.
+        description: How Terragrunt merges the outputs in the unit's state with the mock values. One of `no_merge`, `shallow`, or `deep_map_only`. It works like `mock_outputs_merge_strategy_with_state` on a `dependency` block.
     example: |
       # vpc/terragrunt.hcl
 
@@ -63,14 +63,14 @@ blocks:
         }
       }
   - name: output
-    description: Declares one output of the unit. Declaring a name twice is an error.
+    description: Declares one output of the unit. Declaring the same name twice is an error.
     labels:
       - name: name
-        description: The name of the output, as the OpenTofu/Terraform module of the unit declares it.
+        description: The name of the output, as the unit's OpenTofu/Terraform module declares it.
     attributes:
       - name: mock_value
         type: any
-        description: The value dependents read in place of the output. It may use `local` values and functions. One that reads a `dependency` output is an error, since dependents read the block without resolving the unit's dependencies. A dependency with `skip_outputs = true` reads the mock values too, as it does `mock_outputs`.
+        description: The value dependents read until the unit has a real one. It can use `local` values and functions. It cannot read a `dependency` output, because dependents read this block without resolving the unit's own dependencies. A dependency with `skip_outputs = true` reads the mock value too.
     example: |
       # vpc/terragrunt.hcl
 
@@ -88,44 +88,55 @@ blocks:
 import { Aside } from '@astrojs/starlight/components';
 
 <Aside type="tip" title="Experimental">
-  The `outputs` block is gated behind the `outputs-block` experiment. Enable it with `--experiment outputs-block` (or `TG_EXPERIMENT=outputs-block`) until it graduates to general availability. Declaring the block without the experiment enabled returns an error. See the [experiment documentation](/reference/experiments/active#outputs-block).
+  The `outputs` block needs the [`outputs-block`](/reference/experiments/active#outputs-block) experiment. Enable it with `--experiment outputs-block` or `TG_EXPERIMENT=outputs-block`. Without the experiment, a config that has the block fails with an error.
 </Aside>
 
-The `outputs` block declares the outputs a unit emits. It belongs in a unit's `terragrunt.hcl`; a stack file does not accept it. Each output can set a mock value that dependents read while the unit has no state yet or its state holds no outputs, e.g. before its first apply, under the rules of `mock_outputs` on a [`dependency`](/reference/hcl/blocks#dependency) block: any other failure to read the state is an error. A `mock_strategy` block says when dependents may read the mocks.
+The `outputs` block lists the outputs of a unit. Each output can have a mock value. Units that depend on this unit read the mock values until it has real outputs, e.g. before its first apply.
 
-A [`variables`](/reference/hcl/blocks#variables) block reads the declared outputs the same way a dependent's `inputs` do.
+You declare the mock values once, in the unit that produces the outputs. Its dependents need no `mock_outputs` in their [`dependency`](/reference/hcl/blocks#dependency) blocks.
+
+Dependents read the mock values while the unit has no state yet or its state has no outputs. The rules are the same as for `mock_outputs`. Any other error while reading the state fails the run.
+
+The block goes in a unit's `terragrunt.hcl`. A stack file does not accept it. A [`variables`](/reference/hcl/blocks#variables) block can read the declared outputs too, the same way `inputs` does.
 
 ### With a dependency block
 
-A `dependency` block and the `outputs` block of the unit it reads combine as follows:
+Settings on a `dependency` block override the `outputs` block of the unit it reads:
 
-- `mock_outputs` on the `dependency` block wins over `mock_value` key by key. A key the `dependency` block leaves out keeps the declared mock value.
-- `mock_outputs_allowed_terraform_commands` and `mock_outputs_merge_strategy_with_state` on the `dependency` block win over `mock_strategy` when set.
-- When the state of the unit is read, every declared output has to be in it. A declared output that is missing is an error, unless `merge_with_state` fills it from `mock_value`. The `render` command tolerates the gap.
-- A `dependency` block whose `config_path` points at a stack reads no `outputs` block.
-- `render` shows the `dependency` block as written; the declared mock values appear in the resolved `inputs`.
+- `mock_outputs` overrides `mock_value` one key at a time. A key that `mock_outputs` leaves out keeps its declared mock value.
+- `mock_outputs_allowed_terraform_commands` and `mock_outputs_merge_strategy_with_state` override `mock_strategy` when set.
 
-When a `dependency` block reads a unit that declares no `outputs` block, Terragrunt gives the `outputs-block` tip once per run. Disable it with `--no-tip outputs-block`.
+When the unit has outputs in state, every declared output has to be among them. A missing one is an error, unless `merge_with_state` fills it from `mock_value`. The `render` command does not raise this error.
+
+`render` prints the `dependency` block as you wrote it. The declared mock values appear in the resolved `inputs`.
+
+A `dependency` block whose `config_path` points at a stack reads no `outputs` block.
+
+When a `dependency` block reads a unit without an `outputs` block, Terragrunt prints the `outputs-block` tip once per run. Turn it off with `--no-tip outputs-block`.
 
 ### Through include
 
-The block is merged through `include` like the `errors` block: a `shallow` merge takes the including unit's block whole, and a `deep` merge combines the declarations by output name, with the unit's declarations winning.
+An included file can declare the `outputs` block. With a `shallow` merge, the unit's own `outputs` block replaces the included one. With a `deep` merge, Terragrunt combines the two blocks by output name. When both declare the same output, the unit's declaration wins.
 
-### Checking the contracts
+### Checking outputs with hcl validate
 
-[`terragrunt hcl validate --outputs`](/reference/cli/commands/hcl/validate#outputs) checks the contracts: every declared output has to exist in the OpenTofu/Terraform module the unit runs, and every `dependency.<name>.outputs.<output>` reference has to name an output the dependency declares, when it declares any. Without the flag, `hcl validate` runs neither check.
+[`terragrunt hcl validate --outputs`](/reference/cli/commands/hcl/validate#outputs) runs two checks:
+
+- Every declared output exists in the OpenTofu/Terraform module the unit runs.
+- Every `dependency.<name>.outputs.<output>` reference names an output that the dependency declares. The check skips a dependency that has no `outputs` block.
+
+Without the flag, `hcl validate` runs neither check.
 
 ```bash
 terragrunt hcl validate --outputs --experiment outputs-block
 ```
 
-For the first check, Terragrunt fetches the `terraform.source` of the unit into the download directory, as a run does and without running any hook, and evaluates its `generate` blocks against an in-memory copy of the module files, so it writes no generated file into the module directory. A unit without a `source` is viewed as the run copies it into the cache directory, so a file `exclude_from_copy` leaves out is not seen, unless the unit runs in place. The module files are read as the OpenTofu/Terraform binary of the run reads them, `terraform_binary` included: with OpenTofu, a `.tofu` file hides the `.tf` file of the same name, with Terraform, `.tofu` files are not read, and a file whose name starts with a dot is never read. When Terragrunt cannot ask the binary which one it is, it reads every module file. A file a hook writes during a run is not seen. With `--inputs`, the check reads the module that mode prepares on disk.
+For the first check, Terragrunt reads the module the way a run does. It downloads the unit's `terraform.source` and adds the files your `generate` blocks produce, without writing them to disk. It runs no hooks, so it does not see a file that a hook writes.
 
-For the second check, Terragrunt reads the unit file, the files it merges or exposes through `include`, and its autoinclude file, and reports each reference in the file that holds it. References resolve against the unit's merged `dependency` blocks, so a dependency the autoinclude file overrides is checked as that file declares it, and a `dependency` block of the unit file that the autoinclude file replaces is not read.
+Terragrunt reads the module files as the unit's OpenTofu/Terraform binary does. With OpenTofu, a `.tofu` file replaces the `.tf` file of the same name. With Terraform, it ignores `.tofu` files.
 
-- An include with `merge_strategy = "no_merge"` that is not exposed is never evaluated, so it is not checked.
-- `hcl validate` does not discover `terragrunt.hcl.json` units, so neither check runs on them.
-- Each step of a reference may be an attribute or a literal string index, so `dependency["vpc"].outputs["vpc_id"]` is checked like `dependency.vpc.outputs.vpc_id`.
-- A reference to one instance of an expanded dependency, written as `dependency.vpc["primary"].outputs.vpc_id`, `dependency.vpc.primary.outputs.vpc_id`, or `dependency.vpc[0].outputs.vpc_id` for a `count` expansion, is checked against that instance.
-- A reference whose instance key or output name is not a literal is not checked.
-- Without `--inputs`, a dependency whose unit config cannot be read is reported at the `config_path` that names it, unless the run validates that unit, whose own parse reports what is wrong with it.
+The second check covers the unit file, the files it includes, and its autoinclude file. Each error points at the file that has the reference. When the autoinclude file overrides a `dependency` block, the check uses the overriding block.
+
+The check accepts both forms of a reference, so it treats `dependency["vpc"].outputs["vpc_id"]` like `dependency.vpc.outputs.vpc_id`. It checks a reference to one instance of an expanded dependency, e.g. `dependency.vpc["primary"].outputs.vpc_id`, against that instance.
+
+Neither check runs on a unit written as `terragrunt.hcl.json`. The second check skips an include with `merge_strategy = "no_merge"` and without `expose = true`. It also skips a reference whose instance key or output name is computed, e.g. `dependency.vpc.outputs[local.name]`.
