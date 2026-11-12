@@ -81,6 +81,15 @@ jobs:
         run: |
           mise lock "opentofu@$LATEST_VERSION"
 
+      - name: Add compatibility entry
+        id: compatibility
+        if: steps.check.outputs.needs_update == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LATEST_VERSION: ${{ steps.check.outputs.latest }}
+        run: |
+          mise x jq -- .github/scripts/update-codified-remote-deps/add-compatibility-entry.sh opentofu "$LATEST_VERSION"
+
       - name: Create pull request
         if: steps.check.outputs.needs_update == 'true'
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v7
@@ -94,7 +103,7 @@ jobs:
 
             [Release notes](https://github.com/opentofu/opentofu/releases/tag/v${{ steps.check.outputs.latest }})
 
-            For a new minor version, add it to `docs/src/data/compatibility/compatibility.json` before merging.
+            ${{ steps.compatibility.outputs.note }}
           labels: automated
 
   terraform:
@@ -130,6 +139,15 @@ jobs:
         run: |
           sed -i "s/${CURRENT_VERSION//./\\.}/$LATEST_VERSION/g" .github/scripts/setup/terraform-switch-latest.sh
 
+      - name: Add compatibility entry
+        id: compatibility
+        if: steps.check.outputs.needs_update == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LATEST_VERSION: ${{ steps.check.outputs.latest }}
+        run: |
+          mise x jq -- .github/scripts/update-codified-remote-deps/add-compatibility-entry.sh terraform "$LATEST_VERSION"
+
       - name: Create pull request
         if: steps.check.outputs.needs_update == 'true'
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v7
@@ -143,5 +161,5 @@ jobs:
 
             [Release notes](https://github.com/hashicorp/terraform/releases/tag/v${{ steps.check.outputs.latest }})
 
-            For a new minor version, add it to `docs/src/data/compatibility/compatibility.json` before merging.
+            ${{ steps.compatibility.outputs.note }}
           labels: automated
