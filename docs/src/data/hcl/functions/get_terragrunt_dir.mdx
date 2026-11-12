@@ -1,0 +1,44 @@
+---
+name: get_terragrunt_dir
+description: Returns the absolute path of the directory of the unit or stack file.
+configs: [unit, stack]
+params: []
+returns: string
+examples:
+  - description: In a repository checked out at `/home/me/infra`.
+    code: |
+      # prod/mysql/terragrunt.hcl
+
+      locals {
+        unit_dir = get_terragrunt_dir() # "/home/me/infra/prod/mysql"
+      }
+---
+
+import FileTree from '@components/vendored/starlight/FileTree.astro';
+
+`get_terragrunt_dir` returns the absolute path of the directory of the unit or stack file, e.g. `/home/me/infra/prod/mysql`. In an included file, it returns the directory of the unit that includes it. For the included file's own directory, use [`get_parent_terragrunt_dir`](/reference/hcl/functions/get_parent_terragrunt_dir). In a file read with [`read_terragrunt_config`](/reference/hcl/functions#read_terragrunt_config), it returns that file's directory. To get the unit's directory there, use [`get_original_terragrunt_dir`](/reference/hcl/functions/get_original_terragrunt_dir).
+
+In a unit, Terragrunt runs OpenTofu/Terraform in a copy of the module under `.terragrunt-cache`, so a relative path in an argument resolves from there. Start the path with `get_terragrunt_dir` to resolve it from the unit's directory:
+
+```hcl
+# frontend-app/terragrunt.hcl
+
+terraform {
+  source = "git::https://github.com/acme/modules.git//app?ref=v1.0.0"
+
+  extra_arguments "common_vars" {
+    commands = ["plan", "apply"]
+    arguments = [
+      "-var-file=${get_terragrunt_dir()}/../common.tfvars",
+    ]
+  }
+}
+```
+
+<FileTree>
+
+- common.tfvars
+- frontend-app
+  - terragrunt.hcl
+
+</FileTree>

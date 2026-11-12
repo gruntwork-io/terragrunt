@@ -1,0 +1,48 @@
+---
+name: get_path_from_repo_root
+description: Returns the path from the root of the Git repository to the unit's directory.
+configs: [unit, stack]
+params: []
+returns: string
+examples:
+  - code: |
+      # prod/mysql/terragrunt.hcl
+
+      locals {
+        unit_path = get_path_from_repo_root() # "prod/mysql"
+      }
+---
+
+import FileTree from '@components/vendored/starlight/FileTree.astro';
+
+`get_path_from_repo_root` returns the unit's directory relative to the root of the Git repository, e.g. `prod/mysql`. In an included file, it returns the path of the unit that includes the file. It fails when the unit or stack file is not in a Git repository.
+
+A file that many units include can use it to give each unit its own state key:
+
+```hcl
+# root.hcl
+
+remote_state {
+  backend = "s3"
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite_terragrunt"
+  }
+  config = {
+    bucket = "my-tofu-state"
+    key    = "${get_path_from_repo_root()}/tofu.tfstate"
+    region = "us-east-1"
+  }
+}
+```
+
+<FileTree>
+
+- root.hcl
+- prod
+  - mysql
+    - terragrunt.hcl
+
+</FileTree>
+
+The `key` is `prod/mysql/tofu.tfstate` for `prod/mysql`.

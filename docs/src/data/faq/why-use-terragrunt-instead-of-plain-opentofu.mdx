@@ -12,7 +12,7 @@ If you have one or two root modules and no dependencies between them, using Open
 
 ## State segmentation, and the lock that comes with it
 
-Each Terragrunt [unit](/features/units/) has its own state, and a root configuration shared by every unit can derive each one's backend key from its path with [`path_relative_to_include()`](/reference/hcl/functions#path_relative_to_include). You get per-unit state without configuring a backend by hand for every root module.
+Each Terragrunt [unit](/features/units/) has its own state, and a root configuration shared by every unit can derive each one's backend key from its path with [`path_relative_to_include()`](/reference/hcl/functions/path_relative_to_include). You get per-unit state without configuring a backend by hand for every root module.
 
 The obvious benefit is blast radius: your current working directory is what you can break. The less obvious one matters more on a team. One state file means one lock, so two engineers touching unrelated infrastructure still queue behind each other. Segmented state gives each unit its own lock, and unrelated work proceeds in parallel. A monolithic state file is an organizational bottleneck as much as a technical one, and it produces a [Terralith](/guides/terralith-to-terragrunt/): slow plans, risky changes, and diffs nobody wants to review.
 
