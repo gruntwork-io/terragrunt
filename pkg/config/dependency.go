@@ -688,10 +688,10 @@ func decodeAndRetrieveOutputs(
 	v *venv.Venv,
 	pctx *ParsingContext,
 	file *hclparse.File,
-) (*cty.Value, error) {
+) (resolvedDependencies, error) {
 	decodedDependency, err := DecodeTerragruntDependencies(ctx, l, v, pctx, file)
 	if err != nil {
-		return nil, err
+		return resolvedDependencies{}, err
 	}
 
 	// Extract dependency names for tracing
@@ -724,7 +724,14 @@ func decodeAndRetrieveOutputs(
 		},
 	)
 
-	return result, err
+	return resolvedDependencies{blocks: decodedDependency.Dependencies, value: result}, err
+}
+
+// resolvedDependencies pairs the dependency blocks of a config with the value of the `dependency` variable
+// resolved from them. The value is nil when resolving the blocks failed.
+type resolvedDependencies struct {
+	value  *cty.Value
+	blocks []Dependency
 }
 
 // decodeDependencies decode dependencies and fetch inputs
@@ -1134,7 +1141,8 @@ func DependencyBlocksToCtyValue(
 // behavior is different depending on the configuration of the dependency:
 //   - If the dependency block indicates a mock_outputs attribute, this will return that.
 //     If the dependency block indicates a mock_outputs_merge_strategy_with_state attribute, mock_outputs and state outputs will be merged following the merge strategy
-//   - If the dependency block does NOT indicate a mock_outputs attribute, this will return an error.
+//   - If the dependency block does NOT indicate a mock_outputs attribute, this will return an error, or an empty
+//     object when the empty-dependency-outputs experiment is enabled.
 func getTerragruntOutputIfAppliedElseConfiguredDefault(
 	ctx context.Context,
 	l log.Logger,
@@ -1194,6 +1202,16 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(
 		logMockOutputsFallback(l, pctx, targetConfig, declared)
 
 		return dependencyConfig.MockOutputs, nil
+	}
+
+	if pctx.Experiments.Evaluate(experiment.EmptyDependencyOutputs) {
+		l.Debugf(
+			"Config %s is a dependency of %s that has no outputs, resolving its outputs to an empty object.",
+			targetConfig,
+			pctx.TerragruntConfigPath,
+		)
+
+		return new(cty.EmptyObjectVal), nil
 	}
 
 	// At this point, we expect outputs to exist because there is a `dependency` block without skip_outputs = true, and

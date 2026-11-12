@@ -1850,7 +1850,7 @@ func ParseConfig(
 	if pctx.DecodedDependencies == nil {
 		// Decode just the `dependency` blocks, retrieving the outputs from the target terragrunt config in the
 		// process. Note: the actual `tofu/terraform output` side effect is gated by SkipOutput, not here.
-		retrievedOutputs, err := decodeAndRetrieveOutputs(ctx, l, v, pctx, file)
+		resolved, err := decodeAndRetrieveOutputs(ctx, l, v, pctx, file)
 		if err != nil {
 			errs = append(errs, err)
 
@@ -1859,13 +1859,14 @@ func ParseConfig(
 			// so that the "dependency" variable still exists in the eval context — otherwise
 			// every dependency.x.outputs.y reference cascades into a confusing "dependency is
 			// not defined" error that obscures the real problem.
-			if retrievedOutputs == nil {
+			if resolved.value == nil {
 				dynamicVal := cty.DynamicVal
-				retrievedOutputs = &dynamicVal
+				resolved.value = &dynamicVal
 			}
 		}
 
-		pctx.DecodedDependencies = retrievedOutputs
+		pctx.DependencyBlocks = resolved.blocks
+		pctx.DecodedDependencies = resolved.value
 	}
 
 	evalContext, err := CreateTerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath)
@@ -1876,6 +1877,7 @@ func ParseConfig(
 	// Decode the rest of the config, passing in this config's `include` block or the child's `include` block, whichever
 	// is appropriate
 	cfgFile, err := decodeAsTerragruntConfigFile(ctx, l, v, pctx, file, evalContext)
+	err = withNoOutputsError(v, pctx, err)
 	// The dependency blocks are decoded again here, so a dependency error already in errs
 	// comes back a second time.
 	if err != nil && !slices.ContainsFunc(errs, func(seen error) bool { return errors.Is(err, seen) }) {
