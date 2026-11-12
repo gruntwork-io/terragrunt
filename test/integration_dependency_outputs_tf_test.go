@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 )
 
@@ -31,6 +32,9 @@ func TestTFDependencyOutputSkipDependencyOutputsFlag(t *testing.T) {
 
 	t.Run("plan without flag fails", func(t *testing.T) {
 		t.Parallel()
+
+		helpers.SkipInExperimentMode(t, experiment.EmptyDependencyOutputs)
+
 		_, _, err := helpers.RunTerragruntCommandWithOutput(
 			t,
 			"terragrunt plan --non-interactive --working-dir "+noOutputPath(t),
