@@ -344,19 +344,19 @@ func generateTypeFromValuesMap(valMap map[string]cty.Value) cty.Type {
 func includeMapAsCtyVal(
 	ctx context.Context,
 	l log.Logger,
-	v *venv.Venv,
 	pctx *ParsingContext,
+	exposed ExposedInclude,
 ) (cty.Value, error) {
 	bareInclude, hasBareInclude := pctx.TrackInclude.CurrentMap[bareIncludeKey]
 	if len(pctx.TrackInclude.CurrentMap) == 1 && hasBareInclude {
 		l.Debug("Detected single bare include block - exposing as top level")
-		return includeConfigAsCtyVal(ctx, l, v, pctx, bareInclude)
+		return includeConfigAsCtyVal(ctx, l, pctx, bareInclude, exposed)
 	}
 
 	exposedIncludeMap := map[string]cty.Value{}
 
 	for key, included := range pctx.TrackInclude.CurrentMap {
-		parsedIncludedCty, err := includeConfigAsCtyVal(ctx, l, v, pctx, included)
+		parsedIncludedCty, err := includeConfigAsCtyVal(ctx, l, pctx, included, exposed)
 		if err != nil {
 			return cty.NilVal, err
 		}
@@ -418,45 +418,52 @@ func fieldError(field string, err error) error {
 	return fmt.Errorf("%s%s: %w", field, ctyPathString(err), err)
 }
 
-// includeConfigAsCtyVal returns the parsed include block as a cty.Value object if expose is true. Otherwise, return
+// includeConfigAsCtyVal returns the value exposed gives for the include block if expose is true. Otherwise, return
 // the nil representation of cty.Value.
 func includeConfigAsCtyVal(
 	ctx context.Context,
 	l log.Logger,
-	v *venv.Venv,
 	pctx *ParsingContext,
 	includeConfig IncludeConfig,
+	exposed ExposedInclude,
 ) (cty.Value, error) {
-	pctx = pctx.WithTrackInclude(nil)
-
-	if includeConfig.GetExpose() {
-		// Annotate resolution errors with the include name and parent file. The conversion layer further annotates
-		// these with the failing field/attribute path (see TerragruntConfigAsCty), since low-level conversion errors
-		// carry no source location of their own.
-		parsedIncluded, err := parseIncludedConfig(ctx, l, v, pctx, &includeConfig)
-		if err != nil {
-			return cty.NilVal, fmt.Errorf(
-				"exposed include %s (%s): %w",
-				includeBlockLabel(includeConfig),
-				includeConfig.Path,
-				err,
-			)
-		}
-
-		parsedIncludedCty, err := TerragruntConfigAsCty(parsedIncluded)
-		if err != nil {
-			return cty.NilVal, fmt.Errorf(
-				"exposed include %s (%s): %w",
-				includeBlockLabel(includeConfig),
-				includeConfig.Path,
-				err,
-			)
-		}
-
-		return parsedIncludedCty, nil
+	if !includeConfig.GetExpose() {
+		return cty.NilVal, nil
 	}
 
-	return cty.NilVal, nil
+	// Annotate resolution errors with the include name and parent file. The conversion layer further annotates
+	// these with the failing field/attribute path (see TerragruntConfigAsCty), since low-level conversion errors
+	// carry no source location of their own.
+	value, err := exposed(ctx, l, pctx.WithTrackInclude(nil), &includeConfig)
+	if err != nil {
+		return cty.NilVal, fmt.Errorf(
+			"exposed include %s (%s): %w",
+			includeBlockLabel(includeConfig),
+			includeConfig.Path,
+			err,
+		)
+	}
+
+	return value, nil
+}
+
+// ParsedExposedInclude returns an [ExposedInclude] that parses the included config with the context it is given. It
+// parses the whole config, or only the sections of the context's decode list when the config has a dependency block
+// and the parse is partial.
+func ParsedExposedInclude(v *venv.Venv) ExposedInclude {
+	return func(
+		ctx context.Context,
+		l log.Logger,
+		pctx *ParsingContext,
+		include *IncludeConfig,
+	) (cty.Value, error) {
+		parsed, err := parseIncludedConfig(ctx, l, v, pctx, include)
+		if err != nil {
+			return cty.NilVal, err
+		}
+
+		return TerragruntConfigAsCty(parsed)
+	}
 }
 
 // CtyToStruct converts a cty.Value to a go struct.

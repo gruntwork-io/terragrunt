@@ -1039,6 +1039,47 @@ func TestResolveUnitQueueConfigScansAnIncludedFileAgainWhenItChanges(t *testing.
 	}
 }
 
+func TestResolveUnitQueueConfigMergesAnExposedIncludeFromTheResolutionOfItsVariable(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	path := filepath.Join(root, "app", pkgconfig.DefaultTerragruntConfigPath)
+
+	fsys := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(
+		fsys,
+		filepath.Join(root, "exposed.hcl"),
+		[]byte("inputs = {\n  region = \"us-east-1\"\n}\n"),
+		0o644,
+	))
+	require.NoError(t, vfs.WriteFile(fsys, path, []byte(`
+include "exposed" {
+  path   = "../exposed.hcl"
+  expose = true
+}
+
+locals {
+  region = include.exposed.inputs.region
+}
+`), 0o644))
+
+	v := venv.MemVenv().WithFS(fsys)
+	store := &config.Store{}
+	ctx, run := newTestParsingContext(t, path)
+
+	cfg, err := store.ResolveUnitQueueConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(run), path)
+	require.NoError(t, err)
+
+	assert.Equal(t, "us-east-1", cfg.Locals["region"])
+	assert.Equal(
+		t,
+		config.Stats{Hits: 8, Misses: 7},
+		store.Stats(),
+		"each file's tree, base, and queue stage and the exposed file's dependency scan ran once, "+
+			"and the merge was served the exposed file's queue stage",
+	)
+}
+
 func TestResolveUnitConfigRunsUnmemoizedForSuppliedValues(t *testing.T) {
 	t.Parallel()
 

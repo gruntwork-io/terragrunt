@@ -85,6 +85,8 @@ type UnitConfig struct {
 	file *pkghclparse.File
 	// evalVars is the variables the blocks decoded with, nil when the eval context failed to build.
 	evalVars map[string]cty.Value
+	// evalErr is the error of building the eval context, which prepErrs also holds.
+	evalErr error
 	// deps is the dependency blocks of a file that resolves its own dependencies, nil when they failed to decode or
 	// an including file resolves them.
 	deps *dependencySet

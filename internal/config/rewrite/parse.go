@@ -407,6 +407,8 @@ func (s *Store) prepareBase(
 	pc = pc.withValues(unitValues)
 	pctx = pc.parsingContext()
 
+	exposed := s.exposedInclude(v, pc)
+
 	baseBlocks, err := pkgconfig.DecodeBaseBlocks(
 		ctx,
 		l,
@@ -415,6 +417,7 @@ func (s *Store) prepareBase(
 		file,
 		include,
 		s.includedFeatureFlags(v, pc),
+		exposed,
 	)
 	if err != nil {
 		l.Warnf("Errors decoding base blocks in %s: %v", file.ConfigPath, err)
@@ -432,9 +435,9 @@ func (s *Store) prepareBase(
 	base.evalVars, base.evalErr = pkgconfig.TerragruntEvalVariables(
 		ctx,
 		l,
-		v,
 		pc.parsingContext(),
 		file.ConfigPath,
+		exposed,
 	)
 	base.scope = pc.file
 
@@ -477,7 +480,13 @@ func (s *Store) prepare(
 	pc = pc.withFile(&base.scope)
 	errs := slices.Clone(base.errs)
 
-	c := &UnitConfig{file: file, Locals: base.locals, evalVars: base.evalVars, scope: pc.file}
+	c := &UnitConfig{
+		file:     file,
+		Locals:   base.locals,
+		evalVars: base.evalVars,
+		evalErr:  base.evalErr,
+		scope:    pc.file,
+	}
 
 	if includes := pc.file.includes; includes != nil {
 		c.Includes = includes
@@ -486,7 +495,7 @@ func (s *Store) prepare(
 	if pc.file.decodedDeps == nil && !pc.file.inheritsDependencies {
 		depPC := pc.withOwnReads()
 
-		set, err := newDependencySet(ctx, l, v, depPC.parsingContext(), file, s.includedDependencies(v, depPC))
+		set, err := c.newDependencySet(ctx, l, v, depPC, file, s.includedDependencies(v, depPC))
 		c.dependencyReads = depPC.sinks.filesRead.Paths()
 
 		if err != nil {

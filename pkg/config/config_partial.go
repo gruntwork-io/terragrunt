@@ -222,6 +222,8 @@ type terragruntEngine struct {
 // - locals
 // - features
 // - include
+//
+// The `include` variable the locals read holds what exposed gives for each exposed include block.
 func DecodeBaseBlocks(
 	ctx context.Context,
 	l log.Logger,
@@ -230,6 +232,7 @@ func DecodeBaseBlocks(
 	file *hclparse.File,
 	includeFromChild *IncludeConfig,
 	included IncludedFeatureFlags,
+	exposed ExposedInclude,
 ) (*DecodedBaseBlocks, error) {
 	var errs []error
 
@@ -297,6 +300,7 @@ func DecodeBaseBlocks(
 		v,
 		pctx.WithTrackInclude(trackInclude).WithFeatures(&flagsAsCtyVal),
 		file,
+		exposed,
 	)
 	if err != nil {
 		errs = append(errs, err)
@@ -729,6 +733,7 @@ func PartialParseConfig(
 		file,
 		includeFromChild,
 		parsedIncludeFeatureFlags(v, pctx, IncludeParseForMerge),
+		ParsedExposedInclude(v),
 	)
 	if err != nil {
 		errs = append(errs, err)

@@ -1814,6 +1814,7 @@ func ParseConfig(
 		file,
 		includeFromChild,
 		parsedIncludeFeatureFlags(v, pctx, IncludeParseFeatureFlags),
+		ParsedExposedInclude(v),
 	)
 	if err != nil {
 		// Surface the error here so it reaches stderr; the multi-error returned at
