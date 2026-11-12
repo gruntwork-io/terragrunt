@@ -24,6 +24,9 @@ examples:
       }
 ---
 
+import Since from '@components/Since.astro';
+import Before from '@components/Before.astro';
+
 `read_terragrunt_config` returns an object with a key for each block and attribute in the file, e.g. `locals`, `inputs`, and `dependency`. Use it to share values among units without an `include`:
 
 ```hcl
@@ -89,6 +92,16 @@ inputs = {
 
 Terragrunt parses the file once and gives every unit the same result. It parses the file again when the file, or a file it reads, changes during the command, and `run --all` parses it a second time when the run starts, after discovering units.
 
+<Since version="v1.2.3">
+
 Terragrunt parses the file for each unit if the file has `dependency` blocks, unless the command skips fetching dependency outputs as discovery and `hcl validate` do, or if the file calls [`get_original_terragrunt_dir`](/reference/hcl/functions/get_original_terragrunt_dir), [`get_working_dir`](/reference/hcl/functions/get_working_dir), `uuid`, `timestamp`, `bcrypt`, or [`run_cmd`](/reference/hcl/functions/run_cmd) with `--terragrunt-no-cache`. The same goes for any file that reads one of those.
+
+</Since>
+
+<Before version="v1.2.3">
+
+Terragrunt parses the file for each unit if the file has `dependency` blocks or calls [`get_original_terragrunt_dir`](/reference/hcl/functions/get_original_terragrunt_dir), [`get_working_dir`](/reference/hcl/functions/get_working_dir), `uuid`, `timestamp`, `bcrypt`, or [`run_cmd`](/reference/hcl/functions/run_cmd) with `--terragrunt-no-cache`. The same goes for any file that reads one of those.
+
+</Before>
 
 An [auth provider command](/features/units/authentication/#auth-provider-command) runs for each unit and can set different environment variables for each one, such as its own credentials. Units whose environment variables differ get separate results.
