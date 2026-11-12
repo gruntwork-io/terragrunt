@@ -274,7 +274,8 @@ func sanitizeReadFiles(files []string) []string {
 }
 
 // extractDependencyPaths extracts all dependency paths from a Terragrunt
-// configuration, sorted and deduplicated.
+// configuration, sorted and deduplicated. A relative path is resolved against
+// the directory that holds the config file of c.
 func extractDependencyPaths(
 	paths *vfs.PathResolver,
 	cfg *config.TerragruntConfig,
@@ -288,9 +289,14 @@ func extractDependencyPaths(
 
 	depPaths := make([]string, 0, len(configPaths))
 
+	dir := c.Path()
+	if unit, ok := c.(*component.Unit); ok {
+		dir = unit.ConfigDir()
+	}
+
 	for _, depPath := range configPaths {
 		if !filepath.IsAbs(depPath) {
-			depPath = filepath.Clean(filepath.Join(c.Path(), depPath))
+			depPath = filepath.Clean(filepath.Join(dir, depPath))
 		}
 
 		depPaths = append(depPaths, paths.Resolve(depPath))

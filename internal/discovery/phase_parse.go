@@ -358,8 +358,13 @@ func parseComponent(
 			componentPath := c.Path()
 			workingDir := componentPath
 
-			if vfs.Exists(v.FS, componentPath) && !vfs.IsDir(v.FS, componentPath) {
+			pathIsFile := vfs.IsFile(v.FS, componentPath)
+			if pathIsFile {
 				workingDir = filepath.Dir(componentPath)
+
+				if unit, ok := c.(*component.Unit); ok {
+					unit.SetConfigDir(workingDir)
+				}
 			}
 
 			configFilename := config.DefaultTerragruntConfigPath
@@ -368,6 +373,11 @@ func parseComponent(
 			case *component.Stack:
 				configFilename = config.DefaultStackFile
 			default:
+				if pathIsFile {
+					configFilename = filepath.Base(componentPath)
+					break
+				}
+
 				if unit, ok := c.(*component.Unit); ok && unit.ConfigFile() != "" {
 					configFilename = unit.ConfigFile()
 					break
