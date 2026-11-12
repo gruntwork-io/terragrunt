@@ -407,14 +407,17 @@ func validateDependencyConfigPathDirs(
 			continue
 		}
 
+		strictErr := DependencyConfigPathFileError{
+			ConfigPath:     cfgPath,
+			Address:        dep.mergeKey(),
+			DependencyPath: dep.ConfigPath.AsString(),
+		}
+
 		return evaluateDetailControl(
 			ctx, l, pctx.StrictControls,
 			controls.DependencyConfigPathFile,
-			DependencyConfigPathFileError{
-				ConfigPath:     cfgPath,
-				Address:        dep.mergeKey(),
-				DependencyPath: dep.ConfigPath.AsString(),
-			},
+			strictErr,
+			strictErr.Error(),
 		)
 	}
 
@@ -438,30 +441,36 @@ func validateUniqueDependencies(
 	deps Dependencies,
 ) error {
 	if address, found := duplicateDependencyAddress(deps); found {
+		strictErr := DuplicateDependencyError{
+			ConfigPath: cfgPath,
+			Address:    address,
+		}
+
 		return evaluateDetailControl(
 			ctx,
 			l,
 			pctx.StrictControls,
 			controls.DuplicateDependencyLabels,
-			DuplicateDependencyError{
-				ConfigPath: cfgPath,
-				Address:    address,
-			},
+			strictErr,
+			strictErr.Error(),
 		)
 	}
 
 	if dup, found := duplicateDependencyConfigPath(cfgPath, deps); found {
+		strictErr := DuplicateDependencyConfigPathError{
+			ConfigPath:     cfgPath,
+			DependencyPath: dup.path,
+			FirstAddress:   dup.first,
+			SecondAddress:  dup.second,
+		}
+
 		return evaluateDetailControl(
 			ctx,
 			l,
 			pctx.StrictControls,
 			controls.DuplicateDependencyLabels,
-			DuplicateDependencyConfigPathError{
-				ConfigPath:     cfgPath,
-				DependencyPath: dup.path,
-				FirstAddress:   dup.first,
-				SecondAddress:  dup.second,
-			},
+			strictErr,
+			strictErr.Error(),
 		)
 	}
 
@@ -469,14 +478,15 @@ func validateUniqueDependencies(
 }
 
 // evaluateDetailControl returns strictErr when the strict control called name is enabled.
-// Otherwise it logs the control's warning and the message of strictErr, each once per command,
-// so every config the control would reject is named.
+// Otherwise it logs the control's warning and detail, each once per command, so every config
+// the control would reject is named.
 func evaluateDetailControl(
 	ctx context.Context,
 	l log.Logger,
 	strictControls strict.Controls,
 	name string,
 	strictErr error,
+	detail string,
 ) error {
 	control := strictControls.Find(name)
 	if control == nil {
@@ -491,7 +501,7 @@ func evaluateDetailControl(
 		return err
 	}
 
-	control.WarnDetail(l, strictErr.Error())
+	control.WarnDetail(l, detail)
 
 	return nil
 }

@@ -620,9 +620,9 @@ type CASSourceInsideStackError struct {
 
 func (err CASSourceInsideStackError) Error() string {
 	return fmt.Sprintf(
-		"%s: %s %q in %s sets update_source_with_cas on source %q inside the stack directory, "+
-			"so the generated stack also contains a copy of it; move the source out of the stack directory "+
-			"and select the stack with a // subdirectory in its source",
+		"%[1]s: %[2]s %[3]q in %[4]s sets update_source_with_cas on source %[5]q inside the directory of that stack file, "+
+			"so the generated stack also contains a copy of it; move the %[2]s directory out of that directory "+
+			"and use // in the stack's source to separate the catalog from the stack directory",
 		err.Component,
 		err.Block.BlockType,
 		err.Block.Name,

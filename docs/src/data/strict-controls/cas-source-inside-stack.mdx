@@ -38,15 +38,30 @@ stack "bar" {
 
 Existing support will be retained for v1.x for backwards compatibility, to obey the [Terragrunt 1.0 guarantees](/process/1-0-guarantees#hcl-configurations).
 
-By default, Terragrunt warns once about each such block, naming the block and its source:
+By default, Terragrunt warns once about each such block, pointing at its source:
 
 ```text
-stack bar: unit "foo" in terragrunt.stack.hcl sets update_source_with_cas on source "./units/foo" inside the stack directory, so the generated stack also contains a copy of it; move the source out of the stack directory and select the stack with a // subdirectory in its source
+WARN   Setting the source of a `unit` or `stack` block with `update_source_with_cas` to a directory inside the stack directory is deprecated and will be removed in a future version of Terragrunt.
+WARN   Source inside the stack directory
+ --> ../catalog/terragrunt.stack.hcl:2:28
+  |
+2 |   source                 = "./units/foo"
+  |                            ^^^^^^^^^^^^^
+  |
+  = Stack generation copies the directory of this stack file whole, so the
+    generated stack contains this unit twice, and `run --all` runs the copy
+    too. Move the unit directory out of the directory of this stack file, and
+    use `//` in the stack's source to separate the catalog from the stack
+    directory.
 ```
 
-Enabling the control turns each warning into an error with the same message.
+Enabling the control turns each warning into an error:
 
-Move the stack into a subdirectory of the catalog, keep its sources outside that subdirectory, and select the stack with `//`:
+```text
+stack bar: unit "foo" in terragrunt.stack.hcl sets update_source_with_cas on source "./units/foo" inside the directory of that stack file, so the generated stack also contains a copy of it; move the unit directory out of that directory and use // in the stack's source to separate the catalog from the stack directory
+```
+
+Move the stack into a subdirectory of the catalog, keep its sources outside that subdirectory, and use `//` in the stack's source to separate the catalog from the stack directory:
 
 ```hcl
 # catalog/stacks/bar/terragrunt.stack.hcl
