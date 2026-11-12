@@ -358,12 +358,12 @@ func (c *UnitConfig) resolveIncludedConfig(
 	s *Store,
 	include *pkgconfig.IncludeConfig,
 ) (*UnitConfig, *pkgconfig.TerragruntConfig, error) {
-	includedPC, err := s.includedContext(ctx, v, pc, include)
+	includedCtx, err := s.includedContext(ctx, v, pc, include)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	included, cfg, err := s.resolveFile(ctx, l, v, includedPC, include.Path)
+	included, cfg, err := s.resolveFile(ctx, l, v, includedCtx.pc, include.Path)
 	if err != nil {
 		return included, nil, includeParseError(err, include, pc)
 	}
@@ -371,8 +371,14 @@ func (c *UnitConfig) resolveIncludedConfig(
 	return included, cfg, nil
 }
 
-// includedContext returns the context the file include names is parsed with from pc, the context of the including
-// file. A file with a dependency block parses with its diagnostics suppressed.
+// includedFileContext is how the file an include block names is parsed.
+type includedFileContext struct {
+	pc                 *ParseContext
+	hasDependencyBlock bool
+}
+
+// includedContext returns how the file include names is parsed from pc, the context of the including file. A file
+// with a dependency block parses with its diagnostics suppressed.
 //
 // Returns [pkgconfig.IncludedConfigMissingPathError] when include has no path.
 func (s *Store) includedContext(
@@ -380,23 +386,23 @@ func (s *Store) includedContext(
 	v *venv.Venv,
 	pc *ParseContext,
 	include *pkgconfig.IncludeConfig,
-) (*ParseContext, error) {
+) (includedFileContext, error) {
 	if include.Path == "" {
-		return nil, pkgconfig.IncludedConfigMissingPathError(pc.settings.TerragruntConfigPath)
+		return includedFileContext{}, pkgconfig.IncludedConfigMissingPathError(pc.settings.TerragruntConfigPath)
 	}
 
-	hasDependency, err := s.hasDependencyBlock(ctx, v.FS, include.Path)
+	hasDependencyBlock, err := s.hasDependencyBlock(ctx, v.FS, include.Path)
 	if err != nil {
-		return nil, err
+		return includedFileContext{}, err
 	}
 
 	includedPC := pc.forIncluded(include)
 
-	if hasDependency {
-		return includedPC.withDiagnosticsSuppressed(), nil
+	if hasDependencyBlock {
+		includedPC = includedPC.withDiagnosticsSuppressed()
 	}
 
-	return includedPC, nil
+	return includedFileContext{pc: includedPC, hasDependencyBlock: hasDependencyBlock}, nil
 }
 
 // includedBase is the file an include block names, evaluated through its base blocks.
@@ -429,12 +435,12 @@ func (s *Store) resolveIncludedBase(
 		return nil, includeParseError(err, include, pc)
 	}
 
-	includedPC, err := s.includedContext(ctx, v, pc, include)
+	includedCtx, err := s.includedContext(ctx, v, pc, include)
 	if err != nil {
 		return nil, err
 	}
 
-	includedPC, err = includedPC.incrementDepth()
+	includedPC, err := includedCtx.pc.incrementDepth()
 	if err != nil {
 		return nil, err
 	}
@@ -516,6 +522,67 @@ func (s *Store) includedDependencies(v *venv.Venv, pc *ParseContext) pkgconfig.I
 
 		return included.dependencyBlocks(ctx, l, v)
 	}
+}
+
+// exposedInclude returns the value of the `include` variable for each exposed include block of a parse with pc,
+// converted from the config of the file the block names. Each block resolves once.
+//
+// The file resolves as merging it does. It also fetches its dependency outputs and decodes its run parts, unless it
+// has a dependency block and the parse is partial.
+func (s *Store) exposedInclude(v *venv.Venv, pc *ParseContext) pkgconfig.ExposedInclude {
+	type exposedValue struct {
+		err   error
+		value cty.Value
+	}
+
+	resolved := map[string]exposedValue{}
+
+	return func(
+		ctx context.Context,
+		l log.Logger,
+		_ *pkgconfig.ParsingContext,
+		include *pkgconfig.IncludeConfig,
+	) (cty.Value, error) {
+		if kept, ok := resolved[include.Name]; ok {
+			return kept.value, kept.err
+		}
+
+		value, err := s.resolveExposedInclude(ctx, l, v, pc, include)
+		resolved[include.Name] = exposedValue{value: value, err: err}
+
+		return value, err
+	}
+}
+
+// resolveExposedInclude resolves the file include names from pc and converts its config for the `include` variable.
+//
+// Returns [pkgconfig.IncludedConfigMissingPathError] when include has no path.
+func (s *Store) resolveExposedInclude(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pc *ParseContext,
+	include *pkgconfig.IncludeConfig,
+) (cty.Value, error) {
+	includedCtx, err := s.includedContext(ctx, v, pc, include)
+	if err != nil {
+		return cty.NilVal, err
+	}
+
+	included, cfg, err := s.resolveFile(ctx, l, v, includedCtx.pc, include.Path)
+	if included == nil {
+		return cty.NilVal, includeParseError(err, include, pc)
+	}
+
+	if !includedCtx.hasDependencyBlock || len(pc.settings.PartialParseDecodeList) == 0 {
+		cfg, err = included.ToV1(ctx, l, v, includedCtx.pc)
+	}
+
+	if err != nil {
+		return cty.NilVal, includeParseError(err, include, pc)
+	}
+
+	return pkgconfig.TerragruntConfigAsCty(cfg)
 }
 
 // includeParseError reports a missing included file as [pkgconfig.IncludeConfigNotFoundError].

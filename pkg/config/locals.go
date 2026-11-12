@@ -26,12 +26,15 @@ import (
 //
 // This returns a map of the local names to the evaluated expressions (represented as `cty.Value` objects). This will
 // error if there are remaining unevaluated locals after all references that can be evaluated has been evaluated.
+//
+// The `include` variable the locals read holds what exposed gives for each exposed include block.
 func EvaluateLocalsBlock(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	pctx *ParsingContext,
 	file *hclparse.File,
+	exposed ExposedInclude,
 ) (map[string]cty.Value, error) {
 	localsBlock, err := file.Blocks(MetadataLocals, false)
 	if err != nil {
@@ -52,7 +55,7 @@ func EvaluateLocalsBlock(
 		return nil, err
 	}
 
-	evaluatedLocals, err := evaluateLocalsInOrder(ctx, l, v, pctx, file, attrs)
+	evaluatedLocals, err := evaluateLocalsInOrder(ctx, l, v, pctx, file, attrs, exposed)
 	if err != nil {
 		l.Debugf(
 			"Encountered error while evaluating locals in file %s",
@@ -108,6 +111,7 @@ func evaluateLocalsInOrder(
 	pctx *ParsingContext,
 	file *hclparse.File,
 	attrs hclparse.Attributes,
+	exposed ExposedInclude,
 ) (map[string]cty.Value, error) {
 	graph, byName := localsGraph(attrs)
 	ready := graph.Roots()
@@ -117,7 +121,7 @@ func evaluateLocalsInOrder(
 		return evaluatedLocals, nil
 	}
 
-	evalCtx, err := CreateTerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath)
+	vars, err := TerragruntEvalVariables(ctx, l, pctx, file.ConfigPath, exposed)
 	if err != nil {
 		l.Errorf(
 			"Could not convert include to the execution ctx to evaluate additional locals in file %s",
@@ -125,6 +129,11 @@ func evaluateLocalsInOrder(
 		)
 
 		return evaluatedLocals, err
+	}
+
+	evalCtx := &hcl.EvalContext{
+		Functions: TerragruntFunctions(ctx, l, v, pctx, file.ConfigPath),
+		Variables: vars,
 	}
 
 	for len(ready) > 0 {
