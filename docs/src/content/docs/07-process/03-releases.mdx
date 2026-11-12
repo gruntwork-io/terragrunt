@@ -179,4 +179,6 @@ Tip builds are signed using the same process as official releases. Each build in
 
 Maintainers can manually trigger a test build from any branch using the [`test-build.yml`](https://github.com/gruntwork-io/terragrunt/actions/workflows/test-build.yml) workflow via `workflow_dispatch`. Test builds are versioned as `test-{commit_sha}` and uploaded under the `test` prefix (or `tip` if triggered from `main`).
 
+To build a pull request, including one from a fork, run the workflow from `main` and set `pr_number`. The workflow builds the head commit of the pull request, then comments on the pull request with the install command for that build.
+
 This is useful for giving stakeholders a binary to test before a feature branch is merged.
