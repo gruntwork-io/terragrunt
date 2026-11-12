@@ -1,0 +1,49 @@
+---
+name: empty-dependency-outputs
+since: "v1.2.3"
+---
+
+Support for `dependency` blocks on units that have no outputs.
+
+This experiment is ongoing and disabled by default. Without it, a `dependency` block returns an error when its unit has no outputs and no `mock_outputs` apply.
+
+### `empty-dependency-outputs` - What it does
+
+A [`dependency`](/reference/hcl/blocks#dependency) block reads the outputs of the unit it points at. With this experiment enabled, `dependency.<name>.outputs` is an empty object when that unit has no outputs or has not been applied, so a `dependency` block can order a unit after another without reading anything from it.
+
+```hcl
+dependency "vpc" {
+  config_path = "../vpc"
+}
+```
+
+```bash
+terragrunt run --experiment empty-dependency-outputs -- plan
+```
+
+Together with an [`expansion`](/reference/hcl/blocks/expansion/) block, this orders a unit after a computed set of paths, which otherwise takes a [`dependencies`](/reference/hcl/blocks#dependencies) block.
+
+```hcl
+dependency "upstream" {
+  expansion {
+    for_each = toset(["../vpc", "../rds"])
+  }
+
+  config_path = each.value
+}
+```
+
+`mock_outputs` still take precedence when they apply. Terragrunt still reads the unit's state to look for outputs. Set `skip_outputs = true` to skip that read.
+
+### `empty-dependency-outputs` - How to provide feedback
+
+{/* TODO: link the experiment's GitHub Discussion once it exists. */}
+
+Provide your feedback in the [Terragrunt GitHub Discussions](https://github.com/gruntwork-io/terragrunt/discussions).
+
+### `empty-dependency-outputs` - Criteria for stabilization
+
+To transition the `empty-dependency-outputs` feature to a stable release, the following must be addressed:
+
+- [ ] Community feedback on real-world usage.
+- [ ] Decide whether a `dependency` block still reads state when the configuration references none of its outputs.
