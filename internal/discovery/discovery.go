@@ -127,7 +127,7 @@ func (d *Discovery) Discover(
 			}, func(childCtx context.Context, l log.Logger) error {
 				var phaseErr error
 
-				results, phaseErr = d.runGraphPhase(childCtx, l, v, s, opts, discovered, candidates)
+				results, phaseErr = d.runGraphPhase(childCtx, l, v, s, opts, found)
 
 				return phaseErr
 			})
@@ -247,7 +247,8 @@ func (d *Discovery) Discover(
 
 // walked is what [Discovery.walkAndParse] found.
 type walked struct {
-	// relations is the dependencies the pipeline read from the components, nil when it read none.
+	// relations is the dependencies the pipeline read from the components, nil when the phases ran in its place or
+	// discovery needs none.
 	relations *pipelineRelations
 	// discovered is the components ready for filtering.
 	discovered []DiscoveryResult
@@ -563,16 +564,18 @@ func (d *Discovery) runParsePhase(
 	}, err
 }
 
-// runGraphPhase runs the graph traversal phase.
+// runGraphPhase runs the graph traversal phase over what found holds. When a filter selects dependents, it first
+// links every component to its dependencies, from the dependencies the pipeline read when found has them.
 func (d *Discovery) runGraphPhase(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	s *rewrite.Store,
 	opts *options.TerragruntOptions,
-	discovered []DiscoveryResult,
-	candidates []DiscoveryResult,
+	found walked,
 ) (*PhaseResults, error) {
+	discovered, candidates := found.discovered, found.candidates
+
 	if d.classifier.HasDependentFilters() {
 		allComponents := resultsToComponents(discovered)
 		allComponents = append(allComponents, resultsToComponents(candidates)...)
@@ -582,6 +585,10 @@ func (d *Discovery) runGraphPhase(
 		buildErr := telemetry.TelemeterFromContext(ctx).Collect(
 			ctx, l, "discover_dependents", map[string]any{},
 			func(childCtx context.Context, l log.Logger) error {
+				if found.relations != nil {
+					return errors.Join(found.relations.linkForDependents(childCtx, l, v, allComponents, unparsed)...)
+				}
+
 				return errors.Join(d.buildDependencyGraph(childCtx, l, v, s, opts, allComponents, unparsed)...)
 			})
 
@@ -739,36 +746,43 @@ func (d *Discovery) buildComponentDependencies(
 		return err
 	}
 
-	if len(depPaths) == 0 {
-		return nil
-	}
+	linkGraphDependencies(v.FS, c, depPaths, threadSafeComponents)
 
+	return nil
+}
+
+// linkGraphDependencies links c to the component at each of depPaths, taking it from components or adding it there
+// as one the graph reached from c.
+func linkGraphDependencies(
+	fsys vfs.FS,
+	c component.Component,
+	depPaths []string,
+	components *component.ThreadSafeComponents,
+) {
 	parentCtx := c.DiscoveryContext()
 	if parentCtx == nil {
-		return nil
+		return
 	}
 
 	for _, depPath := range depPaths {
-		depComponent := componentFromDependencyPath(v.FS, depPath, threadSafeComponents)
+		depComponent := componentFromDependencyPath(fsys, depPath, components)
 
 		if dctx := depComponent.DiscoveryContext(); dctx == nil || dctx.WorkingDir == "" {
 			depComponent.SetDiscoveryContext(
 				parentCtx.CopyWithNewOrigin(component.OriginGraphDiscovery),
 			)
 
-			if isExternal(v.FS, parentCtx.WorkingDir, depPath) {
+			if isExternal(fsys, parentCtx.WorkingDir, depPath) {
 				if ext, ok := depComponent.(*component.Unit); ok {
 					ext.SetExternal()
 				}
 			}
 		}
 
-		addedComponent, _ := threadSafeComponents.EnsureComponent(depComponent)
+		addedComponent, _ := components.EnsureComponent(depComponent)
 
 		c.AddDependency(addedComponent)
 	}
-
-	return nil
 }
 
 // removeCycles removes cycles from the dependency graph.

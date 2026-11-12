@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/hashicorp/hcl/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -139,6 +140,27 @@ func TestDiscoveryPipelineMatchesPhasesWithRacing(t *testing.T) {
 			queries: []string{"...db"},
 			configure: func(d *discovery.Discovery) *discovery.Discovery {
 				return d.WithSuppressParseErrors()
+			},
+		},
+		{
+			name:    "dependents of the dependents of a unit",
+			queries: []string{"...vpc"},
+			configure: func(d *discovery.Discovery) *discovery.Discovery {
+				return d.WithSuppressParseErrors()
+			},
+		},
+		{
+			name:    "dependents and dependencies of a unit",
+			queries: []string{"...db..."},
+			configure: func(d *discovery.Discovery) *discovery.Discovery {
+				return d.WithSuppressParseErrors()
+			},
+		},
+		{
+			name:    "dependents of a unit within a boundary",
+			queries: []string{"...db"},
+			configure: func(d *discovery.Discovery) *discovery.Discovery {
+				return d.WithDiscoveryBoundary("apps").WithSuppressParseErrors()
 			},
 		},
 		{
@@ -301,6 +323,42 @@ func TestDiscoveryPipelineReportsDependenciesWithoutAConfig(t *testing.T) {
 		},
 		dependencyChain(got[0]),
 	)
+}
+
+func TestDiscoveryPipelineSkipsUnitsOutsideTheDependentBoundary(t *testing.T) {
+	t.Parallel()
+
+	run := pipelineRun{
+		files: map[string]string{
+			"live/account/terragrunt.hcl":   "",
+			"live/roles/terragrunt.hcl":     dependenciesOn("../account"),
+			"catalog/roles/terragrunt.hcl":  "locals {\n",
+			"catalog/users/terragrunt.hcl":  dependenciesOn("../../live/account"),
+			"live/unrelated/terragrunt.hcl": "",
+		},
+		queries: []string{"...{./live/account}"},
+		configure: func(d *discovery.Discovery) *discovery.Discovery {
+			return d.WithDiscoveryBoundary("live")
+		},
+		usePipeline: true,
+	}
+
+	got, err := run.discover(t.Context(), t)
+	require.NoError(t, err)
+
+	assert.ElementsMatch(
+		t,
+		[]string{
+			filepath.Join(corpusRepoRoot, "live", "account"),
+			filepath.Join(corpusRepoRoot, "live", "roles"),
+		},
+		got.Paths(),
+	)
+
+	run.configure = nil
+
+	_, err = run.discover(t.Context(), t)
+	require.ErrorAs(t, err, new(hcl.Diagnostics))
 }
 
 // dependenciesOn returns a unit config that depends on the units at paths.

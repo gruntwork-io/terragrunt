@@ -28,12 +28,12 @@ type pipelineRelations struct {
 	discovery *Discovery
 	opts      *options.TerragruntOptions
 	store     *rewrite.Store
-	// declared maps each component a worker read to the dependencies it declares.
+	// declared maps each component whose dependencies have been read to the dependencies it declares.
 	declared map[component.Component]dependencyPaths
 }
 
 // readDependencyPaths parses c when nothing has yet and returns the dependencies it declares. A component that is
-// not a unit declares none.
+// not a unit declares none. The caller sets the parse phase on ctx.
 func readDependencyPaths(
 	ctx context.Context,
 	l log.Logger,
@@ -47,8 +47,6 @@ func readDependencyPaths(
 	if !ok {
 		return dependencyPaths{}
 	}
-
-	ctx = contextWithParsePhase(ctx, parsePhaseTagRelationship)
 
 	if err := ensureParsed(ctx, l, v, s, c, opts, d); err != nil {
 		return dependencyPaths{err: err}
@@ -86,21 +84,9 @@ func (r *pipelineRelations) link(
 		maxDepth = defaultMaxDependencyDepth
 	}
 
-	var unread []*component.Unit
+	ctx = contextWithParsePhase(ctx, parsePhaseTagRelationship)
 
-	for _, c := range components {
-		if _, read := r.declared[c]; read {
-			continue
-		}
-
-		if unit, ok := c.(*component.Unit); ok {
-			unread = append(unread, unit)
-		}
-	}
-
-	for i, declared := range r.readAll(ctx, l, v, unread) {
-		r.declared[unread[i]] = declared
-	}
+	r.readUnread(ctx, l, v, components, nil)
 
 	linker := &dependencyLinker{
 		discovery:  d,
@@ -145,6 +131,75 @@ func (r *pipelineRelations) link(
 	}
 
 	return errors.Join(errs...)
+}
+
+// linkForDependents links each of components to the dependencies it declares, so a traversal can find the dependents
+// of any of them. A dependency that is none of them becomes a component the graph phase can reach. A component whose
+// path is in unparsed is neither read nor linked.
+//
+// Returns the errors of reading the dependencies.
+func (r *pipelineRelations) linkForDependents(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	components component.Components,
+	unparsed map[string]struct{},
+) []error {
+	ctx = contextWithParsePhase(ctx, parsePhaseTagDependencyGraph)
+
+	r.readUnread(ctx, l, v, components, unparsed)
+
+	shared := component.NewThreadSafeComponents(r.discovery.paths, components)
+
+	var errs []error
+
+	for _, c := range components {
+		if _, skip := unparsed[c.Path()]; skip {
+			l.Debugf("Discovery: %s is outside every dependent boundary; not parsing it", c.Path())
+			continue
+		}
+
+		declared := r.declared[c]
+		if declared.err != nil {
+			errs = append(errs, declared.err)
+
+			continue
+		}
+
+		linkGraphDependencies(v.FS, c, declared.paths, shared)
+	}
+
+	return errs
+}
+
+// readUnread reads the dependencies of each unit among components that has none in declared and whose path is not
+// in unparsed, and records them in declared.
+func (r *pipelineRelations) readUnread(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	components component.Components,
+	unparsed map[string]struct{},
+) {
+	var unread []*component.Unit
+
+	for _, c := range components {
+		if _, read := r.declared[c]; read {
+			continue
+		}
+
+		if _, skip := unparsed[c.Path()]; skip {
+			continue
+		}
+
+		if unit, ok := c.(*component.Unit); ok {
+			unread = append(unread, unit)
+		}
+	}
+
+	for i, declared := range r.readAll(ctx, l, v, unread) {
+		r.declared[unread[i]] = declared
+	}
 }
 
 // readAll returns the dependencies each of units declares, in the order of units.
