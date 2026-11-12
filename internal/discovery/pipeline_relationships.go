@@ -67,7 +67,8 @@ func readDependencyPaths(
 	return dependencyPaths{paths: paths}
 }
 
-// link adds the dependencies the pipeline read to components, which are the components discovery found. A
+// link adds the dependencies the pipeline read to components, which are the components discovery found. It first
+// reads the dependencies of each unit among them that no worker read, such as one the graph phase reached. A
 // dependency that is none of them becomes a unit that only its dependents reach, and link reads the dependencies of
 // each such unit in turn, once per path, until none is new or the dependency depth runs out.
 //
@@ -83,6 +84,22 @@ func (r *pipelineRelations) link(
 	maxDepth := d.maxDependencyDepth
 	if maxDepth <= 0 {
 		maxDepth = defaultMaxDependencyDepth
+	}
+
+	var unread []*component.Unit
+
+	for _, c := range components {
+		if _, read := r.declared[c]; read {
+			continue
+		}
+
+		if unit, ok := c.(*component.Unit); ok {
+			unread = append(unread, unit)
+		}
+	}
+
+	for i, declared := range r.readAll(ctx, l, v, unread) {
+		r.declared[unread[i]] = declared
 	}
 
 	linker := &dependencyLinker{
