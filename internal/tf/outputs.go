@@ -8,7 +8,6 @@ import (
 	"github.com/hashicorp/hcl/v2"
 
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
-	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 )
 
@@ -21,14 +20,9 @@ var outputBlockSchema = &hcl.BodySchema{
 	},
 }
 
-// ModuleOutputs returns the sorted distinct output names of the module files at modulePath that impl reads.
-func ModuleOutputs(fsys vfs.FS, modulePath string, impl tfimpl.Type) ([]string, error) {
-	files, err := util.ListTfFiles(fsys, modulePath)
-	if err != nil {
-		return nil, err
-	}
-
-	body, err := parseModuleFiles(fsys, EngineFiles(files, impl))
+// ModuleOutputs returns the sorted distinct output names that the module files declare.
+func ModuleOutputs(fsys vfs.FS, files []string) ([]string, error) {
+	body, err := parseModuleFiles(fsys, files)
 	if err != nil {
 		return nil, err
 	}
@@ -49,8 +43,8 @@ func ModuleOutputs(fsys vfs.FS, modulePath string, impl tfimpl.Type) ([]string, 
 	return slices.Compact(names), nil
 }
 
-// EngineFiles returns the files impl reads: no dot file, OpenTofu no .tf twin of a .tofu file, Terraform no .tofu file.
-func EngineFiles(paths []string, impl tfimpl.Type) []string {
+// ImplFiles returns the files impl reads: no dot file, OpenTofu no .tf twin of a .tofu file, Terraform no .tofu file.
+func ImplFiles(paths []string, impl tfimpl.Type) []string {
 	files := slices.DeleteFunc(slices.Clone(paths), func(path string) bool {
 		return strings.HasPrefix(filepath.Base(path), ".")
 	})

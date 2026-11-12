@@ -86,6 +86,7 @@ blocks:
 ---
 
 import { Aside } from '@astrojs/starlight/components';
+import SideBySide from '@components/SideBySide.astro';
 
 <Aside type="tip" title="Experimental">
   The `outputs` block needs the [`outputs-block`](/reference/experiments/active#outputs-block) experiment. Enable it with `--experiment outputs-block` or `TG_EXPERIMENT=outputs-block`. Without the experiment, a config that has the block fails with an error.
@@ -97,11 +98,39 @@ You declare the mock values once, in the unit that produces the outputs. Its dep
 
 Dependents read the mock values while the unit has no state yet or its state has no outputs. The rules are the same as for `mock_outputs`. Any other error while reading the state fails the run.
 
-The block goes in a unit's `terragrunt.hcl`. A stack file does not accept it. A [`variables`](/reference/hcl/blocks#variables) block can read the declared outputs too, the same way `inputs` does.
-
 ### With a dependency block
 
-Settings on a `dependency` block override the `outputs` block of the unit it reads:
+A `dependency` block reads the `outputs` block of the unit it points at. For each output, it takes the value from the unit's state when the state has one, and the declared `mock_value` otherwise.
+
+<SideBySide>
+
+```hcl title="vpc/terragrunt.hcl"
+outputs {
+  mock_strategy {
+    allowed_commands = ["validate", "plan"]
+  }
+
+  output "vpc_id" {
+    mock_value = "vpc-mock-id"
+  }
+}
+```
+
+```hcl title="eks/terragrunt.hcl"
+dependency "vpc" {
+  config_path = "../vpc"
+}
+
+inputs = {
+  vpc_id = dependency.vpc.outputs.vpc_id
+}
+```
+
+</SideBySide>
+
+Before `vpc` is applied, a `plan` of `eks` resolves `dependency.vpc.outputs.vpc_id` to `"vpc-mock-id"`. Once `vpc` is applied, the same expression resolves to the `vpc_id` in its state. An `apply` of `eks` gets no mock value, because `allowed_commands` lists only `validate` and `plan`.
+
+Settings on the `dependency` block override the `outputs` block of the unit it reads:
 
 - `mock_outputs` overrides `mock_value` one key at a time. A key that `mock_outputs` leaves out keeps its declared mock value.
 - `mock_outputs_allowed_terraform_commands` and `mock_outputs_merge_strategy_with_state` override `mock_strategy` when set.
@@ -110,33 +139,60 @@ When the unit has outputs in state, every declared output has to be among them. 
 
 `render` prints the `dependency` block as you wrote it. The declared mock values appear in the resolved `inputs`.
 
-A `dependency` block whose `config_path` points at a stack reads no `outputs` block.
-
-When a `dependency` block reads a unit without an `outputs` block, Terragrunt prints the `outputs-block` tip once per run. Turn it off with `--no-tip outputs-block`.
-
 ### Through include
 
 An included file can declare the `outputs` block. With a `shallow` merge, the unit's own `outputs` block replaces the included one. With a `deep` merge, Terragrunt combines the two blocks by output name. When both declare the same output, the unit's declaration wins.
 
 ### Checking outputs with hcl validate
 
-[`terragrunt hcl validate --outputs`](/reference/cli/commands/hcl/validate#outputs) runs two checks:
+[`terragrunt hcl validate --outputs`](/reference/cli/commands/hcl/validate#outputs) checks the `outputs` blocks. For the validation to pass:
 
-- Every declared output exists in the OpenTofu/Terraform module the unit runs.
-- Every `dependency.<name>.outputs.<output>` reference names an output that the dependency declares. The check skips a dependency that has no `outputs` block.
+- Every declared output has to exist in the OpenTofu/Terraform module the unit runs.
+- Every `dependency.<name>.outputs.<output>` reference has to name an output that the dependency declares. The check skips a dependency that has no `outputs` block.
 
 Without the flag, `hcl validate` runs neither check.
+
+In this example, `eks` reads `subnet_ids`, an output that `vpc` does not declare:
+
+<SideBySide>
+
+```hcl title="vpc/terragrunt.hcl"
+outputs {
+  output "vpc_id" {
+    mock_value = "vpc-mock-id"
+  }
+}
+```
+
+```hcl title="eks/terragrunt.hcl"
+dependency "vpc" {
+  config_path = "../vpc"
+}
+
+inputs = {
+  vpc_id     = dependency.vpc.outputs.vpc_id
+  subnet_ids = dependency.vpc.outputs.subnet_ids
+}
+```
+
+</SideBySide>
 
 ```bash
 terragrunt hcl validate --outputs --experiment outputs-block
 ```
 
-For the first check, Terragrunt reads the module the way a run does. It downloads the unit's `terraform.source` and adds the files your `generate` blocks produce, without writing them to disk. It runs no hooks, so it does not see a file that a hook writes.
+The validation fails and points at the reference:
 
-Terragrunt reads the module files as the unit's OpenTofu/Terraform binary does. With OpenTofu, a `.tofu` file replaces the `.tf` file of the same name. With Terraform, it ignores `.tofu` files.
+```text
+error: Undeclared dependency output
+ --> eks/terragrunt.hcl:7:16
+  |
+7 |   subnet_ids = dependency.vpc.outputs.subnet_ids
+  |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = dependency "vpc" declares its outputs, and "subnet_ids" is not one of
+    them. Declared outputs: vpc_id. Fix the reference or add output
+    "subnet_ids" to the outputs block of the dependency.
+```
 
-The second check covers the unit file, the files it includes, and its autoinclude file. Each error points at the file that has the reference. When the autoinclude file overrides a `dependency` block, the check uses the overriding block.
-
-The check accepts both forms of a reference, so it treats `dependency["vpc"].outputs["vpc_id"]` like `dependency.vpc.outputs.vpc_id`. It checks a reference to one instance of an expanded dependency, e.g. `dependency.vpc["primary"].outputs.vpc_id`, against that instance.
-
-Neither check runs on a unit written as `terragrunt.hcl.json`. The second check skips an include with `merge_strategy = "no_merge"` and without `expose = true`. It also skips a reference whose instance key or output name is computed, e.g. `dependency.vpc.outputs[local.name]`.
+To make it pass, declare `subnet_ids` in the `outputs` block of `vpc`, or remove the reference from `eks`.

@@ -6,6 +6,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -106,7 +107,10 @@ output "subnet_ids" {
 				require.NoError(t, vfs.WriteFile(fsys, filepath.Join(moduleDir, name), []byte(content), 0o644))
 			}
 
-			outputs, err := tf.ModuleOutputs(fsys, moduleDir, tc.impl)
+			files, err := util.ListTfFiles(fsys, moduleDir)
+			require.NoError(t, err)
+
+			outputs, err := tf.ModuleOutputs(fsys, tf.ImplFiles(files, tc.impl))
 			require.NoError(t, err)
 			assert.Equal(t, tc.expected, outputs)
 		})
@@ -121,6 +125,6 @@ func TestModuleOutputsUnparseableModule(t *testing.T) {
 
 	require.NoError(t, vfs.WriteFile(fsys, filepath.Join(moduleDir, "main.tf"), []byte(`output "broken" {`), 0o644))
 
-	_, err := tf.ModuleOutputs(fsys, moduleDir, tfimpl.OpenTofu)
+	_, err := tf.ModuleOutputs(fsys, []string{filepath.Join(moduleDir, "main.tf")})
 	require.Error(t, err)
 }

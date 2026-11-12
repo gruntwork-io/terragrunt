@@ -1194,16 +1194,23 @@ func TestDependencyReadGivesOutputsBlockTip(t *testing.T) {
 	testCases := []struct {
 		name          string
 		vpcConfig     string
+		experiments   []string
 		expectedTipAt []string
 	}{
 		{
 			name:          "a unit without an outputs block gets the tip",
 			vpcConfig:     ``,
+			experiments:   []string{experiment.OutputsBlock},
 			expectedTipAt: []string{filepath.Join("vpc", config.DefaultTerragruntConfigPath)},
 		},
 		{
-			name:      "a unit with an outputs block gets no tip",
-			vpcConfig: outputsBlockConfig,
+			name:        "a unit with an outputs block gets no tip",
+			vpcConfig:   outputsBlockConfig,
+			experiments: []string{experiment.OutputsBlock},
+		},
+		{
+			name:      "without the experiment there is no tip",
+			vpcConfig: ``,
 		},
 	}
 
@@ -1224,7 +1231,10 @@ func TestDependencyReadGivesOutputsBlockTip(t *testing.T) {
 			l := createLogger()
 			v := venv.MemVenv().WithFS(fsys).WithExec(vexec.NewMemExec(tofuOutputStub(nil)))
 			ctx, pctx := newDependentParsingContext(t, appConfigPath, "plan")
-			require.NoError(t, pctx.Experiments.EnableExperiment(experiment.OutputsBlock))
+
+			for _, name := range tc.experiments {
+				require.NoError(t, pctx.Experiments.EnableExperiment(name))
+			}
 
 			var tippedAt []string
 

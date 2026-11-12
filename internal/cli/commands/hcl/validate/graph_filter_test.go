@@ -11,9 +11,7 @@ import (
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/internal/view/diagnostic"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -23,22 +21,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// validateResult is what one hcl validate run over an in-memory repository produced.
+// validateResult is what one hcl validate run over a repository produced.
 type validateResult struct {
 	err   error
-	fs    vfs.FS
 	root  string
 	diags diagnostic.Diagnostics
 }
 
-// validateRun describes one hcl validate run over an in-memory repository.
+// validateRun describes one hcl validate run over a repository.
 type validateRun struct {
-	fs              vfs.FS
 	files           map[string]string
 	links           map[string]string
 	env             map[string]string
-	exec            vexec.Exec
-	http            vhttp.Client
 	authProviderCmd string
 	tfPath          string
 	experiments     []string
@@ -46,30 +40,30 @@ type validateRun struct {
 	strictControls  []string
 	inputs          bool
 	outputs         bool
-	onDisk          bool
 }
 
-// runValidate runs hcl validate as run describes and decodes the diagnostics it writes.
+// runValidate runs hcl validate as run describes over an in-memory repository and decodes its diagnostics.
 func runValidate(t *testing.T, run *validateRun) validateResult {
+	t.Helper()
+
+	return runValidateIn(t, venv.MemVenv(), venvtest.Root("/repo"), run)
+}
+
+// runValidateIn writes the repository of run at root in v, runs hcl validate there and decodes its diagnostics.
+func runValidateIn(t *testing.T, v *venv.Venv, root string, run *validateRun) validateResult {
 	t.Helper()
 
 	var stdout bytes.Buffer
 
-	root, fsys := repository(t, run)
+	for path, content := range run.files {
+		require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(root, filepath.FromSlash(path)), []byte(content), 0o644))
+	}
 
 	for link, target := range run.links {
-		require.NoError(t, vfs.Symlink(fsys, filepath.Join(root, target), filepath.Join(root, link)))
+		require.NoError(t, vfs.Symlink(v.FS, filepath.Join(root, target), filepath.Join(root, link)))
 	}
 
-	v := venv.MemVenv().WithFS(fsys).WithWriter(&stdout)
-	if run.exec != nil {
-		v = v.WithExec(run.exec)
-	}
-
-	if run.http != nil {
-		v = v.WithHTTP(run.http)
-	}
-
+	v = v.WithWriter(&stdout)
 	if run.env != nil {
 		v = v.WithEnv(run.env)
 	}
@@ -103,7 +97,7 @@ func runValidate(t *testing.T, run *validateRun) validateResult {
 	}
 
 	ctx := config.WithCaches(t.Context())
-	result := validateResult{root: root, fs: fsys}
+	result := validateResult{root: root}
 
 	entry := validate.RunValidate
 	if run.inputs {
@@ -117,31 +111,6 @@ func runValidate(t *testing.T, run *validateRun) validateResult {
 	}
 
 	return result
-}
-
-// repository returns the root and the filesystem holding the files of run: in memory, or on disk when run asks.
-func repository(t *testing.T, run *validateRun) (string, vfs.FS) {
-	t.Helper()
-
-	if !run.onDisk && run.fs == nil {
-		root := venvtest.Root("/repo")
-
-		return root, venvtest.NewFS(t, root, run.files)
-	}
-
-	root := venvtest.Root("/repo")
-	fsys := run.fs
-
-	if run.onDisk {
-		root = t.TempDir()
-		fsys = vfs.NewOSFS()
-	}
-
-	for path, content := range run.files {
-		require.NoError(t, vfs.WriteFile(fsys, filepath.Join(root, filepath.FromSlash(path)), []byte(content), 0o644))
-	}
-
-	return root, fsys
 }
 
 // requireMissingDependencyAt requires that the only diagnostic reports a missing dependency at line of file.

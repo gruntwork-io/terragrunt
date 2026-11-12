@@ -18,7 +18,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl/validate"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -26,8 +25,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
-	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
@@ -718,11 +715,13 @@ func TestRunValidateOutputsContractsLeavesUnitDirectory(t *testing.T) {
 		"vpc/terragrunt.hcl": generatedOutputsConfig,
 	})
 
-	result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}, outputs: true})
+	v := venv.MemVenv()
+	run := &validateRun{files: files, experiments: []string{experiment.OutputsBlock}, outputs: true}
+	result := runValidateIn(t, v, venvtest.Root("/repo"), run)
 
 	require.NoError(t, result.err)
 	assert.Empty(t, result.diags)
-	assert.False(t, vfs.Exists(result.fs, filepath.Join(result.root, "vpc", "subnets.tf")))
+	assert.False(t, vfs.Exists(v.FS, filepath.Join(result.root, "vpc", "subnets.tf")))
 }
 
 // TestRunValidateOutputsContractsInputsMode expects --inputs to run the same checks and report them as errors.
@@ -913,12 +912,11 @@ func TestRunValidateOutputsContractsReadsLinkedModuleFiles(t *testing.T) {
 	})
 	delete(files, "vpc/main.tf")
 
-	result := runValidate(t, &validateRun{
+	result := runValidateIn(t, venv.MemVenv().WithFS(vfs.NewOSFS()), t.TempDir(), &validateRun{
 		files:       files,
 		links:       map[string]string{"vpc/outputs.tf": "shared/outputs.tf"},
 		experiments: []string{experiment.OutputsBlock},
 		outputs:     true,
-		onDisk:      true,
 	})
 
 	require.NoError(t, result.err)
@@ -949,12 +947,14 @@ outputs {
 	})
 	delete(files, "vpc/main.tf")
 
-	result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}, outputs: true})
+	v := venv.MemVenv()
+	run := &validateRun{files: files, experiments: []string{experiment.OutputsBlock}, outputs: true}
+	result := runValidateIn(t, v, venvtest.Root("/repo"), run)
 
 	require.NoError(t, result.err)
 	assert.Empty(t, result.diags)
-	assert.True(t, vfs.Exists(result.fs, filepath.Join(result.root, "vpc", ".terragrunt-cache")))
-	assert.False(t, vfs.Exists(result.fs, filepath.Join(result.root, ".terragrunt-cache")))
+	assert.True(t, vfs.Exists(v.FS, filepath.Join(result.root, "vpc", ".terragrunt-cache")))
+	assert.False(t, vfs.Exists(v.FS, filepath.Join(result.root, ".terragrunt-cache")))
 }
 
 // TestRunValidateOutputsContractsRunsNoHook expects the fetch of a source to run none of the hooks of the unit.
@@ -1053,7 +1053,9 @@ outputs {
 `,
 			})
 
-			result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}, outputs: true})
+			v := venv.MemVenv()
+			run := &validateRun{files: files, experiments: []string{experiment.OutputsBlock}, outputs: true}
+			result := runValidateIn(t, v, venvtest.Root("/repo"), run)
 
 			if tc.fails {
 				require.ErrorAs(t, result.err, new(validate.OutputsContractError))
@@ -1064,7 +1066,7 @@ outputs {
 			require.NoError(t, result.err)
 			assert.Empty(t, result.diags)
 
-			backend, err := vfs.ReadFile(result.fs, filepath.Join(result.root, "vpc", "backend.tf"))
+			backend, err := vfs.ReadFile(v.FS, filepath.Join(result.root, "vpc", "backend.tf"))
 			require.NoError(t, err)
 			assert.Equal(t, "terraform {}\n", string(backend), "the unit directory keeps its own file")
 		})
@@ -1402,8 +1404,8 @@ outputs {
 	}
 }
 
-// TestRunValidateOutputsContractsReadsTheEngineFiles expects the module files of the binary of the run to be read.
-func TestRunValidateOutputsContractsReadsTheEngineFiles(t *testing.T) {
+// TestRunValidateOutputsContractsReadsTheFilesOfTheUnitBinary reads the module files the binary of the unit reads.
+func TestRunValidateOutputsContractsReadsTheFilesOfTheUnitBinary(t *testing.T) {
 	t.Parallel()
 
 	const (
@@ -1417,6 +1419,7 @@ func TestRunValidateOutputsContractsReadsTheEngineFiles(t *testing.T) {
 		tfPath          string
 		terraformBinary string
 		missing         string
+		engine          bool
 	}{
 		{
 			name:    "opentofu does not read the .tf file beside its .tofu twin",
@@ -1453,6 +1456,12 @@ func TestRunValidateOutputsContractsReadsTheEngineFiles(t *testing.T) {
 			name:   "a binary that cannot be probed reads every module file",
 			tfPath: "tofu",
 		},
+		{
+			name:   "a unit with an engine block reads every module file",
+			tfPath: "tofu",
+			probes: map[string]string{"tofu": openTofu},
+			engine: true,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -1464,15 +1473,19 @@ func TestRunValidateOutputsContractsReadsTheEngineFiles(t *testing.T) {
 				terraformBinary = `terraform_binary = "` + tc.terraformBinary + `"`
 			}
 
-			var exec vexec.Exec
-			if tc.probes != nil {
-				exec = versionProbe(tc.probes)
+			engine := ""
+			if tc.engine {
+				engine = `
+engine {
+  source = "example.com/acme/engine"
+}
+`
 			}
 
 			files := map[string]string{
 				"vpc/main.tf":   `output "retired" { value = "retired" }`,
 				"vpc/main.tofu": `output "current" { value = "current" }`,
-				"vpc/terragrunt.hcl": terraformBinary + `
+				"vpc/terragrunt.hcl": terraformBinary + engine + `
 outputs {
   output "retired" {
     mock_value = "mock-retired"
@@ -1485,12 +1498,12 @@ outputs {
 `,
 			}
 
-			result := runValidate(t, &validateRun{
+			v := venv.MemVenv().WithExec(versionProbe(tc.probes))
+			result := runValidateIn(t, v, venvtest.Root("/repo"), &validateRun{
 				files:       files,
 				experiments: []string{experiment.OutputsBlock},
 				outputs:     true,
 				tfPath:      tc.tfPath,
-				exec:        exec,
 			})
 
 			if tc.missing == "" {
@@ -1556,12 +1569,10 @@ outputs {
 		return vexec.Result{Err: errors.New("only the credentials command runs")}
 	})
 
-	result := runValidate(t, &validateRun{
-		fs:              fsys,
+	result := runValidateIn(t, venv.MemVenv().WithFS(fsys).WithExec(exec), venvtest.Root("/repo"), &validateRun{
 		files:           files,
 		experiments:     []string{experiment.OutputsBlock},
 		outputs:         true,
-		exec:            exec,
 		authProviderCmd: "fetch-creds",
 	})
 
@@ -1609,12 +1620,10 @@ terraform {
 		return vhttp.Respond(http.StatusForbidden, []byte(stsAccessDenied), nil), nil
 	})
 
-	result := runValidate(t, &validateRun{
-		fs:          fsys,
+	result := runValidateIn(t, venv.MemVenv().WithFS(fsys).WithHTTP(denied), venvtest.Root("/repo"), &validateRun{
 		files:       files,
 		experiments: []string{experiment.OutputsBlock},
 		outputs:     true,
-		http:        denied,
 		env: map[string]string{
 			"AWS_REGION":            "us-east-1",
 			"AWS_ACCESS_KEY_ID":     "caller-key-id",
@@ -1632,8 +1641,8 @@ terraform {
 	assert.False(t, vfs.Exists(fsys, cacheDir), "nothing is fetched without the role")
 }
 
-// TestRunValidateOutputsContractsFetchesFromTheRegistryOfTheUnitEngine expects terraform_binary to pick the registry.
-func TestRunValidateOutputsContractsFetchesFromTheRegistryOfTheUnitEngine(t *testing.T) {
+// TestRunValidateOutputsContractsFetchesFromTheRegistryOfTheUnitBinary expects terraform_binary to pick the registry.
+func TestRunValidateOutputsContractsFetchesFromTheRegistryOfTheUnitBinary(t *testing.T) {
 	t.Parallel()
 
 	files := withFiles(outputsContractFiles, map[string]string{
@@ -1661,12 +1670,12 @@ terraform {
 		return vhttp.Respond(http.StatusNotFound, nil, nil), nil
 	})
 
-	result := runValidate(t, &validateRun{
+	probe := versionProbe(map[string]string{"tofu": "OpenTofu v1.10.0", "terraform": "Terraform v1.9.0"})
+
+	result := runValidateIn(t, venv.MemVenv().WithHTTP(missing).WithExec(probe), venvtest.Root("/repo"), &validateRun{
 		files:       files,
 		experiments: []string{experiment.OutputsBlock},
 		outputs:     true,
-		http:        missing,
-		exec:        versionProbe(map[string]string{"tofu": "OpenTofu v1.10.0", "terraform": "Terraform v1.9.0"}),
 	})
 
 	require.Error(t, result.err)
@@ -1703,7 +1712,8 @@ outputs {
 	})
 	delete(files, "vpc/main.tf")
 
-	result := runValidate(t, &validateRun{
+	v := venv.MemVenv()
+	result := runValidateIn(t, v, venvtest.Root("/repo"), &validateRun{
 		files:       files,
 		experiments: []string{experiment.OutputsBlock, experiment.NoDotTerragruntCache},
 		outputs:     true,
@@ -1711,7 +1721,7 @@ outputs {
 
 	require.ErrorAs(t, result.err, new(validate.OutputsContractError))
 	require.ErrorAs(t, result.err, new(runcfg.NoDotTerragruntCacheWithSourceError))
-	assert.False(t, vfs.Exists(result.fs, filepath.Join(result.root, "vpc", ".terragrunt-cache")))
+	assert.False(t, vfs.Exists(v.FS, filepath.Join(result.root, "vpc", ".terragrunt-cache")))
 }
 
 // TestRunValidateOutputsContractsChecksTheIncludesOfTheAutoinclude checks the files the autoinclude merges.
@@ -1911,21 +1921,27 @@ func TestRunValidateChecksOutputsContractsOnlyWithTheFlag(t *testing.T) {
 func TestRunOutputsFlagRequiresExperiment(t *testing.T) {
 	t.Parallel()
 
-	root := venvtest.Root("/repo")
-	fsys := venvtest.NewFS(t, root, map[string]string{"app/terragrunt.hcl": "\n"})
+	testCases := []struct {
+		name   string
+		inputs bool
+	}{
+		{name: "the command fails before it reads a unit", inputs: true},
+		{name: "the check of a unit fails when it is reached directly"},
+	}
 
-	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(root, config.DefaultTerragruntConfigPath))
-	require.NoError(t, err)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	opts.HCLValidateOutputs = true
+			result := runValidate(t, &validateRun{
+				files:   map[string]string{"app/terragrunt.hcl": "\n"},
+				inputs:  tc.inputs,
+				outputs: true,
+			})
 
-	v := venv.MemVenv().WithFS(fsys)
-
-	err = validate.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(rewrite.Store), opts)
-
-	var experimentErr validate.OutputsExperimentRequiredError
-
-	require.ErrorAs(t, err, &experimentErr)
+			require.ErrorAs(t, result.err, new(validate.OutputsExperimentRequiredError))
+		})
+	}
 }
 
 // TestRunValidateOutputsContractsParseEachConfigOnce expects one read per config, however many units share it.
@@ -1958,9 +1974,8 @@ dependency "network" {
 
 	opens := func(outputs bool) map[string]int {
 		fsys := newOpenCountingFS()
-		result := runValidate(t, &validateRun{
+		result := runValidateIn(t, venv.MemVenv().WithFS(fsys), venvtest.Root("/repo"), &validateRun{
 			files:       files,
-			fs:          fsys,
 			experiments: []string{experiment.OutputsBlock},
 			outputs:     outputs,
 		})
@@ -2015,9 +2030,8 @@ inputs = {
 
 	opens := func(experiments ...string) int {
 		fsys := newOpenCountingFS()
-		result := runValidate(t, &validateRun{
+		result := runValidateIn(t, venv.MemVenv().WithFS(fsys), venvtest.Root("/repo"), &validateRun{
 			files:       files,
-			fs:          fsys,
 			experiments: experiments,
 			outputs:     len(experiments) > 0,
 		})
