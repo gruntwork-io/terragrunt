@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -158,6 +161,152 @@ func TestDiscoveryPipelineMatchesPhasesWithRacing(t *testing.T) {
 			assert.Equal(t, componentViews(want), componentViews(got))
 		})
 	}
+}
+
+func TestDiscoveryPipelineRelatesDependenciesOutsideTheFiltersWithRacing(t *testing.T) {
+	t.Parallel()
+
+	run := pipelineRun{
+		files: map[string]string{
+			"apps/api/terragrunt.hcl":      dependenciesOn("../web", "../../infra/vpc"),
+			"apps/web/terragrunt.hcl":      dependenciesOn("../../infra/vpc"),
+			"infra/vpc/terragrunt.hcl":     dependenciesOn("../network"),
+			"infra/network/terragrunt.hcl": dependenciesOn("../account"),
+			"infra/account/terragrunt.hcl": "",
+		},
+		queries: []string{"./apps/**"},
+		configure: func(d *discovery.Discovery) *discovery.Discovery {
+			return d.WithRelationships()
+		},
+	}
+
+	want, err := run.discover(t.Context(), t)
+	require.NoError(t, err)
+
+	run.usePipeline = true
+
+	got, err := run.discover(t.Context(), t)
+	require.NoError(t, err)
+
+	assert.Equal(t, componentViews(want), componentViews(got))
+
+	byPath := make(map[string]component.Component, len(got))
+	for _, c := range got {
+		byPath[c.Path()] = c
+	}
+
+	api := byPath[filepath.Join(corpusRepoRoot, "apps", "api")]
+	web := byPath[filepath.Join(corpusRepoRoot, "apps", "web")]
+
+	require.NotNil(t, api)
+	require.NotNil(t, web)
+	require.Len(t, web.Dependencies(), 1)
+
+	vpc := web.Dependencies()[0]
+
+	assert.Contains(t, api.Dependencies(), web)
+	assert.Contains(t, api.Dependencies(), vpc)
+
+	assert.Equal(
+		t,
+		[]string{
+			filepath.Join(corpusRepoRoot, "infra", "vpc"),
+			filepath.Join(corpusRepoRoot, "infra", "network"),
+			filepath.Join(corpusRepoRoot, "infra", "account"),
+		},
+		dependencyChain(vpc),
+	)
+}
+
+func TestDiscoveryPipelineRelatesDependencyCyclesOutsideTheFilters(t *testing.T) {
+	t.Parallel()
+
+	run := pipelineRun{
+		files: map[string]string{
+			"apps/api/terragrunt.hcl":      dependenciesOn("../../infra/vpc"),
+			"infra/vpc/terragrunt.hcl":     dependenciesOn("../network"),
+			"infra/network/terragrunt.hcl": dependenciesOn("../vpc"),
+		},
+		queries: []string{"./apps/**"},
+		configure: func(d *discovery.Discovery) *discovery.Discovery {
+			return d.WithRelationships()
+		},
+		usePipeline: true,
+	}
+
+	got, err := run.discover(t.Context(), t)
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	require.Len(t, got[0].Dependencies(), 1)
+
+	vpc := got[0].Dependencies()[0]
+
+	require.Len(t, vpc.Dependencies(), 1)
+	assert.Equal(t, component.Components{vpc}, vpc.Dependencies()[0].Dependencies())
+}
+
+func TestDiscoveryPipelineReportsDependenciesWithoutAConfig(t *testing.T) {
+	t.Parallel()
+
+	run := pipelineRun{
+		files: map[string]string{
+			"apps/api/terragrunt.hcl":  dependenciesOn("../../infra/vpc"),
+			"infra/vpc/terragrunt.hcl": dependenciesOn("../missing"),
+		},
+		queries: []string{"./apps/**"},
+		configure: func(d *discovery.Discovery) *discovery.Discovery {
+			return d.WithRelationships()
+		},
+		usePipeline: true,
+	}
+
+	_, err := run.discover(t.Context(), t)
+	require.ErrorAs(t, err, new(config.TerragruntConfigNotFoundError))
+
+	run.configure = func(d *discovery.Discovery) *discovery.Discovery {
+		return d.WithRelationships().WithSuppressParseErrors()
+	}
+
+	got, err := run.discover(t.Context(), t)
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+
+	assert.Equal(
+		t,
+		[]string{
+			filepath.Join(corpusRepoRoot, "apps", "api"),
+			filepath.Join(corpusRepoRoot, "infra", "vpc"),
+			filepath.Join(corpusRepoRoot, "infra", "missing"),
+		},
+		dependencyChain(got[0]),
+	)
+}
+
+// dependenciesOn returns a unit config that depends on the units at paths.
+func dependenciesOn(paths ...string) string {
+	quoted := make([]string, 0, len(paths))
+	for _, path := range paths {
+		quoted = append(quoted, strconv.Quote(path))
+	}
+
+	return "dependencies {\n  paths = [" + strings.Join(quoted, ", ") + "]\n}\n"
+}
+
+// dependencyChain returns the path of c and of each component after it on a chain of single dependencies.
+func dependencyChain(c component.Component) []string {
+	var chain []string
+
+	for range 16 {
+		chain = append(chain, c.Path())
+
+		if len(c.Dependencies()) != 1 {
+			break
+		}
+
+		c = c.Dependencies()[0]
+	}
+
+	return chain
 }
 
 func TestDiscoveryPipelineKeepsOneUnitPerDirectory(t *testing.T) {

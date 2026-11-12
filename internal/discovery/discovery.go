@@ -90,10 +90,12 @@ func (d *Discovery) Discover(
 		}
 	}
 
-	discovered, candidates, err := d.walkAndParse(ctx, l, v, s, opts, withWorktree)
+	found, err := d.walkAndParse(ctx, l, v, s, opts, withWorktree)
 	if err != nil {
 		return nil, err
 	}
+
+	discovered, candidates := found.discovered, found.candidates
 
 	if d.classifier.HasGraphFilters() {
 		if d.classifier.HasDependentFilters() && d.discoveryBoundary == "" && d.gitRoot == "" {
@@ -151,6 +153,10 @@ func (d *Discovery) Discover(
 				"max_dependency_depth": d.maxDependencyDepth,
 				"components_in":        len(components),
 			}, func(childCtx context.Context, l log.Logger) error {
+				if found.relations != nil {
+					return found.relations.link(childCtx, l, v, components)
+				}
+
 				var phaseErr error
 
 				components, phaseErr = d.runRelationshipPhase(childCtx, l, v, s, opts, components)
@@ -239,11 +245,19 @@ func (d *Discovery) Discover(
 	return components, nil
 }
 
+// walked is what [Discovery.walkAndParse] found.
+type walked struct {
+	// relations is the dependencies the pipeline read from the components, nil when it read none.
+	relations *pipelineRelations
+	// discovered is the components ready for filtering.
+	discovered []DiscoveryResult
+	// candidates is the components left for the graph phase.
+	candidates []DiscoveryResult
+}
+
 // walkAndParse finds the components below the working directory and parses the ones that need it, through the
 // pipeline when [EnvPipeline] selects it and no Git filter needs worktrees, and through the filesystem and parse
 // phases otherwise.
-//
-// Returns the components ready for filtering and the candidates left for the graph phase.
 func (d *Discovery) walkAndParse(
 	ctx context.Context,
 	l log.Logger,
@@ -251,7 +265,7 @@ func (d *Discovery) walkAndParse(
 	s *rewrite.Store,
 	opts *options.TerragruntOptions,
 	withWorktree bool,
-) ([]DiscoveryResult, []DiscoveryResult, error) {
+) (walked, error) {
 	parseReasons := slices.Clone(d.parseReasons)
 	if d.classifier.HasParseRequiredFilters() {
 		if !slices.Contains(parseReasons, parseReasonClassifierRequiresParse) {
@@ -265,7 +279,7 @@ func (d *Discovery) walkAndParse(
 
 	l.Debugf("Discovery: starting pipeline (workers=%d, parse_reasons=%s)", d.numWorkers, joinParseReasons(parseReasons))
 
-	var results *PhaseResults
+	var found walked
 
 	err := telemetry.TelemeterFromContext(ctx).
 		Collect(ctx, l, "discovery_pipeline", map[string]any{
@@ -278,18 +292,14 @@ func (d *Discovery) walkAndParse(
 		}, func(childCtx context.Context, l log.Logger) error {
 			var pipelineErr error
 
-			results, pipelineErr = d.runPipeline(childCtx, l, v, s, opts, len(parseReasons) > 0)
+			found, pipelineErr = d.runPipeline(childCtx, l, v, s, opts, len(parseReasons) > 0)
 
 			return pipelineErr
 		})
 
-	logPhaseComplete(l, "pipeline", results, err)
+	logPhaseComplete(l, "pipeline", &PhaseResults{Discovered: found.discovered, Candidates: found.candidates}, err)
 
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return results.Discovered, results.Candidates, nil
+	return found, err
 }
 
 // runWalkAndParsePhases runs the filesystem phase, then the parse phase when parseReasons names a reason for it.
@@ -301,7 +311,7 @@ func (d *Discovery) runWalkAndParsePhases(
 	opts *options.TerragruntOptions,
 	withWorktree bool,
 	parseReasons []parseReason,
-) ([]DiscoveryResult, []DiscoveryResult, error) {
+) (walked, error) {
 	var (
 		results *PhaseResults
 		err     error
@@ -328,13 +338,13 @@ func (d *Discovery) runWalkAndParsePhases(
 	logPhaseComplete(l, "filesystem", results, err)
 
 	if err != nil && (!d.suppressParseErrors || errors.As(err, new(CoexistenceError))) {
-		return nil, nil, err
+		return walked{}, err
 	}
 
 	discovered, candidates := results.Discovered, results.Candidates
 
 	if len(parseReasons) == 0 {
-		return discovered, candidates, nil
+		return walked{discovered: discovered, candidates: candidates}, nil
 	}
 
 	reasonsStr := joinParseReasons(parseReasons)
@@ -363,10 +373,10 @@ func (d *Discovery) runWalkAndParsePhases(
 	logPhaseComplete(l, "parse", results, err)
 
 	if err != nil && !d.suppressParseErrors {
-		return nil, nil, err
+		return walked{}, err
 	}
 
-	return results.Discovered, results.Candidates, nil
+	return walked{discovered: results.Discovered, candidates: results.Candidates}, nil
 }
 
 // logPhaseComplete emits a debug log summarizing a discovery phase's outcome.
