@@ -560,4 +560,4 @@ To mitigate this, use `update_source_with_cas = true` in your catalog's stack an
 
 ### Includes in `terragrunt.stack.hcl` files only add components
 
-An `include` block in a `terragrunt.stack.hcl` file pulls in the `unit` and `stack` blocks of another file. It does not merge locals or values, and the included file cannot include anything itself. Nesting stacks remains the way to share a whole pattern. See [Includes in stack files](/reference/hcl/blocks#includes-in-stack-files).
+An `include` block in a `terragrunt.stack.hcl` file pulls in the `unit` and `stack` blocks of another file. It does not merge locals or values, and the included file cannot include anything itself. Nesting stacks remains the way to share a whole pattern. See [Includes in stack files](/reference/hcl/blocks/include#includes-in-stack-files).

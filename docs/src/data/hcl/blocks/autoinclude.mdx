@@ -94,7 +94,7 @@ In a `stack` block, the file is `terragrunt.autoinclude.stack.hcl`, next to the 
 
 The block takes no label and has no attributes of its own. In a `unit` block, its body can contain:
 
-- `dependency` blocks. `config_path` usually reads a [component path variable](/reference/hcl/blocks/autoinclude#component-path-variables). Every other attribute works as it does in a regular [`dependency`](/reference/hcl/blocks#dependency) block.
+- `dependency` blocks. `config_path` usually reads a [component path variable](/reference/hcl/blocks/autoinclude#component-path-variables). Every other attribute works as it does in a regular [`dependency`](/reference/hcl/blocks/dependency) block.
 - The [`inputs`](/reference/hcl/attributes/inputs/) attribute.
 - Any other block a unit configuration accepts, e.g. `feature`, `errors`, `generate`, or `remote_state`.
 
@@ -240,7 +240,7 @@ unit "app" {
 
 ### Merge behavior
 
-Terragrunt merges `terragrunt.autoinclude.hcl` into the unit's configuration as it does a regular [`include`](/reference/hcl/blocks#include) with the default strategy: a shallow merge in which the autoinclude wins. A block or attribute set in only one file is kept. One set in both comes from the autoinclude, except `inputs`, which combine key by key. An input set in both still takes the autoinclude's value whole, without merging nested maps.
+Terragrunt merges `terragrunt.autoinclude.hcl` into the unit's configuration as it does a regular [`include`](/reference/hcl/blocks/include) with the default strategy: a shallow merge in which the autoinclude wins. A block or attribute set in only one file is kept. One set in both comes from the autoinclude, except `inputs`, which combine key by key. An input set in both still takes the autoinclude's value whole, without merging nested maps.
 
 <SideBySide>
 
@@ -388,7 +388,7 @@ When the `unit` block and the `dependency` block are both expanded, the dependen
 
 ### Depending on a sibling stack
 
-A dependency's `config_path` can read `stack.<name>.path` to depend on a nested stack. The dependency's outputs then include every unit the stack generates, keyed by unit and nested stack name, as described in [Depending on a stack](/reference/hcl/blocks#depending-on-a-stack).
+A dependency's `config_path` can read `stack.<name>.path` to depend on a nested stack. The dependency's outputs then include every unit the stack generates, keyed by unit and nested stack name, as described in [Depending on a stack](/reference/hcl/blocks/dependency#depending-on-a-stack).
 
 Here the `network` stack contains a unit named `vpc` with a `vpc_id` output, so `app` reads it as `dependency.network.outputs.vpc.vpc_id`:
 

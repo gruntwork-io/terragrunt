@@ -56,7 +56,7 @@ export function functionSignature(data: CollectionEntry<'hclFunctions'>['data'])
 export function itemHeadings(entry: HclEntry, bodyHeadings: Heading[]): Heading[] {
 	const usage = [
 		{ depth: 2, slug: 'usage', text: 'Usage' },
-		...bodyHeadings.filter((heading) => heading.depth <= 3),
+		...bodyHeadings.filter((heading) => heading.depth <= 4),
 	];
 	const examples = entry.data.examples ? [{ depth: 2, slug: 'examples', text: 'Examples' }] : [];
 

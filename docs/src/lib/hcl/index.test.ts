@@ -71,11 +71,13 @@ describe('itemHeadings', () => {
 			{ depth: 2, slug: 'caching', text: 'Caching' },
 			{ depth: 3, slug: 'keys', text: 'Keys' },
 			{ depth: 4, slug: 'hashing', text: 'Hashing' },
+			{ depth: 5, slug: 'salt', text: 'Salt' },
 		];
 		expect(itemHeadings(attributeEntry({}), body).map((heading) => heading.slug)).toEqual([
 			'usage',
 			'caching',
 			'keys',
+			'hashing',
 			'examples',
 		]);
 	});

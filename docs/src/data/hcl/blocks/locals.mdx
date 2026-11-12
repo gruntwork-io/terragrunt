@@ -1,0 +1,106 @@
+---
+name: locals
+description: Names values that the rest of the file reads as local.<name>.
+configs: [unit, stack]
+examples:
+  - description: Reads a value that a parent folder's file sets for every unit below it.
+    code: |
+      # app/terragrunt.hcl
+
+      locals {
+        region_hcl = read_terragrunt_config(find_in_parent_folders("region.hcl"))
+        region     = local.region_hcl.locals.region
+      }
+
+      inputs = {
+        bucket_name = "${local.region}-bucket"
+      }
+  - description: Reads shared values from a YAML file.
+    code: |
+      # app/terragrunt.hcl
+
+      locals {
+        region_yml = yamldecode(file(find_in_parent_folders("region.yml")))
+        region     = local.region_yml.region
+      }
+  - description: Passes values to the units of a stack.
+    code: |
+      # terragrunt.stack.hcl
+
+      locals {
+        env = "dev"
+      }
+
+      unit "app" {
+        source = "../catalog/units/app"
+        path   = "app"
+
+        values = {
+          name = "${local.env}-app"
+        }
+      }
+---
+
+Each attribute in a `locals` block sets a value that the file reads as `local.<name>`:
+
+```hcl
+# terragrunt.hcl
+
+locals {
+  region = "us-east-1"
+  bucket = "${local.region}-bucket"
+}
+
+inputs = {
+  region      = local.region
+  bucket_name = local.bucket
+}
+```
+
+A file can have one `locals` block. A local can read other locals, `include`, `feature`, and `values`, but not `dependency` outputs. Read those in `inputs` instead.
+
+Locals belong to the file that sets them, so a unit and the files it includes can't read each other's locals. To read an included file's locals, set [`expose = true`](/reference/hcl/blocks/include#expose) on the `include` block and read them under `include.<name>.locals`.
+
+### Complex locals
+
+A local can hold any type, e.g. a list or a map:
+
+```hcl
+# terragrunt.hcl
+
+locals {
+  regions = ["us-east-1", "us-west-2", "eu-west-1"]
+
+  region_to_bucket_name = {
+    us-east-1 = "east-bucket"
+    us-west-2 = "west-bucket"
+    eu-west-1 = "eu-bucket"
+  }
+
+  first_region     = local.regions[0]
+  us_east_1_bucket = local.region_to_bucket_name["us-east-1"]
+}
+```
+
+### Computed locals
+
+A local can run a command with [`run_cmd`](/reference/hcl/functions#run_cmd), or read another file with [`read_terragrunt_config`](/reference/hcl/functions#read_terragrunt_config), which evaluates that file's own locals:
+
+```hcl
+# computed.hcl
+
+locals {
+  greeting = run_cmd("--terragrunt-quiet", "python3", "-c", "print('Hello,')")
+}
+```
+
+```hcl
+# app/terragrunt.hcl
+
+locals {
+  computed = read_terragrunt_config(find_in_parent_folders("computed.hcl"))
+  message  = "${local.computed.locals.greeting} world!"
+}
+```
+
+Units that read the same file share one parse of it, unless the file's result [depends on the unit reading it](/reference/hcl/functions#read_terragrunt_config). Then Terragrunt parses the file, and runs its commands, for every unit.
