@@ -552,53 +552,23 @@ func TestResolveRunConfigReturnsNoConfigForAMissingFile(t *testing.T) {
 	assert.Nil(t, cfg)
 }
 
-func TestReadTerragruntConfigUsesTheStoreOnlyWhenTheRewriteIsSelected(t *testing.T) {
+func TestReadTerragruntConfigReadsThroughTheStore(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		env        map[string]string
-		assertions func(t *testing.T, stats config.Stats)
-		name       string
-	}{
-		{
-			name: "selected",
-			env:  map[string]string{config.EnvRewrite: "true"},
-			assertions: func(t *testing.T, stats config.Stats) {
-				t.Helper()
-				assert.NotZero(t, stats.Misses)
-			},
-		},
-		{
-			name: "not selected",
-			env:  map[string]string{},
-			assertions: func(t *testing.T, stats config.Stats) {
-				t.Helper()
-				assert.Zero(t, stats)
-			},
-		},
-	}
+	fsys, paths := includingRepo(t, t.TempDir(), 1)
+	v := venv.MemVenv().WithFS(fsys)
+	store := &config.Store{}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+	ctx, run := newTestParsingContext(t, paths[0])
 
-			fsys, paths := includingRepo(t, t.TempDir(), 1)
-			v := venv.MemVenv().WithFS(fsys)
-			v.Env = tt.env
-			store := &config.Store{}
-
-			ctx, run := newTestParsingContext(t, paths[0])
-
-			cfg, err := store.ReadTerragruntConfig(ctx, logger.CreateLogger(), v, run)
-			require.NoError(t, err)
-			assert.Equal(
-				t,
-				map[string]any{"name": "unit", "region": "us-east-1", "unit": "unit-0"},
-				cfg.Inputs,
-			)
-			tt.assertions(t, store.Stats())
-		})
-	}
+	cfg, err := store.ReadTerragruntConfig(ctx, logger.CreateLogger(), v, run)
+	require.NoError(t, err)
+	assert.Equal(
+		t,
+		map[string]any{"name": "unit", "region": "us-east-1", "unit": "unit-0"},
+		cfg.Inputs,
+	)
+	assert.NotZero(t, store.Stats().Misses)
 }
 
 func TestDependencyReadsReachOnlyARun(t *testing.T) {

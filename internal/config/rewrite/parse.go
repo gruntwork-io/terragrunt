@@ -126,18 +126,14 @@ func (s *Store) ResolveRunConfig(
 	return c.ToV1(ctx, l, v, pc)
 }
 
-// ReadTerragruntConfig reads the config file of run as [pkgconfig.ReadTerragruntConfig] does. When [EnvRewrite]
-// selects this package's parser, it resolves the file as [Store.ResolveRunConfig] does.
+// ReadTerragruntConfig reads the config file of run as [pkgconfig.ReadTerragruntConfig] does, resolving the file as
+// [Store.ResolveRunConfig] does.
 func (s *Store) ReadTerragruntConfig(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	run *pkgconfig.ParsingContext,
 ) (*pkgconfig.TerragruntConfig, error) {
-	if !Enabled(v.Env) {
-		return pkgconfig.ReadTerragruntConfig(ctx, l, v, run)
-	}
-
 	l.Debugf(
 		"Reading Terragrunt config file at %s",
 		util.RelPathForLog(run.RootWorkingDir, run.TerragruntConfigPath, run.LogShowAbsPaths),

@@ -28,52 +28,42 @@ const (
 
 // BenchmarkDiscoverySharedConfig benchmarks discovery with dependencies, as `find --dependencies` runs it, over a
 // repository where every unit includes a root.hcl that reads shared files with read_terragrunt_config. One of those
-// files decodes an account registry of about 48 KB. It runs with pkg/config and with the config rewrite.
+// files decodes an account registry of about 48 KB.
 func BenchmarkDiscoverySharedConfig(b *testing.B) {
-	parsers := []struct {
-		env  map[string]string
-		name string
-	}{
-		{name: "default", env: map[string]string{}},
-		{name: "rewrite", env: map[string]string{rewrite.EnvRewrite: "true"}},
-	}
-
 	for _, n := range sharedConfigUnitCounts {
-		for _, parser := range parsers {
-			b.Run(fmt.Sprintf("units_%d/%s", n, parser.name), func(b *testing.B) {
-				tmpDir := b.TempDir()
-				createSharedConfigFixture(b, tmpDir, n/sharedConfigUnitsPerAccount)
+		b.Run(fmt.Sprintf("units_%d", n), func(b *testing.B) {
+			tmpDir := b.TempDir()
+			createSharedConfigFixture(b, tmpDir, n/sharedConfigUnitsPerAccount)
 
-				l := newDiscardLogger()
-				opts := &options.TerragruntOptions{
-					WorkingDir:        tmpDir,
-					RootWorkingDir:    tmpDir,
-					MaxFoldersToCheck: options.DefaultMaxFoldersToCheck,
-				}
-				v := venvtest.NewOSWithEmptyEnv().WithEnv(parser.env)
+			l := newDiscardLogger()
+			opts := &options.TerragruntOptions{
+				WorkingDir:        tmpDir,
+				RootWorkingDir:    tmpDir,
+				MaxFoldersToCheck: options.DefaultMaxFoldersToCheck,
+			}
+			v := venvtest.NewOSWithEmptyEnv()
 
-				for b.Loop() {
-					d := discovery.NewDiscovery(tmpDir).
-						WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
-						WithRequiresParse().
-						WithRelationships()
+			for b.Loop() {
+				d := discovery.NewDiscovery(tmpDir).
+					WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
+					WithRequiresParse().
+					WithRelationships()
 
-					components, err := d.Discover(config.WithCaches(b.Context()), l, v, new(rewrite.Store), opts)
-					require.NoError(b, err)
-					require.Len(b, components, n)
+				components, err := d.Discover(config.WithCaches(b.Context()), l, v, new(rewrite.Store), opts)
+				require.NoError(b, err)
+				require.Len(b, components, n)
 
-					withDependencies := 0
+				withDependencies := 0
 
-					for _, c := range components {
-						if len(c.Dependencies()) > 0 {
-							withDependencies++
-						}
+				for _, c := range components {
+					if len(c.Dependencies()) > 0 {
+						withDependencies++
 					}
-
-					require.Equal(b, n-n/(sharedConfigUnitsPerAccount/2), withDependencies)
 				}
-			})
-		}
+
+				require.Equal(b, n-n/(sharedConfigUnitsPerAccount/2), withDependencies)
+			}
+		})
 	}
 }
 

@@ -22,7 +22,7 @@ func BenchmarkDependentsFilter(b *testing.B) {
 	b.Run("from_repo_root", func(b *testing.B) {
 		for _, n := range dependentUnitCounts {
 			b.Run(fmt.Sprintf("units_%d", n), func(b *testing.B) {
-				benchmarkDependents(b, dependentsFromRepoRoot, fanInDependentsFixture(n), defaultParser)
+				benchmarkDependents(b, dependentsFromRepoRoot, fanInDependentsFixture(n))
 			})
 		}
 	})
@@ -30,7 +30,7 @@ func BenchmarkDependentsFilter(b *testing.B) {
 	b.Run("from_target_dir", func(b *testing.B) {
 		for _, n := range dependentUnitCounts {
 			b.Run(fmt.Sprintf("units_%d", n), func(b *testing.B) {
-				benchmarkDependents(b, dependentsFromTargetDir, fanInDependentsFixture(n), defaultParser)
+				benchmarkDependents(b, dependentsFromTargetDir, fanInDependentsFixture(n))
 			})
 		}
 	})
