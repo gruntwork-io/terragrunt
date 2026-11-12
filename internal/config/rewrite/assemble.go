@@ -9,6 +9,7 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 
+	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	pkgconfig "github.com/gruntwork-io/terragrunt/pkg/config"
 	pkghclparse "github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
@@ -76,7 +77,7 @@ func (c *UnitConfig) assemble(
 		return nil, pkgconfig.CouldNotResolveTerragruntConfigInFileError(c.file.ConfigPath)
 	}
 
-	cfg, err := pkgconfig.ConvertToTerragruntConfig(v, pctx, c.file.ConfigPath, cfgFile)
+	cfg, err := c.convert(v, pc, pctx, cfgFile)
 	if err != nil {
 		errs = append(errs, err)
 	}
@@ -127,6 +128,36 @@ func (c *UnitConfig) assemble(
 	}
 
 	return cfg, errors.Join(errs...)
+}
+
+// convert converts cfgFile as [pkgconfig.ConvertToTerragruntConfig] does. A config assembled for a merge gets the
+// field metadata of its locals without the locals themselves, unless converting them can fail.
+func (c *UnitConfig) convert(
+	v *venv.Venv,
+	pc *ParseContext,
+	pctx *pkgconfig.ParsingContext,
+	cfgFile *pkgconfig.TerragruntConfigFile,
+) (*pkgconfig.TerragruntConfig, error) {
+	locals := pctx.Locals
+	if !pc.merging || locals == nil || !ctyhelper.ConvertsToMapDirectly(*locals) {
+		return pkgconfig.ConvertToTerragruntConfig(v, pctx, c.file.ConfigPath, cfgFile)
+	}
+
+	cfg, err := pkgconfig.ConvertToTerragruntConfig(v, pctx.WithLocals(nil), c.file.ConfigPath, cfgFile)
+	if cfg == nil {
+		return nil, err
+	}
+
+	metadata := map[string]any{pkgconfig.FoundInFile: c.file.ConfigPath}
+
+	unmarked, _ := locals.Unmark()
+
+	for it := unmarked.ElementIterator(); it.Next(); {
+		name, _ := it.Element()
+		cfg.SetFieldMetadataWithType(pkgconfig.MetadataLocals, name.AsString(), metadata)
+	}
+
+	return cfg, err
 }
 
 // boundFile returns c's file bound to a parser of pc, which logs through l and writes through v.

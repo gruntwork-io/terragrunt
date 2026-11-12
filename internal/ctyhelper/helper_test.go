@@ -397,7 +397,107 @@ func FuzzParseCtyValueToMap(f *testing.F) {
 
 		assert.Equal(t, expectedErr, err)
 		assert.Equal(t, expected, actual)
+
+		if ctyhelper.ConvertsToMapDirectly(value) {
+			assert.NoError(t, err)
+		}
 	})
+}
+
+func TestConvertsToMapDirectly(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		value cty.Value
+		name  string
+		want  bool
+	}{
+		{
+			name: "nested known values",
+			value: cty.ObjectVal(map[string]cty.Value{
+				"string": cty.StringVal("a"),
+				"number": cty.NumberIntVal(1),
+				"bool":   cty.True,
+				"null":   cty.NullVal(cty.String),
+				"list":   cty.ListVal([]cty.Value{cty.StringVal("a")}),
+				"set":    cty.SetVal([]cty.Value{cty.StringVal("a")}),
+				"tuple":  cty.TupleVal([]cty.Value{cty.StringVal("a"), cty.Zero}),
+				"map":    cty.MapVal(map[string]cty.Value{"k": cty.StringVal("v")}),
+				"object": cty.ObjectVal(map[string]cty.Value{"k": cty.EmptyObjectVal}),
+			}),
+			want: true,
+		},
+		{
+			name:  "empty object",
+			value: cty.EmptyObjectVal,
+			want:  true,
+		},
+		{
+			name:  "map at the top level",
+			value: cty.MapVal(map[string]cty.Value{"a": cty.NumberIntVal(1)}),
+			want:  true,
+		},
+		{
+			name: "marks",
+			value: cty.ObjectVal(map[string]cty.Value{
+				"secret": cty.StringVal("fake-password").Mark("sensitive"),
+				"list":   cty.ListVal([]cty.Value{cty.True}).Mark("sensitive"),
+			}).Mark("sensitive"),
+			want: true,
+		},
+		{
+			name:  "null object",
+			value: cty.NullVal(cty.EmptyObject),
+		},
+		{
+			name:  "unknown object",
+			value: cty.UnknownVal(cty.EmptyObject),
+		},
+		{
+			name:  "string at the top level",
+			value: cty.StringVal("value"),
+		},
+		{
+			name:  "list at the top level",
+			value: cty.ListVal([]cty.Value{cty.StringVal("value")}),
+		},
+		{
+			name: "nested unknown",
+			value: cty.ObjectVal(map[string]cty.Value{
+				"list": cty.ListVal([]cty.Value{cty.UnknownVal(cty.String)}),
+			}),
+		},
+		{
+			name:  "infinity",
+			value: cty.ObjectVal(map[string]cty.Value{"inf": cty.PositiveInfinity}),
+		},
+		{
+			name:  "exponent past the cap",
+			value: cty.ObjectVal(map[string]cty.Value{"n": cty.MustParseNumberVal("1E4097")}),
+		},
+		{
+			name:  "invalid UTF-8",
+			value: cty.ObjectVal(map[string]cty.Value{"s": cty.StringVal("a\xffb")}),
+		},
+		{
+			name:  "invalid UTF-8 key",
+			value: cty.MapVal(map[string]cty.Value{"a\xffb": cty.True}),
+		},
+		{
+			name: "nested exponent past the cap",
+			value: cty.ObjectVal(map[string]cty.Value{
+				"tuple": cty.TupleVal([]cty.Value{cty.MustParseNumberVal("1E4097")}),
+			}),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tc.want, ctyhelper.ConvertsToMapDirectly(tc.value))
+		})
+	}
 }
 
 // jsonRoundTrip converts value through cty's JSON encoding and back, the

@@ -41,6 +41,21 @@ func ParseCtyValueToMap(value cty.Value) (map[string]any, error) {
 	return parseCtyValueToMapWithJSON(value)
 }
 
+// ConvertsToMapDirectly reports whether [ParseCtyValueToMap] converts value without the JSON round trip, which is
+// the only step of the conversion that returns an error.
+//
+// It is true for a known, non-null object or map that holds no unknown value, infinity, number outside
+// [MaxNumberDecimalExponent], string that is not valid UTF-8, or capsule.
+func ConvertsToMapDirectly(value cty.Value) bool {
+	if value.IsNull() {
+		return false
+	}
+
+	ty := value.Type()
+
+	return (ty.IsObjectType() || ty.IsMapType()) && mappingConvertsToGo(value)
+}
+
 // CtyJSONOutput is a struct that captures the output of cty's JSON marshalling.
 //
 // When you convert a cty value to JSON, if any of that types are not yet known (i.e., are labeled as
@@ -267,6 +282,63 @@ func sequenceToGo(val cty.Value) ([]any, bool) {
 	}
 
 	return out, true
+}
+
+// mappingConvertsToGo reports whether mappingToGo converts the object or map val with its marks removed.
+func mappingConvertsToGo(val cty.Value) bool {
+	val, _ = val.Unmark()
+
+	if !val.IsKnown() {
+		return false
+	}
+
+	for it := val.ElementIterator(); it.Next(); {
+		k, ev := it.Element()
+
+		if !utf8.ValidString(k.AsString()) || !ctyValueConvertsToGo(ev) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// ctyValueConvertsToGo reports whether ctyValueToGo converts val with its marks removed.
+func ctyValueConvertsToGo(val cty.Value) bool {
+	val, _ = val.Unmark()
+
+	if !val.IsKnown() {
+		return false
+	}
+
+	if val.IsNull() {
+		return true
+	}
+
+	ty := val.Type()
+
+	switch {
+	case ty == cty.String:
+		return utf8.ValidString(val.AsString())
+	case ty == cty.Number:
+		bf := val.AsBigFloat()
+
+		return !bf.IsInf() && numberInRange(bf)
+	case ty == cty.Bool:
+		return true
+	case ty.IsObjectType(), ty.IsMapType():
+		return mappingConvertsToGo(val)
+	case ty.IsListType(), ty.IsSetType(), ty.IsTupleType():
+		for it := val.ElementIterator(); it.Next(); {
+			if _, ev := it.Element(); !ctyValueConvertsToGo(ev) {
+				return false
+			}
+		}
+
+		return true
+	}
+
+	return false
 }
 
 // numberInRange reports whether the magnitude of n stays within [MaxNumberDecimalExponent] powers of ten in either

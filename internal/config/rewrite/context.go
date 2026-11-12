@@ -21,6 +21,7 @@ type ParseContext struct {
 	sinks    sinks
 	file     fileScope
 	memoized bool
+	merging  bool
 }
 
 // sinks is where a stage writes its effects. Sinks belong to the caller, and a stage's result holds none.
@@ -97,6 +98,16 @@ func (pc *ParseContext) withInclude(include *pkgconfig.IncludeConfig) *ParseCont
 	c.file.include = include
 	c.file.includes = nil
 	c.file.inheritsDependencies = include != nil && c.file.decodedDeps == nil
+	c.merging = false
+
+	return &c
+}
+
+// forMerge returns a copy of pc for assembling a config that only merges into the config of the including file. The
+// merge drops the locals of that config, so its assembly leaves them unconverted.
+func (pc *ParseContext) forMerge() *ParseContext {
+	c := *pc
+	c.merging = true
 
 	return &c
 }

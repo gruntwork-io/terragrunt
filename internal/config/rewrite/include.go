@@ -153,7 +153,7 @@ func (k keptIncludes) included(
 		return nil, err
 	}
 
-	cfg, err := included.assemble(ctx, l, v, pc, keptIncludes{inherited: deps})
+	cfg, err := included.assemble(ctx, l, v, pc.forMerge(), keptIncludes{inherited: deps})
 	if err != nil {
 		include := pc.file.includes.List[i]
 
@@ -214,7 +214,7 @@ func (q keptQueue) included(
 		return nil, err
 	}
 
-	cfg, err := included.assemble(ctx, l, v, pc, keptQueue{})
+	cfg, err := included.assemble(ctx, l, v, pc.forMerge(), keptQueue{})
 	if err != nil {
 		include := pc.file.includes.List[i]
 
@@ -346,7 +346,8 @@ func mergeIncludedConfig(
 	return included.DeepMerge(l, base)
 }
 
-// resolveIncludedConfig resolves the file that include names and returns it with its config.
+// resolveIncludedConfig resolves the file that include names and returns it with its config, for merging into the
+// config of c.
 //
 // Returns [pkgconfig.IncludedConfigMissingPathError] when include has no path, and
 // [pkgconfig.IncludeConfigNotFoundError] when the file does not exist.
@@ -363,7 +364,7 @@ func (c *UnitConfig) resolveIncludedConfig(
 		return nil, nil, err
 	}
 
-	included, cfg, err := s.resolveFile(ctx, l, v, includedCtx.pc, include.Path)
+	included, cfg, err := s.resolveFile(ctx, l, v, includedCtx.pc.forMerge(), include.Path)
 	if err != nil {
 		return included, nil, includeParseError(err, include, pc)
 	}
