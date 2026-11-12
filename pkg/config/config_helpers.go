@@ -527,7 +527,7 @@ func TerragruntFunctions(
 		}),
 	}
 
-	functions := map[string]function.Function{}
+	functions := make(map[string]function.Function, len(tfFunctions)+len(terragruntFunctions))
 
 	maps.Copy(functions, tfFunctions)
 	maps.Copy(functions, terragruntFunctions)
