@@ -85,7 +85,12 @@ func parsePhaseFromContext(ctx context.Context) string {
 // Use this at every recursion site that ultimately calls ensureParsed (graph traversal,
 // dependents upstream walk, relationship traversal) so children observe a deeper depth.
 func contextWithIncrementedParseDepth(ctx context.Context) context.Context {
-	return context.WithValue(ctx, parseDepthKey{}, parseDepthFromContext(ctx)+1)
+	return contextWithParseDepth(ctx, parseDepthFromContext(ctx)+1)
+}
+
+// contextWithParseDepth returns ctx with the parse-recursion depth set to depth.
+func contextWithParseDepth(ctx context.Context, depth int) context.Context {
+	return context.WithValue(ctx, parseDepthKey{}, depth)
 }
 
 // parseDepthFromContext returns the recursion depth attached to ctx, or 0.
