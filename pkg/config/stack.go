@@ -23,6 +23,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/view"
+	"github.com/gruntwork-io/terragrunt/internal/view/diagnostic"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
@@ -998,12 +1000,20 @@ func fetchViaCAS(
 	defer result.Cleanup()
 
 	for i := range result.SourcesInsideStack {
+		block := &result.SourcesInsideStack[i]
+
+		warning, err := sourceInsideStackWarning(l, v, opts, cmp, source, block)
+		if err != nil {
+			return err
+		}
+
 		if err := evaluateDetailControl(
 			ctx,
 			l,
 			opts.strictControls,
 			controls.CASSourceInsideStack,
-			CASSourceInsideStackError{Component: kindStr + " " + cmp.address, Block: &result.SourcesInsideStack[i]},
+			CASSourceInsideStackError{Component: kindStr + " " + cmp.address, Block: block},
+			warning,
 		); err != nil {
 			return err
 		}
@@ -1031,6 +1041,60 @@ func fetchViaCAS(
 	}
 
 	return nil
+}
+
+// sourceInsideStackWarning renders block, found in the component fetched from source, as the
+// diagnostic the cas-source-inside-stack strict control warns with.
+func sourceInsideStackWarning(
+	l log.Logger,
+	v *venv.Venv,
+	opts *generateOpts,
+	cmp *componentToGenerate,
+	source string,
+	block *cas.SourceInsideStack,
+) (string, error) {
+	rng := block.Range
+	rng.Filename = stackFileDisplayPath(v.FS, opts, cmp, source, block.StackFile)
+
+	diag, err := diagnostic.NewDiagnostic(&hcl.File{Bytes: block.Content}, &hcl.Diagnostic{
+		Severity: hcl.DiagInvalid,
+		Summary:  "Source inside the stack directory",
+		Detail: fmt.Sprintf(
+			"Stack generation copies the directory of this stack file whole, so the generated stack contains "+
+				"this %[1]s twice, and `run --all` runs the copy too. Move the %[1]s directory out of the directory of "+
+				"this stack file, and use `//` in the stack's source to separate the catalog from the stack directory.",
+			block.BlockType,
+		),
+		Subject: &rng,
+	})
+	if err != nil {
+		return "", err
+	}
+
+	rendered, err := view.NewHumanRender(v, l.Formatter().DisabledColors()).Diagnostics(diagnostic.Diagnostics{diag})
+	if err != nil {
+		return "", err
+	}
+
+	return strings.Trim(rendered, "\n"), nil
+}
+
+// stackFileDisplayPath spells stackFile, a path relative to the root of the component fetched from
+// source, as a warning prints it: relative to the working directory for a local source, and after the
+// redacted source address and `//` for a remote one.
+func stackFileDisplayPath(fsys vfs.FS, opts *generateOpts, cmp *componentToGenerate, source, stackFile string) string {
+	base, _ := getter.SourceDirSubdir(resolveLocalCASSource(fsys, cmp.sourceDir, source))
+	if filepath.IsAbs(base) {
+		return util.RelPathForLog(
+			opts.rootWorkingDir,
+			filepath.Join(base, filepath.FromSlash(stackFile)),
+			opts.logShowAbsPaths,
+		)
+	}
+
+	base, _, _ = strings.Cut(base, "?")
+
+	return redact.NewURL(base).String() + "//" + stackFile
 }
 
 // rewriteViaCAS rewrites the update_source_with_cas sources of a staged package, a git clone or a local copy.
