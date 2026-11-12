@@ -358,7 +358,7 @@ func (c *UnitConfig) resolveIncludedConfig(
 	s *Store,
 	include *pkgconfig.IncludeConfig,
 ) (*UnitConfig, *pkgconfig.TerragruntConfig, error) {
-	includedPC, err := includedContext(v, pc, include)
+	includedPC, err := s.includedContext(ctx, v, pc, include)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -375,12 +375,17 @@ func (c *UnitConfig) resolveIncludedConfig(
 // file. A file with a dependency block parses with its diagnostics suppressed.
 //
 // Returns [pkgconfig.IncludedConfigMissingPathError] when include has no path.
-func includedContext(v *venv.Venv, pc *ParseContext, include *pkgconfig.IncludeConfig) (*ParseContext, error) {
+func (s *Store) includedContext(
+	ctx context.Context,
+	v *venv.Venv,
+	pc *ParseContext,
+	include *pkgconfig.IncludeConfig,
+) (*ParseContext, error) {
 	if include.Path == "" {
 		return nil, pkgconfig.IncludedConfigMissingPathError(pc.settings.TerragruntConfigPath)
 	}
 
-	hasDependency, err := pkgconfig.ConfigFileHasDependencyBlock(v.FS, include.Path)
+	hasDependency, err := s.hasDependencyBlock(ctx, v.FS, include.Path)
 	if err != nil {
 		return nil, err
 	}
@@ -424,7 +429,7 @@ func (s *Store) resolveIncludedBase(
 		return nil, includeParseError(err, include, pc)
 	}
 
-	includedPC, err := includedContext(v, pc, include)
+	includedPC, err := s.includedContext(ctx, v, pc, include)
 	if err != nil {
 		return nil, err
 	}
