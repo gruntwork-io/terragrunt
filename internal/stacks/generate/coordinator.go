@@ -68,6 +68,7 @@ func WithCoordinator(
 	coordinator := NewCoordinator(fsys, s, opts)
 	ctx = context.WithValue(ctx, coordinatorKey{}, coordinator)
 
+	ctx = discovery.WithStackDiscovery(ctx, coordinator.discoverDependencyStacks)
 	return config.WithStackGenerator(ctx, coordinator.generateDependencyStack)
 }
 

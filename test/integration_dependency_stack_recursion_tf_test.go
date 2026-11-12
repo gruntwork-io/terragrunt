@@ -154,3 +154,83 @@ output "consumed" { value = var.marker }
 		})
 	}
 }
+
+func TestTFDependencyStacksGenerateBeforeSelectingUnits(t *testing.T) {
+	t.Parallel()
+
+	for _, state := range []string{"missing", "missing inside generated tree", "stale", "changed reference"} {
+		for _, includeExternal := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/include_external=%t", state, includeExternal), func(t *testing.T) {
+				t.Parallel()
+				f := newDependencyStackFixture(t, true)
+				f.v.Env["TG_USE_PARTIAL_PARSE_CONFIG_CACHE"] = "true"
+				f.write(".sources/relay/terragrunt.hcl", `terraform { source = "." }
+dependencies { paths = [values.next] }
+inputs = { marker = values.marker }
+`)
+				f.write(".sources/relay/main.tf", `variable "marker" { type = string }
+output "relay_marker" { value = var.marker }
+`)
+				writeStack := func(name, next, marker string) {
+					f.write(name+"/terragrunt.stack.hcl", fmt.Sprintf(`unit "relay" {
+ source = %q
+ path = "relay"
+ values = { next = %q, marker = %q }
+}
+`, filepath.ToSlash(filepath.Join(f.root, ".sources/relay")), filepath.ToSlash(filepath.Join(f.root, next)), marker))
+				}
+				f.write("terminal/terragrunt.hcl", "")
+				f.write("terminal/main.tf", `output "terminal" { value = true }`)
+				writeStack("first", "middle", "old")
+				writeStack("middle", "last", "old")
+				writeStack("last", "terminal", "old")
+				writeStack("obsolete", "terminal", "obsolete")
+				if state == "changed reference" {
+					writeStack("first", "obsolete", "old")
+				}
+				if !strings.HasPrefix(state, "missing") {
+					for _, stack := range []string{"first", "middle", "last", "obsolete"} {
+						f.generate(stack)
+					}
+				}
+				if state == "changed reference" {
+					f.write("obsolete/terragrunt.stack.hcl", `unit "relay" {
+ source = "./missing-source"
+ path = "relay"
+}`)
+				}
+				writeStack("first", "middle", "new")
+				writeStack("middle", "last", "new")
+				writeStack("last", "terminal", "new")
+				entryDir, runDir := "entry", "entry"
+				command := fmt.Sprintf("run --all --queue-include-external=%t -- plan", includeExternal)
+				if state == "changed reference" || state == "missing inside generated tree" {
+					entryDir, runDir = "first/.terragrunt-stack/consumer", "first/.terragrunt-stack"
+					command = fmt.Sprintf("run --all --filter 'source=*' --queue-include-external=%t -- plan", includeExternal)
+				}
+				f.write(entryDir+"/terragrunt.hcl", fmt.Sprintf(`terraform { source = "." }
+dependencies { paths = [%q] }
+`, filepath.ToSlash(filepath.Join(f.root, "first"))))
+				f.write(entryDir+"/main.tf", `output "consumer" { value = true }`)
+
+				stdout, stderr, err := f.run(runDir, command)
+
+				require.NoError(t, err, "%s", stderr)
+				for _, stack := range []string{"first", "middle", "last"} {
+					assert.Contains(t, f.read(stack+"/.terragrunt-stack/relay/terragrunt.values.hcl"), `"new"`)
+				}
+				assert.Contains(t, f.read("first/.terragrunt-stack/relay/terragrunt.values.hcl"), "/middle")
+				assert.Contains(t, stdout, "consumer = true")
+				assert.NotContains(t, stdout, `relay_marker = "old"`)
+				assert.NotContains(t, stdout, `relay_marker = "obsolete"`)
+				if includeExternal {
+					assert.Equal(t, 3, strings.Count(stdout, `relay_marker = "new"`))
+				} else if state == "changed reference" || state == "missing inside generated tree" {
+					assert.Equal(t, 1, strings.Count(stdout, `relay_marker = "new"`))
+				} else {
+					assert.NotContains(t, stdout, "relay_marker")
+				}
+			})
+		}
+	}
+}

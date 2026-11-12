@@ -465,3 +465,66 @@ func TestTFDependencyStackBackendDiscoveryRefreshesConfiguration(t *testing.T) {
 	assert.Contains(t, err.Error(), "missing remote state configuration for source module")
 	assert.Contains(t, f.read("producer/.terragrunt-stack/db/terragrunt.hcl"), `marker = "new"`)
 }
+
+func TestTFDependencyStackRegenerationRefreshesValuesAndDependencies(t *testing.T) {
+	t.Parallel()
+
+	// Source filtering parses the stale unit before its consumer triggers stack generation.
+	for _, entry := range []struct{ name, dir, command, rewrite, cache string }{
+		{"render", "consumer/.terragrunt-stack/app", "render --json", "false", "true"},
+		{"render", "consumer/.terragrunt-stack/app", "render --json", "true", "true"},
+		{"run all", "producer/.terragrunt-stack", "run --all --filter 'source=*' --queue-include-external --parallelism 1 -- plan", "false", "false"},
+		{"run all", "producer/.terragrunt-stack", "run --all --filter 'source=*' --queue-include-external --parallelism 1 -- plan", "false", "true"},
+		{"run all", "producer/.terragrunt-stack", "run --all --filter 'source=*' --queue-include-external --parallelism 1 -- plan", "true", "false"},
+		{"run all", "producer/.terragrunt-stack", "run --all --filter 'source=*' --queue-include-external --parallelism 1 -- plan", "true", "true"},
+	} {
+		t.Run(entry.name+"/rewrite="+entry.rewrite+"/cache="+entry.cache, func(t *testing.T) {
+			t.Parallel()
+			f := newDependencyStackFixture(t, true)
+			f.v.Env["TG_USE_PARTIAL_PARSE_CONFIG_CACHE"] = entry.cache
+			f.v.Env["TG_TMP_CONFIG_REWRITE"] = entry.rewrite
+			f.write(".sources/db/terragrunt.hcl", `terraform { source = "." }
+remote_state {
+ backend = "local"
+ generate = { path = "backend.tf", if_exists = "overwrite_terragrunt" }
+ config = { path = values.state }
+}
+dependencies { paths = [values.target] }
+inputs = { marker = values.marker }
+`)
+			stack := func(marker string) string {
+				return fmt.Sprintf(`unit "db" {
+ source = "../.sources/db"
+ path = "db"
+ values = { marker = %q, state = %q, target = %q }
+}
+`, marker, filepath.ToSlash(filepath.Join(f.root, "states", marker+".tfstate")), filepath.ToSlash(filepath.Join(f.root, "targets", marker)))
+			}
+			for _, marker := range []string{"old", "new"} {
+				f.write("targets/"+marker+"/terragrunt.hcl", "")
+				f.write("targets/"+marker+"/main.tf", fmt.Sprintf(`output "%s_target" { value = true }`, marker))
+			}
+			f.write("producer/terragrunt.stack.hcl", stack("old"))
+			f.generate("producer")
+			f.generate("consumer")
+			unitBefore := f.read("producer/.terragrunt-stack/db/terragrunt.hcl")
+			require.Contains(t, f.read("producer/.terragrunt-stack/db/terragrunt.values.hcl"), `"old"`)
+			f.write("producer/terragrunt.stack.hcl", stack("new"))
+			app := strings.ReplaceAll(f.read(".sources/app/terragrunt.hcl"), "values.producer", fmt.Sprintf("%q", filepath.ToSlash(filepath.Join(f.root, "producer"))))
+			f.write("producer/.terragrunt-stack/consumer/terragrunt.hcl", app)
+			f.write("producer/.terragrunt-stack/consumer/main.tf", f.read(".sources/app/main.tf"))
+
+			stdout, stderr, err := f.run(entry.dir, entry.command)
+
+			require.NoError(t, err, "%s", stderr)
+			assert.NotContains(t, stderr, "Error:")
+			assert.Equal(t, unitBefore, f.read("producer/.terragrunt-stack/db/terragrunt.hcl"))
+			assert.Contains(t, f.read("producer/.terragrunt-stack/db/terragrunt.values.hcl"), `"new"`)
+			assertDependencyStackOutput(t, entry.name, stdout, "new")
+			if entry.name == "run all" {
+				assert.Contains(t, stdout, "new_target")
+				assert.NotContains(t, stdout, "old_target")
+			}
+		})
+	}
+}
