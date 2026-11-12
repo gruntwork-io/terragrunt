@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -897,6 +898,8 @@ func TestTFChainedDepsExposedIncludeNoErrorLog(t *testing.T) {
 // otherwise location-less errors (e.g. "unsuitable value: a bool is required") are impossible to debug.
 func TestTFExposedIncludeErrorIdentifiesIncludeBlock(t *testing.T) {
 	t.Parallel()
+
+	helpers.SkipInExperimentMode(t, experiment.EmptyDependencyOutputs)
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureExposedIncludePartialParseError)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureExposedIncludePartialParseError)
