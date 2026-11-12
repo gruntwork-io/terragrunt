@@ -1037,7 +1037,8 @@ func findStackFiles(t *testing.T, dir string) []string {
 // TestCASInStacksSourceInsideStack pins that a unit block with update_source_with_cas whose
 // source lies inside the stack directory still generates by default, and fails once the
 // cas-source-inside-stack strict control is enabled, alone or through its group or strict mode.
-// A stack selected with a // subdirectory and its unit outside it passes under strict mode.
+// A stack whose source separates the catalog from the stack directory with //, and whose unit sits
+// outside that directory, passes under strict mode.
 func TestCASInStacksSourceInsideStack(t *testing.T) {
 	t.Parallel()
 
@@ -1093,7 +1094,7 @@ func TestCASInStacksSourceInsideStack(t *testing.T) {
 			wantErr: true,
 		},
 		{name: "strict mode", files: insideFiles, flags: "--strict-mode", wantErr: true},
-		{name: "stack selected with a subdirectory under strict mode", files: outsideFiles, flags: "--strict-mode"},
+		{name: "catalog separated from the stack under strict mode", files: outsideFiles, flags: "--strict-mode"},
 	}
 
 	for _, tc := range testCases {
@@ -1128,12 +1129,12 @@ func TestCASInStacksSourceInsideStack(t *testing.T) {
 			var typed config.CASSourceInsideStackError
 			require.ErrorAs(t, err, &typed)
 			assert.Equal(t, "stack bar", typed.Component)
-			assert.Equal(t, &cas.SourceInsideStack{
-				StackFile: "terragrunt.stack.hcl",
-				BlockType: "unit",
-				Name:      "foo",
-				Source:    "./units/foo",
-			}, typed.Block)
+			require.NotNil(t, typed.Block)
+			assert.Equal(t, "terragrunt.stack.hcl", typed.Block.StackFile)
+			assert.Equal(t, "unit", typed.Block.BlockType)
+			assert.Equal(t, "foo", typed.Block.Name)
+			assert.Equal(t, "./units/foo", typed.Block.Source)
+			assert.Equal(t, 2, typed.Block.Range.Start.Line)
 		})
 	}
 }
