@@ -23,7 +23,7 @@ func GenerateUnitDependencies(
 	opts *options.TerragruntOptions,
 	configPath string,
 ) error {
-	paths, err := UnitDependencyPaths(ctx, l, v, opts, configPath)
+	paths, err := UnitDependencyPaths(ctx, l, v, opts, configPath, config.DiagnosticsLogged)
 	if err != nil {
 		return err
 	}
@@ -44,6 +44,7 @@ func UnitDependencyPaths(
 	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	configPath string,
+	diagnostics config.DiagnosticsOutput,
 ) ([]string, error) {
 	parseOpts := opts.Clone()
 	parseOpts.WorkingDir = filepath.Dir(configPath)
@@ -62,6 +63,7 @@ func UnitDependencyPaths(
 	pctx := configbridge.NewParsingContext(parseOpts).
 		WithDecodeList(config.DependenciesBlock, config.DependencyBlock, config.FeatureFlagsBlock).
 		WithSkipOutputsResolution()
+	pctx.Parser.Diagnostics = diagnostics
 
 	cfg, err := config.PartialParseConfigFile(ctx, l, parseV, pctx, configPath, nil)
 	if err != nil {

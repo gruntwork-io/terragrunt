@@ -39,7 +39,7 @@ func TestStackReferenceDiscoveryHonorsAuthProviderOptOut(t *testing.T) {
 			opts.DiscoveryAuthProviderCmd = enabled
 			opts.AuthProviderCmd = "fake-auth"
 
-			paths, err := discovery.UnitDependencyPaths(config.WithCaches(t.Context()), logger.CreateLogger(), v, opts, filepath.Join(root, "terragrunt.hcl"))
+			paths, err := discovery.UnitDependencyPaths(config.WithCaches(t.Context()), logger.CreateLogger(), v, opts, filepath.Join(root, "terragrunt.hcl"), config.DiagnosticsLogged)
 
 			require.NoError(t, err)
 			expected := "fallback"
