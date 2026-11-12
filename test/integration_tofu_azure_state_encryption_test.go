@@ -16,8 +16,9 @@ import (
 func TestAzureTofuStateEncryptionAzureVault(t *testing.T) {
 	t.Parallel()
 
-	require.NotEmpty(t, os.Getenv("TG_AZURE_TEST_VAULT_URI"), "TG_AZURE_TEST_VAULT_URI is required for live test")
-	require.NotEmpty(t, os.Getenv("TG_AZURE_TEST_VAULT_KEY_NAME"), "TG_AZURE_TEST_VAULT_KEY_NAME is required for live test")
+	if os.Getenv("TG_AZURE_TEST_VAULT_URI") == "" || os.Getenv("TG_AZURE_TEST_VAULT_KEY_NAME") == "" {
+		t.Skip("TG_AZURE_TEST_VAULT_URI and TG_AZURE_TEST_VAULT_KEY_NAME are required for live test")
+	}
 
 	const fixture = "fixtures/tofu-state-encryption/azure-vault"
 

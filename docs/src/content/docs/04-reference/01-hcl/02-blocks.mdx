@@ -53,6 +53,7 @@ Think of configuration blocks as a way to control different systems used by Terr
 
 #### Azure Key Vault
 
+OpenTofu 1.11 required.
 A `terragrunt.hcl` file configuring Azure Key Vault encryption with the `azurerm` backend could look like this:
 
 ```hcl
@@ -67,8 +68,8 @@ remote_state {
   config = {
     resource_group_name  = "rg-example"
     storage_account_name = "stexample"
-    container_name       = "tf-state"
-    key                  = "${path_relative_to_include()}/terraform.tfstate"
+    container_name       = "mybucket"
+    key                  = "path/to/my/key"
     subscription_id      = get_env("AZURE_SUBSCRIPTION_ID")
   }
 
