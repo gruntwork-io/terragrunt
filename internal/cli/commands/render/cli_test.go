@@ -51,6 +51,7 @@ func TestNewCommandExposesTheRenderFlags(t *testing.T) {
 		shared.NoDependencyFetchOutputFromStateFlagName,
 		shared.UsePartialParseConfigCacheFlagName,
 		shared.NoAutoInitFlagName,
+		shared.InputsDebugFlagName,
 		shared.ProviderCacheFlagName,
 		shared.BackendBootstrapFlagName,
 	} {
@@ -72,7 +73,6 @@ func TestNewCommandRejectsFlagsRenderDoesNotRead(t *testing.T) {
 		"--" + shared.NoRunHooksFlagName,
 		"--" + shared.NoStackGenerateFlagName,
 		"--" + shared.SourceUpdateFlagName,
-		"--" + shared.InputsDebugFlagName,
 		"--" + shared.ParallelismFlagName + "=1",
 		"--" + shared.DestroyDependenciesCheckFlagName,
 		"--graph-root=.",
