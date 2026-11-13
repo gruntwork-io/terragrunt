@@ -1223,3 +1223,156 @@ variables {
 		})
 	}
 }
+
+func TestParityMergedIncludeLocals(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		files map[string]string
+		name  string
+	}{
+		{
+			name: "locals only the included file declares",
+			files: map[string]string{
+				"root.hcl": `
+locals {
+  region = "us-east-1"
+  tags   = { team = "platform", tier = 1 }
+}
+
+inputs = {
+  region = local.region
+}
+`,
+				"app/terragrunt.hcl": `
+include "root" {
+  path = "../root.hcl"
+}
+
+locals {
+  name = "app"
+}
+`,
+			},
+		},
+		{
+			name: "local declared by both files",
+			files: map[string]string{
+				"root.hcl": `
+locals {
+  name = "root"
+}
+`,
+				"app/terragrunt.hcl": `
+include "root" {
+  path = "../root.hcl"
+}
+
+locals {
+  name = "app"
+}
+`,
+			},
+		},
+		{
+			name: "exposed include read through its locals",
+			files: map[string]string{
+				"root.hcl": `
+locals {
+  region = "us-east-1"
+}
+`,
+				"app/terragrunt.hcl": `
+include "root" {
+  path   = "../root.hcl"
+  expose = true
+}
+
+locals {
+  region = include.root.locals.region
+}
+
+inputs = {
+  region = include.root.locals.region
+}
+`,
+			},
+		},
+		{
+			name: "two includes merged deep",
+			files: map[string]string{
+				"root.hcl": `
+locals {
+  region = "us-east-1"
+}
+
+inputs = {
+  tags = { region = local.region }
+}
+`,
+				"env.hcl": `
+locals {
+  env = "dev"
+}
+
+inputs = {
+  tags = { env = local.env }
+}
+`,
+				"app/terragrunt.hcl": `
+include "root" {
+  path           = "../root.hcl"
+  merge_strategy = "deep"
+}
+
+include "env" {
+  path           = "../env.hcl"
+  merge_strategy = "deep"
+}
+`,
+			},
+		},
+		{
+			name: "included local past the number range",
+			files: map[string]string{
+				"root.hcl": `
+locals {
+  huge = 1E3000 * 1E3000
+}
+`,
+				"app/terragrunt.hcl": `
+include "root" {
+  path = "../root.hcl"
+}
+`,
+			},
+		},
+		{
+			name: "included file with empty locals",
+			files: map[string]string{
+				"root.hcl": "locals {}\n",
+				"app/terragrunt.hcl": `
+include "root" {
+  path = "../root.hcl"
+}
+`,
+			},
+		},
+	}
+
+	for i, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// pkg/config keeps process-wide caches keyed by path and content, and under one root the cases share
+			// both for app/terragrunt.hcl.
+			root := venvtest.Root(fmt.Sprintf("/fixture-%d", i))
+
+			assertParity(t, parityCase{
+				newFS:     memFS(root, tc.files),
+				cfgPath:   filepath.Join(root, "app", pkgconfig.DefaultTerragruntConfigPath),
+				configure: func(*pkgconfig.ParsingContext) {},
+			})
+		})
+	}
+}
