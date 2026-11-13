@@ -166,6 +166,7 @@ type TerragruntConfig struct {
 	FieldsMetadata              map[string]map[string]any
 	Terraform                   *TerraformConfig
 	Errors                      *ErrorsConfig
+	Outputs                     *OutputsConfig
 	RemoteState                 *remotestate.RemoteState
 	Dependencies                *ModuleDependencies
 	Exclude                     *ExcludeConfig
@@ -359,6 +360,10 @@ func (cfg *TerragruntConfig) WriteTo(w io.Writer) (int64, error) {
 
 	if cfg.Errors != nil {
 		rootBody.AppendBlock(errorsBlock(cfg.Errors))
+	}
+
+	if cfg.Outputs != nil {
+		rootBody.AppendBlock(outputsBlock(cfg.Outputs))
 	}
 
 	if cfg.Catalog != nil {
@@ -670,11 +675,15 @@ func errorsBlock(errs *ErrorsConfig) *hclwrite.Block {
 	return block
 }
 
-// errorPatterns renders the error patterns a retry or ignore block matches on.
-func errorPatterns(patterns []string) cty.Value {
-	rendered := make([]cty.Value, len(patterns))
-	for i, pattern := range patterns {
-		rendered[i] = cty.StringVal(pattern)
+// stringListVal renders values as a cty list of strings, empty when values has none.
+func stringListVal(values []string) cty.Value {
+	if len(values) == 0 {
+		return cty.ListValEmpty(cty.String)
+	}
+
+	rendered := make([]cty.Value, len(values))
+	for i, value := range values {
+		rendered[i] = cty.StringVal(value)
 	}
 
 	return cty.ListVal(rendered)
@@ -697,7 +706,7 @@ func retryBlock(retry *RetryBlock) *hclwrite.Block {
 	}
 
 	if len(retry.RetryableErrors) > 0 {
-		body.SetAttributeValue("retryable_errors", errorPatterns(retry.RetryableErrors))
+		body.SetAttributeValue("retryable_errors", stringListVal(retry.RetryableErrors))
 	}
 
 	return block
@@ -709,7 +718,7 @@ func ignoreBlock(ignore *IgnoreBlock) *hclwrite.Block {
 	body := block.Body()
 
 	if len(ignore.IgnorableErrors) > 0 {
-		body.SetAttributeValue("ignorable_errors", errorPatterns(ignore.IgnorableErrors))
+		body.SetAttributeValue("ignorable_errors", stringListVal(ignore.IgnorableErrors))
 	}
 
 	if ignore.Message != "" {
@@ -718,6 +727,39 @@ func ignoreBlock(ignore *IgnoreBlock) *hclwrite.Block {
 
 	if ignore.Signals != nil {
 		body.SetAttributeValue("signals", cty.MapVal(ignore.Signals))
+	}
+
+	return block
+}
+
+// outputsBlock renders the outputs block along with the mock_strategy and output blocks nested in it.
+func outputsBlock(outputs *OutputsConfig) *hclwrite.Block {
+	block := hclwrite.NewBlock(MetadataOutputs, nil)
+	body := block.Body()
+
+	if strategy := outputs.MockStrategy; strategy != nil {
+		strategyBlock := hclwrite.NewBlock(MetadataMockStrategy, nil)
+
+		if strategy.AllowedCommands != nil {
+			strategyBlock.Body().SetAttributeValue("allowed_commands", stringListVal(*strategy.AllowedCommands))
+		}
+
+		if strategy.MergeWithState != nil {
+			strategyBlock.Body().SetAttributeValue("merge_with_state", cty.StringVal(string(*strategy.MergeWithState)))
+		}
+
+		body.AppendBlock(strategyBlock)
+	}
+
+	for _, output := range outputs.Outputs {
+		outputBlock := hclwrite.NewBlock(MetadataOutput, []string{output.Name})
+
+		if output.MockValue != nil {
+			mockValue, _ := output.MockValue.UnmarkDeep()
+			outputBlock.Body().SetAttributeValue("mock_value", mockValue)
+		}
+
+		body.AppendBlock(outputBlock)
 	}
 
 	return block
@@ -1004,6 +1046,7 @@ type TerragruntConfigFile struct {
 	FeatureFlags             []*FeatureFlag `hcl:"feature,block"`
 	Exclude                  *ExcludeConfig `hcl:"exclude,block"`
 	Errors                   *ErrorsConfig  `hcl:"errors,block"`
+	Outputs                  *OutputsConfig `hcl:"outputs,block"`
 
 	// We allow users to configure code generation via blocks:
 	//
@@ -2384,6 +2427,15 @@ func ConvertToTerragruntConfig(
 	if cfgFromFile.Errors != nil {
 		cfg.Errors = cfgFromFile.Errors
 		cfg.SetFieldMetadata(MetadataErrors, defaultMetadata)
+	}
+
+	if cfgFromFile.Outputs != nil {
+		if err := cfgFromFile.Outputs.Validate(pctx.Experiments, cfgPath); err != nil {
+			errs = append(errs, err)
+		}
+
+		cfg.Outputs = cfgFromFile.Outputs
+		cfg.SetFieldMetadata(MetadataOutputs, defaultMetadata)
 	}
 
 	generateBlocks := []TerragruntGenerateBlock{}

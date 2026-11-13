@@ -120,6 +120,21 @@ func TestSchemaMatchesPkgConfig(t *testing.T) {
 			bodies: []reflect.Type{reflect.TypeFor[config.IgnoreBody]()},
 		},
 		{
+			block:  pkgconfig.MetadataOutputs,
+			v1:     reflect.TypeFor[pkgconfig.OutputsConfig](),
+			header: reflect.TypeFor[config.OutputsHCL](),
+		},
+		{
+			block:  pkgconfig.MetadataMockStrategy,
+			v1:     reflect.TypeFor[pkgconfig.OutputsMockStrategy](),
+			header: reflect.TypeFor[config.MockStrategyHCL](),
+		},
+		{
+			block:  pkgconfig.MetadataOutput,
+			v1:     reflect.TypeFor[pkgconfig.OutputDeclaration](),
+			header: reflect.TypeFor[config.OutputHCL](),
+		},
+		{
 			block:  pkgconfig.MetadataGenerateConfigs,
 			v1:     reflect.TypeFor[pkgconfig.TerragruntGenerateBlock](),
 			header: reflect.TypeFor[config.GenerateHCL](),

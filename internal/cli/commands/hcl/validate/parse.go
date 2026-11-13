@@ -2,10 +2,13 @@ package validate
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"slices"
 
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/view/diagnostic"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -13,6 +16,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/hashicorp/hcl/v2"
 )
+
+const summaryUnsupportedAttribute = "Unsupported attribute"
 
 // DiagnosticsCollector gathers the diagnostics a parse reports, for a caller
 // that answers with them rather than letting the parser's default diagnostics
@@ -55,6 +60,27 @@ func (c *DiagnosticsCollector) collect(
 	file *hcl.File,
 	hclDiags hcl.Diagnostics,
 ) (hcl.Diagnostics, error) {
+	return nil, c.keep(file, hclDiags)
+}
+
+// keep collects the diagnostics of hclDiags that point at file, one per source range.
+func (c *DiagnosticsCollector) keep(file *hcl.File, hclDiags hcl.Diagnostics) error {
+	return c.keepWith(file, hclDiags, c.add)
+}
+
+// keepDistinct collects the diagnostics of hclDiags that point at file, one per source range and text.
+func (c *DiagnosticsCollector) keepDistinct(file *hcl.File, hclDiags hcl.Diagnostics) error {
+	return c.keepWith(file, hclDiags, c.addDistinct)
+}
+
+// keepWith converts the diagnostics of hclDiags that point at file and hands each to add.
+func (c *DiagnosticsCollector) keepWith(
+	file *hcl.File,
+	hclDiags hcl.Diagnostics,
+	add func(diag *diagnostic.Diagnostic),
+) error {
+	errs := make([]error, 0, len(hclDiags))
+
 	for _, hclDiag := range hclDiags {
 		if raisedElsewhere(file, hclDiag) {
 			continue
@@ -62,22 +88,53 @@ func (c *DiagnosticsCollector) collect(
 
 		diag, err := diagnostic.NewDiagnostic(file, hclDiag)
 		if err != nil {
-			return nil, err
+			errs = append(errs, err)
+
+			continue
 		}
 
-		c.add(diag)
+		add(diag)
 	}
 
-	return nil, nil
+	return errors.Join(errs...)
 }
 
-// add keeps diag unless an equivalent one is already collected.
+// add keeps diag unless one is already collected at its range.
 func (c *DiagnosticsCollector) add(diag *diagnostic.Diagnostic) {
 	if c.has(diag) {
 		return
 	}
 
 	c.diags = append(c.diags, diag)
+}
+
+// addDistinct keeps diag unless one with its summary and detail is already collected at its range.
+func (c *DiagnosticsCollector) addDistinct(diag *diagnostic.Diagnostic) {
+	if c.hasDistinct(diag) {
+		return
+	}
+
+	c.diags = append(c.diags, diag)
+}
+
+// dropEvaluationDiagnostics removes the unattributed unsupported-attribute diagnostics inside a subject of hclDiags.
+func (c *DiagnosticsCollector) dropEvaluationDiagnostics(hclDiags hcl.Diagnostics) {
+	c.diags = slices.DeleteFunc(c.diags, func(have *diagnostic.Diagnostic) bool {
+		if _, owned := c.owners[have]; owned || have.Range == nil || have.Summary != summaryUnsupportedAttribute {
+			return false
+		}
+
+		return slices.ContainsFunc(hclDiags, func(diag *hcl.Diagnostic) bool {
+			return diag.Subject != nil && within(*have.Range, *diag.Subject)
+		})
+	})
+}
+
+// within reports whether rng lies inside subject, in the same file.
+func within(rng diagnostic.Range, subject hcl.Range) bool {
+	return rng.Filename == subject.Filename &&
+		rng.Start.Byte >= subject.Start.Byte &&
+		rng.End.Byte <= subject.End.Byte
 }
 
 // has reports whether diag is already collected.
@@ -93,6 +150,22 @@ func (c *DiagnosticsCollector) has(diag *diagnostic.Diagnostic) bool {
 	return slices.ContainsFunc(c.diags, func(have *diagnostic.Diagnostic) bool {
 		return have.Range == nil && have.Summary == diag.Summary && have.Detail == diag.Detail
 	})
+}
+
+// hasDistinct reports whether a diagnostic with diag's summary and detail is already collected at its range.
+func (c *DiagnosticsCollector) hasDistinct(diag *diagnostic.Diagnostic) bool {
+	return slices.ContainsFunc(c.diags, func(have *diagnostic.Diagnostic) bool {
+		return sameRange(have.Range, diag.Range) && have.Summary == diag.Summary && have.Detail == diag.Detail
+	})
+}
+
+// sameRange reports whether a and b are both absent or both the same source range.
+func sameRange(a, b *diagnostic.Range) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+
+	return a.String() == b.String()
 }
 
 // raisedElsewhere reports whether diag points at a file other than the one
@@ -128,6 +201,7 @@ const (
 // each reports into Collector.
 type ComponentParser struct {
 	Collector *DiagnosticsCollector
+	Store     *rewrite.Store
 	Options   ParserOptions
 }
 
@@ -147,25 +221,34 @@ func (p ComponentParser) Unit(
 	parseOpts.TerragruntConfigPath = filepath.Join(unitDir, unitConfigFilename(opts))
 	parseOpts.OriginalTerragruntConfigPath = parseOpts.TerragruntConfigPath
 
+	_, rootDownloadDir := util.DefaultWorkingAndDownloadDirs(opts.TerragruntConfigPath)
+	if opts.DownloadDir == "" || opts.DownloadDir == rootDownloadDir {
+		_, parseOpts.DownloadDir = util.DefaultWorkingAndDownloadDirs(parseOpts.TerragruntConfigPath)
+	}
+
 	pctx := configbridge.NewParsingContext(parseOpts)
 
 	configPath := parseOpts.TerragruntConfigPath
 
-	cfg, err := config.ReadTerragruntConfig(
-		ctx,
-		l,
-		v,
-		pctx.WithParserSettings(p.parserSettings(pctx.Parser)),
-	)
+	pctx = pctx.WithParserSettings(p.parserSettings(pctx.Parser))
+
+	cfg, err := config.ReadTerragruntConfig(ctx, l, v, pctx)
 	if err != nil {
+		err = p.pointAtOutputsErrors(l, v, pctx, err)
+
 		return p.Collector.pointAtDependencyErrors(v.FS, unitDir, []string{configPath}, err)
 	}
 
-	return p.Collector.pointAtDependencyErrors(
-		v.FS,
-		unitDir,
-		dependencyConfigPaths(configPath, cfg),
-		config.ValidateDependencyConfigPaths(v.FS, cfg, configPath),
+	contractErr := p.pointAtOutputsErrors(l, v, pctx, p.validateOutputsContracts(ctx, l, v, parseOpts, pctx, cfg))
+
+	return errors.Join(
+		contractErr,
+		p.Collector.pointAtDependencyErrors(
+			v.FS,
+			unitDir,
+			dependencyConfigPaths(configPath, cfg),
+			config.ValidateDependencyConfigPaths(v.FS, cfg, configPath),
+		),
 	)
 }
 

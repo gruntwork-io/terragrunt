@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/render"
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -527,3 +528,48 @@ const testExtremeExponentConfigFixture = `dependency "dep" {
   }
 }
 `
+
+const testSensitiveMockValueFixture = `outputs {
+  output "token" {
+    mock_value = sensitive("mock-token")
+  }
+}
+`
+
+// TestRenderSensitiveMockValue expects a sensitive() mock value to render as the value it holds in both formats.
+func TestRenderSensitiveMockValue(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		format   string
+		expected string
+	}{
+		{name: "hcl", format: render.FormatHCL, expected: `mock_value = "mock-token"`},
+		{name: "json", format: render.FormatJSON, expected: `"mock_value":"mock-token"`},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			opts, _ := setupTest(t, testSensitiveMockValueFixture)
+			require.NoError(t, opts.Experiments.EnableExperiment(experiment.OutputsBlock))
+
+			opts.Format = tc.format
+			opts.Write = false
+
+			var rendered bytes.Buffer
+
+			err := render.Run(
+				config.WithCaches(t.Context()),
+				logger.CreateLogger(),
+				venvtest.NewOSWithEmptyEnv().WithWriter(&rendered),
+				new(rewrite.Store),
+				opts,
+			)
+			require.NoError(t, err)
+			assert.Contains(t, rendered.String(), tc.expected)
+		})
+	}
+}

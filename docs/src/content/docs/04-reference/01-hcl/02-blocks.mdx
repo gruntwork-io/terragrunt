@@ -8,6 +8,7 @@ sidebar:
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
 import { Aside } from '@astrojs/starlight/components';
+import Since from '@components/Since.astro';
 import AnchorRedirects from '@components/AnchorRedirects.astro';
 import HclAnchorRedirects from '@components/HclAnchorRedirects.astro';
 import HclItemCards from '@components/HclItemCards.astro';
@@ -630,6 +631,13 @@ The `dependency` block supports the following arguments:
   available from the target module, or if `skip_outputs` is `true`. However, it's generally recommended not to set
   `skip_outputs` if using `mock_outputs`, because `skip_outputs` means "use mocks all the time if they are set" whereas
   `mock_outputs` means "use mocks only if real outputs are not available." Use `locals` instead when `skip_outputs = true`.
+
+<Since version="v1.2.3">
+
+`mock_outputs` overrides the mock values of an [`outputs`](/reference/hcl/blocks/outputs#with-a-dependency-block) block the dependency declares, key by key.
+
+</Since>
+
 - `mock_outputs_allowed_terraform_commands` (attribute): A list of Terraform commands for which `mock_outputs` are
   allowed. If a command is used where `mock_outputs` is not allowed, and no outputs are available in the target module,
   Terragrunt will throw an error when processing this dependency.

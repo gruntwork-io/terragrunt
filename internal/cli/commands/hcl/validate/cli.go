@@ -7,6 +7,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -22,6 +23,8 @@ const (
 	// InputsFlagName is the name of the flag that checks each unit's inputs
 	// against the variables its module declares.
 	InputsFlagName = "inputs"
+	// OutputsFlagName is the name of the flag that checks the outputs contracts of each unit.
+	OutputsFlagName = "outputs"
 	// ShowConfigPathFlagName is the name of the flag that prints the paths of
 	// the files with invalid configuration.
 	ShowConfigPathFlagName = "show-config-path"
@@ -58,6 +61,19 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihe
 				EnvVars:     tgPrefix.EnvVars(InputsFlagName),
 				Destination: &opts.HCLValidateInputs,
 				Usage:       "Checks if the Terragrunt configured inputs align with OpenTofu/Terraform defined variables.",
+			},
+		),
+
+		flags.NewFlag(
+			&clihelper.BoolFlag{
+				Name:        OutputsFlagName,
+				EnvVars:     tgPrefix.EnvVars(OutputsFlagName),
+				Destination: &opts.HCLValidateOutputs,
+				Usage: flags.ExperimentUsage(
+					opts.Experiments,
+					experiment.OutputsBlock,
+					"Checks that each output a unit declares exists in its OpenTofu/Terraform module and that its dependents read only declared outputs.",
+				),
 			},
 		),
 

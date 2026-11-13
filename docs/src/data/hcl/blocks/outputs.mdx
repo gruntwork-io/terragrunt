@@ -1,0 +1,198 @@
+---
+name: outputs
+description: Declares a unit's outputs and the mock values its dependents read before the unit is applied.
+configs: [unit]
+since: v1.2.3
+examples:
+  - description: A unit declares two outputs and a mock value for each.
+    code: |
+      # vpc/terragrunt.hcl
+
+      terraform {
+        source = "../modules/vpc"
+      }
+
+      outputs {
+        mock_strategy {
+          allowed_commands = ["validate", "plan"]
+          merge_with_state = "shallow"
+        }
+
+        output "vpc_id" {
+          mock_value = "vpc-mock-id"
+        }
+
+        output "subnet_ids" {
+          mock_value = ["subnet-mock-1", "subnet-mock-2"]
+        }
+      }
+  - description: A dependent reads them through a `dependency` block and sets no `mock_outputs`.
+    code: |
+      # eks/terragrunt.hcl
+
+      dependency "vpc" {
+        config_path = "../vpc"
+      }
+
+      inputs = {
+        vpc_id     = dependency.vpc.outputs.vpc_id
+        subnet_ids = dependency.vpc.outputs.subnet_ids
+      }
+blocks:
+  - name: mock_strategy
+    description: Controls which commands may use the mock values and how they merge with state.
+    attributes:
+      - name: allowed_commands
+        type: list(string)
+        description: The OpenTofu/Terraform commands that may use the mock values, e.g. `validate` and `plan`. When it is unset or empty, every command may use them. It works like `mock_outputs_allowed_terraform_commands` on a [`dependency`](/reference/hcl/blocks#dependency) block.
+      - name: merge_with_state
+        type: string
+        default: no_merge
+        description: How Terragrunt merges the outputs in the unit's state with the mock values. One of `no_merge`, `shallow`, or `deep_map_only`. It works like `mock_outputs_merge_strategy_with_state` on a `dependency` block.
+    example: |
+      # vpc/terragrunt.hcl
+
+      outputs {
+        mock_strategy {
+          allowed_commands = ["validate", "plan"]
+          merge_with_state = "shallow"
+        }
+
+        output "vpc_id" {
+          mock_value = "vpc-mock-id"
+        }
+      }
+  - name: output
+    description: Declares one output of the unit. Declaring the same name twice is an error.
+    labels:
+      - name: name
+        description: The name of the output, as the unit's OpenTofu/Terraform module declares it.
+    attributes:
+      - name: mock_value
+        type: any
+        description: The value dependents read until the unit has a real one. It can use `local` values and functions. It cannot read a `dependency` output, because dependents read this block without resolving the unit's own dependencies. A dependency with `skip_outputs = true` reads the mock value too.
+    example: |
+      # vpc/terragrunt.hcl
+
+      outputs {
+        output "vpc_id" {
+          mock_value = "vpc-mock-id"
+        }
+
+        output "subnet_ids" {
+          mock_value = ["subnet-mock-1", "subnet-mock-2"]
+        }
+      }
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import SideBySide from '@components/SideBySide.astro';
+
+<Aside type="tip" title="Experimental">
+  The `outputs` block needs the [`outputs-block`](/reference/experiments/active#outputs-block) experiment. Enable it with `--experiment outputs-block` or `TG_EXPERIMENT=outputs-block`. Without the experiment, a config that has the block fails with an error.
+</Aside>
+
+The `outputs` block lists the outputs of a unit. Each output can have a mock value. Units that depend on this unit read the mock values until it has real outputs, e.g. before its first apply.
+
+You declare the mock values once, in the unit that produces the outputs. Its dependents need no `mock_outputs` in their [`dependency`](/reference/hcl/blocks#dependency) blocks.
+
+Dependents read the mock values while the unit has no state yet or its state has no outputs. The rules are the same as for `mock_outputs`. Any other error while reading the state fails the run.
+
+### With a dependency block
+
+A `dependency` block reads the `outputs` block of the unit it points at. For each output, it takes the value from the unit's state when the state has one, and the declared `mock_value` otherwise.
+
+<SideBySide>
+
+```hcl title="vpc/terragrunt.hcl"
+outputs {
+  mock_strategy {
+    allowed_commands = ["validate", "plan"]
+  }
+
+  output "vpc_id" {
+    mock_value = "vpc-mock-id"
+  }
+}
+```
+
+```hcl title="eks/terragrunt.hcl"
+dependency "vpc" {
+  config_path = "../vpc"
+}
+
+inputs = {
+  vpc_id = dependency.vpc.outputs.vpc_id
+}
+```
+
+</SideBySide>
+
+Before `vpc` is applied, a `plan` of `eks` resolves `dependency.vpc.outputs.vpc_id` to `"vpc-mock-id"`. Once `vpc` is applied, the same expression resolves to the `vpc_id` in its state. An `apply` of `eks` gets no mock value, because `allowed_commands` lists only `validate` and `plan`.
+
+Settings on the `dependency` block override the `outputs` block of the unit it reads:
+
+- `mock_outputs` overrides `mock_value` one key at a time. A key that `mock_outputs` leaves out keeps its declared mock value.
+- `mock_outputs_allowed_terraform_commands` and `mock_outputs_merge_strategy_with_state` override `mock_strategy` when set.
+
+When the unit has outputs in state, every declared output has to be among them. A missing one is an error, unless `merge_with_state` fills it from `mock_value`. The `render` command does not raise this error.
+
+`render` prints the `dependency` block as you wrote it. The declared mock values appear in the resolved `inputs`.
+
+### Through include
+
+An included file can declare the `outputs` block. With a `shallow` merge, the unit's own `outputs` block replaces the included one. With a `deep` merge, Terragrunt combines the two blocks by output name. When both declare the same output, the unit's declaration wins.
+
+### Checking outputs with hcl validate
+
+[`terragrunt hcl validate --outputs`](/reference/cli/commands/hcl/validate#outputs) checks the `outputs` blocks. For the validation to pass:
+
+- Every declared output has to exist in the OpenTofu/Terraform module the unit runs.
+- Every `dependency.<name>.outputs.<output>` reference has to name an output that the dependency declares. The check skips a dependency that has no `outputs` block.
+
+Without the flag, `hcl validate` runs neither check.
+
+In this example, `eks` reads `subnet_ids`, an output that `vpc` does not declare:
+
+<SideBySide>
+
+```hcl title="vpc/terragrunt.hcl"
+outputs {
+  output "vpc_id" {
+    mock_value = "vpc-mock-id"
+  }
+}
+```
+
+```hcl title="eks/terragrunt.hcl"
+dependency "vpc" {
+  config_path = "../vpc"
+}
+
+inputs = {
+  vpc_id     = dependency.vpc.outputs.vpc_id
+  subnet_ids = dependency.vpc.outputs.subnet_ids
+}
+```
+
+</SideBySide>
+
+```bash
+terragrunt hcl validate --outputs --experiment outputs-block
+```
+
+The validation fails and points at the reference:
+
+```text
+error: Undeclared dependency output
+ --> eks/terragrunt.hcl:7:16
+  |
+7 |   subnet_ids = dependency.vpc.outputs.subnet_ids
+  |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = dependency "vpc" declares its outputs, and "subnet_ids" is not one of
+    them. Declared outputs: vpc_id. Fix the reference or add output
+    "subnet_ids" to the outputs block of the dependency.
+```
+
+To make it pass, declare `subnet_ids` in the `outputs` block of `vpc`, or remove the reference from `eks`.

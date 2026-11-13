@@ -144,7 +144,7 @@ func DownloadTerraformSource(
 			),
 		)
 
-		copyOpts := moduleCopyOptions(opts, cfg)
+		copyOpts := ModuleCopyOptions(opts, cfg)
 
 		err = telemetry.TelemeterFromContext(ctx).
 			Collect(ctx, l, "copy_folder_contents", map[string]any{
@@ -216,12 +216,12 @@ func requireOSFilesystemForSource(fsys vfs.FS, src *tf.Source) error {
 	return ErrNonOSFilesystem
 }
 
-// moduleCopyOptions returns the copy options for the module copy into the
+// ModuleCopyOptions returns the copy options for the module copy into the
 // cache working directory. The source version hash uses the same options so it
 // covers exactly the files a copy would deliver: when the source directory is
 // the working directory, the module copy is skipped whenever the hash is
 // unchanged, so any file the hash ignored must be one no copy would refresh.
-func moduleCopyOptions(opts *Options, cfg *runcfg.RunConfig) []util.CopyOption {
+func ModuleCopyOptions(opts *Options, cfg *runcfg.RunConfig) []util.CopyOption {
 	// Always include the .tflint.hcl file, if it exists
 	includeInCopy := slices.Concat(cfg.Terraform.IncludeInCopy, []string{tfLintConfig})
 
@@ -327,7 +327,7 @@ func DownloadTerraformSourceIfNecessary(
 		return false, err
 	}
 
-	copyOpts := moduleCopyOptions(opts, cfg)
+	copyOpts := ModuleCopyOptions(opts, cfg)
 
 	if opts.SourceUpdate {
 		l.Debugf(

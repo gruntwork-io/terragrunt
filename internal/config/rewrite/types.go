@@ -61,6 +61,8 @@ type UnitConfig struct {
 	Exclude *ExcludeHCL `hcl:"exclude,block"`
 	// Errors is the errors block.
 	Errors *ErrorsHCL `hcl:"errors,block"`
+	// Outputs is the outputs block.
+	Outputs *OutputsHCL `hcl:"outputs,block"`
 	// GenerateAttrs is the generate attribute.
 	GenerateAttrs *hcl.Attribute `hcl:"generate,optional"`
 	// GenerateBlocks is the generate blocks, in source order.

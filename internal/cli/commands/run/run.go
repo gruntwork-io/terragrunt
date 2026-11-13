@@ -103,6 +103,10 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v *
 		return err
 	}
 
+	if err := tips.GiveOutputsBlockTips(ctx, l, v, pctx, cfg, opts.Tips); err != nil {
+		return err
+	}
+
 	if opts.CheckDependentUnits {
 		allowDestroy := confirmActionWithDependentUnits(ctx, l, v, s, opts, cfg)
 		if !allowDestroy {

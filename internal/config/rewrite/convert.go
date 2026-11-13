@@ -29,6 +29,7 @@ func (c *UnitConfig) queueFile(q *QueueBodies) *pkgconfig.TerragruntConfigFile {
 		Exclude:                     c.Exclude.v1(q.Exclude),
 		Engine:                      c.Engine.v1(q.Engine),
 		Errors:                      c.Errors.v1(q),
+		Outputs:                     c.Outputs.v1(),
 	}
 }
 
@@ -198,6 +199,35 @@ func (i *IgnoreHCL) v1(body *IgnoreBody) *pkgconfig.IgnoreBlock {
 		Label:           i.Label,
 		Message:         body.Message,
 		IgnorableErrors: slices.Clone(body.IgnorableErrors),
+	}
+}
+
+func (o *OutputsHCL) v1() *pkgconfig.OutputsConfig {
+	if o == nil {
+		return nil
+	}
+
+	return &pkgconfig.OutputsConfig{
+		MockStrategy: o.MockStrategy.v1(),
+		Outputs:      convertAll(o.Output, (*OutputHCL).v1),
+	}
+}
+
+func (s *MockStrategyHCL) v1() *pkgconfig.OutputsMockStrategy {
+	if s == nil {
+		return nil
+	}
+
+	return &pkgconfig.OutputsMockStrategy{
+		AllowedCommands: cloneSlicePtr(s.AllowedCommands),
+		MergeWithState:  clonePtr(s.MergeWithState),
+	}
+}
+
+func (d *OutputHCL) v1() *pkgconfig.OutputDeclaration {
+	return &pkgconfig.OutputDeclaration{
+		MockValue: clonePtr(d.MockValue),
+		Name:      d.Name,
 	}
 }
 

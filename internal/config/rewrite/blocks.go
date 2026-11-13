@@ -5,6 +5,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
+	pkgconfig "github.com/gruntwork-io/terragrunt/pkg/config"
 )
 
 // CatalogHCL is a catalog block.
@@ -153,6 +154,24 @@ type IgnoreBody struct {
 	Signals         map[string]cty.Value `hcl:"signals,optional"`
 	Message         string               `hcl:"message,optional"`
 	IgnorableErrors []string             `hcl:"ignorable_errors,attr"`
+}
+
+// OutputsHCL is an outputs block.
+type OutputsHCL struct {
+	MockStrategy *MockStrategyHCL `hcl:"mock_strategy,block"`
+	Output       []OutputHCL      `hcl:"output,block"`
+}
+
+// MockStrategyHCL is the mock_strategy block of an outputs block.
+type MockStrategyHCL struct {
+	AllowedCommands *[]string                    `hcl:"allowed_commands,attr"`
+	MergeWithState  *pkgconfig.MergeStrategyType `hcl:"merge_with_state,attr"`
+}
+
+// OutputHCL is an output block of an outputs block.
+type OutputHCL struct {
+	MockValue *cty.Value `hcl:"mock_value,optional"`
+	Name      string     `hcl:"name,label"`
 }
 
 // FeatureFlagHCL is a feature block.

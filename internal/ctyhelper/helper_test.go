@@ -101,6 +101,30 @@ func TestUpdateUnknownCtyValValues(t *testing.T) {
 	}
 }
 
+func TestUpdateUnknownCtyValValuesKeepsMarks(t *testing.T) {
+	t.Parallel()
+
+	list := cty.ListVal([]cty.Value{cty.StringVal("a"), cty.UnknownVal(cty.String)}).Mark("sensitive")
+
+	updatedList, err := ctyhelper.UpdateUnknownCtyValValues(list)
+	require.NoError(t, err)
+	assert.True(t, updatedList.HasMark("sensitive"))
+
+	unmarkedList, _ := updatedList.Unmark()
+	assert.True(t, cty.ListVal([]cty.Value{cty.StringVal("a"), cty.StringVal("")}).RawEquals(unmarkedList))
+
+	object := cty.ObjectVal(map[string]cty.Value{
+		"secret": cty.StringVal("s").Mark("sensitive"),
+		"plain":  cty.UnknownVal(cty.String),
+	})
+
+	updatedObject, err := ctyhelper.UpdateUnknownCtyValValues(object)
+	require.NoError(t, err)
+	assert.False(t, updatedObject.IsMarked())
+	assert.True(t, updatedObject.GetAttr("secret").HasMark("sensitive"))
+	assert.Empty(t, updatedObject.GetAttr("plain").AsString())
+}
+
 func TestValidateNumberRanges(t *testing.T) {
 	t.Parallel()
 

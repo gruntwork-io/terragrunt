@@ -80,6 +80,7 @@ type Dependencies []Dependency
 // Struct to hold the decoded dependency blocks.
 type dependencyOutputCache struct {
 	Enabled *bool
+	Outputs *OutputsConfig
 	Inputs  cty.Value
 }
 
@@ -241,10 +242,8 @@ func (dep *Dependency) instanceKey() (string, bool) {
 	return dep.Expansion.Key(), dep.Expansion.Expanded()
 }
 
-// mergeKey identifies a dependency when include merging matches blocks up. Every instance
-// of an expanded block carries the same label, so matching on the label alone would fold a
-// whole set into whichever instance came last.
-func (dep *Dependency) mergeKey() string {
+// Address identifies a dependency among the blocks of a config: the label, or label[key] for an expanded instance.
+func (dep *Dependency) Address() string {
 	key, expanded := dep.instanceKey()
 	if !expanded {
 		return dep.Name
@@ -273,8 +272,20 @@ func (dep *Dependency) setRenderedOutputs(
 		return nil
 	}
 
-	if dep.shouldGetOutputs(pctx) || dep.shouldReturnMockOutputs(pctx) {
-		outputVal, err := getTerragruntOutputIfAppliedElseConfiguredDefault(ctx, l, v, pctx, dep)
+	declared, err := dep.withDeclaredOutputs(ctx, l, v, pctx)
+	if err != nil {
+		return err
+	}
+
+	if declared.dep.shouldGetOutputs(pctx) || declared.dep.shouldReturnMockOutputs(pctx) {
+		outputVal, err := getTerragruntOutputIfAppliedElseConfiguredDefault(
+			ctx,
+			l,
+			v,
+			pctx,
+			declared.dep,
+			declared.outputs,
+		)
 		if err != nil {
 			return err
 		}
@@ -371,7 +382,7 @@ func validateConfigPathsNotNull(cfgPath string, deps Dependencies) error {
 		dep := &deps[i]
 
 		if dep.isEnabled() && dep.ConfigPath.IsNull() {
-			return DependencyNullConfigPathError{ConfigPath: cfgPath, Address: dep.mergeKey()}
+			return DependencyNullConfigPathError{ConfigPath: cfgPath, Address: dep.Address()}
 		}
 	}
 
@@ -412,7 +423,7 @@ func validateDependencyConfigPathDirs(
 			controls.DependencyConfigPathFile,
 			DependencyConfigPathFileError{
 				ConfigPath:     cfgPath,
-				Address:        dep.mergeKey(),
+				Address:        dep.Address(),
 				DependencyPath: dep.ConfigPath.AsString(),
 			},
 		)
@@ -503,7 +514,7 @@ func duplicateDependencyAddress(deps Dependencies) (string, bool) {
 	seen := make(map[string]struct{}, len(deps))
 
 	for i := range deps {
-		address := deps[i].mergeKey()
+		address := deps[i].Address()
 
 		if _, duplicate := seen[address]; duplicate {
 			return address, true
@@ -542,11 +553,11 @@ func duplicateDependencyConfigPath(cfgPath string, deps Dependencies) (sharedDep
 			return sharedDependencyPath{
 				path:   dep.ConfigPath.AsString(),
 				first:  first,
-				second: dep.mergeKey(),
+				second: dep.Address(),
 			}, true
 		}
 
-		seen[path] = dep.mergeKey()
+		seen[path] = dep.Address()
 	}
 
 	return sharedDependencyPath{}, false
@@ -784,6 +795,9 @@ func decodeDependencies(
 		}
 
 		depCtx = depCtx.WithDecodeList(TerragruntFlags).WithDiagnosticsSuppressed()
+		if pctx.Experiments.Evaluate(experiment.OutputsBlock) {
+			depCtx = depCtx.WithDecodeList(TerragruntFlags, OutputsBlock).WithSkipOutputsResolution()
+		}
 
 		depConfig, err := PartialParseConfigFile(ctx, l, v, depCtx, depPath, nil)
 		if err != nil {
@@ -805,6 +819,7 @@ func decodeDependencies(
 
 		cachedValue := dependencyOutputCache{
 			Enabled: dep.Enabled,
+			Outputs: depConfig.Outputs,
 			Inputs:  inputsCty,
 		}
 		depCache.Put(ctx, cacheKey, &cachedValue)
@@ -1004,6 +1019,18 @@ func DependencyBlocksToCtyValue(
 
 			// Encode the outputs and nest under `outputs` attribute if we should get the outputs or the `mock_outputs`
 			if err := dependencyConfig.setRenderedOutputs(ctx, l, v, pctx); err != nil {
+				if errors.As(err, new(DependencyBlockError)) {
+					return err
+				}
+
+				if experimentErr, ok := errors.AsType[OutputsBlockRequiresExperimentError](err); ok {
+					return DependencyBlockError{
+						Name:       dependencyConfig.Name,
+						ConfigPath: pctx.TerragruntConfigPath,
+						Err:        experimentErr,
+					}
+				}
+
 				return fmt.Errorf("resolving dependency %q outputs: %w", dependencyConfig.Name, err)
 			}
 
@@ -1114,6 +1141,7 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(
 	v *venv.Venv,
 	pctx *ParsingContext,
 	dependencyConfig *Dependency,
+	declared *OutputsConfig,
 ) (*cty.Value, error) {
 	if dependencyConfig.isDisabled() {
 		l.Debugf("Skipping outputs reading for disabled dependency %s", dependencyConfig.Name)
@@ -1121,28 +1149,24 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(
 	}
 
 	if dependencyConfig.shouldGetOutputs(pctx) {
-		outputVal, isEmpty, err := getTerragruntOutput(ctx, l, v, pctx, dependencyConfig)
+		outputVal, isEmpty, err := getTerragruntOutput(ctx, l, v, pctx, dependencyConfig, declared)
 		if err != nil {
 			return nil, err
 		}
 
 		if !isEmpty && dependencyConfig.shouldMergeMockOutputsWithState(pctx) &&
 			dependencyConfig.MockOutputs != nil {
-			mockMergeStrategy := dependencyConfig.getMockOutputsMergeStrategy()
+			state, mocks := *outputVal, *dependencyConfig.MockOutputs
+			strategy := dependencyConfig.getMockOutputsMergeStrategy()
 
-			switch mockMergeStrategy {
-			case NoMerge:
-				return outputVal, nil
-			case ShallowMerge:
-				return shallowMergeCtyMaps(*outputVal, *dependencyConfig.MockOutputs)
-			case DeepMergeMapOnly:
-				return deepMergeCtyMapsMapOnly(*dependencyConfig.MockOutputs, *outputVal)
-			case DeepMerge:
-				// Mock outputs merge maps only, so a full deep merge has no meaning here.
-				return nil, InvalidMergeStrategyTypeError(mockMergeStrategy)
-			default:
-				return nil, InvalidMergeStrategyTypeError(mockMergeStrategy)
+			merged, err := mergeMockOutputsWithState(strategy, state, mocks)
+			if err != nil || declared == nil {
+				return merged, err
 			}
+
+			marked := withDeclaredMockMarks(strategy, *merged, mocks, state)
+
+			return &marked, nil
 		} else if !isEmpty {
 			return outputVal, err
 		}
@@ -1167,11 +1191,7 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(
 	)
 
 	if dependencyConfig.shouldReturnMockOutputs(pctx) {
-		l.Warnf(
-			"Config %s is a dependency of %s that has no outputs, but mock outputs provided and returning those in dependency output.",
-			targetConfig,
-			pctx.TerragruntConfigPath,
-		)
+		logMockOutputsFallback(l, pctx, targetConfig, declared)
 
 		return dependencyConfig.MockOutputs, nil
 	}
@@ -1215,6 +1235,7 @@ func getTerragruntOutput(
 	v *venv.Venv,
 	pctx *ParsingContext,
 	dependencyConfig *Dependency,
+	declared *OutputsConfig,
 ) (*cty.Value, bool, error) {
 	// target config check: make sure the target config exists
 	targetConfigPath := getCleanedTargetConfigPath(
@@ -1242,6 +1263,8 @@ func getTerragruntOutput(
 	}
 
 	jsonBytes, err := getOutputJSONWithCaching(ctx, l, v, pctx, targetConfigPath)
+	fromState := err == nil
+
 	if err != nil {
 		if !shouldFallBackToMockOutputs(pctx, err) {
 			return nil, true, err
@@ -1270,6 +1293,16 @@ func getTerragruntOutput(
 	outputMap, err := TerraformOutputJSONToCtyValueMap(targetConfigPath, jsonBytes)
 	if err != nil {
 		return nil, isEmpty, err
+	}
+
+	if fromState && !isEmpty {
+		if err := checkDeclaredOutputs(pctx, dependencyConfig, declared, targetConfigPath, outputMap); err != nil {
+			return nil, isEmpty, DependencyBlockError{
+				Name:       dependencyConfig.Name,
+				ConfigPath: pctx.TerragruntConfigPath,
+				Err:        err,
+			}
+		}
 	}
 
 	// We need to convert the value map to a single cty.Value at the end for use in the terragrunt config.
@@ -3080,4 +3113,80 @@ func ValidateDependencyConfigPaths(fsys vfs.FS, cfg *TerragruntConfig, configPat
 	}
 
 	return errors.Join(errs...)
+}
+
+// logMockOutputsFallback logs the fall back to mock outputs, at debug level for the mocks an outputs block declares.
+func logMockOutputsFallback(l log.Logger, pctx *ParsingContext, targetConfig string, declared *OutputsConfig) {
+	if declared != nil {
+		logf := l.Infof
+		if pctx.SkipOutput || isRenderCommand(pctx) || isRenderJSONCommand(pctx) {
+			logf = l.Debugf
+		}
+
+		logf("%s reads the mock values the outputs block of %s declares.", pctx.TerragruntConfigPath, targetConfig)
+
+		return
+	}
+
+	l.Warnf(
+		"Config %s is a dependency of %s that has no outputs, but mock outputs provided and returning those in dependency output.",
+		targetConfig,
+		pctx.TerragruntConfigPath,
+	)
+}
+
+// mergeMockOutputsWithState merges mocks into state as strategy says, or returns state whole for no merge.
+func mergeMockOutputsWithState(strategy MergeStrategyType, state, mocks cty.Value) (*cty.Value, error) {
+	switch strategy {
+	case NoMerge:
+		return &state, nil
+	case ShallowMerge:
+		return shallowMergeCtyMaps(state, mocks)
+	case DeepMergeMapOnly:
+		return deepMergeCtyMapsMapOnly(mocks, state)
+	case DeepMerge:
+		return nil, InvalidMergeStrategyTypeError(strategy)
+	default:
+		return nil, InvalidMergeStrategyTypeError(strategy)
+	}
+}
+
+// withDeclaredMockMarks fills merged with the mock values state lacks, marks included, nested too for a deep merge.
+func withDeclaredMockMarks(strategy MergeStrategyType, merged, mocks, state cty.Value) cty.Value {
+	mockValues, ok := mockValueMap(&mocks)
+	if !ok {
+		return merged
+	}
+
+	stateValues, ok := mockValueMap(&state)
+	if !ok {
+		return merged
+	}
+
+	values, ok := mockValueMap(&merged)
+	if !ok {
+		return merged
+	}
+
+	if values == nil {
+		values = map[string]cty.Value{}
+	}
+
+	for key, mock := range mockValues {
+		stateValue, inState := stateValues[key]
+		if !inState {
+			values[key] = mock
+
+			continue
+		}
+
+		mergedValue, inMerged := values[key]
+		if !inMerged || strategy != DeepMergeMapOnly {
+			continue
+		}
+
+		values[key] = withDeclaredMockMarks(strategy, mergedValue, mock, stateValue)
+	}
+
+	return cty.ObjectVal(values)
 }

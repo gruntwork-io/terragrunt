@@ -63,6 +63,10 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 		output[MetadataErrors] = errorsConfigCty
 	}
 
+	if outputsConfigCty := outputsConfigAsCty(config.Outputs); outputsConfigCty != cty.NilVal {
+		output[MetadataOutputs] = outputsConfigCty
+	}
+
 	terraformConfigCty, err := terraformConfigAsCty(config.Terraform)
 	if err != nil {
 		return cty.NilVal, err
@@ -283,6 +287,12 @@ func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, err
 
 	if err := wrapCtyMapWithMetadata(config, &config.Locals, MetadataLocals, &output); err != nil {
 		return cty.NilVal, err
+	}
+
+	if outputsConfigCty := outputsConfigAsCty(config.Outputs); outputsConfigCty != cty.NilVal {
+		if err := wrapWithMetadata(config, outputsConfigCty, MetadataOutputs, &output); err != nil {
+			return cty.NilVal, err
+		}
 	}
 
 	// remder dependencies as list of maps with "value" and "metadata"
@@ -809,6 +819,44 @@ func errorsConfigAsCty(config *ErrorsConfig) (cty.Value, error) {
 	}
 
 	return ConvertValuesMapToCtyVal(output)
+}
+
+// outputsConfigAsCty returns the outputs block as an object with mock_strategy and the output blocks keyed by name.
+func outputsConfigAsCty(config *OutputsConfig) cty.Value {
+	if config == nil {
+		return cty.NilVal
+	}
+
+	output := map[string]cty.Value{}
+
+	if strategy := config.MockStrategy; strategy != nil {
+		strategyValues := map[string]cty.Value{}
+
+		if strategy.AllowedCommands != nil {
+			strategyValues["allowed_commands"] = stringListVal(*strategy.AllowedCommands)
+		}
+
+		if strategy.MergeWithState != nil {
+			strategyValues["merge_with_state"] = cty.StringVal(string(*strategy.MergeWithState))
+		}
+
+		output[MetadataMockStrategy] = cty.ObjectVal(strategyValues)
+	}
+
+	declarations := make(map[string]cty.Value, len(config.Outputs))
+
+	for _, declared := range config.Outputs {
+		values := map[string]cty.Value{}
+		if declared.MockValue != nil {
+			values["mock_value"] = *declared.MockValue
+		}
+
+		declarations[declared.Name] = cty.ObjectVal(values)
+	}
+
+	output[MetadataOutput] = cty.ObjectVal(declarations)
+
+	return cty.ObjectVal(output)
 }
 
 // ignoreBlocksAsCty returns the blocks as cty.TupleVal. gocty infers each
