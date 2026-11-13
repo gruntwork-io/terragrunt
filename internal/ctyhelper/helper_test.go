@@ -87,6 +87,38 @@ func TestUpdateUnknownCtyValValues(t *testing.T) {
 			cty.MapVal(map[string]cty.Value{"key": cty.UnknownVal(cty.List(cty.Bool))}),
 			cty.MapVal(map[string]cty.Value{"key": cty.NullVal(cty.List(cty.Bool))}),
 		},
+		{
+			cty.SetVal([]cty.Value{cty.StringVal("a"), cty.UnknownVal(cty.String)}),
+			cty.SetVal([]cty.Value{cty.StringVal("a"), cty.StringVal("")}),
+		},
+		{
+			cty.ObjectVal(map[string]cty.Value{"key": cty.UnknownVal(cty.Number).Mark("sensitive")}),
+			cty.ObjectVal(map[string]cty.Value{"key": cty.NullVal(cty.Number).Mark("sensitive")}),
+		},
+		{
+			cty.TupleVal([]cty.Value{cty.DynamicVal}),
+			cty.TupleVal([]cty.Value{cty.StringVal("")}),
+		},
+		{
+			cty.ListVal([]cty.Value{
+				cty.ObjectVal(map[string]cty.Value{"key": cty.DynamicVal}),
+				cty.NullVal(cty.Object(map[string]cty.Type{"key": cty.DynamicPseudoType})),
+			}),
+			cty.ListVal([]cty.Value{
+				cty.ObjectVal(map[string]cty.Value{"key": cty.NullVal(cty.DynamicPseudoType)}),
+				cty.NullVal(cty.Object(map[string]cty.Type{"key": cty.DynamicPseudoType})),
+			}),
+		},
+		{
+			cty.MapVal(map[string]cty.Value{
+				"a": cty.ObjectVal(map[string]cty.Value{"key": cty.DynamicVal}),
+				"b": cty.NullVal(cty.Object(map[string]cty.Type{"key": cty.DynamicPseudoType})),
+			}),
+			cty.MapVal(map[string]cty.Value{
+				"a": cty.ObjectVal(map[string]cty.Value{"key": cty.NullVal(cty.DynamicPseudoType)}),
+				"b": cty.NullVal(cty.Object(map[string]cty.Type{"key": cty.DynamicPseudoType})),
+			}),
+		},
 	}
 
 	for i, tc := range testCases {

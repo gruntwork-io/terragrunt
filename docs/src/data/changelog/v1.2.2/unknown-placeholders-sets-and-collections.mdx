@@ -1,0 +1,8 @@
+---
+version: "v1.2.2"
+category: "bug-fixes"
+---
+
+#### `hcl validate` handles unknown dependency outputs inside sets and nested collections
+
+An unknown dependency output inside a set, such as `toset(["a", tostring(dependency.vpc.outputs.name)])`, failed with `failed to serialize value: value is not known`. An unknown output inside an object in a map or list next to a `null`, such as `tomap({ a = { id = dependency.vpc.outputs.id }, b = null })`, crashed Terragrunt. Both now validate.
