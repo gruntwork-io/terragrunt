@@ -89,7 +89,9 @@ func TestPreparedStackRejectsLateOrConflictingProducer(t *testing.T) {
 			require.NoError(t, opts.Experiments.EnableExperiment(experiment.DependencyStackGeneration))
 			c := NewCoordinator(v.FS, new(rewrite.Store), opts)
 
-			child := filepath.Join(root, "child")
+			destination := filepath.Join(root, "second")
+
+			child := filepath.Join(destination, "child")
 			if alreadyGenerated {
 				require.NoError(
 					t,
@@ -99,16 +101,20 @@ func TestPreparedStackRejectsLateOrConflictingProducer(t *testing.T) {
 				require.NoError(
 					t,
 					c.Generate(t.Context(), filepath.Join(root, "first/terragrunt.stack.hcl"), func(ctx context.Context) error {
-						return c.registerOutputs(ctx, []string{child})
+						return c.registerOutputs(ctx, []string{destination})
 					}),
 				)
 			}
 
 			err := c.Generate(t.Context(), filepath.Join(root, "second/terragrunt.stack.hcl"), func(ctx context.Context) error {
-				return c.registerOutputs(ctx, []string{child})
+				return c.registerOutputs(ctx, []string{destination})
 			})
 			require.ErrorContains(t, err, "cannot generate into")
-			assert.Contains(t, err.Error(), child)
+			assert.Contains(t, err.Error(), destination)
+
+			if alreadyGenerated {
+				assert.Contains(t, err.Error(), filepath.Join(child, "terragrunt.stack.hcl"))
+			}
 		})
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -168,4 +169,46 @@ func TestGenerateStacksRefreshesNestedStacksParentFirst(t *testing.T) {
 	data, err = os.ReadFile(output)
 	require.NoError(t, err)
 	require.Equal(t, "# new", string(data))
+}
+
+func TestGenerateStackCopiesUnitTreeIntoItsOwnDirectory(t *testing.T) {
+	t.Parallel()
+
+	for _, enabled := range []bool{false, true} {
+		t.Run(fmt.Sprintf("experiment=%t", enabled), func(t *testing.T) {
+			t.Parallel()
+
+			root := venvtest.Root("/repo")
+			fsys := venvtest.NewFS(t, root, map[string]string{
+				"live/terragrunt.stack.hcl": `unit "app" {
+ source = "../source"
+ path = "."
+ no_dot_terragrunt_stack = true
+ values = { marker = "fresh" }
+}`,
+				"source/app/terragrunt.hcl": `inputs = { marker = "fresh" }`,
+			})
+			v := venvtest.NewOSWithEmptyEnv().WithFS(fsys)
+			opts := options.NewTerragruntOptions(v.Exec)
+			opts.WorkingDir, opts.RootWorkingDir = filepath.Join(root, "live"), root
+			opts.Parallelism, opts.NoCAS = 1, true
+
+			if enabled {
+				require.NoError(t, opts.Experiments.EnableExperiment(experiment.DependencyStackGeneration))
+			}
+
+			err := generate.NewGenerator().GenerateStacks(
+				config.WithCaches(t.Context()), logger.CreateLogger(), v, new(rewrite.Store), opts, nil,
+			)
+			require.NoError(t, err)
+
+			contents, err := vfs.ReadFile(fsys, filepath.Join(root, "live/app/terragrunt.hcl"))
+			require.NoError(t, err)
+			require.Equal(t, `inputs = { marker = "fresh" }`, string(contents))
+
+			values, err := vfs.ReadFile(fsys, filepath.Join(root, "live/terragrunt.values.hcl"))
+			require.NoError(t, err)
+			require.Contains(t, string(values), `"fresh"`)
+		})
+	}
 }

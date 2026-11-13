@@ -41,6 +41,10 @@ func (c *Coordinator) registerOutputs(ctx context.Context, destinations []string
 
 		claimed[path] = true
 		for registered := range c.jobs {
+			if registered == owner.path {
+				continue
+			}
+
 			if vfs.Within(c.fs, path, registered) {
 				return fmt.Errorf(
 					"cannot generate into %q: stack %q was already requested; generate its producer first",
