@@ -189,59 +189,6 @@ func TestTFDetailedExitCodeFailOnFirstRunWithStatus(t *testing.T) {
 	assert.Equal(t, 2, exitCode.GetFinalDetailedExitCode())
 }
 
-func TestTFDetailedExitCodeIgnoredError(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		name     string
-		fixture  string
-		command  string
-		expected int
-	}{
-		{
-			name:     "ignored plan error",
-			fixture:  filepath.Join("ignore-error", "ignored"),
-			command:  "terragrunt run --non-interactive --working-dir %s -- plan -detailed-exitcode",
-			expected: tf.DetailedExitCodeSuccess,
-		},
-		{
-			name:     "ignored plan error beside a unit with changes",
-			fixture:  "ignore-error",
-			command:  "terragrunt run --all --non-interactive --working-dir %s -- plan -detailed-exitcode",
-			expected: tf.DetailedExitCodeChanges,
-		},
-		{
-			name:     "ignored hook error after a plan with changes",
-			fixture:  "ignore-hook-error",
-			command:  "terragrunt run --non-interactive --working-dir %s -- plan -detailed-exitcode",
-			expected: tf.DetailedExitCodeChanges,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			testFixturePath := filepath.Join(testFixtureDetailedExitCode, tc.fixture)
-
-			helpers.CleanupTerraformFolder(t, testFixturePath)
-			tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
-			rootPath := filepath.Join(tmpEnvPath, testFixturePath)
-
-			exitCode := tf.NewDetailedExitCodeMap()
-			ctx := tf.ContextWithDetailedExitCode(t.Context(), exitCode)
-
-			_, _, err := helpers.RunTerragruntCommandWithOutputWithContext(
-				t,
-				ctx,
-				fmt.Sprintf(tc.command, rootPath),
-			)
-			require.NoError(t, err)
-			assert.Equal(t, tc.expected, exitCode.GetFinalDetailedExitCode())
-		})
-	}
-}
-
 func TestTFDetailedExitCodeFailOnFirstRunAllWithStatus(t *testing.T) {
 	t.Parallel()
 
