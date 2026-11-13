@@ -34,6 +34,7 @@ func Run(
 	opts *options.TerragruntOptions,
 ) error {
 	ctx = generate.WithCoordinator(ctx, v.FS, s, opts)
+
 	var err error
 
 	srcPath, err = util.CanonicalPath(srcPath, opts.WorkingDir)

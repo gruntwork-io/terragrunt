@@ -4,6 +4,7 @@ package exec
 
 import (
 	"context"
+
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"

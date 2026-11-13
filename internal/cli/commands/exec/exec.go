@@ -3,6 +3,7 @@ package exec
 import (
 	"context"
 	"fmt"
+
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
@@ -32,6 +33,7 @@ func Run(
 	args clihelper.Args,
 ) error {
 	ctx = generate.WithCoordinator(ctx, v.FS, s, opts)
+
 	prepared, err := prepare.PrepareConfig(ctx, l, v, opts)
 	if err != nil {
 		return err

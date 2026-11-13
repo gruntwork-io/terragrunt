@@ -252,13 +252,9 @@ func GenerateStackFile(
 		ociGetter: getter.NewOCIGetter(l, v),
 	}
 
-	if err := generateUnits(ctx, l, v, &genOpts, pool, stackFile.Units); err != nil {
-		return nil, err
-	}
+	generateUnits(ctx, l, v, &genOpts, pool, stackFile.Units)
 
-	if err := generateStacks(ctx, l, v, &genOpts, pool, stackFile.Stacks); err != nil {
-		return nil, err
-	}
+	generateStacks(ctx, l, v, &genOpts, pool, stackFile.Stacks)
 
 	return stackFile, nil
 }
@@ -557,7 +553,7 @@ type generateOpts struct {
 
 // generateUnits iterates through a slice of Unit objects, generating each one by copying
 // source files to their destination paths and writing unit-specific values.
-// It logs the generating progress and returns any errors encountered during the operation.
+// Copy errors are returned by the submitted tasks.
 func generateUnits(
 	ctx context.Context,
 	l log.Logger,
@@ -565,7 +561,7 @@ func generateUnits(
 	opts *generateOpts,
 	pool stackTaskSubmitter,
 	units []*Unit,
-) error {
+) {
 	for _, unit := range units {
 		if !unit.IsEnabled() {
 			l.Debugf("Skipping disabled unit %s", componentAddress(unit.Name, unit.Expansion))
@@ -607,12 +603,10 @@ func generateUnits(
 				})
 		})
 	}
-
-	return nil
 }
 
 // generateStacks generates each stack by resolving its destination path and copying files from the source.
-// It logs each operation and returns early if any error is encountered.
+// Copy errors are returned by the submitted tasks.
 func generateStacks(
 	ctx context.Context,
 	l log.Logger,
@@ -620,7 +614,7 @@ func generateStacks(
 	opts *generateOpts,
 	pool stackTaskSubmitter,
 	stacks []*Stack,
-) error {
+) {
 	for _, stack := range stacks {
 		if !stack.IsEnabled() {
 			l.Debugf("Skipping disabled stack %s", componentAddress(stack.Name, stack.Expansion))
@@ -662,8 +656,6 @@ func generateStacks(
 				})
 		})
 	}
-
-	return nil
 }
 
 type componentKind int

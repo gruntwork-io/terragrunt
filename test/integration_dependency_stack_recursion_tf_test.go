@@ -162,8 +162,10 @@ func TestTFDependencyStacksGenerateBeforeSelectingUnits(t *testing.T) {
 		for _, includeExternal := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/include_external=%t", state, includeExternal), func(t *testing.T) {
 				t.Parallel()
+
 				changedReference := state == "changed reference" || state == "obsolete unit parse error"
-				insideGeneratedTree := changedReference || state == "missing inside generated tree" || state == "missing generated value"
+				insideGeneratedTree := changedReference || state == "missing inside generated tree" ||
+					state == "missing generated value"
 				f := newDependencyStackFixture(t, true)
 				f.v.Env["TG_USE_PARTIAL_PARSE_CONFIG_CACHE"] = "true"
 				f.write(".sources/relay/terragrunt.hcl", `terraform { source = "." }
@@ -173,6 +175,7 @@ inputs = { marker = values.marker }
 				f.write(".sources/relay/main.tf", `variable "marker" { type = string }
 output "relay_marker" { value = var.marker }
 `)
+
 				writeStack := func(name, next, marker string) {
 					f.write(name+"/terragrunt.stack.hcl", fmt.Sprintf(`unit "relay" {
  source = %q
@@ -181,39 +184,48 @@ output "relay_marker" { value = var.marker }
 }
 `, filepath.ToSlash(filepath.Join(f.root, ".sources/relay")), filepath.ToSlash(filepath.Join(f.root, next)), marker))
 				}
+
 				f.write("terminal/terragrunt.hcl", "")
 				f.write("terminal/main.tf", `output "terminal" { value = true }`)
 				writeStack("first", "middle", "old")
 				writeStack("middle", "last", "old")
 				writeStack("last", "terminal", "old")
 				writeStack("obsolete", "terminal", "obsolete")
+
 				if changedReference {
 					writeStack("first", "obsolete", "old")
 				}
+
 				if state != "missing" && state != "missing inside generated tree" {
 					for _, stack := range []string{"first", "middle", "last", "obsolete"} {
 						f.generate(stack)
 					}
 				}
+
 				if state == "changed reference" {
 					f.write("obsolete/terragrunt.stack.hcl", `unit "relay" {
  source = "./missing-source"
  path = "relay"
 }`)
 				}
+
 				if state == "obsolete unit parse error" {
 					require.NoError(t, f.v.FS.Remove(filepath.Join(f.root, "obsolete/terragrunt.stack.hcl")))
 					f.write("obsolete/terragrunt.hcl", `locals { marker = missing.value }`)
 				}
+
 				writeStack("first", "middle", "new")
 				writeStack("middle", "last", "new")
 				writeStack("last", "terminal", "new")
+
 				entryDir, runDir := "entry", "entry"
 				command := fmt.Sprintf("run --all --queue-include-external=%t -- plan", includeExternal)
+
 				if insideGeneratedTree {
 					entryDir, runDir = "first/.terragrunt-stack/consumer", "first/.terragrunt-stack"
 					command = fmt.Sprintf("run --all --filter 'source=*' --queue-include-external=%t -- plan", includeExternal)
 				}
+
 				f.write(entryDir+"/terragrunt.hcl", fmt.Sprintf(`terraform { source = "." }
 dependencies { paths = [%q] }
 `, filepath.ToSlash(filepath.Join(f.root, "first"))))
@@ -227,18 +239,22 @@ dependencies { paths = [%q] }
 
 				require.NoError(t, err, "%s", stderr)
 				assert.NotContains(t, stderr, "Error:")
+
 				for _, stack := range []string{"first", "middle", "last"} {
 					assert.Contains(t, f.read(stack+"/.terragrunt-stack/relay/terragrunt.values.hcl"), `"new"`)
 				}
+
 				assert.Contains(t, f.read("first/.terragrunt-stack/relay/terragrunt.values.hcl"), "/middle")
 				assert.Contains(t, stdout, "consumer = true")
 				assert.NotContains(t, stdout, `relay_marker = "old"`)
 				assert.NotContains(t, stdout, `relay_marker = "obsolete"`)
-				if includeExternal {
+
+				switch {
+				case includeExternal:
 					assert.Equal(t, 3, strings.Count(stdout, `relay_marker = "new"`))
-				} else if insideGeneratedTree {
+				case insideGeneratedTree:
 					assert.Equal(t, 1, strings.Count(stdout, `relay_marker = "new"`))
-				} else {
+				default:
 					assert.NotContains(t, stdout, "relay_marker")
 				}
 			})
@@ -253,7 +269,10 @@ func TestTFDependencyStackDiscoveryReportsUnrepairedUnitErrors(t *testing.T) {
  marker = missing.value
  other = absent.value
 }`)
-	f.write("entry/consumer/terragrunt.hcl", fmt.Sprintf(`dependencies { paths = [%q] }`, filepath.ToSlash(filepath.Join(f.root, "producer"))))
+	f.write(
+		"entry/consumer/terragrunt.hcl",
+		fmt.Sprintf(`dependencies { paths = [%q] }`, filepath.ToSlash(filepath.Join(f.root, "producer"))),
+	)
 	f.producerSource("new")
 
 	stdout, stderr, err := f.run("entry", "run --all --queue-include-external -- plan")
@@ -271,7 +290,10 @@ func TestTFDependencyStackDiscoveryReportsGenerationErrorsImmediately(t *testing
 	t.Parallel()
 	f := newDependencyStackFixture(t, true)
 	f.write(".sources/db/terragrunt.hcl", `dependencies { paths = [missing.value] }`)
-	f.write("entry/terragrunt.hcl", fmt.Sprintf(`dependencies { paths = [%q] }`, filepath.ToSlash(filepath.Join(f.root, "producer"))))
+	f.write(
+		"entry/terragrunt.hcl",
+		fmt.Sprintf(`dependencies { paths = [%q] }`, filepath.ToSlash(filepath.Join(f.root, "producer"))),
+	)
 
 	stdout, stderr, err := f.run("entry", "run --all --queue-include-external -- plan")
 

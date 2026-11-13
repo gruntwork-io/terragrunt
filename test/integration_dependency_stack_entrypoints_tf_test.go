@@ -492,6 +492,7 @@ remote_state {
 dependencies { paths = [values.target] }
 inputs = { marker = values.marker }
 `)
+
 			stack := func(marker string) string {
 				return fmt.Sprintf(`unit "db" {
  source = "../.sources/db"
@@ -504,13 +505,18 @@ inputs = { marker = values.marker }
 				f.write("targets/"+marker+"/terragrunt.hcl", "")
 				f.write("targets/"+marker+"/main.tf", fmt.Sprintf(`output "%s_target" { value = true }`, marker))
 			}
+
 			f.write("producer/terragrunt.stack.hcl", stack("old"))
 			f.generate("producer")
 			f.generate("consumer")
 			unitBefore := f.read("producer/.terragrunt-stack/db/terragrunt.hcl")
 			require.Contains(t, f.read("producer/.terragrunt-stack/db/terragrunt.values.hcl"), `"old"`)
 			f.write("producer/terragrunt.stack.hcl", stack("new"))
-			app := strings.ReplaceAll(f.read(".sources/app/terragrunt.hcl"), "values.producer", fmt.Sprintf("%q", filepath.ToSlash(filepath.Join(f.root, "producer"))))
+			app := strings.ReplaceAll(
+				f.read(".sources/app/terragrunt.hcl"),
+				"values.producer",
+				fmt.Sprintf("%q", filepath.ToSlash(filepath.Join(f.root, "producer"))),
+			)
 			f.write("producer/.terragrunt-stack/consumer/terragrunt.hcl", app)
 			f.write("producer/.terragrunt-stack/consumer/main.tf", f.read(".sources/app/main.tf"))
 
@@ -521,6 +527,7 @@ inputs = { marker = values.marker }
 			assert.Equal(t, unitBefore, f.read("producer/.terragrunt-stack/db/terragrunt.hcl"))
 			assert.Contains(t, f.read("producer/.terragrunt-stack/db/terragrunt.values.hcl"), `"new"`)
 			assertDependencyStackOutput(t, entry.name, stdout, "new")
+
 			if entry.name == "run all" {
 				assert.Contains(t, stdout, "new_target")
 				assert.NotContains(t, stdout, "old_target")

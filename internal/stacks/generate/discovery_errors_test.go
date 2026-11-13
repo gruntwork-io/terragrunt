@@ -1,4 +1,4 @@
-package generate
+package generate //nolint:testpackage // Exercises private coordinator discovery and generation state.
 
 import (
 	"context"
@@ -21,13 +21,16 @@ import (
 
 func TestStackDiscoverySurfacesUnitErrorsWhenGenerationStops(t *testing.T) {
 	t.Parallel()
+
 	for _, hasStack := range []bool{false, true} {
 		name := "without generation"
 		if hasStack {
 			name = "after generation"
 		}
+
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
+
 			root := venvtest.Root("/repo")
 			fsys := venvtest.NewFS(t, root, map[string]string{
 				"broken/terragrunt.hcl":         `dependencies { paths = [values.next] }`,
@@ -39,10 +42,19 @@ func TestStackDiscoverySurfacesUnitErrorsWhenGenerationStops(t *testing.T) {
 			opts.WorkingDir = root
 			c := NewCoordinator(fsys, new(rewrite.Store), opts)
 			calls := 0
-			ctx := config.WithStackGenerator(config.WithCaches(t.Context()), func(ctx context.Context, _ log.Logger, _ *venv.Venv, dir string) error {
-				calls++
-				return c.generateSelected(ctx, filepath.Join(dir, config.DefaultStackFile), func(context.Context) error { return nil })
-			})
+			ctx := config.WithStackGenerator(
+				config.WithCaches(t.Context()),
+				func(ctx context.Context, _ log.Logger, _ *venv.Venv, dir string) error {
+					calls++
+
+					return c.generateSelected(
+						ctx,
+						filepath.Join(dir, config.DefaultStackFile),
+						func(context.Context) error { return nil },
+					)
+				},
+			)
+
 			roots := []string{filepath.Join(root, "broken/terragrunt.hcl")}
 			if hasStack {
 				roots = append(roots, filepath.Join(root, "consumer/terragrunt.hcl"))
@@ -53,6 +65,7 @@ func TestStackDiscoverySurfacesUnitErrorsWhenGenerationStops(t *testing.T) {
 				require.NoError(t, err)
 				require.True(t, progressed)
 				progressed, err = c.discoverDependencyStacks(ctx, logger.CreateLogger(), v, roots)
+
 				assert.Equal(t, 1, calls)
 			} else {
 				assert.Zero(t, calls)
@@ -67,13 +80,16 @@ func TestStackDiscoverySurfacesUnitErrorsWhenGenerationStops(t *testing.T) {
 
 func TestStackDiscoveryAbortsOnGenerationFailureOrCancellation(t *testing.T) {
 	t.Parallel()
+
 	for _, canceled := range []bool{false, true} {
 		name := "generation failure"
 		if canceled {
 			name = "cancellation"
 		}
+
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
+
 			root := venvtest.Root("/repo")
 			fsys := venvtest.NewFS(t, root, map[string]string{
 				"broken/terragrunt.hcl":       `dependencies { paths = [values.next] }`,
@@ -85,16 +101,20 @@ func TestStackDiscoveryAbortsOnGenerationFailureOrCancellation(t *testing.T) {
 			opts := options.NewTerragruntOptions(v.Exec)
 			opts.WorkingDir = root
 			c := NewCoordinator(fsys, new(rewrite.Store), opts)
+
 			ctx, cancel := context.WithCancel(config.WithCaches(t.Context()))
 			defer cancel()
+
 			failure := errors.New("stack copy failed")
 			calls := 0
 			ctx = config.WithStackGenerator(ctx, func(context.Context, log.Logger, *venv.Venv, string) error {
 				calls++
+
 				if canceled {
 					cancel()
 					return context.Canceled
 				}
+
 				return failure
 			})
 
@@ -104,6 +124,7 @@ func TestStackDiscoveryAbortsOnGenerationFailureOrCancellation(t *testing.T) {
 
 			assert.False(t, progressed)
 			assert.Equal(t, 1, calls)
+
 			if canceled {
 				require.ErrorIs(t, err, context.Canceled)
 			} else {
@@ -115,26 +136,32 @@ func TestStackDiscoveryAbortsOnGenerationFailureOrCancellation(t *testing.T) {
 
 func TestStackDiscoveryAbortsOnAuthFailureOrCancellationDuringParsing(t *testing.T) {
 	t.Parallel()
+
 	for _, canceled := range []bool{false, true} {
 		name := "auth failure"
 		if canceled {
 			name = "cancellation"
 		}
+
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
+
 			root := venvtest.Root("/repo")
 			fsys := venvtest.NewFS(t, root, map[string]string{
 				"consumer/terragrunt.hcl":       `dependencies { paths = ["../producer"] }`,
 				"producer/terragrunt.stack.hcl": "",
 			})
+
 			ctx, cancel := context.WithCancel(config.WithCaches(t.Context()))
 			defer cancel()
+
 			v := venvtest.NewOSWithEmptyEnv().WithFS(fsys)
 			v.Exec = vexec.NewMemExec(func(context.Context, vexec.Invocation) vexec.Result {
 				if canceled {
 					cancel()
 					return vexec.Result{Stdout: []byte(`{"envs":{}}`)}
 				}
+
 				return vexec.Result{Err: errors.New("auth provider failed")}
 			})
 			opts := options.NewTerragruntOptions(v.Exec)
@@ -144,14 +171,20 @@ func TestStackDiscoveryAbortsOnAuthFailureOrCancellationDuringParsing(t *testing
 			require.NoError(t, opts.Experiments.EnableExperiment(experiment.DependencyStackGeneration))
 			c := NewCoordinator(fsys, new(rewrite.Store), opts)
 			ctx = config.WithStackGenerator(ctx, func(context.Context, log.Logger, *venv.Venv, string) error {
-				t.Error("generation must not start after auth failure or cancellation")
+				assert.Fail(t, "generation must not start after auth failure or cancellation")
 				return nil
 			})
 
-			progressed, err := c.discoverDependencyStacks(ctx, logger.CreateLogger(), v, []string{filepath.Join(root, "consumer/terragrunt.hcl")})
+			progressed, err := c.discoverDependencyStacks(
+				ctx,
+				logger.CreateLogger(),
+				v,
+				[]string{filepath.Join(root, "consumer/terragrunt.hcl")},
+			)
 
 			assert.False(t, progressed)
 			require.Error(t, err)
+
 			if canceled {
 				assert.ErrorIs(t, err, context.Canceled)
 			} else {

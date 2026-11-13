@@ -17,13 +17,16 @@ import (
 
 func TestStackReferenceDiscoveryHonorsAuthProviderOptOut(t *testing.T) {
 	t.Parallel()
+
 	for _, enabled := range []bool{false, true} {
 		name := "disabled"
 		if enabled {
 			name = "enabled"
 		}
+
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
+
 			root := venvtest.Root("/repo")
 			fsys := venvtest.NewFS(t, root, map[string]string{
 				"terragrunt.hcl": `dependencies { paths = [get_env("STACK_PATH", "fallback")] }`,
@@ -39,16 +42,26 @@ func TestStackReferenceDiscoveryHonorsAuthProviderOptOut(t *testing.T) {
 			opts.DiscoveryAuthProviderCmd = enabled
 			opts.AuthProviderCmd = "fake-auth"
 
-			paths, err := discovery.UnitDependencyPaths(config.WithCaches(t.Context()), logger.CreateLogger(), v, opts, filepath.Join(root, "terragrunt.hcl"), config.DiagnosticsLogged)
+			paths, err := discovery.UnitDependencyPaths(
+				config.WithCaches(t.Context()),
+				logger.CreateLogger(),
+				v,
+				opts,
+				filepath.Join(root, "terragrunt.hcl"),
+				config.DiagnosticsLogged,
+			)
 
 			require.NoError(t, err)
+
 			expected := "fallback"
 			if enabled {
 				expected = "producer"
+
 				assert.Equal(t, 1, calls)
 			} else {
 				assert.Zero(t, calls)
 			}
+
 			assert.Equal(t, []string{filepath.Join(root, expected)}, paths)
 			assert.NotContains(t, v.Env, "STACK_PATH")
 		})

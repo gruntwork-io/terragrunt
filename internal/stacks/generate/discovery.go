@@ -34,6 +34,7 @@ func (c *Coordinator) discoverDependencyStacks(
 	}
 
 	before := c.generationCount()
+
 	for _, path := range references.stacks {
 		if err := ctx.Err(); err != nil {
 			return false, err
@@ -80,6 +81,7 @@ func (c *Coordinator) stackRequested(dir string) bool {
 	defer c.mu.Unlock()
 
 	_, requested := c.jobs[filepath.Join(dir, config.DefaultStackFile)]
+
 	return requested
 }
 
@@ -97,6 +99,7 @@ func (c *Coordinator) discoverStackReferences(
 	pending := slices.Clone(roots)
 	seen := make(map[string]bool)
 	references := &stackReferences{}
+
 	var units []string
 
 	for len(pending) > 0 {
@@ -106,6 +109,7 @@ func (c *Coordinator) discoverStackReferences(
 
 		path, err := util.CanonicalResolvedPath(v.FS, pending[0], "")
 		pending = pending[1:]
+
 		if err != nil {
 			return nil, err
 		}
@@ -143,17 +147,20 @@ func (c *Coordinator) discoverStackReferences(
 		}
 
 		units = append(units, path)
+
 		dependencies, err := discovery.UnitDependencyPaths(ctx, l, v, c.opts, path, config.DiagnosticsSuppressed)
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
+
 		if err != nil {
-			var diagnostics hcl.Diagnostics
-			if !errors.As(err, &diagnostics) {
+			//nolint:errcheck // Only test the type; retain the original error below.
+			if _, ok := errors.AsType[hcl.Diagnostics](err); !ok {
 				return nil, err
 			}
 
 			references.parseErrors = append(references.parseErrors, err)
+
 			continue
 		}
 
@@ -187,7 +194,7 @@ func (c *Coordinator) discoverStackReferences(
 }
 
 func logDeferredDiagnostics(l log.Logger, err error) {
-	switch err := err.(type) {
+	switch err := err.(type) { //nolint:errorlint // Walk every joined diagnostic instead of stopping at the first match.
 	case hcl.Diagnostics:
 		for _, diagnostic := range err {
 			l.Errorf("%s", diagnostic.Error())

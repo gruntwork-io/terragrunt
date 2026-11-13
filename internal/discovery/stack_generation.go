@@ -52,6 +52,7 @@ func UnitDependencyPaths(
 	parseOpts.OriginalTerragruntConfigPath = configPath
 	parseOpts.SkipOutput = true
 	parseOpts.UsePartialParseConfigCache = false
+
 	parseV := v.WithEnvCloned()
 	if parseOpts.DiscoveryAuthProviderCmd {
 		shellOpts := configbridge.ShellRunOptsFromOpts(parseV.Env, parseOpts)
