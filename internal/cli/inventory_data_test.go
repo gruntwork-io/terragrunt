@@ -25,13 +25,14 @@ var cliInventory = cliCommand{
 			name:     "aws-provider-patch",
 			category: commands.ConfigurationCommandsCategoryName,
 			hidden:   true,
-			flags: slices.Concat(configParsingFlags, filterFlags, []cliFlag{
+			flags: slices.Concat(configParsingFlags, filterFlags, queueSelectionFlags, []cliFlag{
 				allFlag,
 				failFastFlag,
 				inputsDebugFlag,
 				noAutoRetryFlag,
 				noHooksFlag,
 				sourceUpdateFlag,
+				unitsThatIncludeFlag,
 				{
 					names:             []string{"override-attr"},
 					envVars:           []string{"TG_OVERRIDE_ATTR"},
@@ -355,12 +356,13 @@ var cliInventory = cliCommand{
 			subcommands: []cliCommand{
 				{
 					name: "print",
-					flags: slices.Concat(configParsingFlags, filterFlags, []cliFlag{
+					flags: slices.Concat(configParsingFlags, filterFlags, queueSelectionFlags, []cliFlag{
 						allFlag,
 						failFastFlag,
 						noAutoRetryFlag,
 						noHooksFlag,
 						sourceUpdateFlag,
+						unitsThatIncludeFlag,
 					}),
 				},
 				{
@@ -503,8 +505,9 @@ var cliInventory = cliCommand{
 		{
 			name:     "render",
 			category: commands.ConfigurationCommandsCategoryName,
-			flags: slices.Concat(configParsingFlags, filterFlags, []cliFlag{
+			flags: slices.Concat(configParsingFlags, filterFlags, queueSelectionFlags, []cliFlag{
 				failFastFlag,
+				unitsThatIncludeFlag,
 				{
 					names:             []string{"all", "a"},
 					envVars:           []string{"TG_ALL"},

@@ -83,7 +83,6 @@ func TestNewCommandRejectsFlagsPrintDoesNotRead(t *testing.T) {
 		"--" + shared.ReportFileFlagName + "=report.json",
 		"--" + shared.SummaryDisableFlagName,
 		"--" + shared.QueueIgnoreErrorsFlagName,
-		"--" + shared.QueueExcludeDirFlagName + "=unit",
 		"--" + shared.NoAutoApproveFlagName,
 		"--" + shared.NoStackGenerateFlagName,
 		"--" + shared.InputsDebugFlagName,
@@ -178,7 +177,7 @@ func TestNewCommandAllPrintsOneLinePerUnit(t *testing.T) {
 	assert.Equal(t, filepath.Join(memRoot, "b"), workingDirs[1], "b failed to parse and keeps its own directory")
 }
 
-// TestNewCommandPrintsOnlyFilteredUnits pins that --filter selects the units printed, with or without --all.
+// TestNewCommandPrintsOnlyFilteredUnits pins that --filter and --queue-exclude-dir select the units printed.
 func TestNewCommandPrintsOnlyFilteredUnits(t *testing.T) {
 	t.Parallel()
 
@@ -188,6 +187,7 @@ func TestNewCommandPrintsOnlyFilteredUnits(t *testing.T) {
 	}{
 		{name: "with --all", args: []string{"--all", "--filter", "a"}},
 		{name: "without --all", args: []string{"--filter", "a"}},
+		{name: "excluding the other unit", args: []string{"--all", "--" + shared.QueueExcludeDirFlagName, "b"}},
 	}
 
 	for _, tc := range testCases {

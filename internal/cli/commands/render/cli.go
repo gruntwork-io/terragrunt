@@ -190,7 +190,7 @@ func newSharedFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv)
 	sharedFlags = sharedFlags.Add(shared.NewBackendFlags(opts, nil)...)
 	sharedFlags = sharedFlags.Add(shared.NewFeatureFlags(opts, nil)...)
 	sharedFlags = sharedFlags.Add(shared.NewIAMAssumeRoleFlags(opts, nil)...)
-	sharedFlags = sharedFlags.Add(shared.NewFilterFlags(l, opts, v)...)
+	sharedFlags = sharedFlags.Add(shared.NewSelectionFlags(l, opts, v)...)
 	sharedFlags = sharedFlags.Add(shared.NewCASFlags(opts, nil)...)
 
 	return sharedFlags.Sort()

@@ -874,9 +874,8 @@ func TestParseMutliStringKeyValueArg(t *testing.T) {
 			expectedVals: map[string]string{"default": "value"},
 		},
 		{
-			args:         []string{awsproviderpatch.CommandName, "--other", "arg"},
-			defaultValue: map[string]string{"default": "value"},
-			expectedVals: map[string]string{"default": "value"},
+			args:        []string{awsproviderpatch.CommandName, "--other", "arg"},
+			expectedErr: clihelper.UndefinedFlagError("other"),
 		},
 		{
 			args:         []string{awsproviderpatch.CommandName, flagName, "key=value"},

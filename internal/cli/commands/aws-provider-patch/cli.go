@@ -83,7 +83,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihe
 	cmdFlags = cmdFlags.Add(shared.NewBackendFlags(opts, nil)...)
 	cmdFlags = cmdFlags.Add(shared.NewFeatureFlags(opts, nil)...)
 	cmdFlags = cmdFlags.Add(shared.NewIAMAssumeRoleFlags(opts, nil)...)
-	cmdFlags = cmdFlags.Add(shared.NewFilterFlags(l, opts, v)...)
+	cmdFlags = cmdFlags.Add(shared.NewSelectionFlags(l, opts, v)...)
 	cmdFlags = cmdFlags.Add(shared.NewCASFlags(opts, nil)...)
 
 	return append(
@@ -126,7 +126,6 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *
 		Action: func(ctx context.Context, _ *clihelper.Context) error {
 			return Run(ctx, l, v, s, opts.OptionsFromContext(ctx))
 		},
-		DisabledErrorOnUndefinedFlag: true,
 	}
 
 	return cmd

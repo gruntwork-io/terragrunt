@@ -97,7 +97,7 @@ func NewGenerateFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Ven
 	}
 
 	cmdFlags = cmdFlags.Add(newConfigParsingFlags(opts)...)
-	cmdFlags = cmdFlags.Add(newStackSelectionFlags(l, opts, v)...)
+	cmdFlags = cmdFlags.Add(shared.NewSelectionFlags(l, opts, v)...)
 
 	return cmdFlags.Sort()
 }
@@ -124,7 +124,7 @@ func NewRunFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) cl
 	cmdFlags = cmdFlags.Add(shared.NewDestroyDependenciesCheckFlags(opts)...)
 	cmdFlags = cmdFlags.Add(shared.NewReportFlags(opts)...)
 	cmdFlags = cmdFlags.Add(shared.NewQueueRunFlags(opts, nil)...)
-	cmdFlags = cmdFlags.Add(newStackSelectionFlags(l, opts, v)...)
+	cmdFlags = cmdFlags.Add(shared.NewSelectionFlags(l, opts, v)...)
 
 	return cmdFlags.Sort()
 }
@@ -141,7 +141,7 @@ func NewOutputFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv)
 	}
 
 	cmdFlags = cmdFlags.Add(newConfigParsingFlags(opts)...)
-	cmdFlags = cmdFlags.Add(newStackSelectionFlags(l, opts, v)...)
+	cmdFlags = cmdFlags.Add(shared.NewSelectionFlags(l, opts, v)...)
 
 	return append(
 		cmdFlags.Sort(),
@@ -209,15 +209,4 @@ func newConfigParsingFlags(opts *options.TerragruntOptions) clihelper.Flags {
 	parsingFlags = parsingFlags.Add(shared.NewCASFlags(opts, nil)...)
 
 	return parsingFlags
-}
-
-// newStackSelectionFlags returns the shared flags that add to opts.Filters,
-// which select the stacks and units a stack command acts on.
-func newStackSelectionFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.Flags {
-	selectionFlags := clihelper.Flags{shared.NewUnitsThatIncludeFlag(opts)}
-
-	selectionFlags = selectionFlags.Add(shared.NewQueueSelectionFlags(opts, nil)...)
-	selectionFlags = selectionFlags.Add(shared.NewFilterFlags(l, opts, v)...)
-
-	return selectionFlags
 }
