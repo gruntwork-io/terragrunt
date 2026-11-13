@@ -4,6 +4,8 @@ package run
 import (
 	"context"
 
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/providercaching"
+
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
@@ -38,7 +40,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *
 		},
 		Flags:       cmdFlags,
 		Subcommands: NewSubcommands(l, opts, v, s),
-		Action: func(ctx context.Context, cliCtx *clihelper.Context) error {
+		Action: providercaching.Wrap(l, opts, v, func(ctx context.Context, cliCtx *clihelper.Context) error {
 			tgOpts := opts.OptionsFromContext(ctx)
 
 			if tgOpts.RunAll {
@@ -54,7 +56,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *
 			}
 
 			return Action(l, opts, v, s)(ctx, cliCtx)
-		},
+		}),
 	}
 
 	return cmd
@@ -79,9 +81,9 @@ func NewSubcommands(
 			Usage:      usage,
 			Hidden:     !visible,
 			CustomHelp: ShowTFHelp(l, opts, v),
-			Action: func(ctx context.Context, cliCtx *clihelper.Context) error {
+			Action: providercaching.Wrap(l, opts, v, func(ctx context.Context, cliCtx *clihelper.Context) error {
 				return Action(l, opts, v, s)(ctx, cliCtx)
-			},
+			}),
 		}
 		subcommands[i] = subcommand
 	}

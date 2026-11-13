@@ -3,6 +3,8 @@ package migrate
 import (
 	"context"
 
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/providercaching"
+
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
@@ -54,7 +56,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *
 		Usage:     "Migrate OpenTofu/Terraform state from one location to another.",
 		UsageText: usageText,
 		Flags:     NewFlags(l, opts, nil),
-		Action: func(ctx context.Context, cliCtx *clihelper.Context) error {
+		Action: providercaching.Wrap(l, opts, v, func(ctx context.Context, cliCtx *clihelper.Context) error {
 			srcPath := cliCtx.Args().First()
 			if srcPath == "" {
 				return errors.New(usageText)
@@ -66,7 +68,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *
 			}
 
 			return Run(ctx, l, v, s, srcPath, dstPath, opts.OptionsFromContext(ctx))
-		},
+		}),
 	}
 
 	return cmd

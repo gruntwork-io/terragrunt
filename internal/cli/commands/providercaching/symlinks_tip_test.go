@@ -1,10 +1,10 @@
-package commands_test
+package providercaching_test
 
 import (
 	"bytes"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/cli/commands"
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/providercaching"
 	semver "github.com/gruntwork-io/terragrunt/internal/semver"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
@@ -96,7 +96,7 @@ func TestGiveWindowsSymlinksTip(t *testing.T) {
 			name: "windows probe dir creation fails skips",
 			goos: "windows",
 			fs: &vfs.NoSymlinkFS{
-				FS: newFaultFS(vfs.NewMemMapFS(), atBasePrefix("mkdir", "terragrunt-test-symlink")),
+				FS: &faultFS{FS: vfs.NewMemMapFS(), op: "mkdir", basePrefix: "terragrunt-test-symlink"},
 			},
 			environ:              cacheEnv,
 			providerCacheEnabled: true,
@@ -106,7 +106,7 @@ func TestGiveWindowsSymlinksTip(t *testing.T) {
 		{
 			name:                 "windows probe source creation fails skips",
 			goos:                 "windows",
-			fs:                   &vfs.NoSymlinkFS{FS: newFaultFS(vfs.NewMemMapFS(), atBasePrefix("mkdir", "source"))},
+			fs:                   &vfs.NoSymlinkFS{FS: &faultFS{FS: vfs.NewMemMapFS(), op: "mkdir", basePrefix: "source"}},
 			environ:              cacheEnv,
 			providerCacheEnabled: true,
 			tfImpl:               tfimpl.Terraform,
@@ -116,7 +116,7 @@ func TestGiveWindowsSymlinksTip(t *testing.T) {
 			name: "windows probe cleanup failure still shows tip",
 			goos: "windows",
 			fs: &vfs.NoSymlinkFS{
-				FS: newFaultFS(vfs.NewMemMapFS(), atBasePrefix("removeall", "terragrunt-test-symlink")),
+				FS: &faultFS{FS: vfs.NewMemMapFS(), op: "removeall", basePrefix: "terragrunt-test-symlink"},
 			},
 			environ:              cacheEnv,
 			providerCacheEnabled: true,
@@ -146,7 +146,7 @@ func TestGiveWindowsSymlinksTip(t *testing.T) {
 				allTips = tips.Tips{}
 			}
 
-			commands.GiveWindowsSymlinksTip(
+			providercaching.GiveWindowsSymlinksTip(
 				logger,
 				tc.fs,
 				tc.goos,

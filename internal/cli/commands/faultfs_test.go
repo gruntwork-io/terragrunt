@@ -5,7 +5,6 @@ import (
 	"io/fs"
 	"path/filepath"
 	"slices"
-	"strings"
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -47,11 +46,6 @@ func newFaultFS(base vfs.FS, faults ...fault) *faultFS {
 // atPath matches exactly path.
 func atPath(op, path string) fault {
 	return fault{op: op, match: func(name string) bool { return filepath.Clean(name) == filepath.Clean(path) }}
-}
-
-// atBasePrefix matches any path whose base name starts with prefix.
-func atBasePrefix(op, prefix string) fault {
-	return fault{op: op, match: func(name string) bool { return strings.HasPrefix(filepath.Base(name), prefix) }}
 }
 
 func (f *faultFS) Open(name string) (vfs.File, error) {

@@ -3,6 +3,8 @@ package render
 import (
 	"context"
 
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/providercaching"
+
 	runcmd "github.com/gruntwork-io/terragrunt/internal/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
@@ -155,14 +157,14 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *
 		Usage:       "Render the final terragrunt config, with all variables, includes, and functions resolved, in the specified format.",
 		Description: "This is useful for enforcing policies using static analysis tools like Open Policy Agent, or for debugging your terragrunt config.",
 		Flags:       cmdFlags,
-		Action: func(ctx context.Context, _ *clihelper.Context) error {
+		Action: providercaching.Wrap(l, opts, v, func(ctx context.Context, _ *clihelper.Context) error {
 			tgOpts := opts.OptionsFromContext(ctx)
 
 			clonedOpts := renderOpts.Clone()
 			clonedOpts.TerragruntOptions = tgOpts
 
 			return Run(ctx, l, v, s, clonedOpts)
-		},
+		}),
 	}
 
 	return cmd
