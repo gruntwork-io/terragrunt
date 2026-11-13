@@ -1109,6 +1109,9 @@ func TestParseContextStoreContextCoversEachInput(t *testing.T) {
 		"parse depth":             func(p *pkgconfig.ParsingContext) { p.ParseDepth = 3 },
 		"skip autoinclude merge":  func(p *pkgconfig.ParsingContext) { p.SkipAutoIncludeMerge = true },
 		"read tracking":           func(p *pkgconfig.ParsingContext) { p.FilesRead = pkgconfig.NewFilesRead() },
+		"partial parse": func(p *pkgconfig.ParsingContext) {
+			p.PartialParseDecodeList = []pkgconfig.PartialDecodeSectionType{pkgconfig.ExcludeBlock}
+		},
 	}
 
 	for name, mutate := range keyed {
@@ -1129,9 +1132,6 @@ func TestParseContextStoreContextCoversEachInput(t *testing.T) {
 		"log abs paths":     func(p *pkgconfig.ParsingContext) { p.LogShowAbsPaths = true },
 		"debug":             func(p *pkgconfig.ParsingContext) { p.Debug = true },
 		"max parent probes": func(p *pkgconfig.ParsingContext) { p.MaxFoldersToCheck = 5 },
-		"decode list": func(p *pkgconfig.ParsingContext) {
-			p.PartialParseDecodeList = []pkgconfig.PartialDecodeSectionType{pkgconfig.ExcludeBlock}
-		},
 	}
 
 	for name, mutate := range fixed {
