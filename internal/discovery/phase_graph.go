@@ -140,6 +140,8 @@ func (p *GraphPhase) Run(
 	)
 
 	if p.relations != nil {
+		adoptLinkedDependencies(threadSafeComponents)
+
 		errs = p.discoverDependenciesFromRelations(ctx, l, v, state, graphExprs, graphTargetCandidates)
 		errs = append(errs, p.linkDependentsToBoundaries(ctx, l, v, state, graphExprs, graphTargetCandidates)...)
 	}

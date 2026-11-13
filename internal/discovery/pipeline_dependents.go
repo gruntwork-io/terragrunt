@@ -134,7 +134,7 @@ func (p *GraphPhase) linkUnitsOf(
 
 		linked, _ := state.threadSafeComponents.EnsureComponent(unit.found)
 
-		if err := linkGraphDependencies(
+		if err := linkReached(
 			v.FS,
 			linked,
 			declared.paths,
