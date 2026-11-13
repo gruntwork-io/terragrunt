@@ -1,0 +1,10 @@
+---
+version: "v1.2.3"
+category: "bug-fixes"
+---
+
+#### `-detailed-exitcode` no longer exits 1 for a plan error that an `errors` block ignores
+
+A `plan -detailed-exitcode` whose error matched an `ignore` block of the [`errors` block](/reference/hcl/blocks/errors) exited 1 with no Terragrunt error logged, while the same run without the flag exited 0. Under `run --all`, that 1 replaced the exit code 2 from other units with pending changes.
+
+A unit whose plan error is ignored now exits 0.
