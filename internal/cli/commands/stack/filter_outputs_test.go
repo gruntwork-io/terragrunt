@@ -188,6 +188,13 @@ func TestFilterOutputsRejectsUnreadableAddresses(t *testing.T) {
 		"shard..id",
 		"01-network[",
 		`shard["a]"]]`,
+		".vpc",
+		"shard]",
+		`vpc.id"`,
+		`shard[/*"*/0].id`,
+		"shard[0 /*].x[*/].id",
+		`shard[0 /*].x[*/][/*"*/1].id`,
+		"shard[0 #].x[\n].id",
 	} {
 		t.Run(address, func(t *testing.T) {
 			t.Parallel()

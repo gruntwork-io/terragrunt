@@ -2,6 +2,7 @@ package stack
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"slices"
@@ -15,6 +16,7 @@ import (
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/convert"
+	"golang.org/x/text/unicode/norm"
 
 	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -227,95 +229,78 @@ func FilterOutputs(outputs cty.Value, index string) (cty.Value, error) {
 	return current, nil
 }
 
-// parseOutputAddress splits an output address into the segments it names. It reads the
-// address as an HCL traversal rather than splitting on dots, so that one element of an
-// expanded unit can be addressed as `shard["web"]` and an iteration key containing a dot
-// stays in one piece.
+// parseOutputAddress splits an output address into the segments it names: names joined
+// by dots, each optionally followed by bracketed keys, so that one element of an expanded
+// unit can be addressed as `shard["web"]` and an iteration key containing a dot stays in
+// one piece.
 //
-// Names outside brackets are taken as written. A unit or stack name is a block label, so
-// it need not be an HCL identifier: `01-network` is a valid name.
-//
-// Panics when the parsed traversal has a different number of names than were masked. The
-// HCL parser rejects every index key but a number or a string without templates, and the
-// masking leaves those untouched.
+// Names are taken as written. A unit or stack name is a block label, so it need not be
+// an HCL identifier: `01-network` is a valid name.
 func parseOutputAddress(index string) ([]string, error) {
-	masked, names := maskAddressNames(index)
+	var segments []string
 
-	traversal, diags := hclsyntax.ParseTraversalAbs([]byte(masked), "", hcl.InitialPos)
-	if diags.HasErrors() {
-		return nil, InvalidOutputAddressError{Address: index, Err: diags}
-	}
-
-	segments := make([]string, 0, len(traversal))
-	named := 0
-
-	for _, step := range traversal {
-		switch step := step.(type) {
-		case hcl.TraverseRoot, hcl.TraverseAttr:
-			segments = append(segments, names[named])
-			named++
-		case hcl.TraverseIndex:
-			key, err := convert.Convert(step.Key, cty.String)
-			if err != nil {
-				return nil, InvalidOutputAddressError{Address: index, Err: err}
-			}
-
-			segments = append(segments, key.AsString())
-		default:
-			return nil, InvalidOutputAddressError{
-				Address: index,
-				Err:     fmt.Errorf("unsupported address step %T", step),
-			}
+	for pos := 0; pos < len(index); {
+		segment, end, err := readSegment(index, pos)
+		if err != nil {
+			return nil, InvalidOutputAddressError{Address: index, Err: err}
 		}
-	}
 
-	if named != len(names) {
-		panic(fmt.Sprintf("output address %q masked %d names but parsed into %d", index, len(names), named))
+		segments = append(segments, segment)
+		pos = end
 	}
 
 	return segments, nil
 }
 
-// maskAddressNames replaces each name outside brackets in address with a placeholder
-// identifier of the same length, and returns the names it replaced in order. The result
-// parses as an HCL traversal whatever characters the names hold, and diagnostics still
-// point at the right columns of address.
-func maskAddressNames(address string) (string, []string) {
-	var (
-		masked strings.Builder
-		names  []string
-	)
-
-	for rest := address; len(rest) > 0; {
-		switch rest[0] {
-		case '.':
-			masked.WriteByte('.')
-
-			rest = rest[1:]
-		case '[':
-			end := indexEnd(rest)
-			masked.WriteString(rest[:end])
-
-			rest = rest[end:]
-		default:
-			name := rest
-			if end := strings.IndexAny(rest, ".["); end >= 0 {
-				name = rest[:end]
-			}
-
-			names = append(names, name)
-			masked.WriteString(strings.Repeat("x", utf8.RuneCountInString(name)))
-
-			rest = rest[len(name):]
-		}
+// readSegment returns the segment of address that starts at pos, and where it ends: the
+// leading name, a dot and the name after it, or a bracketed key.
+func readSegment(address string, pos int) (string, int, error) {
+	if pos == 0 {
+		return readName(address, pos)
 	}
 
-	return masked.String(), names
+	switch address[pos] {
+	case '.':
+		return readName(address, pos+1)
+	case '[':
+		end := pos + indexKeyLen(address[pos:])
+		key, err := parseIndexKey(address, pos, end)
+
+		return key, end, err
+	default:
+		return "", 0, errNameAfterKey
+	}
 }
 
-// indexEnd returns the length of the bracketed index that address starts with, skipping
-// any closing bracket inside a quoted key. An unclosed index runs to the end of address.
-func indexEnd(address string) int {
+// readName returns the name of address that starts at pos, and where it ends.
+func readName(address string, pos int) (string, int, error) {
+	name := address[pos:]
+	if end := strings.IndexAny(name, ".["); end >= 0 {
+		name = name[:end]
+	}
+
+	if name == "" {
+		return "", 0, errEmptyName
+	}
+
+	// Either character is the remains of a mistyped key, such as `shard]`.
+	if strings.ContainsAny(name, `]"`) {
+		return "", 0, fmt.Errorf("name %q contains a bracket or quote", name)
+	}
+
+	// cty holds attribute names in NFC.
+	return norm.NFC.String(name), pos + len(name), nil
+}
+
+var (
+	errEmptyName    = errors.New("empty name")
+	errNameAfterKey = errors.New("expected a dot or a bracket after a key")
+	errNotOneKey    = errors.New("brackets must hold a single key")
+)
+
+// indexKeyLen returns the length of the bracketed key that address starts with, skipping
+// any closing bracket inside a quoted key. An unclosed key runs to the end of address.
+func indexKeyLen(address string) int {
 	quoted := false
 
 	for i := 0; i < len(address); i++ {
@@ -330,6 +315,38 @@ func indexEnd(address string) int {
 	}
 
 	return len(address)
+}
+
+// parseIndexKey returns the key in the brackets at address[start:end], read as an HCL
+// index so that it takes the same quoted strings and numbers as `dependency.foo["web"]`.
+func parseIndexKey(address string, start, end int) (string, error) {
+	// The placeholder root is as long as what precedes the key, so that diagnostics
+	// report columns of the whole address.
+	root := strings.Repeat("x", utf8.RuneCountInString(address[:start]))
+
+	traversal, diags := hclsyntax.ParseTraversalAbs([]byte(root+address[start:end]), "", hcl.InitialPos)
+	if diags.HasErrors() {
+		return "", diags
+	}
+
+	// HCL skips comments, so one that hides a quote or bracket from indexKeyLen can
+	// leave more than a single key in the range.
+	keys := traversal[1:]
+	if len(keys) != 1 {
+		return "", errNotOneKey
+	}
+
+	step, ok := keys[0].(hcl.TraverseIndex)
+	if !ok {
+		return "", errNotOneKey
+	}
+
+	key, err := convert.Convert(step.Key, cty.String)
+	if err != nil {
+		return "", err
+	}
+
+	return key.AsString(), nil
 }
 
 // InvalidOutputAddressError reports an output address that cannot be parsed. An address
