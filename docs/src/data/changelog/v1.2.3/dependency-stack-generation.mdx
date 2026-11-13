@@ -1,0 +1,14 @@
+---
+version: "v1.2.3"
+category: "experiments-added"
+---
+
+#### Generate explicitly referenced dependency stacks
+
+Enable the [`dependency-stack-generation`](/reference/experiments/active#dependency-stack-generation) experiment to generate or refresh explicitly referenced dependency stacks before supported commands read their generated configuration or outputs:
+
+```sh
+terragrunt run --all --experiment dependency-stack-generation -- plan
+```
+
+Generation follows recursive stack dependencies, respects discovery boundaries and `--no-stack-generate`, and honors `--source-update`. Generating a dependency does not add its units to the execution queue; normal queue selection still applies. A dependency on a missing generated unit does not trigger discovery of its owning stack.

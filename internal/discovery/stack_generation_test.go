@@ -2,12 +2,18 @@ package discovery_test
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"path/filepath"
 	"testing"
 
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -65,5 +71,69 @@ func TestStackReferenceDiscoveryHonorsAuthProviderOptOut(t *testing.T) {
 			assert.Equal(t, []string{filepath.Join(root, expected)}, paths)
 			assert.NotContains(t, v.Env, "STACK_PATH")
 		})
+	}
+}
+
+type unreadableDiscoveryDirFS struct {
+	vfs.FS
+	target     string
+	unreadable bool
+}
+
+func (f *unreadableDiscoveryDirFS) Open(name string) (vfs.File, error) {
+	if f.unreadable && name == f.target {
+		return nil, &os.PathError{Op: "open", Path: name, Err: os.ErrPermission}
+	}
+
+	return f.FS.Open(name)
+}
+
+func TestStackDiscoveryRescanPreservesFilesystemErrorPolicy(t *testing.T) {
+	t.Parallel()
+
+	for _, afterGeneration := range []bool{false, true} {
+		for _, suppress := range []bool{false, true} {
+			t.Run(fmt.Sprintf("after_generation=%t/suppress=%t", afterGeneration, suppress), func(t *testing.T) {
+				t.Parallel()
+
+				root := venvtest.Root("/repo")
+				fsys := &unreadableDiscoveryDirFS{
+					FS: venvtest.NewFS(t, root, map[string]string{
+						"unreadable/terragrunt.hcl": "",
+						"valid/terragrunt.hcl":      "",
+					}),
+					target:     filepath.Join(root, "unreadable"),
+					unreadable: !afterGeneration,
+				}
+				v := venvtest.NewOSWithEmptyEnv().WithFS(fsys)
+				opts := options.NewTerragruntOptions(v.Exec)
+				opts.WorkingDir = root
+				ctx := discovery.WithStackDiscovery(
+					config.WithCaches(t.Context()),
+					func(context.Context, log.Logger, *venv.Venv, []string) (bool, error) {
+						if fsys.unreadable {
+							return false, nil
+						}
+
+						fsys.unreadable = true
+
+						return true, nil
+					},
+				)
+
+				d := discovery.NewDiscovery(root).WithRelationships()
+				if suppress {
+					d = d.WithSuppressParseErrors()
+				}
+
+				_, err := d.Discover(ctx, logger.CreateLogger(), v, new(rewrite.Store), opts)
+				if !suppress {
+					require.ErrorIs(t, err, os.ErrPermission)
+					return
+				}
+
+				require.NoError(t, err)
+			})
+		}
 	}
 }

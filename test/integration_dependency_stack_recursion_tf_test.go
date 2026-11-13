@@ -158,14 +158,14 @@ output "consumed" { value = var.marker }
 func TestTFDependencyStacksGenerateBeforeSelectingUnits(t *testing.T) {
 	t.Parallel()
 
-	for _, state := range []string{"missing", "missing inside generated tree", "stale", "changed reference", "missing generated value", "obsolete unit parse error"} {
+	for _, state := range []string{"missing", "missing inside generated tree", "stale", "changed reference", "missing generated value", "deleted include", "obsolete unit parse error"} {
 		for _, includeExternal := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/include_external=%t", state, includeExternal), func(t *testing.T) {
 				t.Parallel()
 
 				changedReference := state == "changed reference" || state == "obsolete unit parse error"
 				insideGeneratedTree := changedReference || state == "missing inside generated tree" ||
-					state == "missing generated value"
+					state == "missing generated value" || state == "deleted include"
 				f := newDependencyStackFixture(t, true)
 				f.v.Env["TG_USE_PARTIAL_PARSE_CONFIG_CACHE"] = "true"
 				f.write(".sources/relay/terragrunt.hcl", `terraform { source = "." }
@@ -233,6 +233,10 @@ dependencies { paths = [%q] }
 
 				if state == "missing generated value" {
 					f.write("first/.terragrunt-stack/relay/terragrunt.values.hcl", `marker = "old"`)
+				}
+
+				if state == "deleted include" {
+					f.write("first/.terragrunt-stack/relay/terragrunt.hcl", `include "deleted" { path = "./deleted.hcl" }`)
 				}
 
 				stdout, stderr, err := f.run(runDir, command)

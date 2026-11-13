@@ -2,6 +2,7 @@ package generate_test
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -15,6 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -106,4 +108,92 @@ func TestGenerateStacksWaitsForCopiesAndKeepsFailuresWithTheirStack(t *testing.T
 			})
 		})
 	}
+}
+
+type blockedStackValuesFS struct {
+	vfs.FS
+	release <-chan struct{}
+	target  string
+}
+
+func (f *blockedStackValuesFS) OpenFile(name string, flag int, perm os.FileMode) (vfs.File, error) {
+	if name == f.target {
+		<-f.release
+	}
+
+	return f.FS.OpenFile(name, flag, perm)
+}
+
+func TestGenerateDependencyStackWaitsForParentValues(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		root := venvtest.Root("/repo")
+		fsys := venvtest.NewFS(t, root, map[string]string{
+			"parent/terragrunt.stack.hcl": fmt.Sprintf(`stack "nested" {
+ source = "../child-source"
+ path = "nested"
+ values = { source = %q }
+}
+`, filepath.Join(root, "unit-source")),
+			"child-source/terragrunt.stack.hcl": `unit "app" {
+ source = values.source
+ path = "app"
+}
+`,
+			"unit-source/terragrunt.hcl": "# generated with parent values",
+		})
+		nested := filepath.Join(root, "parent/.terragrunt-stack/nested")
+		release := make(chan struct{})
+		v := venvtest.NewOSWithEmptyEnv().WithFS(&blockedStackValuesFS{
+			FS: fsys, target: filepath.Join(nested, "terragrunt.values.hcl"), release: release,
+		})
+		opts := options.NewTerragruntOptions(v.Exec)
+		opts.WorkingDir, opts.RootWorkingDir = root, root
+		opts.NoCAS, opts.Parallelism = true, 2
+		require.NoError(t, opts.Experiments.EnableExperiment(experiment.DependencyStackGeneration))
+
+		ctx := generate.WithCoordinator(config.WithCaches(t.Context()), v.FS, new(rewrite.Store), opts)
+
+		parentDone := make(chan error, 1)
+		go func() {
+			parentDone <- config.GenerateStackDependency(ctx, logger.CreateLogger(), v, filepath.Join(root, "parent"))
+		}()
+
+		synctest.Wait()
+		assert.True(t, vfs.Exists(fsys, filepath.Join(nested, config.DefaultStackFile)))
+		assert.False(t, vfs.Exists(fsys, filepath.Join(nested, "terragrunt.values.hcl")))
+
+		childDone := make(chan error, 1)
+		go func() {
+			childDone <- config.GenerateStackDependency(ctx, logger.CreateLogger(), v, nested)
+		}()
+
+		synctest.Wait()
+
+		var childErr error
+
+		childFinished := false
+
+		select {
+		case childErr = <-childDone:
+			childFinished = true
+
+			assert.Fail(t, "nested generation finished before its parent wrote its values", "%v", childErr)
+		default:
+		}
+
+		close(release)
+		assert.NoError(t, <-parentDone)
+
+		if !childFinished {
+			childErr = <-childDone
+		}
+
+		assert.NoError(t, childErr)
+		assert.NoError(t, config.GenerateStackDependency(ctx, logger.CreateLogger(), v, nested))
+		contents, err := vfs.ReadFile(fsys, filepath.Join(nested, ".terragrunt-stack/app/terragrunt.hcl"))
+		require.NoError(t, err)
+		assert.Equal(t, "# generated with parent values", string(contents))
+	})
 }
