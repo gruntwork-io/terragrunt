@@ -338,6 +338,24 @@ func TestParseCtyValueToMapMatchesJSONRoundTrip(t *testing.T) {
 			}),
 		},
 		{
+			name: "marked collections",
+			value: cty.ObjectVal(map[string]cty.Value{
+				"object": cty.ObjectVal(map[string]cty.Value{"id": cty.StringVal("a")}).Mark("sensitive"),
+				"map":    cty.MapVal(map[string]cty.Value{"k": cty.StringVal("v")}).Mark("sensitive"),
+				"list":   cty.ListVal([]cty.Value{cty.StringVal("a")}).Mark("sensitive"),
+				"set":    cty.SetVal([]cty.Value{cty.StringVal("a").Mark("sensitive")}),
+				"tuple":  cty.TupleVal([]cty.Value{cty.True}).Mark("sensitive"),
+				"null":   cty.NullVal(cty.String).Mark("sensitive"),
+			}),
+		},
+		{
+			name: "marks beside an unknown",
+			value: cty.ObjectVal(map[string]cty.Value{
+				"secret":  cty.StringVal("fake-password").Mark("sensitive"),
+				"unknown": cty.UnknownVal(cty.String).Mark("sensitive"),
+			}),
+		},
+		{
 			name:  "infinity",
 			value: cty.ObjectVal(map[string]cty.Value{"inf": cty.PositiveInfinity}),
 		},

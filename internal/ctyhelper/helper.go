@@ -30,13 +30,13 @@ func ParseCtyValueToMap(value cty.Value) (map[string]any, error) {
 		return map[string]any{}, nil
 	}
 
-	value, _ = value.UnmarkDeep()
-
 	if ty := value.Type(); ty.IsObjectType() || ty.IsMapType() {
 		if out, ok := mappingToGo(value); ok {
 			return out, nil
 		}
 	}
+
+	value, _ = value.UnmarkDeep()
 
 	return parseCtyValueToMapWithJSON(value)
 }
@@ -197,11 +197,14 @@ func parseCtyValueToMapWithJSON(value cty.Value) (map[string]any, error) {
 	return ctyJSONOutput.Value, nil
 }
 
-// mappingToGo converts an unmarked object or map to the result parseCtyValueToMapWithJSON would give for it.
+// mappingToGo converts an object or map to the result parseCtyValueToMapWithJSON would give for it with its marks
+// removed.
 //
 // Reports false when the value is or holds anything that conversion would change or reject: an unknown value, an
 // infinity, a number outside [MaxNumberDecimalExponent], a string that is not valid UTF-8, or a capsule.
 func mappingToGo(val cty.Value) (map[string]any, bool) {
+	val, _ = val.Unmark()
+
 	if !val.IsKnown() {
 		return nil, false
 	}
@@ -227,9 +230,11 @@ func mappingToGo(val cty.Value) (map[string]any, bool) {
 	return out, true
 }
 
-// ctyValueToGo converts one unmarked value nested in a value passed to mappingToGo, reporting false on the same
-// values it does.
+// ctyValueToGo converts one value nested in a value passed to mappingToGo, reporting false on the same values it
+// does.
 func ctyValueToGo(val cty.Value) (any, bool) {
+	val, _ = val.Unmark()
+
 	if !val.IsKnown() {
 		return nil, false
 	}
