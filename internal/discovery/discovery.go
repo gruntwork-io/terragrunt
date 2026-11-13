@@ -76,11 +76,6 @@ func (d *Discovery) Discover(
 		l.Debugf("Discovery: graph traversal bounded to %s", boundary)
 	}
 
-	var (
-		results *PhaseResults
-		err     error
-	)
-
 	withWorktree := len(d.gitExpressions) > 0 && d.worktrees != nil
 
 	if withWorktree {
@@ -95,70 +90,9 @@ func (d *Discovery) Discover(
 		}
 	}
 
-	l.Debugf(
-		"Discovery: starting filesystem phase (workers=%d, with_worktree=%t)",
-		d.numWorkers,
-		withWorktree,
-	)
-
-	err = telemetry.TelemeterFromContext(ctx).
-		Collect(ctx, l, "discovery_phase_filesystem", map[string]any{
-			"num_workers":   d.numWorkers,
-			"with_worktree": withWorktree,
-		}, func(childCtx context.Context, l log.Logger) error {
-			var phaseErr error
-
-			results, phaseErr = d.runFilesystemPhase(childCtx, l, v, s, opts)
-
-			return phaseErr
-		})
-
-	logPhaseComplete(l, "filesystem", results, err)
-
-	if err != nil && (!d.suppressParseErrors || errors.As(err, new(CoexistenceError))) {
+	discovered, candidates, err := d.walkAndParse(ctx, l, v, s, opts, withWorktree)
+	if err != nil {
 		return nil, err
-	}
-
-	discovered, candidates := results.Discovered, results.Candidates
-
-	parseReasons := slices.Clone(d.parseReasons)
-	if d.classifier.HasParseRequiredFilters() {
-		if !slices.Contains(parseReasons, parseReasonClassifierRequiresParse) {
-			parseReasons = append(parseReasons, parseReasonClassifierRequiresParse)
-		}
-	}
-
-	if len(parseReasons) > 0 {
-		reasonsStr := joinParseReasons(parseReasons)
-
-		l.Debugf("Discovery: starting parse phase (discovered=%d, candidates=%d, reasons=%s)",
-			len(discovered), len(candidates), reasonsStr)
-
-		err = telemetry.TelemeterFromContext(ctx).
-			Collect(ctx, l, "discovery_phase_parse", map[string]any{
-				"num_workers":       d.numWorkers,
-				"discovered_in":     len(discovered),
-				"candidates_in":     len(candidates),
-				"parse_includes":    d.parseIncludes,
-				"parse_exclude":     d.parseExclude,
-				"read_files":        d.readFiles,
-				"track_reads":       d.trackReads,
-				"activation_reason": reasonsStr,
-			}, func(childCtx context.Context, l log.Logger) error {
-				var phaseErr error
-
-				results, phaseErr = d.runParsePhase(childCtx, l, v, s, opts, discovered, candidates)
-
-				return phaseErr
-			})
-
-		logPhaseComplete(l, "parse", results, err)
-
-		if err != nil && !d.suppressParseErrors {
-			return nil, err
-		}
-
-		discovered, candidates = results.Discovered, results.Candidates
 	}
 
 	if d.classifier.HasGraphFilters() {
@@ -178,6 +112,8 @@ func (d *Discovery) Discover(
 			d.maxDependencyDepth,
 			d.classifier.HasDependentFilters(),
 		)
+
+		var results *PhaseResults
 
 		err = telemetry.TelemeterFromContext(ctx).
 			Collect(ctx, l, "discovery_phase_graph", map[string]any{
@@ -301,6 +237,136 @@ func (d *Discovery) Discover(
 	}
 
 	return components, nil
+}
+
+// walkAndParse finds the components below the working directory and parses the ones that need it, through the
+// pipeline when [EnvPipeline] selects it and no Git filter needs worktrees, and through the filesystem and parse
+// phases otherwise.
+//
+// Returns the components ready for filtering and the candidates left for the graph phase.
+func (d *Discovery) walkAndParse(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	s *rewrite.Store,
+	opts *options.TerragruntOptions,
+	withWorktree bool,
+) ([]DiscoveryResult, []DiscoveryResult, error) {
+	parseReasons := slices.Clone(d.parseReasons)
+	if d.classifier.HasParseRequiredFilters() {
+		if !slices.Contains(parseReasons, parseReasonClassifierRequiresParse) {
+			parseReasons = append(parseReasons, parseReasonClassifierRequiresParse)
+		}
+	}
+
+	if withWorktree || !PipelineEnabled(v.Env) {
+		return d.runWalkAndParsePhases(ctx, l, v, s, opts, withWorktree, parseReasons)
+	}
+
+	l.Debugf("Discovery: starting pipeline (workers=%d, parse_reasons=%s)", d.numWorkers, joinParseReasons(parseReasons))
+
+	var results *PhaseResults
+
+	err := telemetry.TelemeterFromContext(ctx).
+		Collect(ctx, l, "discovery_pipeline", map[string]any{
+			"num_workers":       d.numWorkers,
+			"parse_includes":    d.parseIncludes,
+			"parse_exclude":     d.parseExclude,
+			"read_files":        d.readFiles,
+			"track_reads":       d.trackReads,
+			"activation_reason": joinParseReasons(parseReasons),
+		}, func(childCtx context.Context, l log.Logger) error {
+			var pipelineErr error
+
+			results, pipelineErr = d.runPipeline(childCtx, l, v, s, opts, len(parseReasons) > 0)
+
+			return pipelineErr
+		})
+
+	logPhaseComplete(l, "pipeline", results, err)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return results.Discovered, results.Candidates, nil
+}
+
+// runWalkAndParsePhases runs the filesystem phase, then the parse phase when parseReasons names a reason for it.
+func (d *Discovery) runWalkAndParsePhases(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	s *rewrite.Store,
+	opts *options.TerragruntOptions,
+	withWorktree bool,
+	parseReasons []parseReason,
+) ([]DiscoveryResult, []DiscoveryResult, error) {
+	var (
+		results *PhaseResults
+		err     error
+	)
+
+	l.Debugf(
+		"Discovery: starting filesystem phase (workers=%d, with_worktree=%t)",
+		d.numWorkers,
+		withWorktree,
+	)
+
+	err = telemetry.TelemeterFromContext(ctx).
+		Collect(ctx, l, "discovery_phase_filesystem", map[string]any{
+			"num_workers":   d.numWorkers,
+			"with_worktree": withWorktree,
+		}, func(childCtx context.Context, l log.Logger) error {
+			var phaseErr error
+
+			results, phaseErr = d.runFilesystemPhase(childCtx, l, v, s, opts)
+
+			return phaseErr
+		})
+
+	logPhaseComplete(l, "filesystem", results, err)
+
+	if err != nil && (!d.suppressParseErrors || errors.As(err, new(CoexistenceError))) {
+		return nil, nil, err
+	}
+
+	discovered, candidates := results.Discovered, results.Candidates
+
+	if len(parseReasons) == 0 {
+		return discovered, candidates, nil
+	}
+
+	reasonsStr := joinParseReasons(parseReasons)
+
+	l.Debugf("Discovery: starting parse phase (discovered=%d, candidates=%d, reasons=%s)",
+		len(discovered), len(candidates), reasonsStr)
+
+	err = telemetry.TelemeterFromContext(ctx).
+		Collect(ctx, l, "discovery_phase_parse", map[string]any{
+			"num_workers":       d.numWorkers,
+			"discovered_in":     len(discovered),
+			"candidates_in":     len(candidates),
+			"parse_includes":    d.parseIncludes,
+			"parse_exclude":     d.parseExclude,
+			"read_files":        d.readFiles,
+			"track_reads":       d.trackReads,
+			"activation_reason": reasonsStr,
+		}, func(childCtx context.Context, l log.Logger) error {
+			var phaseErr error
+
+			results, phaseErr = d.runParsePhase(childCtx, l, v, s, opts, discovered, candidates)
+
+			return phaseErr
+		})
+
+	logPhaseComplete(l, "parse", results, err)
+
+	if err != nil && !d.suppressParseErrors {
+		return nil, nil, err
+	}
+
+	return results.Discovered, results.Candidates, nil
 }
 
 // logPhaseComplete emits a debug log summarizing a discovery phase's outcome.
