@@ -24,6 +24,14 @@ func stackOutputs() cty.Value {
 			"a.b":   cty.ObjectVal(map[string]cty.Value{"id": cty.StringVal("dotted-id")}),
 			`a"b`:   cty.ObjectVal(map[string]cty.Value{"id": cty.StringVal("quoted-id")}),
 			"12345": cty.ObjectVal(map[string]cty.Value{"id": cty.StringVal("numeric-id")}),
+			"a]b":   cty.ObjectVal(map[string]cty.Value{"id": cty.StringVal("bracket-id")}),
+		}),
+		"01-network": cty.ObjectVal(map[string]cty.Value{
+			"id": cty.StringVal("network-id"),
+		}),
+		"platform": cty.ObjectVal(map[string]cty.Value{
+			"02-db": cty.ObjectVal(map[string]cty.Value{"id": cty.StringVal("db-id")}),
+			"007":   cty.ObjectVal(map[string]cty.Value{"id": cty.StringVal("leading-zeros-id")}),
 		}),
 	})
 }
@@ -75,6 +83,31 @@ func TestFilterOutputsResolvesAddresses(t *testing.T) {
 			name:    "dotted form addresses the same element",
 			address: "shard.api.id",
 			want:    "api-id",
+		},
+		{
+			name:    "unit name starting with a digit",
+			address: "01-network.id",
+			want:    "network-id",
+		},
+		{
+			name:    "unit name starting with a digit inside a stack",
+			address: "platform.02-db.id",
+			want:    "db-id",
+		},
+		{
+			name:    "all-digit unit name keeps its leading zeros",
+			address: "platform.007.id",
+			want:    "leading-zeros-id",
+		},
+		{
+			name:    "iteration key after a unit name starting with a digit",
+			address: `01-network["id"]`,
+			want:    "network-id",
+		},
+		{
+			name:    "key containing a closing bracket",
+			address: `shard["a]b"].id`,
+			want:    "bracket-id",
 		},
 	}
 
@@ -151,6 +184,10 @@ func TestFilterOutputsRejectsUnreadableAddresses(t *testing.T) {
 		"[0]",
 		"shard.",
 		"shard[web]",
+		"shard[0]id",
+		"shard..id",
+		"01-network[",
+		`shard["a]"]]`,
 	} {
 		t.Run(address, func(t *testing.T) {
 			t.Parallel()

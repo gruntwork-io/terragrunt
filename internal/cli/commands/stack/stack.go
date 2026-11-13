@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"path/filepath"
 	"slices"
+	"strings"
+	"unicode/utf8"
 
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
@@ -229,20 +231,29 @@ func FilterOutputs(outputs cty.Value, index string) (cty.Value, error) {
 // address as an HCL traversal rather than splitting on dots, so that one element of an
 // expanded unit can be addressed as `shard["web"]` and an iteration key containing a dot
 // stays in one piece.
+//
+// Names outside brackets are taken as written. A unit or stack name is a block label, so
+// it need not be an HCL identifier: `01-network` is a valid name.
+//
+// Panics when the parsed traversal has a different number of names than were masked. The
+// HCL parser rejects every index key but a number or a string without templates, and the
+// masking leaves those untouched.
 func parseOutputAddress(index string) ([]string, error) {
-	traversal, diags := hclsyntax.ParseTraversalAbs([]byte(index), "", hcl.InitialPos)
+	masked, names := maskAddressNames(index)
+
+	traversal, diags := hclsyntax.ParseTraversalAbs([]byte(masked), "", hcl.InitialPos)
 	if diags.HasErrors() {
 		return nil, InvalidOutputAddressError{Address: index, Err: diags}
 	}
 
 	segments := make([]string, 0, len(traversal))
+	named := 0
 
 	for _, step := range traversal {
 		switch step := step.(type) {
-		case hcl.TraverseRoot:
-			segments = append(segments, step.Name)
-		case hcl.TraverseAttr:
-			segments = append(segments, step.Name)
+		case hcl.TraverseRoot, hcl.TraverseAttr:
+			segments = append(segments, names[named])
+			named++
 		case hcl.TraverseIndex:
 			key, err := convert.Convert(step.Key, cty.String)
 			if err != nil {
@@ -258,7 +269,67 @@ func parseOutputAddress(index string) ([]string, error) {
 		}
 	}
 
+	if named != len(names) {
+		panic(fmt.Sprintf("output address %q masked %d names but parsed into %d", index, len(names), named))
+	}
+
 	return segments, nil
+}
+
+// maskAddressNames replaces each name outside brackets in address with a placeholder
+// identifier of the same length, and returns the names it replaced in order. The result
+// parses as an HCL traversal whatever characters the names hold, and diagnostics still
+// point at the right columns of address.
+func maskAddressNames(address string) (string, []string) {
+	var (
+		masked strings.Builder
+		names  []string
+	)
+
+	for rest := address; len(rest) > 0; {
+		switch rest[0] {
+		case '.':
+			masked.WriteByte('.')
+
+			rest = rest[1:]
+		case '[':
+			end := indexEnd(rest)
+			masked.WriteString(rest[:end])
+
+			rest = rest[end:]
+		default:
+			name := rest
+			if end := strings.IndexAny(rest, ".["); end >= 0 {
+				name = rest[:end]
+			}
+
+			names = append(names, name)
+			masked.WriteString(strings.Repeat("x", utf8.RuneCountInString(name)))
+
+			rest = rest[len(name):]
+		}
+	}
+
+	return masked.String(), names
+}
+
+// indexEnd returns the length of the bracketed index that address starts with, skipping
+// any closing bracket inside a quoted key. An unclosed index runs to the end of address.
+func indexEnd(address string) int {
+	quoted := false
+
+	for i := 0; i < len(address); i++ {
+		switch {
+		case quoted && address[i] == '\\':
+			i++
+		case address[i] == '"':
+			quoted = !quoted
+		case !quoted && address[i] == ']':
+			return i + 1
+		}
+	}
+
+	return len(address)
 }
 
 // InvalidOutputAddressError reports an output address that cannot be parsed. An address
