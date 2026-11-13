@@ -23,6 +23,7 @@ func (c *Coordinator) discoverDependencyStacks(
 	l log.Logger,
 	v *venv.Venv,
 	roots []string,
+	suppressParseErrors bool,
 ) (bool, error) {
 	if _, generating := ctx.Value(generationOwnerKey{}).(generationOwner); generating {
 		return false, nil
@@ -60,6 +61,14 @@ func (c *Coordinator) discoverDependencyStacks(
 
 	if err := ctx.Err(); err != nil {
 		return false, err
+	}
+
+	if suppressParseErrors {
+		for _, err := range references.parseErrors {
+			l.Debugf("Suppressed stack discovery parse error: %v", err)
+		}
+
+		return false, nil
 	}
 
 	for _, err := range references.parseErrors {

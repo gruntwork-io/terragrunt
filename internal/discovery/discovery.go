@@ -130,7 +130,7 @@ func (d *Discovery) Discover(
 		}
 
 		results, err = d.runFilesystemPhase(ctx, l, v, s, opts)
-		if err != nil {
+		if err != nil && (!d.suppressParseErrors || errors.As(err, new(CoexistenceError))) {
 			return nil, err
 		}
 	}

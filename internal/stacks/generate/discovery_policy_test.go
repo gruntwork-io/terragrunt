@@ -68,24 +68,37 @@ func TestStackDiscoveryRespectsParseErrorSuppression(t *testing.T) {
 func TestStackDiscoveryDoesNotSuppressGenerationFailures(t *testing.T) {
 	t.Parallel()
 
-	root := venvtest.Root("/repo")
-	fsys := venvtest.NewFS(t, root, map[string]string{
-		"consumer/terragrunt.hcl": `dependencies { paths = ["../producer"] }`,
-		"producer/terragrunt.stack.hcl": `unit "app" {
- source = "../missing-source"
+	for _, tc := range []struct {
+		name     string
+		source   string
+		expected string
+	}{
+		{name: "copy failure", source: `"../missing-source"`, expected: "missing-source"},
+		{name: "stack parse failure", source: "absent.value", expected: "absent"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := venvtest.Root("/repo")
+			fsys := venvtest.NewFS(t, root, map[string]string{
+				"consumer/terragrunt.hcl": `dependencies { paths = ["../producer"] }`,
+				"producer/terragrunt.stack.hcl": fmt.Sprintf(`unit "app" {
+ source = %s
  path = "app"
-}`,
-	})
-	v := venvtest.NewOSWithEmptyEnv().WithFS(fsys)
-	opts := options.NewTerragruntOptions(v.Exec)
-	opts.WorkingDir = root
-	opts.NoCAS = true
-	require.NoError(t, opts.Experiments.EnableExperiment(experiment.DependencyStackGeneration))
+}`, tc.source),
+			})
+			v := venvtest.NewOSWithEmptyEnv().WithFS(fsys)
+			opts := options.NewTerragruntOptions(v.Exec)
+			opts.WorkingDir = root
+			opts.NoCAS = true
+			require.NoError(t, opts.Experiments.EnableExperiment(experiment.DependencyStackGeneration))
 
-	store := new(rewrite.Store)
-	ctx := generate.WithCoordinator(config.WithCaches(t.Context()), fsys, store, opts)
-	_, err := discovery.NewDiscovery(root).WithRelationships().WithSuppressParseErrors().
-		Discover(ctx, logger.CreateLogger(), v, store, opts)
+			store := new(rewrite.Store)
+			ctx := generate.WithCoordinator(config.WithCaches(t.Context()), fsys, store, opts)
+			_, err := discovery.NewDiscovery(root).WithRelationships().WithSuppressParseErrors().
+				Discover(ctx, logger.CreateLogger(), v, store, opts)
 
-	require.ErrorContains(t, err, "missing-source")
+			require.ErrorContains(t, err, tc.expected)
+		})
+	}
 }

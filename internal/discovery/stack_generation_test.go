@@ -110,7 +110,7 @@ func TestStackDiscoveryRescanPreservesFilesystemErrorPolicy(t *testing.T) {
 				opts.WorkingDir = root
 				ctx := discovery.WithStackDiscovery(
 					config.WithCaches(t.Context()),
-					func(context.Context, log.Logger, *venv.Venv, []string) (bool, error) {
+					func(context.Context, log.Logger, *venv.Venv, []string, bool) (bool, error) {
 						if fsys.unreadable {
 							return false, nil
 						}

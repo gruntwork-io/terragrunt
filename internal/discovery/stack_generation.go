@@ -75,12 +75,12 @@ func UnitDependencyPaths(
 }
 
 type stackDiscoveryKey struct{}
-type stackDiscovery func(context.Context, log.Logger, *venv.Venv, []string) (bool, error)
+type stackDiscovery func(context.Context, log.Logger, *venv.Venv, []string, bool) (bool, error)
 
 // WithStackDiscovery supplies a generation pass that does not populate the execution graph.
 func WithStackDiscovery(
 	ctx context.Context,
-	discover func(context.Context, log.Logger, *venv.Venv, []string) (bool, error),
+	discover func(context.Context, log.Logger, *venv.Venv, []string, bool) (bool, error),
 ) context.Context {
 	return context.WithValue(ctx, stackDiscoveryKey{}, stackDiscovery(discover))
 }
@@ -112,5 +112,5 @@ func (d *Discovery) generateDependencyStacks(
 		paths = append(paths, filepath.Join(unit.Path(), filename))
 	}
 
-	return discover(ctx, l, v, paths)
+	return discover(ctx, l, v, paths, d.suppressParseErrors)
 }

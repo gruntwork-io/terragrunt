@@ -60,11 +60,11 @@ func TestStackDiscoverySurfacesUnitErrorsWhenGenerationStops(t *testing.T) {
 				roots = append(roots, filepath.Join(root, "consumer/terragrunt.hcl"))
 			}
 
-			progressed, err := c.discoverDependencyStacks(ctx, logger.CreateLogger(), v, roots)
+			progressed, err := c.discoverDependencyStacks(ctx, logger.CreateLogger(), v, roots, false)
 			if hasStack {
 				require.NoError(t, err)
 				require.True(t, progressed)
-				progressed, err = c.discoverDependencyStacks(ctx, logger.CreateLogger(), v, roots)
+				progressed, err = c.discoverDependencyStacks(ctx, logger.CreateLogger(), v, roots, false)
 
 				assert.Equal(t, 1, calls)
 			} else {
@@ -120,7 +120,7 @@ func TestStackDiscoveryAbortsOnGenerationFailureOrCancellation(t *testing.T) {
 
 			progressed, err := c.discoverDependencyStacks(ctx, logger.CreateLogger(), v, []string{
 				filepath.Join(root, "broken/terragrunt.hcl"), filepath.Join(root, "consumer/terragrunt.hcl"),
-			})
+			}, true)
 
 			assert.False(t, progressed)
 			assert.Equal(t, 1, calls)
@@ -180,6 +180,7 @@ func TestStackDiscoveryAbortsOnAuthFailureOrCancellationDuringParsing(t *testing
 				logger.CreateLogger(),
 				v,
 				[]string{filepath.Join(root, "consumer/terragrunt.hcl")},
+				true,
 			)
 
 			assert.False(t, progressed)
