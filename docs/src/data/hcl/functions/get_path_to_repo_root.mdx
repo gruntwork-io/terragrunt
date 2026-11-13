@@ -1,0 +1,41 @@
+---
+name: get_path_to_repo_root
+description: Returns the relative path from the unit's directory to the root of the Git repository, e.g. `../..`.
+configs: [unit, stack]
+params: []
+returns: string
+examples:
+  - code: |
+      # prod/mysql/terragrunt.hcl
+
+      locals {
+        repo_root = get_path_to_repo_root() # "../.."
+      }
+---
+
+import FileTree from '@components/vendored/starlight/FileTree.astro';
+
+`get_path_to_repo_root` returns the relative path from the unit's directory up to the root of the Git repository, e.g. `../..` for `prod/vpc`. In an included file, the path still starts at the unit's directory. It fails when the unit or stack file is not in a Git repository.
+
+Use it to point a relative `source` at a module in the same repository:
+
+```hcl
+# prod/vpc/terragrunt.hcl
+
+terraform {
+  source = "${get_path_to_repo_root()}//modules/vpc"
+}
+```
+
+<FileTree>
+
+- modules
+  - vpc
+    - main.tf
+- prod
+  - vpc
+    - terragrunt.hcl
+
+</FileTree>
+
+The `source` is `../..//modules/vpc`.

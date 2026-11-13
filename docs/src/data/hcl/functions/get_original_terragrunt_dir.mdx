@@ -1,0 +1,50 @@
+---
+name: get_original_terragrunt_dir
+description: Returns the absolute path of the directory of the unit or stack file that Terragrunt is parsing.
+configs: [unit, stack]
+params: []
+returns: string
+examples:
+  - description: In a file that `/home/me/infra/app/terragrunt.hcl` reads with `read_terragrunt_config`.
+    code: |
+      # shared/naming.hcl
+
+      locals {
+        unit_dir = get_original_terragrunt_dir() # "/home/me/infra/app"
+      }
+---
+
+import FileTree from '@components/vendored/starlight/FileTree.astro';
+
+In a file read with [`read_terragrunt_config`](/reference/hcl/functions#read_terragrunt_config), [`get_terragrunt_dir`](/reference/hcl/functions/get_terragrunt_dir) returns that file's directory. `get_original_terragrunt_dir` returns the directory of the unit that reads it:
+
+```hcl
+# shared/naming.hcl
+
+locals {
+  name = basename(get_original_terragrunt_dir())
+}
+```
+
+```hcl
+# app/terragrunt.hcl
+
+locals {
+  naming = read_terragrunt_config("../shared/naming.hcl")
+}
+
+inputs = {
+  name = local.naming.locals.name
+}
+```
+
+<FileTree>
+
+- shared
+  - naming.hcl
+- app
+  - **terragrunt.hcl**
+
+</FileTree>
+
+`name` is `app`. When a stack file reads the file, it returns the stack file's directory.
