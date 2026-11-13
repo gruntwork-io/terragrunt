@@ -163,17 +163,12 @@ type componentView struct {
 	Excluded     bool
 }
 
-// discoverCorpus runs discovery over rewriteCorpus, with the rewrite selected when useRewrite is set and parsing
-// through store, and returns what it found in path order.
-func discoverCorpus(t *testing.T, useRewrite bool, store *rewrite.Store) []componentView {
+// discoverCorpus runs discovery over rewriteCorpus, parsing through store, and returns what it found in path order.
+func discoverCorpus(t *testing.T, store *rewrite.Store) []componentView {
 	t.Helper()
 
 	v := memRepoRootVenv(t, corpusRepoRoot)
 	writeFixture(t, v, prefixPaths(rewriteCorpus))
-
-	if useRewrite {
-		v.Env[rewrite.EnvRewrite] = "true"
-	}
 
 	opts := options.NewTerragruntOptions(vexec.NewOSExec())
 	opts.WorkingDir = corpusRepoRoot
@@ -235,33 +230,20 @@ func discoverCorpus(t *testing.T, useRewrite bool, store *rewrite.Store) []compo
 	return views
 }
 
-func TestDiscoveryConfigRewriteMatchesDefaultParser(t *testing.T) {
+func TestDiscoveryReusesTheParsesOfAnEarlierDiscovery(t *testing.T) {
 	t.Parallel()
 
-	want := discoverCorpus(t, false, new(rewrite.Store))
+	store := new(rewrite.Store)
+
+	want := discoverCorpus(t, store)
 	require.NotEmpty(t, want)
 
-	store := new(rewrite.Store)
-
-	got := discoverCorpus(t, true, store)
-	assert.Equal(t, want, got)
-
 	misses := store.Stats().Misses
-	require.Positive(t, misses, "the rewrite parsed through the store")
+	require.Positive(t, misses, "the discovery parsed through the store")
 
-	again := discoverCorpus(t, true, store)
+	again := discoverCorpus(t, store)
 	assert.Equal(t, want, again)
 	assert.Equal(t, misses, store.Stats().Misses, "the second discovery parsed nothing")
-}
-
-func TestDiscoveryConfigRewriteOffByDefault(t *testing.T) {
-	t.Parallel()
-
-	store := new(rewrite.Store)
-
-	discoverCorpus(t, false, store)
-
-	assert.Equal(t, rewrite.Stats{}, store.Stats())
 }
 
 // prefixPaths returns files with each path joined onto the corpus repo root.

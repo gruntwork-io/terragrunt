@@ -27,8 +27,7 @@ import (
 // supplies the process executor for the git top-level probe and the
 // auth-provider-command credentials fetch during the parse phase.
 //
-// The config rewrite memoizes its parses in s when [rewrite.EnvRewrite] selects it. Discoveries that share s share
-// those parses.
+// The parses of units are memoized in s. Discoveries that share s share those parses.
 func (d *Discovery) Discover(
 	ctx context.Context,
 	l log.Logger,

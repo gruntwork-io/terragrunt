@@ -132,8 +132,7 @@ func ensureParsed(
 	})
 }
 
-// parseConfig parses the config of c at cfgPath with pkg/config, or with the config rewrite through p when
-// [rewrite.EnvRewrite] selects it and c is a unit.
+// parseConfig parses the config of c at cfgPath: through s when c is a unit, and with pkg/config otherwise.
 func parseConfig(
 	ctx context.Context,
 	l log.Logger,
@@ -143,7 +142,7 @@ func parseConfig(
 	c component.Component,
 	cfgPath string,
 ) (*config.TerragruntConfig, error) {
-	if _, isUnit := c.(*component.Unit); !isUnit || !rewrite.Enabled(v.Env) {
+	if _, isUnit := c.(*component.Unit); !isUnit {
 		return config.PartialParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
 	}
 
