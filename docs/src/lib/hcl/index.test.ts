@@ -1,6 +1,14 @@
 import { describe, expect, test } from 'bun:test';
 import type { CollectionEntry } from 'astro:content';
-import { anchorRedirects, functionSignature, hclItemPath, itemAnchors, itemHeadings, referenceMarkdown } from '.';
+import {
+	anchorRedirects,
+	compareHclItems,
+	functionSignature,
+	hclItemPath,
+	itemAnchors,
+	itemHeadings,
+	referenceMarkdown,
+} from '.';
 
 type FunctionData = CollectionEntry<'hclFunctions'>['data'];
 type BlockData = CollectionEntry<'hclBlocks'>['data'];
@@ -43,6 +51,23 @@ function attributeEntry(data: Partial<AttributeData>): CollectionEntry<'hclAttri
 describe('hclItemPath', () => {
 	test('keeps underscores in the name', () => {
 		expect(hclItemPath('functions', 'get_env')).toBe('/reference/hcl/functions/get_env/');
+	});
+});
+
+describe('compareHclItems', () => {
+	test('sorts experimental items after the rest, each by name', () => {
+		const items = [
+			{ name: 'deep_merge', experimental: true },
+			{ name: 'get_env', experimental: false },
+			{ name: 'base64gzip_compat', experimental: true },
+			{ name: 'find_in_parent_folders', experimental: false },
+		];
+		expect(items.sort(compareHclItems).map((item) => item.name)).toEqual([
+			'find_in_parent_folders',
+			'get_env',
+			'base64gzip_compat',
+			'deep_merge',
+		]);
 	});
 });
 

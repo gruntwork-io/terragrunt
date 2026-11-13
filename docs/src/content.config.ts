@@ -89,6 +89,9 @@ const hclItem = {
 	description: z.string(),
 	configs: hclConfigs,
 	since: releaseVersion.optional(),
+	// The experiment that gates the item, e.g. `deep-merge`. While it's active,
+	// index tables and the sidebar list the item after the rest.
+	experiment: z.string().optional(),
 	examples: hclExamples,
 };
 
@@ -214,7 +217,6 @@ const hclFunctions = defineCollection({
 			name: z.string(),
 			type: z.string(),
 			optional: z.boolean().default(false),
-			// Takes any number of arguments in its place.
 			variadic: z.boolean().optional(),
 			description: z.string(),
 		})),

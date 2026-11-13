@@ -1,10 +1,11 @@
 import { getCollection, getEntry } from 'astro:content';
-import { isPublished } from '@lib/release';
-import { HCL_COLLECTIONS, hclItemSlug, type BlockAttribute, type HclEntry, type HclKind } from '.';
+import { isCompleted } from '@lib/experiments';
+import { getLatestVersion, isPublished } from '@lib/release';
+import { compareHclItems, HCL_COLLECTIONS, hclItemSlug, type BlockAttribute, type HclEntry, type HclKind } from '.';
 
 /**
  * Returns the entries of one kind whose `since` release has shipped, or every
- * entry in dev, sorted by name.
+ * entry in dev, sorted by name with entries gated by an active experiment last.
  *
  * Each entry has a placeholder page under
  * `src/content/docs/04-reference/01-hcl/<kind>/` so that Starlight's sidebar
@@ -42,9 +43,22 @@ export async function getPublishedHclItems(kind: HclKind): Promise<HclEntry[]> {
 		}),
 	);
 
-	return published
-		.filter((entry): entry is HclEntry => entry !== null)
-		.sort((a, b) => a.data.name.localeCompare(b.data.name));
+	const visible = published.filter((entry): entry is HclEntry => entry !== null);
+	const experimental = await Promise.all(visible.map(isExperimental));
+	return visible
+		.map((entry, i) => ({ entry, name: entry.data.name, experimental: experimental[i] }))
+		.sort(compareHclItems)
+		.map(({ entry }) => entry);
+}
+
+/** Returns true while the experiment named by the entry's `experiment` is active. */
+async function isExperimental(entry: HclEntry): Promise<boolean> {
+	const { name, experiment } = entry.data;
+	if (experiment === undefined) return false;
+
+	const found = await getEntry('experiments', experiment);
+	if (!found) throw new Error(`entry "${name}" names experiment "${experiment}", which doesn't exist`);
+	return !isCompleted(found, await getLatestVersion());
 }
 
 /**

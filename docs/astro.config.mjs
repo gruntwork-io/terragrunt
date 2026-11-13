@@ -95,6 +95,7 @@ export default defineConfig({
         },
       ],
       sidebar: sidebar,
+      routeMiddleware: "./src/route-middleware.ts",
       plugins: [
         starlightLinksValidator({
           exclude: await excludeLinks(fileURLToPath(new URL("./src", import.meta.url)), [
