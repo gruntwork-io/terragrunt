@@ -489,6 +489,44 @@ func TestDiscoveryPipelineFindsDependentsAboveTheWorkingDirectory(t *testing.T) 
 	}
 }
 
+func TestDiscoveryPipelineLinksADependencyAboveTheWorkingDirectoryOnce(t *testing.T) {
+	t.Parallel()
+
+	workingDir := filepath.Join(corpusRepoRoot, "live", "prod")
+
+	v := memRepoRootVenv(t, corpusRepoRoot)
+	writeFixture(t, v, prefixPaths(map[string]string{
+		"live/prod/vpc/terragrunt.hcl":   dependenciesOn("../../shared/net"),
+		"live/prod/app/terragrunt.hcl":   dependenciesOn("../vpc"),
+		"live/shared/net/terragrunt.hcl": "",
+	}))
+
+	v.Env[discovery.EnvPipeline] = "true"
+
+	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts.WorkingDir = workingDir
+	opts.RootWorkingDir = workingDir
+
+	l := logger.CreateLogger()
+
+	filters, err := filter.ParseFilterQueries(l, []string{"...vpc"})
+	require.NoError(t, err)
+
+	got, err := discovery.NewDiscovery(workingDir).
+		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: workingDir}).
+		WithGitRoot(corpusRepoRoot).
+		WithFilters(filters).
+		Discover(config.WithCaches(t.Context()), l, v, new(rewrite.Store), opts)
+	require.NoError(t, err)
+
+	vpc := filepath.Join(workingDir, "vpc")
+
+	assert.Equal(t, map[string][]string{
+		vpc:                              {filepath.Join(corpusRepoRoot, "live", "shared", "net")},
+		filepath.Join(workingDir, "app"): {vpc},
+	}, dependenciesByPath(got))
+}
+
 // dependenciesOn returns a unit config that depends on the units at paths.
 func dependenciesOn(paths ...string) string {
 	quoted := make([]string, 0, len(paths))

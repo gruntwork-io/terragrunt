@@ -26,9 +26,10 @@ func TestDiscoveryPipelineMatchesPhasesForGitFiltersWithRacing(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		configure func(d *discovery.Discovery) *discovery.Discovery
-		name      string
-		queries   []string
+		configure     func(d *discovery.Discovery) *discovery.Discovery
+		name          string
+		queries       []string
+		omitGitFilter bool
 	}{
 		{name: "git filter"},
 		{name: "git filter beside a path filter", queries: []string{"./untouched"}},
@@ -52,6 +53,11 @@ func TestDiscoveryPipelineMatchesPhasesForGitFiltersWithRacing(t *testing.T) {
 			configure: func(d *discovery.Discovery) *discovery.Discovery {
 				return d.WithRelationships().WithSuppressParseErrors()
 			},
+		},
+		{
+			name:          "dependencies and dependents of the changed units, without them",
+			queries:       []string{"...^[HEAD~1...HEAD]..."},
+			omitGitFilter: true,
 		},
 	}
 
@@ -98,7 +104,9 @@ func TestDiscoveryPipelineMatchesPhasesForGitFiltersWithRacing(t *testing.T) {
 			filters, err := filter.ParseFilterQueries(l, tt.queries)
 			require.NoError(t, err)
 
-			filters = append(filter.Filters{filter.NewFilter(gitExpr, gitExpr.String())}, filters...)
+			if !tt.omitGitFilter {
+				filters = append(filter.Filters{filter.NewFilter(gitExpr, gitExpr.String())}, filters...)
+			}
 
 			discover := func(pipeline string) map[string][]string {
 				opts := options.NewTerragruntOptions(vexec.NewOSExec())
