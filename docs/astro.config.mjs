@@ -112,8 +112,11 @@ export default defineConfig({
             "/reference/experiments/completed#*",
             "/reference/strict-controls/active#*",
             "/reference/strict-controls/completed#*",
+            "/process/changelog",
             "/process/changelog#*",
             "/process/changelog/*#*",
+            "/process/faq",
+            "/guides/patterns",
 
             // Used as redirects to the Terragrunt Discord server
             "/community/invite",

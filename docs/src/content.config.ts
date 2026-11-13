@@ -225,7 +225,7 @@ const hclFunctions = defineCollection({
 });
 
 const faq = defineCollection({
-	loader: glob({ pattern: "**/*.{md,mdx}", base: "src/data/faq" }),
+	loader: glob({ pattern: ["**/*.{md,mdx}", "!README.md"], base: "src/data/faq" }),
 	schema: z.object({
 		// The question, shown as the row title on the index and as the page
 		// heading on the question's own page.
@@ -240,7 +240,7 @@ const faq = defineCollection({
 });
 
 const patterns = defineCollection({
-	loader: glob({ pattern: "**/*.{md,mdx}", base: "src/data/patterns" }),
+	loader: glob({ pattern: ["**/*.{md,mdx}", "!README.md"], base: "src/data/patterns" }),
 	schema: z.object({
 		// The pattern's title, shown on its card and as the page heading.
 		title: z.string(),
@@ -255,7 +255,7 @@ const patterns = defineCollection({
 });
 
 const changelog = defineCollection({
-	loader: glob({ pattern: "**/*.{md,mdx}", base: "src/data/changelog" }),
+	loader: glob({ pattern: ["**/*.{md,mdx}", "!README.md"], base: "src/data/changelog" }),
 	schema: z.object({
 		version: releaseVersion,
 		category: z.enum(CHANGELOG_CATEGORY_SLUGS),
