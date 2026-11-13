@@ -97,6 +97,9 @@
 // dependencies only, where phase 3 also spends one for each directory it climbs. For a target found in a Git
 // worktree, both search that worktree within the boundary there.
 //
+// The traversal of those links to the dependents of each target then runs on one goroutine as well, so with the
+// pipeline on phase 3 starts no goroutines of its own.
+//
 // The pipeline takes over one phase at a time. [EnvPipeline] and the phases are removed once it has replaced all
 // of them.
 //

@@ -31,21 +31,77 @@ type boundaryUnit struct {
 	parsed *component.Unit
 }
 
-// linksDependentsToBoundary reports whether the dependents of the graph target c come from
-// [GraphPhase.linkDependentsToBoundaries] in place of [GraphPhase.discoverDependentsUpstream]. They do when the
-// pipeline read the dependencies and c was found in a Git worktree or in the working directory of the discovery.
-func (p *GraphPhase) linksDependentsToBoundary(state *graphTraversalState, c component.Component) bool {
-	if p.relations == nil {
-		return false
+// traverseFromRelations adds each of targets to the results of state, and with it the dependencies and dependents
+// its graph expression traverses to. It runs on one goroutine, from the dependencies the pipeline read.
+//
+// Returns the errors of reading and resolving the dependencies and of walking to the dependent boundaries.
+func (p *GraphPhase) traverseFromRelations(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	state *graphTraversalState,
+	graphExprs []*filter.GraphExpressionInfo,
+	targets []DiscoveryResult,
+) []error {
+	adoptLinkedDependencies(state.threadSafeComponents)
+
+	errs := p.discoverDependenciesFromRelations(ctx, l, v, state, graphExprs, targets)
+	errs = append(errs, p.linkDependentsToBoundaries(ctx, l, v, state, graphExprs, targets)...)
+
+	p.discoverDependentsFromLinks(state, graphExprs, targets)
+
+	return errs
+}
+
+// dependentsFrom is a component a traversal of dependents continues from, and how many dependents deep it still
+// goes from there.
+type dependentsFrom struct {
+	c    component.Component
+	left int
+}
+
+// discoverDependentsFromLinks adds to the results of state the dependents that the graph expression of each of
+// targets traverses to, as [GraphPhase.discoverDependents] does.
+//
+// A component that several traversals reach is traversed from again only by one with more depth left than any
+// before it, so the results do not depend on the order of the traversals.
+func (p *GraphPhase) discoverDependentsFromLinks(
+	state *graphTraversalState,
+	graphExprs []*filter.GraphExpressionInfo,
+	targets []DiscoveryResult,
+) {
+	exprs := make(map[int]*filter.GraphExpressionInfo, len(graphExprs))
+	for _, graphExpr := range graphExprs {
+		exprs[graphExpr.Index] = graphExpr
 	}
 
-	if isWorktreeComponent(c) {
-		return true
+	depthLeft := map[component.Component]int{}
+
+	for _, target := range targets {
+		graphExpr, ok := exprs[target.GraphExpressionIndex]
+		if !ok || !graphExpr.Dependents.Include {
+			continue
+		}
+
+		pending := []dependentsFrom{{c: target.Component, left: p.dependentDepth(graphExpr)}}
+
+		for len(pending) > 0 {
+			from := pending[0]
+			pending = pending[1:]
+
+			if depthLeft[from.c] >= from.left {
+				continue
+			}
+
+			depthLeft[from.c] = from.left
+
+			for _, dependent := range from.c.Dependents() {
+				state.addReached(dependent)
+
+				pending = append(pending, dependentsFrom{c: dependent, left: from.left - 1})
+			}
+		}
 	}
-
-	dctx := c.DiscoveryContext()
-
-	return dctx == nil || dctx.WorkingDir == "" || dctx.WorkingDir == state.discovery.workingDir
 }
 
 // linkDependentsToBoundaries links every unit up to the dependent boundary of each of targets to its dependencies,
@@ -74,7 +130,7 @@ func (p *GraphPhase) linkDependentsToBoundaries(
 
 	for _, target := range targets {
 		graphExpr, ok := exprs[target.GraphExpressionIndex]
-		if !ok || !graphExpr.Dependents.Include || !p.linksDependentsToBoundary(state, target.Component) {
+		if !ok || !graphExpr.Dependents.Include {
 			continue
 		}
 

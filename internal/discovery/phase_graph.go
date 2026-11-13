@@ -132,17 +132,14 @@ func (p *GraphPhase) Run(
 		results:              results,
 	}
 
+	if p.relations != nil {
+		return results, errors.Join(p.traverseFromRelations(ctx, l, v, state, graphExprs, graphTargetCandidates)...)
+	}
+
 	var (
 		errs  []error
 		errMu sync.Mutex
 	)
-
-	if p.relations != nil {
-		adoptLinkedDependencies(threadSafeComponents)
-
-		errs = p.discoverDependenciesFromRelations(ctx, l, v, state, graphExprs, graphTargetCandidates)
-		errs = append(errs, p.linkDependentsToBoundaries(ctx, l, v, state, graphExprs, graphTargetCandidates)...)
-	}
 
 	g, ctx := errgroup.WithContext(ctx)
 	g.SetLimit(p.numWorkers)
@@ -205,7 +202,7 @@ func (p *GraphPhase) processGraphTarget(
 	// (it uses the target as the starting point for traversing dependents).
 	state.addReached(c)
 
-	if graphExpr.Dependencies.Include && p.relations == nil {
+	if graphExpr.Dependencies.Include {
 		boundary, err := dependencyBoundary(v.FS, state.discovery, c, graphExpr)
 		if err != nil {
 			return err
@@ -218,18 +215,11 @@ func (p *GraphPhase) processGraphTarget(
 	}
 
 	if graphExpr.Dependents.Include {
-		depth := p.maxDepth
-		if graphExpr.Dependents.Depth > 0 {
-			depth = graphExpr.Dependents.Depth
-		}
+		depth := p.dependentDepth(graphExpr)
 
 		err := p.discoverDependents(ctx, l, v, state, c, depth)
 		if err != nil {
 			return err
-		}
-
-		if p.linksDependentsToBoundary(state, c) {
-			return nil
 		}
 
 		if isWorktreeComponent(c) {
@@ -335,6 +325,15 @@ func (s *graphTraversalState) addReached(c component.Component) {
 func (p *GraphPhase) dependencyDepth(graphExpr *filter.GraphExpressionInfo) int {
 	if graphExpr.Dependencies.Depth > 0 {
 		return graphExpr.Dependencies.Depth
+	}
+
+	return p.maxDepth
+}
+
+// dependentDepth returns how many dependents deep graphExpr traverses from its target.
+func (p *GraphPhase) dependentDepth(graphExpr *filter.GraphExpressionInfo) int {
+	if graphExpr.Dependents.Depth > 0 {
+		return graphExpr.Dependents.Depth
 	}
 
 	return p.maxDepth

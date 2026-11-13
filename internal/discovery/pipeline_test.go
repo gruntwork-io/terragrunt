@@ -419,6 +419,36 @@ func TestDiscoveryPipelineTraversesASharedDependencyToTheGreatestDepth(t *testin
 	}
 }
 
+func TestDiscoveryPipelineFindsDependentsBehindAnotherTarget(t *testing.T) {
+	t.Parallel()
+
+	run := pipelineRun{
+		files: map[string]string{
+			"infra/vpc/terragrunt.hcl": "",
+			"apps/app/terragrunt.hcl":  dependenciesOn("../../infra/vpc"),
+			"apps/web/terragrunt.hcl":  dependenciesOn("../app"),
+			"apps/edge/terragrunt.hcl": dependenciesOn("../web"),
+		},
+		usePipeline: true,
+	}
+
+	want := []string{
+		filepath.Join(corpusRepoRoot, "infra", "vpc"),
+		filepath.Join(corpusRepoRoot, "apps", "app"),
+		filepath.Join(corpusRepoRoot, "apps", "web"),
+		filepath.Join(corpusRepoRoot, "apps", "edge"),
+	}
+
+	for _, queries := range [][]string{{"...vpc", "app..."}, {"app...", "...vpc"}} {
+		run.queries = queries
+
+		got, err := run.discover(t.Context(), t)
+		require.NoError(t, err)
+
+		assert.ElementsMatch(t, want, got.Paths())
+	}
+}
+
 func TestDiscoveryPipelineFindsDependentsAboveTheWorkingDirectory(t *testing.T) {
 	t.Parallel()
 
