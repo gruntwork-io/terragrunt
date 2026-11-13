@@ -92,7 +92,7 @@ func runNetworkMirrorServer(
 		withGz.ServeHTTP(resp, req)
 	})
 
-	ln, err := tls.Listen("tcp", "localhost:8888", serverTLSConf)
+	ln, err := tls.Listen("tcp", "127.0.0.1:8888", serverTLSConf)
 	require.NoError(t, err)
 
 	server := &http.Server{
@@ -153,7 +153,7 @@ func runMockRegistryWithAbsoluteModuleURL(
 	fs := http.FileServer(http.Dir(providerDir))
 	mux.Handle("/v1/providers/", http.StripPrefix("/v1/providers/", fs))
 
-	ln, err := tls.Listen("tcp", "localhost:0", serverTLSConf)
+	ln, err := tls.Listen("tcp", "127.0.0.1:0", serverTLSConf)
 	require.NoError(t, err)
 
 	server := &http.Server{

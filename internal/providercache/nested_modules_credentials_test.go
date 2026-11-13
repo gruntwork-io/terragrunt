@@ -126,6 +126,7 @@ func TestNestedModuleCredentials(t *testing.T) {
 	)
 
 	server := cache.NewServer(
+		cache.WithHostname("127.0.0.1"),
 		cache.WithToken(cacheToken),
 		cache.WithProviderService(providerService),
 		cache.WithProxyProviderHandler(proxyProviderHandler),
