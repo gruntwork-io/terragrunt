@@ -73,7 +73,8 @@
 //
 // [EnvPipeline] replaces phases 1 and 2 with a pipeline that parses components while the walk is still finding
 // them. The walk and the parse workers report to one collector, which hands the graph phase the same discovered
-// components and candidates the two phases would. A discovery with Git filters keeps the phases.
+// components and candidates the two phases would. A discovery with Git filters runs [PhaseWorktree] beside the
+// pipeline, and the parse phase parses the components that phase finds.
 //
 // The pipeline also replaces phase 4. Its workers read the dependencies each component declares as paths, and the
 // components are linked on one goroutine after the graph phase. A unit the graph phase reached has its dependencies
