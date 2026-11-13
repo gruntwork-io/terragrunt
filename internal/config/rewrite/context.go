@@ -59,8 +59,9 @@ type fileScope struct {
 }
 
 // NewParseContext returns a ParseContext with run's settings and sinks, and the file state starting from run's values.
-func NewParseContext(run *pkgconfig.ParsingContext) *ParseContext {
-	key, memoized := runDigest(run)
+// The stages it reaches are shared only with callers whose environment and output discarding match those of v.
+func NewParseContext(v *venv.Venv, run *pkgconfig.ParsingContext) *ParseContext {
+	key, memoized := runDigest(v, run)
 
 	settings := run.Clone()
 	settings.FilesRead = nil

@@ -52,7 +52,7 @@ inputs = {
 	run.Locals = &runLocals
 
 	want := run.Clone()
-	pc := config.NewParseContext(run)
+	pc := config.NewParseContext(v, run)
 	l := logger.CreateLogger()
 
 	first, err := new(config.Store).ResolveUnitConfig(ctx, l, v, pc, cfgPath)
@@ -103,7 +103,7 @@ inputs = {
 
 	l := logger.CreateLogger()
 
-	pc := config.NewParseContext(run)
+	pc := config.NewParseContext(v, run)
 
 	parsed, err := new(config.Store).ResolveUnitConfig(ctx, l, v, pc, cfgPath)
 	require.NoError(t, err)
