@@ -16,6 +16,10 @@ Copies of components from `@astrojs/starlight` 0.42.10, changed where Starlight 
 
 `terragrunt-icons.ts` isn't from Starlight. It adds the `custom:terragrunt` icon for `.hcl` files, and the `custom:opentofu` icon for `.tf`, `.tf.json`, `.tfvars`, `.tfvars.json`, `.tfplan`, and `.terraform.lock.hcl` files.
 
+## License
+
+The copies from Starlight are under Starlight's MIT license, in `LICENSE`. The Seti UI icons in `file-tree-icons.ts` keep their own MIT notice in the file's header. `terragrunt-icons.ts` and the changes listed above belong to this repository.
+
 ## Upgrading
 
 Copy each file from `packages/starlight/` at the new release's tag in [withastro/starlight](https://github.com/withastro/starlight), e.g. `@astrojs/starlight@0.42.10`. The npm package has only compiled JavaScript for the `.ts` files. Then reapply the changes in the table and update the version above.
