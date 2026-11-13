@@ -96,9 +96,10 @@ func TestResolveUnitConfigSharesTheParse(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(
 		t,
-		config.Stats{Hits: 4, Misses: 6},
+		config.Stats{Hits: 6, Misses: 7},
 		store.Stats(),
-		"two files, each at three stages; the unit's dependency decode and merge are served the root's tree and base",
+		"two files, each at three stages, and the root's dependency scan; the unit's dependency decode and merge are "+
+			"served the root's scan, tree, and base",
 	)
 
 	secondCtx, secondRun := newTestParsingContext(t, paths[0])
@@ -114,7 +115,7 @@ func TestResolveUnitConfigSharesTheParse(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(
 		t,
-		config.Stats{Hits: 5, Misses: 6},
+		config.Stats{Hits: 7, Misses: 7},
 		store.Stats(),
 		"the unit's parse is served whole",
 	)
@@ -534,7 +535,7 @@ func TestResolveRunConfigAddsTheRunPartsToTheSharedParse(t *testing.T) {
 		map[string]any{"name": "unit", "region": "us-east-1", "unit": "unit-0"},
 		runCfg.Inputs,
 	)
-	assert.Equal(t, config.Stats{Hits: 5, Misses: 6}, store.Stats())
+	assert.Equal(t, config.Stats{Hits: 7, Misses: 7}, store.Stats())
 }
 
 func TestResolveRunConfigReturnsNoConfigForAMissingFile(t *testing.T) {
@@ -696,7 +697,12 @@ func TestResolveUnitQueueConfigBuildsOnTheBaseVariables(t *testing.T) {
 
 	_, err := store.ResolveUnitBaseVariables(ctx, l, v, config.NewParseContext(run), paths[0])
 	require.NoError(t, err)
-	assert.Equal(t, config.Stats{Hits: 0, Misses: 4}, store.Stats(), "the syntax tree and the base of both files")
+	assert.Equal(
+		t,
+		config.Stats{Hits: 0, Misses: 5},
+		store.Stats(),
+		"the syntax tree and the base of both files, and the root's dependency scan",
+	)
 
 	_, err = store.ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(run), paths[0])
 	require.NoError(t, err)
@@ -704,9 +710,10 @@ func TestResolveUnitQueueConfigBuildsOnTheBaseVariables(t *testing.T) {
 	stats := store.Stats()
 	assert.Equal(
 		t,
-		uint64(6),
+		uint64(8),
 		stats.Hits,
-		"the unit's tree and base are served, and the root's to the dependency decode and to the merge",
+		"the unit's tree and base are served, and the root's scan, tree, and base to the dependency decode and to "+
+			"the merge",
 	)
 }
 
@@ -741,7 +748,12 @@ func TestResolveUnitBaseVariablesEvaluatesOnceWithRacing(t *testing.T) {
 	}
 
 	require.NoError(t, g.Wait())
-	assert.Equal(t, uint64(4), store.Stats().Misses, "the syntax tree and the base of both files")
+	assert.Equal(
+		t,
+		uint64(5),
+		store.Stats().Misses,
+		"the syntax tree and the base of both files, and the root's dependency scan",
+	)
 }
 
 func TestResolveUnitBaseVariablesGivesEachCallerItsOwnMap(t *testing.T) {
@@ -880,7 +892,7 @@ func TestResolveUnitConfigSharesIncludedFilesAcrossUnits(t *testing.T) {
 
 	assert.Equal(
 		t,
-		config.Stats{Hits: 14, Misses: 16},
+		config.Stats{Hits: 22, Misses: 17},
 		store.Stats(),
 		"the root's syntax tree is parsed once; each unit evaluates it in its own context",
 	)
@@ -973,6 +985,60 @@ func TestResolveUnitConfigParsesAgainAfterInvalidate(t *testing.T) {
 	assert.Equal(t, "eu-west-1", region())
 }
 
+func TestResolveUnitQueueConfigScansAnIncludedFileAgainWhenItChanges(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		wantMisses uint64
+		rewrite    bool
+	}{
+		{name: "unchanged", rewrite: false, wantMisses: 5},
+		{name: "changed", rewrite: true, wantMisses: 7},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := t.TempDir()
+			fsys, paths := includingRepo(t, root, 2)
+			v := venv.MemVenv().WithFS(fsys)
+			l := logger.CreateLogger()
+			store := &config.Store{}
+
+			resolve := func(path string) {
+				ctx, run := newTestParsingContext(t, path)
+
+				_, err := store.ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(run), path)
+				require.NoError(t, err)
+			}
+
+			resolve(paths[0])
+
+			misses := store.Stats().Misses
+
+			if tt.rewrite {
+				rootPath := filepath.Join(root, "root.hcl")
+
+				content, err := vfs.ReadFile(fsys, rootPath)
+				require.NoError(t, err)
+				require.NoError(t, vfs.WriteFile(fsys, rootPath, append(content, '\n'), 0o644))
+			}
+
+			resolve(paths[1])
+
+			assert.Equal(
+				t,
+				tt.wantMisses,
+				store.Stats().Misses-misses,
+				"the second unit's three stages and the root's base and queue stage, "+
+					"plus the root's tree and dependency scan when it changed",
+			)
+		})
+	}
+}
+
 func TestResolveUnitConfigRunsUnmemoizedForSuppliedValues(t *testing.T) {
 	t.Parallel()
 
@@ -993,9 +1059,9 @@ func TestResolveUnitConfigRunsUnmemoizedForSuppliedValues(t *testing.T) {
 
 	assert.Equal(
 		t,
-		config.Stats{Hits: 6, Misses: 2},
+		config.Stats{Hits: 11, Misses: 3},
 		store.Stats(),
-		"only the syntax trees are shared",
+		"only the syntax trees and the root's dependency scan are shared",
 	)
 }
 
