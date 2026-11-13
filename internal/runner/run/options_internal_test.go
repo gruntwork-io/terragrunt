@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -22,7 +23,7 @@ func TestRemoteStateOptsPropagatesExperiments(t *testing.T) {
 		DisableBucketUpdate:          true,
 	}
 
-	got := o.remoteStateOpts(map[string]string{})
+	got := o.remoteStateOpts(vexec.NewNoSpawnExec(), map[string]string{})
 
 	assert.True(t, got.Experiments.Evaluate(experiment.Symlinks), "enabled experiments must reach backend options")
 	assert.True(t, got.NonInteractive)

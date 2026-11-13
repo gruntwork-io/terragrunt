@@ -10,7 +10,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -20,7 +19,7 @@ import (
 func TestNoHooksFlagSetsNoRunHooks(t *testing.T) {
 	t.Parallel()
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	flags := runcommand.NewFlags(logger.CreateLogger(), opts, venv.MemVenv(), nil)
 
 	require.NoError(t, flags.Parse(clihelper.Args{"--no-hooks"}, map[string]string{}))
@@ -31,7 +30,7 @@ func TestNoHooksFlagSetsNoRunHooks(t *testing.T) {
 func TestNoDependencyOutputsFlagSetsSkipOutput(t *testing.T) {
 	t.Parallel()
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	flags := runcommand.NewFlags(logger.CreateLogger(), opts, venv.MemVenv(), nil)
 
 	require.NoError(t, flags.Parse(clihelper.Args{"--no-dependency-outputs"}, map[string]string{}))
@@ -75,7 +74,7 @@ func TestNewFlagsDeprecatedFlagsRunTheirStrictControls(t *testing.T) {
 			t.Parallel()
 
 			for _, strictMode := range []bool{false, true} {
-				opts := options.NewTerragruntOptions(vexec.NewOSExec())
+				opts := options.NewTerragruntOptions()
 				if strictMode {
 					require.NoError(t, opts.StrictControls.EnableControl(tc.control))
 				}
@@ -123,7 +122,7 @@ func TestNewFlagsBoolFlagsSetToFalseSkipTheirStrictControls(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts := options.NewTerragruntOptions()
 			require.NoError(t, opts.StrictControls.EnableControl(tc.control))
 
 			require.NoError(t, parseRunFlags(t, opts, clihelper.Args{"--" + tc.flag + "=false"}))
@@ -161,7 +160,7 @@ func TestNewFlagsUnitsThatIncludeAddsReadingFilters(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts := options.NewTerragruntOptions()
 
 			err := parseRunFlags(t, opts, tc.args)
 			if tc.wantErr {
@@ -202,7 +201,7 @@ func TestNewFlagsExperimentalEngineEnablesTheExperiment(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts := options.NewTerragruntOptions()
 
 			require.NoError(t, parseRunFlags(t, opts, tc.args))
 			assert.Equal(t, tc.want, opts.Experiments.Evaluate(experiment.IacEngine))
@@ -267,7 +266,7 @@ func TestNewFlagsReportFlagsSetTheReportFormat(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts := options.NewTerragruntOptions()
 
 			err := parseRunFlags(t, opts, tc.args)
 			if tc.wantErr {

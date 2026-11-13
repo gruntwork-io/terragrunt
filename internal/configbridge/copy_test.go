@@ -15,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -184,7 +185,7 @@ func TestShellRunOptsFromOptsCopiesEveryOption(t *testing.T) {
 
 	opts := optionsWithDistinctValues(t)
 
-	shellOpts := configbridge.ShellRunOptsFromOpts(map[string]string{}, opts)
+	shellOpts := configbridge.ShellRunOptsFromOpts(vexec.NewOSExec(), map[string]string{}, opts)
 	require.NotNil(t, shellOpts)
 
 	assert.Equal(t, opts.WorkingDir, shellOpts.WorkingDir, "commands run in the working dir of the unit")
@@ -206,7 +207,7 @@ func TestTFRunOptsFromOptsCopiesEveryOption(t *testing.T) {
 
 	opts := optionsWithDistinctValues(t)
 
-	tfOpts := configbridge.TFRunOptsFromOpts(map[string]string{}, opts, tfimpl.OpenTofu)
+	tfOpts := configbridge.TFRunOptsFromOpts(vexec.NewOSExec(), map[string]string{}, opts, tfimpl.OpenTofu)
 	require.NotNil(t, tfOpts)
 
 	assert.True(t, tfOpts.JSONLogFormat)

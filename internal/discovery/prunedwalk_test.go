@@ -11,7 +11,6 @@ import (
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
@@ -35,7 +34,7 @@ func TestPrunedWalkListsLeavesConcurrentlyWithRacing(t *testing.T) {
 	filters, err := filter.ParseFilterQueries(l, []string{"./apps/*"})
 	require.NoError(t, err)
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = corpusRepoRoot
 
 	_, err = discovery.NewDiscovery(corpusRepoRoot).
@@ -55,7 +54,7 @@ func TestPrunedWalkStopsOnCancellation(t *testing.T) {
 		repoPath("apps", "a", "terragrunt.hcl"): "",
 	})
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = corpusRepoRoot
 
 	l := logger.CreateLogger()

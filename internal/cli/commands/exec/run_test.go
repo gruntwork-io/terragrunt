@@ -267,7 +267,7 @@ func (rec *recorder) find(name string) *vexec.Invocation {
 func newOpts(t *testing.T, v *venv.Venv) *options.TerragruntOptions {
 	t.Helper()
 
-	opts, err := options.NewTerragruntOptionsWithConfigPath(v.Exec, filepath.Join(memRoot, "unit", "terragrunt.hcl"))
+	opts, err := options.NewTerragruntOptionsWithConfigPath(filepath.Join(memRoot, "unit", "terragrunt.hcl"))
 	require.NoError(t, err)
 
 	opts.NonInteractive = true

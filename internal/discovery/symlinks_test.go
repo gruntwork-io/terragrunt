@@ -8,7 +8,6 @@ import (
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -50,7 +49,7 @@ func TestDiscoverySymlinksExperiment(t *testing.T) {
 	discover := func(t *testing.T, experiments ...string) []string {
 		t.Helper()
 
-		opts := options.NewTerragruntOptions(vexec.NewOSExec())
+		opts := options.NewTerragruntOptions()
 		opts.WorkingDir = root
 		opts.RootWorkingDir = root
 
@@ -102,7 +101,7 @@ func TestDiscoverySymlinkedWorkingDir(t *testing.T) {
 	discover := func(t *testing.T, experiments ...string) []string {
 		t.Helper()
 
-		opts := options.NewTerragruntOptions(vexec.NewOSExec())
+		opts := options.NewTerragruntOptions()
 		opts.WorkingDir = linkDir
 		opts.RootWorkingDir = linkDir
 

@@ -107,7 +107,7 @@ func TestRunActionAutoProviderCacheDir(t *testing.T) {
 				wantCacheDir = filepath.Join(userCacheDir, "terragrunt", "providers")
 			}
 
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts := options.NewTerragruntOptions()
 			opts.TFPath = "tofu"
 			opts.RootWorkingDir = testWorkDir
 			opts.ProviderCacheOptions.Dir = tc.cacheDir
@@ -147,7 +147,7 @@ func TestRunActionAutoProviderCacheDirKeepsUserValue(t *testing.T) {
 	})
 	v.Env[tf.EnvNameTFPluginCacheDir] = "/user/plugins"
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.TFPath = "tofu"
 	opts.ProviderCacheOptions.Dir = venvtest.Root("/providers")
 

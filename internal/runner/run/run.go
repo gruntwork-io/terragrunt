@@ -390,7 +390,7 @@ func runTerragruntWithConfig(
 			// Execute the underlying command once; retries and ignores are handled by outer RunWithErrorHandling
 			out, runTerraformError := tf.RunCommandWithOutput(
 				childCtx, l, v,
-				opts.tfRunOptions(v.Env), opts.TerraformCliArgs.Slice()...,
+				opts.tfRunOptions(v.Exec, v.Env), opts.TerraformCliArgs.Slice()...,
 			)
 
 			var lockFileError error
@@ -716,7 +716,7 @@ func remoteStateNeedsInit(
 		return false, nil
 	}
 
-	if ok, err := remoteState.NeedsBootstrap(ctx, l, v, opts.remoteStateOpts(v.Env)); err != nil || !ok {
+	if ok, err := remoteState.NeedsBootstrap(ctx, l, v, opts.remoteStateOpts(v.Exec, v.Env)); err != nil || !ok {
 		return false, err
 	}
 
@@ -876,7 +876,7 @@ func prepareInitCommandRunCfg(
 		return nil
 	}
 
-	if err := cfg.RemoteState.Bootstrap(ctx, l, v, opts.remoteStateOpts(v.Env)); err != nil {
+	if err := cfg.RemoteState.Bootstrap(ctx, l, v, opts.remoteStateOpts(v.Exec, v.Env)); err != nil {
 		return err
 	}
 

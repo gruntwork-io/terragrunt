@@ -25,7 +25,7 @@ func TestNewCommandShowsHelpWithItsSubcommands(t *testing.T) {
 	t.Parallel()
 
 	v := venv.MemVenv()
-	cmd := info.NewCommand(logger.CreateLogger(), options.NewTerragruntOptions(v.Exec), v, new(rewrite.Store))
+	cmd := info.NewCommand(logger.CreateLogger(), options.NewTerragruntOptions(), v, new(rewrite.Store))
 	cmd.CustomHelpTemplate = subcommandsTemplate
 
 	out := new(bytes.Buffer)

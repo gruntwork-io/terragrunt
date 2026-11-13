@@ -8,7 +8,6 @@ import (
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -19,7 +18,7 @@ import (
 func TestNewGroupsCommandsByCategory(t *testing.T) {
 	t.Parallel()
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	cmds := commands.New(logger.CreateLogger(), opts, venv.MemVenv(), new(rewrite.Store))
 
 	testCases := []struct {
@@ -56,7 +55,7 @@ func TestNewShortcutsCommandsMirrorRunSubcommands(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	v := venv.MemVenv()
 
 	shortcuts := commands.NewShortcutsCommands(l, opts, v, new(rewrite.Store))

@@ -11,7 +11,6 @@ import (
 	"github.com/gruntwork-io/boilerplate/variables"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/scaffold"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -438,7 +437,7 @@ catalog {
 			err = os.WriteFile(terragruntConfigPath, []byte(tc.terragruntConfig), 0644)
 			require.NoError(t, err)
 
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts := options.NewTerragruntOptions()
 			// Set CLI flags if specified in test case
 			if tc.cliNoShell != nil {
 				opts.NoShell = *tc.cliNoShell
@@ -546,7 +545,7 @@ catalog {
 	err := os.WriteFile(terragruntConfigPath, []byte(terragruntConfig), 0644)
 	require.NoError(t, err)
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.TerragruntConfigPath = terragruntConfigPath
 	opts.WorkingDir = workDir
 	opts.ScaffoldRootFileName = "terragrunt.hcl"
@@ -586,7 +585,7 @@ catalog {
 	err := os.WriteFile(terragruntConfigPath, []byte(terragruntConfig), 0644)
 	require.NoError(t, err)
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.TerragruntConfigPath = terragruntConfigPath
 	opts.WorkingDir = workDir
 	opts.ScaffoldRootFileName = "terragrunt.hcl"

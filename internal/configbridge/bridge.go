@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -93,12 +94,13 @@ func populateFromOpts(pctx *config.ParsingContext, opts *options.TerragruntOptio
 }
 
 // ShellRunOptsFromOpts constructs shell.ShellOptions from TerragruntOptions.
-func ShellRunOptsFromOpts(env map[string]string, opts *options.TerragruntOptions) *shell.ShellOptions {
+// Their TFPath is opts.TFPath, or the default e finds on PATH when that is empty.
+func ShellRunOptsFromOpts(e vexec.Exec, env map[string]string, opts *options.TerragruntOptions) *shell.ShellOptions {
 	s := shell.NewShellOptions(env).
 		WithWorkingDir(opts.WorkingDir).
 		WithTelemetry(opts.Telemetry).
 		WithEngine(opts.EngineConfig, opts.EngineOptions).
-		WithTFPath(opts.TFPath).
+		WithTFPath(tfimpl.BinaryOrDefault(e, opts.TFPath)).
 		WithRootWorkingDir(opts.RootWorkingDir).
 		WithExperiments(opts.Experiments).
 		WithHeadless(opts.Headless).
@@ -123,28 +125,37 @@ func BackendOptsFromOpts(opts *options.TerragruntOptions) *backend.Options {
 // RemoteStateOptsFromOpts constructs remotestate.Options from TerragruntOptions.
 // Its TFRunOpts carry [tfimpl.Unknown]: they run only `state pull` and
 // `state push`, which read no implementation.
-func RemoteStateOptsFromOpts(env map[string]string, opts *options.TerragruntOptions) *remotestate.Options {
+func RemoteStateOptsFromOpts(
+	e vexec.Exec,
+	env map[string]string,
+	opts *options.TerragruntOptions,
+) *remotestate.Options {
 	return &remotestate.Options{
 		Options:             *BackendOptsFromOpts(opts),
 		DisableBucketUpdate: opts.DisableBucketUpdate,
-		TFRunOpts:           TFRunOptsFromOpts(env, opts, tfimpl.Unknown),
+		TFRunOpts:           TFRunOptsFromOpts(e, env, opts, tfimpl.Unknown),
 	}
 }
 
 // TFRunOptsFromOpts constructs tf.TFOptions from TerragruntOptions, for a
 // binary that is impl.
-func TFRunOptsFromOpts(env map[string]string, opts *options.TerragruntOptions, impl tfimpl.Type) *tf.TFOptions {
+func TFRunOptsFromOpts(
+	e vexec.Exec,
+	env map[string]string,
+	opts *options.TerragruntOptions,
+	impl tfimpl.Type,
+) *tf.TFOptions {
 	return &tf.TFOptions{
 		JSONLogFormat:                opts.JSONLogFormat,
 		OriginalTerragruntConfigPath: opts.OriginalTerragruntConfigPath,
 		TerragruntConfigPath:         opts.TerragruntConfigPath,
 		TofuImplementation:           impl,
 		TerraformCliArgs:             opts.TerraformCliArgs,
-		ShellOptions:                 ShellRunOptsFromOpts(env, opts),
+		ShellOptions:                 ShellRunOptsFromOpts(e, env, opts),
 	}
 }
 
-// ProbeTF reports the version and implementation of the binary at opts.TFPath,
+// ProbeTF reports the version and implementation of the binary opts selects,
 // through [run.PopulateTFVersion].
 func ProbeTF(
 	ctx context.Context,
@@ -153,13 +164,13 @@ func ProbeTF(
 	opts *options.TerragruntOptions,
 ) (log.Logger, tfimpl.Probe, error) {
 	return run.PopulateTFVersion(ctx, l, v, run.PopulateTFVersionInput{
-		TFOpts:       TFRunOptsFromOpts(v.Env, opts, tfimpl.Unknown),
+		TFOpts:       TFRunOptsFromOpts(v.Exec, v.Env, opts, tfimpl.Unknown),
 		WorkingDir:   opts.WorkingDir,
 		VersionFiles: opts.VersionManagerFileName,
 	})
 }
 
-// TFImplementation returns which implementation the binary at opts.TFPath is,
+// TFImplementation returns which implementation the binary opts selects is,
 // for a command that can finish without that binary. A failed probe is logged
 // at debug level and yields [tfimpl.Unknown].
 func TFImplementation(
@@ -170,7 +181,11 @@ func TFImplementation(
 ) tfimpl.Type {
 	_, probe, err := ProbeTF(ctx, l, v, opts)
 	if err != nil {
-		l.Debugf("Failed to detect the OpenTofu/Terraform implementation of %s: %v", opts.TFPath, err)
+		l.Debugf(
+			"Failed to detect the OpenTofu/Terraform implementation of %s: %v",
+			tfimpl.BinaryOrDefault(v.Exec, opts.TFPath),
+			err,
+		)
 
 		return tfimpl.Unknown
 	}

@@ -6,6 +6,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -43,7 +44,7 @@ func TestRemoteStateOptsFromOpts_CarriesBackendOptions(t *testing.T) {
 	opts.DisableBucketUpdate = true
 	opts.TerragruntConfigPath = "/work/terragrunt.hcl"
 
-	got := configbridge.RemoteStateOptsFromOpts(map[string]string{}, opts)
+	got := configbridge.RemoteStateOptsFromOpts(vexec.NewOSExec(), map[string]string{}, opts)
 
 	assert.True(t, got.Experiments.Evaluate(experiment.Symlinks), "experiments must reach remote state options")
 	assert.True(t, got.DisableBucketUpdate)

@@ -41,7 +41,7 @@ func TestWindowsRunCommandWithOutputInterrupt(t *testing.T) {
 			ctx,
 			l,
 			v,
-			configbridge.ShellRunOptsFromOpts(v.Env, terragruntOptions),
+			configbridge.ShellRunOptsFromOpts(v.Exec, v.Env, terragruntOptions),
 			"",
 			false,
 			false,

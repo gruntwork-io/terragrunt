@@ -242,7 +242,7 @@ func TestRunUsesTheConfiguredConfigFilename(t *testing.T) {
 func newOpts(t *testing.T, v *venv.Venv, configPath string) *options.TerragruntOptions {
 	t.Helper()
 
-	opts, err := options.NewTerragruntOptionsWithConfigPath(v.Exec, configPath)
+	opts, err := options.NewTerragruntOptionsWithConfigPath(configPath)
 	require.NoError(t, err)
 
 	if configPath == "" {

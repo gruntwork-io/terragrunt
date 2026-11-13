@@ -9,7 +9,6 @@ import (
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -26,7 +25,7 @@ func TestWorktreesNoGitFilters(t *testing.T) {
 	v := venvtest.NewOSWithEmptyEnv()
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = tmpDir
 
 	d, err := discovery.NewForDiscoveryCommand(l, v.FS, &discovery.DiscoveryCommandOptions{
@@ -54,7 +53,7 @@ func TestWorktreesCreationFailure(t *testing.T) {
 	filters, err := filter.ParseFilterQueries(l, []string{"[main...HEAD]"})
 	require.NoError(t, err)
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = tmpDir
 	opts.Filters = filters
 
@@ -98,7 +97,7 @@ func TestWorktreesStackGenerationFailure(t *testing.T) {
 	filters, err := filter.ParseFilterQueries(l, []string{"[HEAD~1...HEAD]"})
 	require.NoError(t, err)
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = tmpDir
 	opts.Filters = filters
 

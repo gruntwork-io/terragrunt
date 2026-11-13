@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -81,7 +80,7 @@ func TestNewLogsExporter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts := options.NewTerragruntOptions()
 			opts.Telemetry.LogsExporter = tt.exporterType
 			opts.Telemetry.LogsExporterInsecureEndpoint = tt.insecure
 
@@ -103,7 +102,7 @@ func TestNewLogger(t *testing.T) {
 
 	ctx := t.Context()
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.Telemetry.LogsExporter = "console"
 
 	logger, err := telemetry.NewLogger(ctx, "terragrunt", "test", io.Discard, opts.Telemetry)
@@ -142,7 +141,7 @@ func TestOTLPLogsExport(t *testing.T) {
 			t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", collector.endpoint)
 			t.Setenv("OTEL_EXPORTER_OTLP_HEADERS", "authorization=Bearer%20test-token")
 
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts := options.NewTerragruntOptions()
 			opts.Telemetry.TraceExporter = consoleExporter
 			opts.Telemetry.LogsExporter = tt.exporter
 			opts.Telemetry.LogsExporterInsecureEndpoint = true
@@ -211,7 +210,7 @@ func TestOTLPLogsExportBatchesLargeVolume(t *testing.T) {
 	t.Setenv("OTEL_BLRP_MAX_EXPORT_BATCH_SIZE", strconv.Itoa(maxBatchSize))
 	t.Setenv("OTEL_BLRP_MAX_QUEUE_SIZE", strconv.Itoa(maxQueueSize))
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.Telemetry.LogsExporter = "otlpHttp"
 	opts.Telemetry.LogsExporterInsecureEndpoint = true
 
@@ -254,7 +253,7 @@ func TestTelemeterShutdownFlushesLogsWhenMetricExportFails(t *testing.T) {
 	collector := newHTTPCollector(t, "/v1/metrics")
 	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", collector.endpoint)
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.Telemetry.MetricExporter = "otlpHttp"
 	opts.Telemetry.MetricExporterInsecureEndpoint = true
 	opts.Telemetry.LogsExporter = "otlpHttp"
@@ -282,7 +281,7 @@ func TestTelemeterShutdownFlushesLogsWhenTraceExportHangs(t *testing.T) {
 	t.Setenv("OTEL_EXPORTER_OTLP_LOGS_ENDPOINT", collector.endpoint+"/v1/logs")
 	t.Setenv("OTEL_BLRP_SCHEDULE_DELAY", "60000")
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.Telemetry.TraceExporter = "otlpHttp"
 	opts.Telemetry.TraceExporterInsecureEndpoint = true
 	opts.Telemetry.LogsExporter = "otlpHttp"

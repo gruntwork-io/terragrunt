@@ -50,7 +50,7 @@ func runDelete(
 			ctx,
 			l,
 			v,
-			configbridge.RemoteStateOptsFromOpts(v.Env, opts),
+			configbridge.RemoteStateOptsFromOpts(v.Exec, v.Env, opts),
 		)
 		if err != nil && !errors.As(err, new(backend.BucketDoesNotExistError)) {
 			return err
@@ -69,7 +69,7 @@ func runDelete(
 		return fmt.Errorf("flag -%s is not supported yet", BucketFlagName)
 	}
 
-	return remoteState.Delete(ctx, l, v, configbridge.RemoteStateOptsFromOpts(v.Env, opts))
+	return remoteState.Delete(ctx, l, v, configbridge.RemoteStateOptsFromOpts(v.Exec, v.Env, opts))
 }
 
 func runAll(

@@ -18,7 +18,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
@@ -52,7 +51,7 @@ func TestRunActionInstallsRunScopedCache(t *testing.T) {
 		return nil
 	}
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.NoAutoProviderCacheDir = true
 
 	l := logger.CreateLogger()
@@ -69,7 +68,7 @@ func TestRunActionReturnsReportableErrorOnActionPanic(t *testing.T) {
 		panic("action panic")
 	}
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.NoAutoProviderCacheDir = true
 
 	err := commands.RunAction(t.Context(), nil, logger.CreateLogger(), opts, venv.MemVenv(), action)
@@ -114,7 +113,7 @@ func TestRunActionProviderCacheStartupFailures(t *testing.T) {
 				v = tc.venv(v)
 			}
 
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts := options.NewTerragruntOptions()
 			opts.NoAutoProviderCacheDir = true
 			opts.TFPath = "terraform"
 			opts.ProviderCacheOptions.Enabled = true
@@ -158,7 +157,7 @@ func TestRunActionProgressReporter(t *testing.T) {
 				l := logger.CreateLogger()
 				l.SetOptions(log.WithOutput(logs), log.WithLevel(log.InfoLevel))
 
-				opts := options.NewTerragruntOptions(vexec.NewOSExec())
+				opts := options.NewTerragruntOptions()
 				opts.NoAutoProviderCacheDir = true
 
 				for _, name := range tc.experiments {
@@ -416,7 +415,7 @@ func terminalRun(t *testing.T) (log.Logger, *options.TerragruntOptions, *venv.Ve
 
 	l := log.New(log.WithLevel(log.InfoLevel), log.WithFormatter(formatter), log.WithOutput(term))
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.NoAutoProviderCacheDir = true
 
 	require.NoError(t, opts.Experiments.EnableExperiment(experiment.SlowTaskReporting))

@@ -11,7 +11,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -175,7 +174,7 @@ func discoverCorpus(t *testing.T, useRewrite bool, store *rewrite.Store) []compo
 		v.Env[rewrite.EnvRewrite] = "true"
 	}
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = corpusRepoRoot
 	opts.RootWorkingDir = corpusRepoRoot
 

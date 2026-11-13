@@ -26,7 +26,7 @@ func TestNewCommandShowsHelpWithItsSubcommands(t *testing.T) {
 	t.Parallel()
 
 	v := venv.MemVenv()
-	cmd := dag.NewCommand(logger.CreateLogger(), options.NewTerragruntOptions(v.Exec), v, new(rewrite.Store))
+	cmd := dag.NewCommand(logger.CreateLogger(), options.NewTerragruntOptions(), v, new(rewrite.Store))
 	cmd.CustomHelpTemplate = subcommandsTemplate
 
 	out := new(bytes.Buffer)
@@ -46,7 +46,7 @@ func TestNewCommandRunsTheGraphSubcommand(t *testing.T) {
 		"vpc/terragrunt.hcl": "",
 	}))
 
-	opts := options.NewTerragruntOptions(v.Exec)
+	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = root
 	opts.RootWorkingDir = root
 

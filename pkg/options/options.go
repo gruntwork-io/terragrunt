@@ -26,8 +26,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tips"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
@@ -44,12 +42,6 @@ const (
 
 	// DefaultParallelism sets no limit on parallelism.
 	DefaultParallelism = math.MaxInt32
-
-	// TofuDefaultPath command to run tofu
-	TofuDefaultPath = "tofu"
-
-	// TerraformDefaultPath just takes terraform from the path
-	TerraformDefaultPath = "terraform"
 
 	// DefaultJSONOutName is the default name of the rendered JSON file written to the terragrunt config directory.
 	DefaultJSONOutName = "terragrunt_rendered.json"
@@ -117,7 +109,8 @@ type TerragruntOptions struct {
 	Source string
 	// The working directory in which to run Terraform
 	WorkingDir string
-	// Location (or name) of the OpenTofu/Terraform binary
+	// Location (or name) of the OpenTofu/Terraform binary that --tf-path or a unit's terraform_binary named.
+	// Empty when neither did, and the binary is then the default detected on PATH.
 	TFPath string
 	// Download Terraform configurations specified in the Source parameter into this folder
 	DownloadDir string
@@ -341,9 +334,8 @@ func WithIAMWebIdentityToken(token string) TerragruntOptionsFunc {
 
 // NewTerragruntOptions creates a new TerragruntOptions object with
 // reasonable defaults for real usage.
-func NewTerragruntOptions(e vexec.Exec) *TerragruntOptions {
+func NewTerragruntOptions() *TerragruntOptions {
 	return &TerragruntOptions{
-		TFPath:                   IdentifyDefaultWrappedExecutable(e),
 		ExcludesFile:             defaultExcludesFile,
 		FiltersFile:              defaultFiltersFile,
 		AutoInit:                 true,
@@ -373,11 +365,8 @@ func NewTerragruntOptions(e vexec.Exec) *TerragruntOptions {
 // NewTerragruntOptionsWithConfigPath returns [NewTerragruntOptions] set up for the config at terragruntConfigPath,
 // made absolute. The working directory is the config's directory, and the download directory is the
 // `.terragrunt-cache` inside it. An empty terragruntConfigPath stays empty.
-func NewTerragruntOptionsWithConfigPath(
-	e vexec.Exec,
-	terragruntConfigPath string,
-) (*TerragruntOptions, error) {
-	opts := NewTerragruntOptions(e)
+func NewTerragruntOptionsWithConfigPath(terragruntConfigPath string) (*TerragruntOptions, error) {
+	opts := NewTerragruntOptions()
 
 	// Ensure config path is absolute so downstream code can rely on it.
 	// Skip resolution for empty paths (sentinel meaning "not set").
@@ -417,7 +406,7 @@ func NewTerragruntOptionsForTest(
 	formatter := format.NewFormatter(format.NewKeyValueFormatPlaceholders())
 	formatter.SetDisabledColors(true)
 
-	opts, err := NewTerragruntOptionsWithConfigPath(venv.OSVenv().Exec, terragruntConfigPath)
+	opts, err := NewTerragruntOptionsWithConfigPath(terragruntConfigPath)
 	if err != nil {
 		log.WithOptions(log.WithLevel(log.DebugLevel), log.WithFormatter(formatter)).
 			Errorf("%v\n", err)
@@ -583,20 +572,6 @@ func (opts *TerragruntOptions) DataDir(env map[string]string) string {
 	}
 
 	return filepath.Join(opts.WorkingDir, tfDataDir)
-}
-
-// IdentifyDefaultWrappedExecutable returns the IaC binary Terragrunt wraps by
-// default, preferring OpenTofu and falling back to Terraform.
-//
-// Every command resolves this during startup, so the choice comes from a PATH
-// lookup alone. Spawning the candidate to confirm it runs costs more than the
-// rest of startup combined, and commands that never wrap it would pay too.
-func IdentifyDefaultWrappedExecutable(e vexec.Exec) string {
-	if _, err := e.LookPath(TofuDefaultPath); err == nil {
-		return TofuDefaultPath
-	}
-
-	return TerraformDefaultPath
 }
 
 // RunWithErrorHandling runs the given operation and handles any errors according to the configuration.

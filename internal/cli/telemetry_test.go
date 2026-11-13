@@ -18,7 +18,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -39,7 +38,7 @@ func TestWrapWithTelemetryExportsLogsOfInterruptedRun(t *testing.T) {
 	l := logger.CreateLogger()
 	l.SetOptions(log.WithOutput(io.Discard))
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.NoAutoProviderCacheDir = true
 
 	testV := venv.MemVenv()
@@ -122,7 +121,7 @@ func TestWrapWithTelemetryBoundsShutdownWhenExportStalls(t *testing.T) {
 		l := logger.CreateLogger()
 		l.SetOptions(log.WithOutput(io.Discard))
 
-		opts := options.NewTerragruntOptions(vexec.NewOSExec())
+		opts := options.NewTerragruntOptions()
 		opts.NoAutoProviderCacheDir = true
 
 		testV := venv.MemVenv()

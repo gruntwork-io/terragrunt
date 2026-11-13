@@ -14,7 +14,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/portal"
 	"github.com/gruntwork-io/terragrunt/internal/vbrowser"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -118,7 +117,7 @@ func recordingBrowser(opened *string) vbrowser.Opener {
 }
 
 func newOptions(baseURL string) *login.Options {
-	opts := login.NewOptions(options.NewTerragruntOptions(vexec.NewOSExec()))
+	opts := login.NewOptions(options.NewTerragruntOptions())
 	opts.BaseURL = baseURL
 
 	return opts
