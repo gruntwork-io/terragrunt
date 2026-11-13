@@ -9,12 +9,15 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -129,6 +132,117 @@ func TestTFAutoInitSkippedWhenOnlyUncopiedFilesChange(t *testing.T) {
 		"has been successfully initialized!",
 		"second plan should not re-run init when only a file the copy skips changed",
 	)
+}
+
+// Regression test for https://github.com/gruntwork-io/terragrunt/issues/7220
+func TestTFAutoInitRunsOnceWhenOnlyASubdirectoryCallsModules(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAutoInitModuleBlockInSubdir)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureAutoInitModuleBlockInSubdir)
+
+	recorder := helpers.NewExecRecorder(vexec.NewOSExec())
+	v := helpers.RunVenv(t).WithExec(recorder)
+
+	ranInit := make([]bool, 0, 3)
+
+	for range 3 {
+		ranInit = append(
+			ranInit,
+			planRunsInit(t, v, recorder, "terragrunt plan --non-interactive --working-dir "+rootPath),
+		)
+	}
+
+	assert.Equal(t, []bool{true, false, false}, ranInit)
+}
+
+func TestTFAutoInitRunsOnceWhenTheUnitUsesNoProvider(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAutoInitNoProviders)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureAutoInitNoProviders)
+
+	recorder := helpers.NewExecRecorder(vexec.NewOSExec())
+	v := helpers.RunVenv(t).WithExec(recorder)
+
+	ranInit := make([]bool, 0, 3)
+
+	for range 3 {
+		ranInit = append(
+			ranInit,
+			planRunsInit(t, v, recorder, "terragrunt plan --non-interactive --working-dir "+rootPath),
+		)
+	}
+
+	assert.Equal(t, []bool{true, false, false}, ranInit)
+}
+
+func TestTFAutoInitRunsAgainWhenAModuleOutsideTheUnitChangesInPlace(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAutoInitInPlaceModuleOutsideUnit)
+	fixturePath := filepath.Join(tmpEnvPath, testFixtureAutoInitInPlaceModuleOutsideUnit)
+	unitPath := filepath.Join(fixturePath, "unit")
+	outsideModule := filepath.Join(fixturePath, "modules", "outside", "main.tf")
+
+	recorder := helpers.NewExecRecorder(vexec.NewOSExec())
+	v := helpers.RunVenv(t).WithExec(recorder)
+
+	plan := func() bool {
+		t.Helper()
+
+		return planRunsInit(
+			t,
+			v,
+			recorder,
+			"terragrunt plan --non-interactive --experiment no-dot-terragrunt-cache --working-dir "+unitPath,
+		)
+	}
+
+	ranInit := make([]bool, 0, 4)
+	ranInit = append(ranInit, plan(), plan())
+
+	randomProvider := `
+terraform {
+  required_providers {
+    random = {
+      source  = "registry.opentofu.org/hashicorp/random"
+      version = "~> 3.6"
+    }
+  }
+}
+
+resource "random_pet" "this" {}
+`
+	outsideModuleFile, err := os.OpenFile(outsideModule, os.O_APPEND|os.O_WRONLY, 0o644)
+	require.NoError(t, err)
+
+	_, err = outsideModuleFile.WriteString(randomProvider)
+	require.NoError(t, err)
+	require.NoError(t, outsideModuleFile.Close())
+
+	ranInit = append(ranInit, plan(), plan())
+
+	assert.Equal(t, []bool{true, false, true, false}, ranInit)
+}
+
+// planRunsInit runs command against v and reports whether the run executed `init`.
+//
+// With the provider cache server enabled, one auto-init executes `init` twice.
+func planRunsInit(t *testing.T, v *venv.Venv, recorder *helpers.ExecRecorder, command string) bool {
+	t.Helper()
+
+	recordedBefore := len(recorder.Commands())
+
+	_, _, err := helpers.RunTerragruntCommandWithOutputWithVenv(t, v, command)
+	require.NoError(t, err)
+
+	return slices.ContainsFunc(recorder.Commands()[recordedBefore:], func(c helpers.RecordedCommand) bool {
+		name := filepath.Base(c.Name)
+
+		return (name == helpers.TofuBinary || name == helpers.TerraformBinary) &&
+			len(c.Args) > 0 && c.Args[0] == tf.CommandNameInit
+	})
 }
 
 // Test case for yamldecode bug: https://github.com/gruntwork-io/terragrunt/issues/834
