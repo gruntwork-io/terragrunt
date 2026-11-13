@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -240,7 +241,7 @@ func TestTerragruntTerraformCodeCheck(t *testing.T) {
 
 			opts.WorkingDir = tmpDir
 
-			err = run.CheckFolderContainsTerraformCode(fsys, configbridge.NewRunOptions(opts))
+			err = run.CheckFolderContainsTerraformCode(fsys, configbridge.NewRunOptions(opts, tfimpl.Unknown))
 			if tc.valid {
 				assert.NoError(t, err, "valid terraform returned error")
 				return
@@ -568,7 +569,7 @@ func TestFilterTerraformExtraArgs(t *testing.T) {
 			},
 		}
 		l := logger.CreateLogger()
-		out := run.FilterTerraformExtraArgs(l, vfs.NewOSFS(), configbridge.NewRunOptions(tc.options), &config)
+		out := run.FilterTerraformExtraArgs(l, vfs.NewOSFS(), configbridge.NewRunOptions(tc.options, tfimpl.Unknown), &config)
 		assert.Equal(t, tc.expectedArgs, out)
 	}
 }

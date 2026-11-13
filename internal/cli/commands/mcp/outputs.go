@@ -17,6 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/venv"
@@ -178,7 +179,7 @@ func outputsFetchViaRun(
 		ctx,
 		l,
 		cv,
-		configbridge.NewRunOptions(opts),
+		configbridge.NewRunOptions(opts, tfimpl.Unknown),
 		report.NewReport(),
 		runCfg,
 		credsGetter,

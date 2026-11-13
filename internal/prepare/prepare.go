@@ -25,6 +25,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -74,6 +75,9 @@ func PrepareConfig(
 
 // PrepareSource downloads terraform source if specified in the configuration.
 // It requires PrepareConfig to have been called first.
+//
+// It also returns which implementation the binary at opts.TFPath is, for the
+// later stages, through [configbridge.TFImplementation].
 func PrepareSource(
 	ctx context.Context,
 	l log.Logger,
@@ -81,17 +85,19 @@ func PrepareSource(
 	opts *options.TerragruntOptions,
 	cfg *config.TerragruntConfig,
 	r *report.Report,
-) (*options.TerragruntOptions, error) {
+) (*options.TerragruntOptions, tfimpl.Type, error) {
 	engine, err := cfg.EngineOptions()
 	if err != nil {
-		return nil, err
+		return nil, tfimpl.Unknown, err
 	}
 
 	opts.EngineConfig = engine
 
+	impl := configbridge.TFImplementation(ctx, l, v, opts)
+
 	errConfig, err := cfg.ErrorsConfig()
 	if err != nil {
-		return nil, err
+		return nil, impl, err
 	}
 
 	// Only overwrite when the config actually defines error rules;
@@ -104,7 +110,7 @@ func PrepareSource(
 
 	l, optsClone, err := opts.CloneWithConfigPath(l, opts.TerragruntConfigPath)
 	if err != nil {
-		return nil, err
+		return nil, impl, err
 	}
 
 	optsClone.TofuCommand = run.CommandNameTerragruntReadConfig
@@ -112,12 +118,12 @@ func PrepareSource(
 	if err = optsClone.RunWithErrorHandling(ctx, l, v.FS, r, func() error {
 		return run.ProcessHooks(ctx, l, v, run.ProcessHooksParams{
 			Hooks:    runCfg.Terraform.AfterHooks,
-			Opts:     configbridge.NewRunOptions(optsClone),
+			Opts:     configbridge.NewRunOptions(optsClone, impl),
 			Cfg:      runCfg,
 			HookType: run.HookTypeAfter,
 		})
 	}); err != nil {
-		return nil, err
+		return nil, impl, err
 	}
 
 	// We merge the OriginalIAMRoleOptions into the one from the config, because the CLI passed IAMRoleOptions has
@@ -133,7 +139,7 @@ func PrepareSource(
 		provider := amazonsts.NewProvider(l, opts.IAMRoleOptions, v.Env)
 		return credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, v, provider)
 	}); err != nil {
-		return nil, err
+		return nil, impl, err
 	}
 
 	_, defaultDownloadDir := util.DefaultWorkingAndDownloadDirs(opts.TerragruntConfigPath)
@@ -151,7 +157,7 @@ func PrepareSource(
 		runCfg,
 	)
 	if err != nil {
-		return nil, err
+		return nil, impl, err
 	}
 
 	skipCache, err := runcfg.ShouldSkipCache(
@@ -161,19 +167,19 @@ func PrepareSource(
 		runCfg,
 	)
 	if err != nil {
-		return nil, err
+		return nil, impl, err
 	}
 
 	if skipCache {
 		_, updatedTerragruntOptions, err := opts.CloneWithConfigPath(l, opts.TerragruntConfigPath)
 		if err != nil {
-			return nil, err
+			return nil, impl, err
 		}
 
-		return updatedTerragruntOptions, nil
+		return updatedTerragruntOptions, impl, nil
 	}
 
-	runOpts := configbridge.NewRunOptions(opts)
+	runOpts := configbridge.NewRunOptions(opts, impl)
 
 	var updatedRunOpts *run.Options
 
@@ -194,42 +200,45 @@ func PrepareSource(
 			return err
 		})
 	if err != nil {
-		return nil, err
+		return nil, impl, err
 	}
 
 	// DownloadTerraformSource returns *run.Options; sync the updated WorkingDir
 	// back to a *options.TerragruntOptions clone for callers that expect that type.
 	_, updatedTerragruntOptions, err := opts.CloneWithConfigPath(l, opts.TerragruntConfigPath)
 	if err != nil {
-		return nil, err
+		return nil, impl, err
 	}
 
 	updatedTerragruntOptions.WorkingDir = updatedRunOpts.CacheDir
 
-	return updatedTerragruntOptions, nil
+	return updatedTerragruntOptions, impl, nil
 }
 
 // PrepareGenerate handles code generation configs, both generate blocks and generate attribute of remote_state.
-// It requires PrepareSource to have been called first.
+// It requires PrepareSource to have been called first, and takes the impl it returned.
 func PrepareGenerate(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	opts *options.TerragruntOptions,
+	impl tfimpl.Type,
 	cfg *runcfg.RunConfig,
 ) error {
-	return run.GenerateConfig(ctx, l, v, configbridge.NewRunOptions(opts), cfg)
+	return run.GenerateConfig(ctx, l, v, configbridge.NewRunOptions(opts, impl), cfg)
 }
 
 // PrepareInputsAsEnvVars sets terragrunt inputs as environment variables.
-// It requires PrepareGenerate to have been called first.
+// It requires PrepareGenerate to have been called first, and takes the impl
+// PrepareSource returned.
 func PrepareInputsAsEnvVars(
 	l log.Logger,
 	v *venv.Venv,
 	opts *options.TerragruntOptions,
+	impl tfimpl.Type,
 	cfg *runcfg.RunConfig,
 ) error {
-	runOpts := configbridge.NewRunOptions(opts)
+	runOpts := configbridge.NewRunOptions(opts, impl)
 
 	// Check for terraform code
 	if err := run.CheckFolderContainsTerraformCode(v.FS, runOpts); err != nil {
@@ -240,16 +249,18 @@ func PrepareInputsAsEnvVars(
 }
 
 // PrepareInit runs terraform init if needed. This is the final preparation stage.
-// It requires PrepareInputsAsEnvVars to have been called first.
+// It requires PrepareInputsAsEnvVars to have been called first, and takes the
+// impl PrepareSource returned.
 func PrepareInit(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	originalOpts, opts *options.TerragruntOptions,
+	impl tfimpl.Type,
 	cfg *runcfg.RunConfig,
 	r *report.Report,
 ) error {
-	runOpts := configbridge.NewRunOptions(opts)
+	runOpts := configbridge.NewRunOptions(opts, impl)
 
 	// Check for terraform code
 	if err := run.CheckFolderContainsTerraformCode(v.FS, runOpts); err != nil {
@@ -265,7 +276,7 @@ func PrepareInit(
 		ctx,
 		l,
 		v,
-		configbridge.NewRunOptions(originalOpts),
+		configbridge.NewRunOptions(originalOpts, impl),
 		runOpts,
 		cfg,
 		r,

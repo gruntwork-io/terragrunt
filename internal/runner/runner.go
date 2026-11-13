@@ -537,6 +537,22 @@ func (rnr *Runner) Run(
 					unitOpts.TFPath = cfg.TerraformBinary
 				}
 
+				engineConfig, err := cfg.EngineOptions()
+				if err != nil {
+					logTaskOutcome(childCtx, l, unitPath, unitOpts.TofuCommand, err)
+
+					return err
+				}
+
+				unitOpts.EngineConfig = engineConfig
+
+				_, probe, err := configbridge.ProbeTF(childCtx, unitLogger, unitV, unitOpts)
+				if err != nil {
+					logTaskOutcome(childCtx, l, unitPath, unitOpts.TofuCommand, err)
+
+					return err
+				}
+
 				discoveryCtx := u.DiscoveryContext()
 				if discoveryCtx != nil && discoveryCtx.Ref != "" && usesLocalState(cfg) {
 					localStateWarning.Do(func() { warnLocalStateWithGitRef(l) })
@@ -558,6 +574,7 @@ func (rnr *Runner) Run(
 							unitLogger,
 							unitV,
 							unitOpts,
+							probe.Type,
 							r,
 							runCfg,
 							credsGetter,

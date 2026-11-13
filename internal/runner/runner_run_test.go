@@ -24,6 +24,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -882,7 +883,16 @@ func TestUnitRunnerRun_WithoutOptions(t *testing.T) {
 
 	require.NoError(
 		t,
-		unitRunner.Run(config.WithCaches(t.Context()), thlogger.CreateLogger(), venv.MemVenv(), nil, nil, nil, nil),
+		unitRunner.Run(
+			config.WithCaches(t.Context()),
+			thlogger.CreateLogger(),
+			venv.MemVenv(),
+			nil,
+			tfimpl.Unknown,
+			nil,
+			nil,
+			nil,
+		),
 	)
 	assert.Equal(t, runner.Running, unitRunner.Status)
 }
@@ -899,6 +909,7 @@ func newTestUnit(t *testing.T, v *venv.Venv, root, name, hcl string) *component.
 }
 
 // recordingVenv returns an in-memory venv answering every invocation with stdout and stderr, and its recording.
+// A version probe gets an OpenTofu version instead, and is not recorded.
 func recordingVenv(stdout, stderr string) (*venv.Venv, func() []vexec.Invocation) {
 	var (
 		mu       sync.Mutex
@@ -906,6 +917,10 @@ func recordingVenv(stdout, stderr string) (*venv.Venv, func() []vexec.Invocation
 	)
 
 	v := venv.MemVenv().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+		if slices.Contains(inv.Args, tf.FlagNameVersion) {
+			return vexec.Result{Stdout: []byte("OpenTofu v1.10.0\n")}
+		}
+
 		mu.Lock()
 		defer mu.Unlock()
 

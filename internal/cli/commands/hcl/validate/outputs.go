@@ -378,23 +378,14 @@ func unitTFImpl(
 		probeOpts.TFPath = cfg.TerraformBinary
 	}
 
-	resolved := opts.TofuImplementation != "" && opts.TofuImplementation != tfimpl.Unknown
-	if probeOpts == opts && resolved {
-		return opts.TofuImplementation
-	}
-
-	_, _, impl, err := run.PopulateTFVersion(ctx, l, v, run.PopulateTFVersionInput{
-		TFOpts:       configbridge.TFRunOptsFromOpts(v.Env, probeOpts),
-		WorkingDir:   opts.WorkingDir,
-		VersionFiles: opts.VersionManagerFileName,
-	})
+	_, probe, err := configbridge.ProbeTF(ctx, l, v, probeOpts)
 	if err != nil {
 		l.Debugf("Reading every module file of %s, the probe of %s failed: %v", opts.WorkingDir, probeOpts.TFPath, err)
 
 		return tfimpl.Unknown
 	}
 
-	return impl
+	return probe.Type
 }
 
 // declaredOutputsChecks reports each declared output the unit's module lacks, or its files that do not parse.
@@ -614,7 +605,7 @@ func moduleSource(
 	}
 
 	if opts.Source == "" && runCfg.Terraform.Source == "" {
-		return unitDirectoryModule(l, v, opts, runCfg)
+		return unitDirectoryModule(l, v, opts, runCfg, impl)
 	}
 
 	sourceURL, err := runcfg.GetTerraformSourceURL(
@@ -641,8 +632,9 @@ func unitDirectoryModule(
 	v *venv.Venv,
 	opts *options.TerragruntOptions,
 	runCfg *runcfg.RunConfig,
+	impl tfimpl.Type,
 ) (moduleLocation, error) {
-	copyOpts := run.ModuleCopyOptions(configbridge.NewRunOptions(opts), runCfg)
+	copyOpts := run.ModuleCopyOptions(configbridge.NewRunOptions(opts, impl), runCfg)
 
 	copied, err := util.NewCopyFilter(l, v.FS, opts.WorkingDir, copyOpts...)
 	if err != nil {
@@ -671,7 +663,6 @@ func downloadModule(
 	}
 
 	downloadOpts := opts.Clone()
-	downloadOpts.TofuImplementation = impl
 	downloadOpts.IAMRoleOptions = iam.MergeRoleOptions(runCfg.GetIAMRoleOptions(), opts.OriginalIAMRoleOptions)
 
 	role := amazonsts.NewProvider(l, downloadOpts.IAMRoleOptions, v.Env)
@@ -694,7 +685,7 @@ func downloadModule(
 		l,
 		v,
 		sourceURL,
-		configbridge.NewRunOptions(downloadOpts),
+		configbridge.NewRunOptions(downloadOpts, impl),
 		&hookless,
 		report.NewReport(),
 	)

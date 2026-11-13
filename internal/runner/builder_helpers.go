@@ -271,11 +271,7 @@ func CheckUnitVersionConstraints(
 
 	unitOpts.EngineConfig = engineConfig
 
-	_, ver, impl, err := run.PopulateTFVersion(ctx, l, v, run.PopulateTFVersionInput{
-		TFOpts:       configbridge.TFRunOptsFromOpts(v.Env, unitOpts),
-		WorkingDir:   unitOpts.WorkingDir,
-		VersionFiles: unitOpts.VersionManagerFileName,
-	})
+	_, probe, err := configbridge.ProbeTF(ctx, l, v, unitOpts)
 	if err != nil {
 		return fmt.Errorf(
 			"failed to populate OpenTofu/Terraform version for unit %s: %w",
@@ -284,18 +280,15 @@ func CheckUnitVersionConstraints(
 		)
 	}
 
-	unitOpts.TerraformVersion = ver
-	unitOpts.TofuImplementation = impl
-
 	if err := run.CheckTerraformVersionMeetsConstraint(
 		l,
-		unitOpts.TerraformVersion,
-		unitOpts.TofuImplementation,
+		probe.Version,
+		probe.Type,
 		unitConfig.TerraformVersionConstraint,
 	); err != nil {
 		return fmt.Errorf(
 			"%s version check failed for unit %s: %w",
-			unitOpts.TofuImplementation.DisplayName(),
+			probe.Type.DisplayName(),
 			unit.DisplayPath(),
 			err,
 		)

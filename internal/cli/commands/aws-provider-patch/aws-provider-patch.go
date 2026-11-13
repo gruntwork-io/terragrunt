@@ -52,18 +52,18 @@ func runSingle(
 
 	r := report.NewReport()
 
-	updatedOpts, err := prepare.PrepareSource(ctx, l, v, prepared.Opts, prepared.Cfg, r)
+	updatedOpts, impl, err := prepare.PrepareSource(ctx, l, v, prepared.Opts, prepared.Cfg, r)
 	if err != nil {
 		return err
 	}
 
 	runCfg := prepared.Cfg.ToRunConfig(l, v.FS)
 
-	if err := prepare.PrepareGenerate(ctx, l, v, updatedOpts, runCfg); err != nil {
+	if err := prepare.PrepareGenerate(ctx, l, v, updatedOpts, impl, runCfg); err != nil {
 		return err
 	}
 
-	if err := prepare.PrepareInit(ctx, l, v, opts, updatedOpts, runCfg, r); err != nil {
+	if err := prepare.PrepareInit(ctx, l, v, opts, updatedOpts, impl, runCfg, r); err != nil {
 		return err
 	}
 
