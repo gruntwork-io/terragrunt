@@ -12,6 +12,7 @@ import (
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
+	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -25,6 +26,7 @@ import (
 // Returns an error when the bucket has versioning disabled and
 // opts.ForceBackendDelete is unset, or when opts.DeleteBucket is set.
 func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, opts *options.TerragruntOptions) error {
+	ctx = generate.WithCoordinator(ctx, v.FS, s, opts)
 	if opts.RunAll {
 		return runAll(ctx, l, v, s, opts)
 	}

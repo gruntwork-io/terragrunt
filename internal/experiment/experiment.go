@@ -145,6 +145,8 @@ const (
 	VariablesBlock = "variables-block"
 	// OutputsBlock gates the outputs block, which declares the outputs of a unit and their mock values.
 	OutputsBlock = "outputs-block"
+	// DependencyStackGeneration gates automatic generation of explicitly referenced dependency stacks.
+	DependencyStackGeneration = "dependency-stack-generation"
 )
 
 const (
@@ -295,6 +297,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: OutputsBlock,
+		},
+		{
+			Name: DependencyStackGeneration,
 		},
 	}
 }

@@ -95,7 +95,8 @@ stack "team" {
 
 				defer pool.Stop()
 
-				require.NoError(t, config.GenerateStackFile(ctx, l, v, pctx, pool, stackPath))
+				_, err := config.GenerateStackFile(ctx, l, v, pctx, pool, stackPath)
+				require.NoError(t, err)
 				require.NoError(t, pool.Wait())
 
 				for _, component := range components {

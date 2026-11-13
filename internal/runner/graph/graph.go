@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
+	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
@@ -26,6 +27,7 @@ import (
 // Run executes the configured terraform command against the dependency
 // graph of the unit in the working directory.
 func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, opts *options.TerragruntOptions) error {
+	ctx = generate.WithCoordinator(ctx, v.FS, s, opts)
 	// Get credentials BEFORE config parsing: sops_decrypt_file() and
 	// get_aws_account_id() in locals need auth-provider credentials
 	// available in v.Env during HCL evaluation.

@@ -408,6 +408,10 @@ func stackDependencyPaths(
 			continue
 		}
 
+		if err := config.GenerateStackDependency(ctx, l, v, depPath); err != nil {
+			return nil, NewStackDependencyExpansionError(depPath, err)
+		}
+
 		unitPaths, err := inthclparse.UnitPathsFromStackDir(
 			ctx,
 			v.FS,

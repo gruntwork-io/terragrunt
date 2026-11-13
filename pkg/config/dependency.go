@@ -643,6 +643,23 @@ func DecodeTerragruntDependencies(
 		}
 	}
 
+	if !pctx.SkipOutputsResolution {
+		for _, dep := range decodedDependency.Dependencies {
+			if dep.isDisabled() || !IsValidConfigPath(dep.ConfigPath) {
+				continue
+			}
+
+			path := dep.ConfigPath.AsString()
+			if !filepath.IsAbs(path) {
+				path = filepath.Join(filepath.Dir(pctx.TerragruntConfigPath), path)
+			}
+
+			if err := GenerateStackDependency(ctx, l, v, path); err != nil {
+				return nil, err
+			}
+		}
+	}
+
 	if err := checkForDependencyBlockCycles(
 		ctx,
 		l,
@@ -1664,6 +1681,10 @@ func tryGetStackOutput(
 		dependencyConfig.Name,
 		stackFilePath,
 	)
+
+	if err := GenerateStackDependency(ctx, l, v, filepath.Dir(stackFilePath)); err != nil {
+		return nil, true, err
+	}
 
 	stackConfig, err := readStackConfigWithValues(ctx, l, v, pctx, stackFilePath)
 	if err != nil {

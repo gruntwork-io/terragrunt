@@ -24,6 +24,7 @@ func NewFlags(opts *options.TerragruntOptions) clihelper.Flags {
 	sharedFlags := make(clihelper.Flags, 0, 2+len(backendFlags)+len(featureFlags))
 	sharedFlags = append(sharedFlags,
 		shared.NewConfigFlag(opts, nil),
+		shared.NewNoStackGenerateFlag(opts, nil),
 		shared.NewDownloadDirFlag(opts, nil),
 	)
 	sharedFlags = append(sharedFlags, backendFlags...)

@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errfmt"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/clean"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
@@ -56,6 +57,7 @@ func Run(
 	s *rewrite.Store,
 	opts *options.TerragruntOptions,
 ) (err error) {
+	ctx = generate.WithCoordinator(ctx, v.FS, s, opts)
 	defer func() {
 		giveTips(l, v, opts, err)
 	}()
@@ -150,7 +152,7 @@ func Run(
 		opts.TerragruntStackConfigPath = filepath.Join(opts.WorkingDir, config.DefaultStackFile)
 
 		// Clean stack folders before calling `generate` when the `--source-update` flag is passed
-		if opts.SourceUpdate {
+		if opts.SourceUpdate && !opts.Experiments.Evaluate(experiment.DependencyStackGeneration) {
 			errClean := telemetry.TelemeterFromContext(ctx).
 				Collect(ctx, l, "stack_clean", map[string]any{
 					"stack_config_path": opts.TerragruntStackConfigPath,

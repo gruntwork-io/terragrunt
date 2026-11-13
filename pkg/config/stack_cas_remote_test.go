@@ -845,7 +845,7 @@ func generateCatalogStack(
 
 	defer pool.Stop()
 
-	genErr := config.GenerateStackFile(t.Context(), l, v, pctx, pool, stackPath)
+	_, genErr := config.GenerateStackFile(t.Context(), l, v, pctx, pool, stackPath)
 	waitErr := pool.Wait()
 
 	return errors.Join(genErr, waitErr)

@@ -15,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tips"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -26,6 +27,7 @@ import (
 
 // Run runs the run command.
 func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *rewrite.Store) error {
+	ctx = generate.WithCoordinator(ctx, v.FS, s, opts)
 	tips.GiveStackTargetTip(l, v.FS, opts.WorkingDir, opts.Filters, opts.Tips)
 
 	if opts.TerraformCliArgs.IsDestroy(opts.TofuCommand) {

@@ -161,27 +161,32 @@ func (s *Stack) GeneratedPath(stackDir string) string {
 	return inthclparse.GeneratedComponentPath(stackDir, s.Path, s.NoStack != nil && *s.NoStack)
 }
 
+type stackTaskSubmitter interface {
+	Submit(worker.Task)
+}
+
 // GenerateStackFile generates the Terragrunt stack configuration from the given stackFilePath,
 // reads necessary values, and generates units and stacks in the target directory.
-// It handles the creation of required directories and returns any errors encountered.
+// The returned configuration identifies the generated components. Their queued work
+// must finish before callers read the generated files.
 func GenerateStackFile(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	pctx *ParsingContext,
-	pool *worker.Pool,
+	pool stackTaskSubmitter,
 	stackFilePath string,
-) error {
+) (*StackConfig, error) {
 	stackSourceDir := filepath.Dir(stackFilePath)
 
 	values, err := ReadValues(ctx, l, v, pctx, stackSourceDir)
 	if err != nil {
-		return fmt.Errorf("failed to read values from directory %s: %w", stackSourceDir, err)
+		return nil, fmt.Errorf("failed to read values from directory %s: %w", stackSourceDir, err)
 	}
 
 	stackFile, err := ReadStackConfigFile(ctx, l, v, pctx, stackFilePath, values)
 	if err != nil {
-		return fmt.Errorf(
+		return nil, fmt.Errorf(
 			"failed to read stack file %s in %s %w",
 			stackFilePath,
 			stackSourceDir,
@@ -203,13 +208,13 @@ func GenerateStackFile(
 		values,
 	)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	casEnabled := !pctx.NoCAS
 
 	if err := validateUpdateSourceWithCAS(stackFile, stackFilePath, casEnabled); err != nil {
-		return err
+		return nil, err
 	}
 
 	// Without this the run is silent: every per-component log line belongs to a component
@@ -220,12 +225,12 @@ func GenerateStackFile(
 			util.RelPathForLog(pctx.RootWorkingDir, stackFilePath, pctx.LogShowAbsPaths),
 		)
 
-		return nil
+		return stackFile, nil
 	}
 
 	cs, err := setupCAS(l, v, pctx, casEnabled)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	genOpts := generateOpts{
@@ -247,15 +252,15 @@ func GenerateStackFile(
 		ociGetter: getter.NewOCIGetter(l, v),
 	}
 
-	if err := generateUnits(ctx, l, v, &genOpts, pool, stackFile.Units); err != nil {
-		return err
+	if err := registerStackOutputs(ctx, stackFile, &genOpts); err != nil {
+		return nil, err
 	}
 
-	if err := generateStacks(ctx, l, v, &genOpts, pool, stackFile.Stacks); err != nil {
-		return err
-	}
+	generateUnits(ctx, l, v, &genOpts, pool, stackFile.Units)
 
-	return nil
+	generateStacks(ctx, l, v, &genOpts, pool, stackFile.Stacks)
+
+	return stackFile, nil
 }
 
 // hasEnabledComponents reports whether any unit or stack in the file generates anything.
@@ -552,15 +557,15 @@ type generateOpts struct {
 
 // generateUnits iterates through a slice of Unit objects, generating each one by copying
 // source files to their destination paths and writing unit-specific values.
-// It logs the generating progress and returns any errors encountered during the operation.
+// Copy errors are returned by the submitted tasks.
 func generateUnits(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	opts *generateOpts,
-	pool *worker.Pool,
+	pool stackTaskSubmitter,
 	units []*Unit,
-) error {
+) {
 	for _, unit := range units {
 		if !unit.IsEnabled() {
 			l.Debugf("Skipping disabled unit %s", componentAddress(unit.Name, unit.Expansion))
@@ -602,20 +607,18 @@ func generateUnits(
 				})
 		})
 	}
-
-	return nil
 }
 
 // generateStacks generates each stack by resolving its destination path and copying files from the source.
-// It logs each operation and returns early if any error is encountered.
+// Copy errors are returned by the submitted tasks.
 func generateStacks(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	opts *generateOpts,
-	pool *worker.Pool,
+	pool stackTaskSubmitter,
 	stacks []*Stack,
-) error {
+) {
 	for _, stack := range stacks {
 		if !stack.IsEnabled() {
 			l.Debugf("Skipping disabled stack %s", componentAddress(stack.Name, stack.Expansion))
@@ -657,8 +660,6 @@ func generateStacks(
 				})
 		})
 	}
-
-	return nil
 }
 
 type componentKind int

@@ -119,6 +119,22 @@ func (d *Discovery) Discover(
 		return nil, err
 	}
 
+	for {
+		generated, generationErr := d.generateDependencyStacks(ctx, l, v, results)
+		if generationErr != nil {
+			return nil, generationErr
+		}
+
+		if !generated {
+			break
+		}
+
+		results, err = d.runFilesystemPhase(ctx, l, v, s, opts)
+		if err != nil && (!d.suppressParseErrors || errors.As(err, new(CoexistenceError))) {
+			return nil, err
+		}
+	}
+
 	discovered, candidates := results.Discovered, results.Candidates
 
 	parseReasons := slices.Clone(d.parseReasons)

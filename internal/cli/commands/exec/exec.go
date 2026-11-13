@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
+
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
@@ -11,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -24,10 +27,13 @@ func Run(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	opts *options.TerragruntOptions,
 	cmdOpts *Options,
 	args clihelper.Args,
 ) error {
+	ctx = generate.WithCoordinator(ctx, v.FS, s, opts)
+
 	prepared, err := prepare.PrepareConfig(ctx, l, v, opts)
 	if err != nil {
 		return err

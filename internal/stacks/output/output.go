@@ -15,6 +15,7 @@ import (
 
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -92,6 +93,7 @@ func StackOutput(
 	s *rewrite.Store,
 	opts *options.TerragruntOptions,
 ) (cty.Value, error) {
+	ctx = generate.WithCoordinator(ctx, v.FS, s, opts)
 	l.Debugf("Generating output from %s", opts.WorkingDir)
 
 	// Create worktrees internally if filter-flag experiment is enabled and git filters are present
@@ -106,6 +108,12 @@ func StackOutput(
 				l.Errorf("failed to cleanup worktrees: %v", cleanupErr)
 			}
 		}()
+	}
+
+	if !opts.NoStackGenerate && opts.Experiments.Evaluate(experiment.DependencyStackGeneration) {
+		if err := generate.NewGenerator().GenerateStacks(ctx, l, v, s, opts, wts); err != nil {
+			return cty.NilVal, err
+		}
 	}
 
 	// Single discovery walk returns both stack files and excluded unit paths.

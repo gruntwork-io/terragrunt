@@ -76,10 +76,6 @@ const (
 	// directory before downloading the unit's source.
 	SourceUpdateFlagName = "source-update"
 
-	// NoStackGenerate is the name of the flag that skips regenerating stacks
-	// before the command runs.
-	NoStackGenerate = "no-stack-generate"
-
 	// Terragrunt Provider Cache related flags.
 
 	// ProviderCacheFlagName is the name of the flag that turns on the
@@ -220,12 +216,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, prefi
 
 		// `--all` and `--graph` related flags.
 
-		flags.NewFlag(&clihelper.BoolFlag{
-			Name:        NoStackGenerate,
-			EnvVars:     tgPrefix.EnvVars(NoStackGenerate),
-			Destination: &opts.NoStackGenerate,
-			Usage:       "Disable automatic stack regeneration before running the command.",
-		}),
+		shared.NewNoStackGenerateFlag(opts, prefix),
 
 		//  Backward compatibility with `terragrunt-` prefix flags.
 
