@@ -580,8 +580,8 @@ func (dep *Dependency) configPathFrom(cfgPath string) (string, bool) {
 	return filepath.Clean(path), true
 }
 
-// DecodeTerragruntDependencies decodes the dependency blocks of file, folds in sibling autoinclude dependencies,
-// validates config paths, checks for cycles, and merges in the dependency blocks of included configs.
+// DecodeTerragruntDependencies decodes the dependency blocks of file as [DecodeOwnDependencies] does, loads the
+// config of each dependency as [LoadDependencyConfigs] does, and merges in the dependency blocks of included configs.
 // TODO: In the future, consider allowing importing dependency blocks from included config
 // NOTE FOR MAINTAINER: When implementing importation of other config blocks (e.g referencing inputs), carefully
 //
@@ -593,12 +593,45 @@ func DecodeTerragruntDependencies(
 	pctx *ParsingContext,
 	file *hclparse.File,
 ) (*TerragruntDependency, error) {
+	own, err := DecodeOwnDependencies(ctx, l, v, pctx, file)
+	if err != nil {
+		return nil, err
+	}
+
+	loaded, err := LoadDependencyConfigs(ctx, l, v, pctx, own)
+	if err != nil {
+		return nil, err
+	}
+
+	if pctx.TrackInclude == nil {
+		return &TerragruntDependency{Dependencies: loaded}, nil
+	}
+
+	merged, err := MergeIncludedDependencies(ctx, l, pctx, loaded, ParsedIncludeDependencies(v, pctx))
+	if err != nil {
+		return nil, err
+	}
+
+	return &TerragruntDependency{Dependencies: merged}, nil
+}
+
+// DecodeOwnDependencies decodes the dependency blocks of file and folds in those of its sibling autoinclude.
+//
+// Returns [DependencyInvalidConfigPathError] when an enabled block has no usable config_path, unless pctx skips
+// outputs.
+func DecodeOwnDependencies(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
+	file *hclparse.File,
+) (Dependencies, error) {
 	evalParsingContext, err := CreateTerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath)
 	if err != nil {
 		return nil, err
 	}
 
-	dependencies, err := decodeDependencyBlocksWithAutoIncludeOverrides(
+	dependencies, err := DecodeDependencyBlocks(
 		ctx,
 		l,
 		v,
@@ -610,15 +643,13 @@ func DecodeTerragruntDependencies(
 		return nil, err
 	}
 
-	decodedDependency := TerragruntDependency{Dependencies: dependencies}
-
 	// Fold sibling autoinclude dependency blocks in before output retrieval so the unit body can reference them, like a regular include.
-	decodedDependency.Dependencies, err = foldSiblingAutoIncludeDeps(
+	dependencies, err = foldSiblingAutoIncludeDeps(
 		ctx,
 		l,
 		v,
 		pctx,
-		decodedDependency.Dependencies,
+		dependencies,
 	)
 	if err != nil {
 		return nil, err
@@ -626,7 +657,7 @@ func DecodeTerragruntDependencies(
 
 	// Validate that dependency config_path is not an empty string.
 	// Skip unknown values and non-strings (which can appear during partial decode or hclvalidate).
-	for _, dep := range decodedDependency.Dependencies {
+	for _, dep := range dependencies {
 		if dep.isDisabled() {
 			continue
 		}
@@ -642,6 +673,20 @@ func DecodeTerragruntDependencies(
 			return nil, DependencyInvalidConfigPathError{DependencyName: dep.Name}
 		}
 	}
+
+	return dependencies, nil
+}
+
+// LoadDependencyConfigs checks the dependency blocks of the config at pctx.TerragruntConfigPath for cycles, then
+// reads the config of each one and sets its inputs on the block.
+func LoadDependencyConfigs(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
+	dependencies Dependencies,
+) (Dependencies, error) {
+	decodedDependency := TerragruntDependency{Dependencies: dependencies}
 
 	if err := checkForDependencyBlockCycles(
 		ctx,
@@ -659,25 +704,7 @@ func DecodeTerragruntDependencies(
 		return nil, err
 	}
 
-	decodedDependency = *updatedDependencies
-
-	// Merge in included dependencies
-	if pctx.TrackInclude != nil {
-		mergedDecodedDependency, err := handleIncludeForDependency(
-			ctx,
-			l,
-			v,
-			pctx,
-			decodedDependency,
-		)
-		if err != nil {
-			return nil, err
-		}
-
-		decodedDependency = *mergedDecodedDependency
-	}
-
-	return &decodedDependency, nil
+	return updatedDependencies.Dependencies, nil
 }
 
 // decodeAndRetrieveOutputs decodes the dependency blocks from the file, then retrieves all the outputs from the
@@ -2935,7 +2962,15 @@ func foldSiblingAutoIncludeDeps(
 	// Files the autoinclude pulls in through its own includes must not re-merge a sibling autoinclude.
 	autoPctx.SkipAutoIncludeMerge = true
 
-	baseBlocks, err := DecodeBaseBlocks(ctx, l, v, autoPctx, autoFile, nil, IncludeParseFeatureFlags)
+	baseBlocks, err := DecodeBaseBlocks(
+		ctx,
+		l,
+		v,
+		autoPctx,
+		autoFile,
+		nil,
+		parsedIncludeFeatureFlags(v, autoPctx, IncludeParseFeatureFlags),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -2960,12 +2995,18 @@ func foldSiblingAutoIncludeDeps(
 
 	// Fold in dependency blocks the autoinclude inherits through its own include blocks, mirroring the unit decode path so inherited deps resolve before the unit body is evaluated.
 	if autoPctx.TrackInclude != nil && len(autoPctx.TrackInclude.CurrentList) > 0 {
-		merged, err := handleIncludeForDependency(ctx, l, v, autoPctx, decoded)
+		merged, err := MergeIncludedDependencies(
+			ctx,
+			l,
+			autoPctx,
+			decoded.Dependencies,
+			ParsedIncludeDependencies(v, autoPctx),
+		)
 		if err != nil {
 			return nil, err
 		}
 
-		decoded = *merged
+		decoded.Dependencies = merged
 	}
 
 	if len(decoded.Dependencies) == 0 {
@@ -3002,13 +3043,13 @@ func parseAutoIncludeFileCached(
 	return rebindOrParseHCLFile(ctx, l, v, pctx, hclCache, cached, cacheKey, autoIncludePath, fileInfo.ModTime())
 }
 
-// decodeDependencyBlocksWithAutoIncludeOverrides decodes the file's dependency blocks, leaving
+// DecodeDependencyBlocks decodes the file's dependency blocks, leaving
 // out the ones a sibling autoinclude replaces wholesale.
 //
 // A replaced block contributes nothing to the final config, so evaluating it can only raise
 // errors about a body that is about to be thrown away. A unit source whose config_path reads a
 // values attribute the stack stopped setting hits exactly that.
-func decodeDependencyBlocksWithAutoIncludeOverrides(
+func DecodeDependencyBlocks(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,

@@ -236,7 +236,7 @@ func DecodeBaseBlocks(
 	pctx *ParsingContext,
 	file *hclparse.File,
 	includeFromChild *IncludeConfig,
-	includeParse IncludeParse,
+	included IncludedFeatureFlags,
 ) (*DecodedBaseBlocks, error) {
 	var errs []error
 
@@ -286,15 +286,7 @@ func DecodeBaseBlocks(
 	// Feature defaults from includes must be visible while decoding base blocks like
 	// locals and exclude, but they must remain local to this parse instead of being
 	// stored in shared command options.
-	mergedFeatureFlags, err := mergeIncludedFeatureFlags(
-		ctx,
-		l,
-		v,
-		pctx,
-		trackInclude,
-		tgFlags.FeatureFlags,
-		includeParse,
-	)
+	mergedFeatureFlags, err := mergeIncludedFeatureFlags(ctx, l, trackInclude, tgFlags.FeatureFlags, included)
 	if err != nil {
 		errs = append(errs, err)
 	}
@@ -323,39 +315,24 @@ func DecodeBaseBlocks(
 	}
 
 	return &DecodedBaseBlocks{
-		TrackInclude: trackInclude,
-		Locals:       &localsAsCtyVal,
-		FeatureFlags: &flagsAsCtyVal,
+		TrackInclude:      trackInclude,
+		Locals:            &localsAsCtyVal,
+		FeatureFlags:      &flagsAsCtyVal,
+		FeatureFlagBlocks: tgFlags.FeatureFlags,
 	}, errors.Join(errs...)
 }
 
-// mergeIncludedFeatureFlags merges feature defaults from included configs into the current parse.
-//
-// With [IncludeParseForMerge], it also records the included configs it parsed on trackInclude, unmodified by the
-// feature merge and holding only the sections pctx's decode list names.
+// mergeIncludedFeatureFlags merges the feature defaults included gives for each config trackInclude lists into
+// childFlags, last include first.
 func mergeIncludedFeatureFlags(
 	ctx context.Context,
 	l log.Logger,
-	v *venv.Venv,
-	pctx *ParsingContext,
 	trackInclude *TrackInclude,
 	childFlags FeatureFlags,
-	includeParse IncludeParse,
+	included IncludedFeatureFlags,
 ) (FeatureFlags, error) {
 	if trackInclude == nil || len(trackInclude.CurrentList) == 0 {
 		return childFlags, nil
-	}
-
-	keepConfigs := includeParse == IncludeParseForMerge
-	decodesFeatureFlags := slices.Contains(pctx.PartialParseDecodeList, FeatureFlagsBlock)
-
-	includePctx := pctx.WithTrackInclude(trackInclude)
-
-	switch {
-	case !keepConfigs:
-		includePctx = includePctx.WithDecodeList(FeatureFlagsBlock)
-	case !decodesFeatureFlags:
-		includePctx = includePctx.WithDecodeList(append(slices.Clone(pctx.PartialParseDecodeList), FeatureFlagsBlock)...)
 	}
 
 	baseConfig := &TerragruntConfig{FeatureFlags: childFlags}
@@ -370,39 +347,71 @@ func mergeIncludedFeatureFlags(
 			continue
 		}
 
-		parsedIncludeConfig, err := partialParseIncludedConfig(ctx, l, v, includePctx, &includeConfig)
+		includedFlags, err := included(ctx, l, trackInclude, &includeConfig)
 		if err != nil {
 			return childFlags, err
 		}
 
-		mergedConfig, err := mergeFeatureFlagConfig(
-			l,
-			mergeStrategy,
-			baseConfig,
-			copyFeatureFlags(parsedIncludeConfig.FeatureFlags),
-		)
+		mergedConfig, err := mergeFeatureFlagConfig(l, mergeStrategy, baseConfig, copyFeatureFlags(includedFlags))
 		if err != nil {
 			return childFlags, err
 		}
 
 		baseConfig = mergedConfig
+	}
+
+	return baseConfig.FeatureFlags, nil
+}
+
+// parsedIncludeFeatureFlags returns an [IncludedFeatureFlags] that partially parses each included config with pctx
+// to read its feature blocks.
+//
+// With [IncludeParseForMerge], it also records each config it parsed on the parse's [TrackInclude], unmodified by
+// the feature merge and holding only the sections pctx's decode list names.
+func parsedIncludeFeatureFlags(v *venv.Venv, pctx *ParsingContext, includeParse IncludeParse) IncludedFeatureFlags {
+	keepConfigs := includeParse == IncludeParseForMerge
+	decodesFeatureFlags := slices.Contains(pctx.PartialParseDecodeList, FeatureFlagsBlock)
+
+	return func(
+		ctx context.Context,
+		l log.Logger,
+		trackInclude *TrackInclude,
+		include *IncludeConfig,
+	) (FeatureFlags, error) {
+		includePctx := pctx.WithTrackInclude(trackInclude)
+
+		switch {
+		case !keepConfigs:
+			includePctx = includePctx.WithDecodeList(FeatureFlagsBlock)
+		case !decodesFeatureFlags:
+			includePctx = includePctx.WithDecodeList(
+				append(slices.Clone(pctx.PartialParseDecodeList), FeatureFlagsBlock)...,
+			)
+		}
+
+		parsed, err := partialParseIncludedConfig(ctx, l, v, includePctx, include)
+		if err != nil {
+			return nil, err
+		}
+
+		flags := parsed.FeatureFlags
 
 		if !keepConfigs {
-			continue
+			return flags, nil
 		}
 
 		if !decodesFeatureFlags {
-			parsedIncludeConfig.FeatureFlags = nil
+			parsed.FeatureFlags = nil
 		}
 
 		if trackInclude.parsedForMerge == nil {
 			trackInclude.parsedForMerge = map[string]*TerragruntConfig{}
 		}
 
-		trackInclude.parsedForMerge[includeConfig.Name] = parsedIncludeConfig
-	}
+		trackInclude.parsedForMerge[include.Name] = parsed
 
-	return baseConfig.FeatureFlags, nil
+		return flags, nil
+	}
 }
 
 // copyFeatureFlags copies each flag, so a merge that updates the copies in place leaves flags unchanged.
@@ -719,7 +728,15 @@ func PartialParseConfig(
 
 	// Decode just the Base blocks. See the function docs for DecodeBaseBlocks for more info on what base blocks are.
 	// Initialize evaluation ctx extensions from base blocks.
-	baseBlocks, err := DecodeBaseBlocks(ctx, l, v, pctx, file, includeFromChild, IncludeParseForMerge)
+	baseBlocks, err := DecodeBaseBlocks(
+		ctx,
+		l,
+		v,
+		pctx,
+		file,
+		includeFromChild,
+		parsedIncludeFeatureFlags(v, pctx, IncludeParseForMerge),
+	)
 	if err != nil {
 		errs = append(errs, err)
 	}
@@ -812,7 +829,7 @@ func PartialParseConfig(
 			}
 
 		case DependencyBlock:
-			decodedDeps, err := decodeDependencyBlocksWithAutoIncludeOverrides(
+			decodedDeps, err := DecodeDependencyBlocks(
 				ctx,
 				l,
 				v,

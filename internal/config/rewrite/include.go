@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 
 	"github.com/hashicorp/hcl/v2"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	pkgconfig "github.com/gruntwork-io/terragrunt/pkg/config"
+	pkghclparse "github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -356,19 +358,9 @@ func (c *UnitConfig) resolveIncludedConfig(
 	s *Store,
 	include *pkgconfig.IncludeConfig,
 ) (*UnitConfig, *pkgconfig.TerragruntConfig, error) {
-	if include.Path == "" {
-		return nil, nil, pkgconfig.IncludedConfigMissingPathError(pc.settings.TerragruntConfigPath)
-	}
-
-	hasDependency, err := pkgconfig.ConfigFileHasDependencyBlock(v.FS, include.Path)
+	includedPC, err := includedContext(v, pc, include)
 	if err != nil {
 		return nil, nil, err
-	}
-
-	includedPC := pc.forIncluded(include)
-
-	if hasDependency {
-		includedPC = includedPC.withDiagnosticsSuppressed()
 	}
 
 	included, cfg, err := s.resolveFile(ctx, l, v, includedPC, include.Path)
@@ -377,6 +369,148 @@ func (c *UnitConfig) resolveIncludedConfig(
 	}
 
 	return included, cfg, nil
+}
+
+// includedContext returns the context the file include names is parsed with from pc, the context of the including
+// file. A file with a dependency block parses with its diagnostics suppressed.
+//
+// Returns [pkgconfig.IncludedConfigMissingPathError] when include has no path.
+func includedContext(v *venv.Venv, pc *ParseContext, include *pkgconfig.IncludeConfig) (*ParseContext, error) {
+	if include.Path == "" {
+		return nil, pkgconfig.IncludedConfigMissingPathError(pc.settings.TerragruntConfigPath)
+	}
+
+	hasDependency, err := pkgconfig.ConfigFileHasDependencyBlock(v.FS, include.Path)
+	if err != nil {
+		return nil, err
+	}
+
+	includedPC := pc.forIncluded(include)
+
+	if hasDependency {
+		return includedPC.withDiagnosticsSuppressed(), nil
+	}
+
+	return includedPC, nil
+}
+
+// includedBase is the file an include block names, evaluated through its base blocks.
+type includedBase struct {
+	// base is the file's state through its base blocks, which may hold errors.
+	base *unitBase
+	// file is the file's syntax tree, bound to a parser of pc.
+	file *pkghclparse.File
+	// pc is the context the file was evaluated with.
+	pc *ParseContext
+}
+
+// resolveIncludedBase evaluates the file include names through its base blocks, as resolving the file from pc does.
+//
+// Returns [pkgconfig.IncludedConfigMissingPathError] when include has no path, and
+// [pkgconfig.IncludeConfigNotFoundError] when the file does not exist.
+func (s *Store) resolveIncludedBase(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pc *ParseContext,
+	include *pkgconfig.IncludeConfig,
+) (*includedBase, error) {
+	if include.Path == "" {
+		return nil, pkgconfig.IncludedConfigMissingPathError(pc.settings.TerragruntConfigPath)
+	}
+
+	info, err := statConfig(v, include.Path)
+	if err != nil {
+		return nil, includeParseError(err, include, pc)
+	}
+
+	includedPC, err := includedContext(v, pc, include)
+	if err != nil {
+		return nil, err
+	}
+
+	includedPC, err = includedPC.incrementDepth()
+	if err != nil {
+		return nil, err
+	}
+
+	parser := pkghclparse.NewParser(includedPC.parserOptions(l, v)...)
+
+	file, err := s.ParseUnitAST(ctx, v.FS, include.Path, info, parser)
+	if err != nil {
+		return nil, err
+	}
+
+	base, err := s.resolveBase(ctx, l, v, includedPC, file)
+	if base == nil {
+		return nil, err
+	}
+
+	return &includedBase{base: base, file: file, pc: includedPC}, nil
+}
+
+// dependencyBlocks decodes the dependency blocks of the file with its base. A block decodes with `dependency`
+// unknown when the parse skips resolving outputs.
+//
+// Returns the first error of the base when it holds one.
+func (b *includedBase) dependencyBlocks(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+) (pkgconfig.Dependencies, error) {
+	if err := b.base.firstErr(); err != nil {
+		return nil, err
+	}
+
+	pctx := b.pc.withFile(&b.base.scope).parsingContext()
+	vars := b.base.evalVars
+
+	if pctx.DecodedDependencies == nil && pctx.SkipOutputsResolution {
+		vars = maps.Clone(vars)
+		vars[pkgconfig.MetadataDependency] = cty.DynamicVal
+	}
+
+	evalCtx := &hcl.EvalContext{
+		Functions: pkgconfig.TerragruntFunctions(ctx, l, v, pctx, b.file.ConfigPath),
+		Variables: vars,
+	}
+
+	return pkgconfig.DecodeDependencyBlocks(ctx, l, v, pctx, b.file, evalCtx)
+}
+
+// includedFeatureFlags returns the feature blocks of each file a parse with pc includes, read from the base of that
+// file.
+func (s *Store) includedFeatureFlags(v *venv.Venv, pc *ParseContext) pkgconfig.IncludedFeatureFlags {
+	return func(
+		ctx context.Context,
+		l log.Logger,
+		_ *pkgconfig.TrackInclude,
+		include *pkgconfig.IncludeConfig,
+	) (pkgconfig.FeatureFlags, error) {
+		included, err := s.resolveIncludedBase(ctx, l, v, pc, include)
+		if err != nil {
+			return nil, err
+		}
+
+		return included.base.featureBlocks, included.base.firstErr()
+	}
+}
+
+// includedDependencies returns the dependency blocks of each file a parse with pc includes, decoded with the base
+// of that file.
+func (s *Store) includedDependencies(v *venv.Venv, pc *ParseContext) pkgconfig.IncludedDependencies {
+	return func(
+		ctx context.Context,
+		l log.Logger,
+		include *pkgconfig.IncludeConfig,
+	) (pkgconfig.Dependencies, error) {
+		included, err := s.resolveIncludedBase(ctx, l, v, pc, include)
+		if err != nil {
+			return nil, err
+		}
+
+		return included.dependencyBlocks(ctx, l, v)
+	}
 }
 
 // includeParseError reports a missing included file as [pkgconfig.IncludeConfigNotFoundError].
