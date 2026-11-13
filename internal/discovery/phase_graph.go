@@ -24,6 +24,8 @@ import (
 
 // GraphPhase traverses dependency/dependent relationships based on graph expressions.
 type GraphPhase struct {
+	// relations is the dependencies the pipeline read, nil when the phase reads them from the configs itself.
+	relations *pipelineRelations
 	// numWorkers is the number of concurrent workers.
 	numWorkers int
 	// maxDepth is the maximum depth for dependency traversal.
@@ -135,6 +137,10 @@ func (p *GraphPhase) Run(
 		errMu sync.Mutex
 	)
 
+	if p.relations != nil {
+		errs = p.discoverDependenciesFromRelations(ctx, l, v, state, graphExprs, graphTargetCandidates)
+	}
+
 	g, ctx := errgroup.WithContext(ctx)
 	g.SetLimit(p.numWorkers)
 
@@ -194,37 +200,15 @@ func (p *GraphPhase) processGraphTarget(
 	// The final filter evaluation will handle ExcludeTarget appropriately.
 	// We need the target in the result set for the final evaluation to work
 	// (it uses the target as the starting point for traversing dependents).
-	if loaded := state.seenComponents.LoadOrStore(c.Path()); !loaded {
-		state.results.AddDiscovered(DiscoveryResult{
-			Component: c,
-			Status:    filter.StatusReadyForFilter,
-			Reason:    filter.CandidacyReasonNone,
-			Phase:     PhaseGraph,
-		})
-	}
+	state.addReached(c)
 
-	if graphExpr.Dependencies.Include {
-		depth := p.maxDepth
-		if graphExpr.Dependencies.Depth > 0 {
-			depth = graphExpr.Dependencies.Depth
+	if graphExpr.Dependencies.Include && p.relations == nil {
+		boundary, err := dependencyBoundary(v.FS, state.discovery, c, graphExpr)
+		if err != nil {
+			return err
 		}
 
-		// An inline "(dir)" operand overrides --discovery-boundary for this expression.
-		boundary := state.discovery.discoveryBoundary
-
-		switch {
-		case isWorktreeComponent(c):
-			boundary = state.discovery.evaluationContext().TargetBoundary(graphExpr.Dependencies, c)
-		case graphExpr.Dependencies.Boundary != "":
-			resolved, err := resolveGraphBoundary(v.FS, state.discovery.workingDir, graphExpr.Dependencies.Boundary)
-			if err != nil {
-				return err
-			}
-
-			boundary = resolved
-		}
-
-		err := p.discoverDependencies(ctx, l, v, s, state, c, depth, boundary)
+		err = p.discoverDependencies(ctx, l, v, s, state, c, p.dependencyDepth(graphExpr), boundary)
 		if err != nil {
 			return err
 		}
@@ -308,6 +292,48 @@ func (p *GraphPhase) processGraphTarget(
 	}
 
 	return nil
+}
+
+// addReached adds a component a graph expression selects or reaches to the results, once.
+func (s *graphTraversalState) addReached(c component.Component) {
+	if loaded := s.seenComponents.LoadOrStore(c.Path()); loaded {
+		return
+	}
+
+	s.results.AddDiscovered(DiscoveryResult{
+		Component: c,
+		Status:    filter.StatusReadyForFilter,
+		Reason:    filter.CandidacyReasonNone,
+		Phase:     PhaseGraph,
+	})
+}
+
+// dependencyDepth returns how many dependencies deep graphExpr traverses from its target.
+func (p *GraphPhase) dependencyDepth(graphExpr *filter.GraphExpressionInfo) int {
+	if graphExpr.Dependencies.Depth > 0 {
+		return graphExpr.Dependencies.Depth
+	}
+
+	return p.maxDepth
+}
+
+// dependencyBoundary returns the directory the dependency traversal of graphExpr from c stays within, empty when
+// it has none. An inline "(dir)" operand overrides --discovery-boundary for the expression.
+func dependencyBoundary(
+	fsys vfs.FS,
+	d *Discovery,
+	c component.Component,
+	graphExpr *filter.GraphExpressionInfo,
+) (string, error) {
+	if isWorktreeComponent(c) {
+		return d.evaluationContext().TargetBoundary(graphExpr.Dependencies, c), nil
+	}
+
+	if graphExpr.Dependencies.Boundary == "" {
+		return d.discoveryBoundary, nil
+	}
+
+	return resolveGraphBoundary(fsys, d.workingDir, graphExpr.Dependencies.Boundary)
 }
 
 // discoverWorktreeDependents searches a Git target's own worktree for dependents, within its boundary there.
