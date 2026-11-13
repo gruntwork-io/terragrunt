@@ -159,6 +159,7 @@ func TestProviderCacheConcurrentWarmupWithRacing(t *testing.T) {
 	token := fmt.Sprintf("%s:%s", providercache.APIKeyAuth, uuid.New().String())
 
 	server := cache.NewServer(
+		cache.WithHostname("127.0.0.1"),
 		cache.WithToken(token),
 		cache.WithProviderService(providerService),
 		cache.WithProviderHandlers(directHandler),
