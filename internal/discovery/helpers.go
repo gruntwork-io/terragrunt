@@ -504,27 +504,31 @@ func (d *Discovery) potentialDependentsOutsideBoundary(
 	outside := make(map[string]struct{})
 
 	for _, candidate := range candidates {
-		if candidate.Reason != filter.CandidacyReasonPotentialDependent {
-			continue
+		if outsideDependentBoundaries(fsys, boundaries, candidate) {
+			outside[candidate.Component.Path()] = struct{}{}
 		}
-
-		c := candidate.Component
-
-		// Worktree components live outside the working tree by construction.
-		if dctx := c.DiscoveryContext(); dctx != nil && dctx.Ref != "" {
-			continue
-		}
-
-		if slices.ContainsFunc(boundaries, func(boundary string) bool {
-			return !isExternal(fsys, boundary, c.Path())
-		}) {
-			continue
-		}
-
-		outside[c.Path()] = struct{}{}
 	}
 
 	return outside
+}
+
+// outsideDependentBoundaries reports whether candidate is a potential dependent outside every one of boundaries,
+// which no dependent traversal can reach. No boundaries means the traversals are unbounded, and nothing is outside.
+func outsideDependentBoundaries(fsys vfs.FS, boundaries []string, candidate DiscoveryResult) bool {
+	if len(boundaries) == 0 || candidate.Reason != filter.CandidacyReasonPotentialDependent {
+		return false
+	}
+
+	c := candidate.Component
+
+	// Worktree components live outside the working tree by construction.
+	if dctx := c.DiscoveryContext(); dctx != nil && dctx.Ref != "" {
+		return false
+	}
+
+	return !slices.ContainsFunc(boundaries, func(boundary string) bool {
+		return !isExternal(fsys, boundary, c.Path())
+	})
 }
 
 // evaluationContext hands filter evaluation the settings its graph traversal

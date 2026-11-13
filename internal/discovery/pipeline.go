@@ -17,6 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -66,9 +67,10 @@ type pipelineEvent struct {
 // pipeline walks the working directory and parses the components that need it while the walk is still running.
 //
 // The walk classifies each component, reports it on events, and queues it on work when it needs a parse. Workers
-// parse what work holds, classify the component again, and report it on events. When the pipeline relates
-// components, the walk also queues every component ready for filtering, and a worker reads the dependencies of each
-// component that is ready once it is done with it. One collector receives every event, so the results need no lock.
+// parse what work holds, classify the component again, and report it on events. The walk also queues every component
+// whose dependencies discovery needs: the ones ready for filtering when it relates components, and the candidates as
+// well when a filter selects dependents. A worker reads the dependencies of such a component once it is done with it.
+// One collector receives every event, so the results need no lock.
 //
 // The pipeline ends because its channels form a chain with no way back:
 //
@@ -80,18 +82,31 @@ type pipelineEvent struct {
 //
 // A sender gives up when ctx is done, so a full channel never holds a stage past cancellation.
 type pipeline struct {
-	discovery      *Discovery
-	opts           *options.TerragruntOptions
-	store          *rewrite.Store
-	work           chan DiscoveryResult
-	events         chan pipelineEvent
+	// discovery is the discovery the pipeline runs for.
+	discovery *Discovery
+	// opts is the options every parse runs with.
+	opts *options.TerragruntOptions
+	// store memoizes the parses.
+	store *rewrite.Store
+	// work carries the components the walk queues for the workers.
+	work chan DiscoveryResult
+	// events carries what the walk and the workers report to the collector.
+	events chan pipelineEvent
+	// readPhase is the parse phase a worker reports when it reads the dependencies of a component.
+	readPhase string
+	// dependentBoundaries is the boundary of each filter that selects dependents, nil when any is unbounded.
+	dependentBoundaries []string
+	// parseRequested reports whether an option or a filter asked for a parse.
 	parseRequested bool
-	relates        bool
+	// relates reports whether discovery relates the components it finds.
+	relates bool
+	// findsDependents reports whether a filter selects dependents.
+	findsDependents bool
 }
 
 // runPipeline walks the working directory and parses the components that need it, as the filesystem and parse
 // phases do one after the other. It also reads the dependencies of the components it finds when discovery relates
-// components, and returns them unlinked. The relations are nil otherwise.
+// components or a filter selects dependents, and returns them unlinked. The relations are nil otherwise.
 //
 // Returns the error of the walk when it fails, and otherwise the parse errors joined. suppressParseErrors drops
 // both, as it does for the phases. A [CoexistenceError] is returned either way.
@@ -106,13 +121,23 @@ func (d *Discovery) runPipeline(
 	workers := max(d.numWorkers, defaultDiscoveryWorkers)
 
 	p := &pipeline{
-		discovery:      d,
-		opts:           opts,
-		store:          s,
-		work:           make(chan DiscoveryResult, workers*workQueuePerWorker),
-		events:         make(chan pipelineEvent, workers*workQueuePerWorker),
-		parseRequested: parseRequested,
-		relates:        d.discoverRelationships,
+		discovery:       d,
+		opts:            opts,
+		store:           s,
+		work:            make(chan DiscoveryResult, workers*workQueuePerWorker),
+		events:          make(chan pipelineEvent, workers*workQueuePerWorker),
+		readPhase:       parsePhaseTagRelationship,
+		parseRequested:  parseRequested,
+		relates:         d.discoverRelationships,
+		findsDependents: d.classifier.HasDependentFilters(),
+	}
+
+	if p.findsDependents {
+		p.dependentBoundaries = d.dependentBoundaries(l, v.FS)
+	}
+
+	if !p.relates {
+		p.readPhase = parsePhaseTagDependencyGraph
 	}
 
 	var stages errgroup.Group
@@ -155,7 +180,7 @@ func (d *Discovery) runPipeline(
 
 	found := walked{discovered: results.Discovered, candidates: results.Candidates}
 
-	if p.relates {
+	if p.relates || p.findsDependents {
 		found.relations = &pipelineRelations{discovery: d, opts: opts, store: s, declared: collected.declared}
 	}
 
@@ -210,7 +235,7 @@ func (p *pipeline) walk(ctx context.Context, l log.Logger, v *venv.Venv) error {
 			return ctx.Err()
 		}
 
-		if !p.needsParse(*result) && !p.needsRelating(*result) {
+		if !p.needsParse(*result) && !p.readsDependencies(v.FS, *result) {
 			return nil
 		}
 
@@ -269,14 +294,23 @@ func (d *Discovery) parsesDiscovered() bool {
 	return d.readFiles || d.parseExclude || d.parseIncludes
 }
 
-// needsRelating reports whether a worker reads the dependencies of result's component: the pipeline relates
-// components, and the component is ready for filtering.
-func (p *pipeline) needsRelating(result DiscoveryResult) bool {
-	return p.relates && result.Status == filter.StatusReadyForFilter
+// readsDependencies reports whether a worker reads the dependencies of result's component. It reads those of a
+// component ready for filtering when the pipeline relates components or a filter selects dependents, and those of a
+// candidate when a filter selects dependents and one of their traversals can reach it.
+func (p *pipeline) readsDependencies(fsys vfs.FS, result DiscoveryResult) bool {
+	switch result.Status {
+	case filter.StatusReadyForFilter:
+		return p.relates || p.findsDependents
+	case filter.StatusCandidate:
+		return p.findsDependents && !outsideDependentBoundaries(fsys, p.dependentBoundaries, result)
+	case filter.StatusExcluded:
+	}
+
+	return false
 }
 
 // parse works through the components on work until it closes and reports each on events. It parses a component
-// that needs it, then reads the dependencies of one that needs relating.
+// that needs it, then reads the dependencies of one discovery needs them from.
 func (p *pipeline) parse(ctx context.Context, l log.Logger, v *venv.Venv) {
 	phase := NewParsePhase(p.discovery.numWorkers)
 
@@ -296,8 +330,10 @@ func (p *pipeline) parse(ctx context.Context, l log.Logger, v *venv.Venv) {
 			}
 		}
 
-		if event.err == nil && p.needsRelating(event.result) {
-			declared := readDependencyPaths(ctx, l, v, p.store, p.opts, p.discovery, event.result.Component)
+		if event.err == nil && p.readsDependencies(v.FS, event.result) {
+			declared := readDependencyPaths(
+				contextWithParsePhase(ctx, p.readPhase), l, v, p.store, p.opts, p.discovery, event.result.Component,
+			)
 			event.declared = &declared
 		}
 

@@ -78,9 +78,11 @@
 // The pipeline also replaces phase 4. Its workers read the dependencies each component declares as paths, and the
 // components are linked on one goroutine after the graph phase. A unit the graph phase reached has its dependencies
 // read then. A dependency that is not a discovered component becomes a transient unit whose own dependencies are
-// read in turn,
-// once per path. Phase 4 stops reading them once a traversal has reached every discovered component, so the
-// pipeline can link more transient units than it does and report errors from configs it never reads.
+// read in turn, once per path. Phase 4 stops reading them once a traversal has reached every discovered component,
+// so the pipeline can link more transient units than it does and report errors from configs it never reads.
+//
+// When a filter selects dependents, the workers also read the dependencies of every candidate a dependent traversal
+// can reach, and the pre-graph step of phase 3 links them on one goroutine without parsing anything again.
 //
 // The pipeline takes over one phase at a time. [EnvPipeline] and the phases are removed once it has replaced all
 // of them.
