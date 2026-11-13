@@ -1,4 +1,4 @@
-//go:build tofu && (aws || docker)
+//go:build tofu && (aws || azure || docker)
 
 package test_test
 

@@ -639,7 +639,7 @@ Otherwise, Terragrunt leaves the storage alone, and `init` fails if the storage 
 
 ### Encrypting state
 
-The [`encryption`](/reference/hcl/blocks/remote_state#encryption) map needs a `key_provider` key, set to any [key provider OpenTofu supports](https://opentofu.org/docs/language/state/encryption/#key-providers), e.g. `pbkdf2`, `aws_kms`, `gcp_kms`, or `openbao`. Its other keys configure that provider. Terragrunt turns the map into an `encryption` block in the OpenTofu `terraform` block:
+The [`encryption`](/reference/hcl/blocks/remote_state#encryption) map needs a `key_provider` key, set to any [key provider OpenTofu supports](https://opentofu.org/docs/language/state/encryption/#key-providers), e.g. `pbkdf2`, `aws_kms`, `gcp_kms`, `azure_vault`, or `openbao`. Its other keys configure that provider. Terragrunt turns the map into an `encryption` block in the OpenTofu `terraform` block:
 
 <SideBySide>
 
