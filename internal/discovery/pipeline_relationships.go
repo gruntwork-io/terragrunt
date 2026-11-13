@@ -168,10 +168,59 @@ func (r *pipelineRelations) linkForDependents(
 			continue
 		}
 
-		linkGraphDependencies(v.FS, c, declared.paths, shared)
+		linkReached(v.FS, c, declared.paths, shared)
 	}
 
 	return errs
+}
+
+// linkReached links c to the component at each of depPaths, taking it from components or adding it there with the
+// discovery context of a component the graph reached from c.
+func linkReached(
+	fsys vfs.FS,
+	c component.Component,
+	depPaths []string,
+	components *component.ThreadSafeComponents,
+) {
+	parentCtx := c.DiscoveryContext()
+	if parentCtx == nil {
+		return
+	}
+
+	for _, depPath := range depPaths {
+		dep := componentFromDependencyPath(fsys, depPath, components)
+
+		assignGraphDiscoveryContext(fsys, dep, parentCtx, depPath)
+
+		added, _ := components.EnsureComponent(dep)
+
+		c.AddDependency(added)
+	}
+}
+
+// adoptLinkedDependencies adds to components each component that one of them is linked to as a dependency, at any
+// depth. The graph phase then links to those, where it would otherwise create a second component for the path of
+// one that discovery did not find.
+func adoptLinkedDependencies(components *component.ThreadSafeComponents) {
+	pending := components.ToComponents()
+	adopted := make(map[component.Component]struct{}, len(pending))
+
+	for len(pending) > 0 {
+		c := pending[len(pending)-1]
+		pending = pending[:len(pending)-1]
+
+		if _, done := adopted[c]; done {
+			continue
+		}
+
+		adopted[c] = struct{}{}
+
+		for _, dep := range c.Dependencies() {
+			components.EnsureComponent(dep)
+
+			pending = append(pending, dep)
+		}
+	}
 }
 
 // traversedFrom names a component a dependency traversal continued from, and the boundary it stayed within.

@@ -138,7 +138,10 @@ func (p *GraphPhase) Run(
 	)
 
 	if p.relations != nil {
+		adoptLinkedDependencies(threadSafeComponents)
+
 		errs = p.discoverDependenciesFromRelations(ctx, l, v, state, graphExprs, graphTargetCandidates)
+		errs = append(errs, p.linkDependentsToBoundaries(ctx, l, v, state, graphExprs, graphTargetCandidates)...)
 	}
 
 	g, ctx := errgroup.WithContext(ctx)
@@ -229,39 +232,13 @@ func (p *GraphPhase) processGraphTarget(
 			return p.discoverWorktreeDependents(ctx, l, v, s, state, c, graphExpr, depth)
 		}
 
-		// The upstream dependent walk is capped by an explicit boundary when the
-		// expression carries one, otherwise by --discovery-boundary, otherwise by
-		// the detected git root.
-		startDir := state.discovery.workingDir
-		boundaryRoot := state.discovery.dependentWalkBoundary()
-
-		if graphExpr.Dependents.Boundary != "" {
-			resolved, rerr := resolveGraphBoundary(v.FS, state.discovery.workingDir, graphExpr.Dependents.Boundary)
-			if rerr != nil {
-				return rerr
-			}
-
-			if isExternal(v.FS, resolved, startDir) && isExternal(v.FS, startDir, resolved) {
-				return NewDiscoveryBoundaryScopeError(resolved, startDir)
-			}
-
-			boundaryRoot = resolved
+		if p.linksDependentsToBoundary(state, c) {
+			return nil
 		}
 
-		// Only fall back to the component's own working directory when the user
-		// named no boundary at all; an explicit one must not be silently widened.
-		if graphExpr.Dependents.Boundary == "" && state.discovery.discoveryBoundary == "" {
-			if dCtx := c.DiscoveryContext(); dCtx != nil &&
-				dCtx.WorkingDir != "" &&
-				dCtx.WorkingDir != state.discovery.workingDir {
-				startDir = dCtx.WorkingDir
-				boundaryRoot = dCtx.WorkingDir
-			}
-		}
-
-		// A boundary inside the working directory starts the walk at itself.
-		if boundaryRoot != "" && isExternal(v.FS, boundaryRoot, startDir) && !isExternal(v.FS, startDir, boundaryRoot) {
-			startDir = boundaryRoot
+		startDir, boundaryRoot, err := dependentWalkScope(v.FS, state.discovery, c, graphExpr)
+		if err != nil {
+			return err
 		}
 
 		if boundaryRoot != "" {
@@ -292,6 +269,52 @@ func (p *GraphPhase) processGraphTarget(
 	}
 
 	return nil
+}
+
+// dependentWalkScope returns where the search for dependents of c above the working directory starts and the
+// directory it stops at, which is empty when no boundary could be determined. The boundary is the explicit one of
+// graphExpr when it has one, otherwise --discovery-boundary, otherwise the detected git root.
+//
+// Returns a [DiscoveryBoundaryScopeError] when the explicit boundary and the working directory are disjoint.
+func dependentWalkScope(
+	fsys vfs.FS,
+	d *Discovery,
+	c component.Component,
+	graphExpr *filter.GraphExpressionInfo,
+) (string, string, error) {
+	startDir := d.workingDir
+	boundaryRoot := d.dependentWalkBoundary()
+
+	if graphExpr.Dependents.Boundary != "" {
+		resolved, err := resolveGraphBoundary(fsys, d.workingDir, graphExpr.Dependents.Boundary)
+		if err != nil {
+			return "", "", err
+		}
+
+		if isExternal(fsys, resolved, startDir) && isExternal(fsys, startDir, resolved) {
+			return "", "", NewDiscoveryBoundaryScopeError(resolved, startDir)
+		}
+
+		boundaryRoot = resolved
+	}
+
+	// Only fall back to the component's own working directory when the user
+	// named no boundary at all; an explicit one must not be silently widened.
+	if graphExpr.Dependents.Boundary == "" && d.discoveryBoundary == "" {
+		if dCtx := c.DiscoveryContext(); dCtx != nil &&
+			dCtx.WorkingDir != "" &&
+			dCtx.WorkingDir != d.workingDir {
+			startDir = dCtx.WorkingDir
+			boundaryRoot = dCtx.WorkingDir
+		}
+	}
+
+	// A boundary inside the working directory starts the walk at itself.
+	if boundaryRoot != "" && isExternal(fsys, boundaryRoot, startDir) && !isExternal(fsys, startDir, boundaryRoot) {
+		startDir = boundaryRoot
+	}
+
+	return startDir, boundaryRoot, nil
 }
 
 // addReached adds a component a graph expression selects or reaches to the results, once.

@@ -90,6 +90,13 @@
 // depth left, so its results depend on which traversal gets there first. The pipeline continues from such a
 // component when it has more depth left.
 //
+// Phase 3 finds the dependents of a target outside the working directory by walking up from it to the dependent
+// boundary and reading the configs below each directory on the way, once per target and again for each dependent
+// it finds. The pipeline walks to each boundary once, reads the dependencies of the units there together, and
+// leaves the dependents to the traversal of the links. The depth of a filter such as 1...vpc then counts
+// dependencies only, where phase 3 also spends one for each directory it climbs. A target found in a Git worktree
+// keeps the walk of phase 3.
+//
 // The pipeline takes over one phase at a time. [EnvPipeline] and the phases are removed once it has replaced all
 // of them.
 //
