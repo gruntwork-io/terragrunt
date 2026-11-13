@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/big"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -15,7 +17,6 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
-	"github.com/zclconf/go-cty/cty/convert"
 	"golang.org/x/text/unicode/norm"
 
 	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
@@ -210,6 +211,10 @@ func FilterOutputs(outputs cty.Value, index string) (cty.Value, error) {
 	current := outputs
 
 	for _, segment := range segments {
+		if current.IsNull() {
+			return cty.NilVal, nil
+		}
+
 		if !current.Type().IsObjectType() && !current.Type().IsMapType() {
 			return cty.NilVal, nil
 		}
@@ -234,8 +239,8 @@ func FilterOutputs(outputs cty.Value, index string) (cty.Value, error) {
 // unit can be addressed as `shard["web"]` and an iteration key containing a dot stays in
 // one piece.
 //
-// Names are taken as written. A unit or stack name is a block label, so it need not be
-// an HCL identifier: `01-network` is a valid name.
+// A name need not be an HCL identifier, because a unit or stack name is a block label:
+// `1-vpc` is a valid name.
 func parseOutputAddress(index string) ([]string, error) {
 	var segments []string
 
@@ -263,10 +268,7 @@ func readSegment(address string, pos int) (string, int, error) {
 	case '.':
 		return readName(address, pos+1)
 	case '[':
-		end := pos + indexKeyLen(address[pos:])
-		key, err := parseIndexKey(address, pos, end)
-
-		return key, end, err
+		return readKey(address, pos)
 	default:
 		return "", 0, errNameAfterKey
 	}
@@ -285,7 +287,7 @@ func readName(address string, pos int) (string, int, error) {
 
 	// Either character is the remains of a mistyped key, such as `shard]`.
 	if strings.ContainsAny(name, `]"`) {
-		return "", 0, fmt.Errorf("name %q contains a bracket or quote", name)
+		return "", 0, errKeySyntaxInName
 	}
 
 	// cty holds attribute names in NFC.
@@ -293,60 +295,72 @@ func readName(address string, pos int) (string, int, error) {
 }
 
 var (
-	errEmptyName    = errors.New("empty name")
-	errNameAfterKey = errors.New("expected a dot or a bracket after a key")
-	errNotOneKey    = errors.New("brackets must hold a single key")
+	errEmptyName       = errors.New("empty name")
+	errNameAfterKey    = errors.New("expected a dot or a bracket after a key")
+	errKeySyntaxInName = errors.New("a name cannot contain a closing bracket or a quote")
+	errKeyNotAnIndex   = errors.New("a number key must be a whole number")
 )
 
-// indexKeyLen returns the length of the bracketed key that address starts with, skipping
-// any closing bracket inside a quoted key. An unclosed key runs to the end of address.
-func indexKeyLen(address string) int {
-	quoted := false
+// readKey returns the key in the brackets of address that open at pos, and where they
+// close. It reads the key as an HCL index, so that it takes the same quoted strings and
+// numbers as `dependency.foo["web"]`.
+func readKey(address string, pos int) (string, int, error) {
+	end, err := keyEnd(address, pos)
+	if err != nil {
+		return "", 0, err
+	}
 
-	for i := 0; i < len(address); i++ {
-		switch {
-		case quoted && address[i] == '\\':
-			i++
-		case address[i] == '"':
-			quoted = !quoted
-		case !quoted && address[i] == ']':
-			return i + 1
+	// A placeholder root as long as what precedes the key puts a diagnostic's column on
+	// the key in a single-line address.
+	root := strings.Repeat("x", utf8.RuneCountInString(address[:pos]))
+
+	traversal, diags := hclsyntax.ParseTraversalAbs([]byte(root+address[pos:end]), "", hcl.InitialPos)
+	if diags.HasErrors() {
+		return "", 0, diags
+	}
+
+	key := traversal[1].(hcl.TraverseIndex).Key
+	if key.Type() == cty.String {
+		return key.AsString(), end, nil
+	}
+
+	// Formatting a number such as 1e99999999 in full takes minutes.
+	number, accuracy := key.AsBigFloat().Int64()
+	if accuracy != big.Exact {
+		return "", 0, errKeyNotAnIndex
+	}
+
+	return strconv.FormatInt(number, 10), end, nil
+}
+
+// keyEnd returns where the brackets of address that open at pos close, as the HCL lexer
+// sees it: a closing bracket inside a quoted key or a comment does not count. Unclosed
+// brackets run to the end of address.
+//
+// Returns the lexer's diagnostic when the brackets hold something HCL cannot lex.
+func keyEnd(address string, pos int) (int, error) {
+	start := hcl.Pos{Line: 1, Column: utf8.RuneCountInString(address[:pos]) + 1, Byte: pos}
+	tokens, diags := hclsyntax.LexExpression([]byte(address[pos:]), "", start)
+
+	end := len(address)
+
+	for _, token := range tokens {
+		if token.Type == hclsyntax.TokenCBrack {
+			end = token.Range.End.Byte
+
+			break
 		}
 	}
 
-	return len(address)
-}
-
-// parseIndexKey returns the key in the brackets at address[start:end], read as an HCL
-// index so that it takes the same quoted strings and numbers as `dependency.foo["web"]`.
-func parseIndexKey(address string, start, end int) (string, error) {
-	// The placeholder root is as long as what precedes the key, so that diagnostics
-	// report columns of the whole address.
-	root := strings.Repeat("x", utf8.RuneCountInString(address[:start]))
-
-	traversal, diags := hclsyntax.ParseTraversalAbs([]byte(root+address[start:end]), "", hcl.InitialPos)
-	if diags.HasErrors() {
-		return "", diags
+	// The lexer also read what follows the key, where a name may hold characters that
+	// HCL rejects.
+	for _, diag := range diags {
+		if diag.Severity == hcl.DiagError && diag.Subject.Start.Byte < end {
+			return 0, diag
+		}
 	}
 
-	// HCL skips comments, so one that hides a quote or bracket from indexKeyLen can
-	// leave more than a single key in the range.
-	keys := traversal[1:]
-	if len(keys) != 1 {
-		return "", errNotOneKey
-	}
-
-	step, ok := keys[0].(hcl.TraverseIndex)
-	if !ok {
-		return "", errNotOneKey
-	}
-
-	key, err := convert.Convert(step.Key, cty.String)
-	if err != nil {
-		return "", err
-	}
-
-	return key.AsString(), nil
+	return end, nil
 }
 
 // InvalidOutputAddressError reports an output address that cannot be parsed. An address

@@ -5,10 +5,10 @@ category: "bug-fixes"
 
 #### `stack output` accepts unit and stack names that start with a digit
 
-`terragrunt stack output 01-network` failed for a unit named `01-network`, as did any address with a unit or stack name that starts with a digit:
+`terragrunt stack output 1-vpc` failed for a unit named `1-vpc`, as did any address with a unit or stack name that starts with a digit:
 
 ```
-ERROR invalid output address "01-network": :1,1-3: Variable name required; Must begin with a variable name.
+ERROR invalid output address "1-vpc": :1,1-2: Variable name required; Must begin with a variable name.
 ```
 
-`stack output` now reads each name in the address as written, so `01-network`, `01-network.id` and `platform.01-network.id` return the matching outputs.
+`stack output` no longer requires the names in an address to be HCL identifiers, so `1-vpc`, `1-vpc.id` and `platform.1-vpc.id` return the matching outputs.
