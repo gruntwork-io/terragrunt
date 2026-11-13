@@ -22,17 +22,21 @@ import (
 
 // Coordinator shares generation results for one command.
 type Coordinator struct {
-	store *rewrite.Store
-	fs    vfs.FS
-	opts  *options.TerragruntOptions
-	jobs  map[string]*generationJob
-	edges map[string][]string
-	mu    sync.Mutex
+	store   *rewrite.Store
+	fs      vfs.FS
+	opts    *options.TerragruntOptions
+	jobs    map[string]*generationJob
+	outputs map[string]*generationJob
+	edges   map[string][]string
+	mu      sync.Mutex
 }
 
 type generationJob struct {
-	done chan struct{}
-	err  error
+	done       chan struct{}
+	err        error
+	filesReady chan struct{}
+	filesErr   error
+	path       string
 }
 
 type generationOwner struct {
@@ -46,8 +50,9 @@ type generationOwnerKey struct{}
 func NewCoordinator(fsys vfs.FS, s *rewrite.Store, opts *options.TerragruntOptions) *Coordinator {
 	return &Coordinator{
 		fs: fsys, store: s, opts: opts.Clone(),
-		jobs:  make(map[string]*generationJob),
-		edges: make(map[string][]string),
+		jobs:    make(map[string]*generationJob),
+		outputs: make(map[string]*generationJob),
+		edges:   make(map[string][]string),
 	}
 }
 
@@ -68,6 +73,7 @@ func WithCoordinator(
 	coordinator := NewCoordinator(fsys, s, opts)
 	ctx = context.WithValue(ctx, coordinatorKey{}, coordinator)
 
+	ctx = config.WithStackPreparation(ctx, coordinator.registerOutputs, coordinator.waitForFiles)
 	ctx = discovery.WithStackDiscovery(ctx, coordinator.discoverDependencyStacks)
 
 	return config.WithStackGenerator(ctx, coordinator.generateDependencyStack)
@@ -131,6 +137,15 @@ func (c *Coordinator) generateSelected(
 	}
 
 	c.mu.Lock()
+	if producer := c.pendingProducer(path); producer != nil {
+		c.mu.Unlock()
+
+		if err := c.waitForFiles(ctx, path); err != nil {
+			return err
+		}
+
+		return c.generateSelected(ctx, path, generate)
+	}
 
 	owner, _ := ctx.Value(generationOwnerKey{}).(generationOwner)
 	if owner.coordinator == c {
@@ -153,7 +168,7 @@ func (c *Coordinator) generateSelected(
 		}
 	}
 
-	job := &generationJob{done: make(chan struct{})}
+	job := &generationJob{done: make(chan struct{}), filesReady: make(chan struct{}), path: path}
 	c.jobs[path] = job
 	c.mu.Unlock()
 
@@ -166,6 +181,7 @@ func (c *Coordinator) generateSelected(
 
 		c.mu.Lock()
 		job.err = result
+		c.finishFiles(job, result)
 		close(job.done)
 		c.mu.Unlock()
 	}()

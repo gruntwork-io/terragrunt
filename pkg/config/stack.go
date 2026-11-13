@@ -252,6 +252,10 @@ func GenerateStackFile(
 		ociGetter: getter.NewOCIGetter(l, v),
 	}
 
+	if err := registerStackOutputs(ctx, stackFile, &genOpts); err != nil {
+		return nil, err
+	}
+
 	generateUnits(ctx, l, v, &genOpts, pool, stackFile.Units)
 
 	generateStacks(ctx, l, v, &genOpts, pool, stackFile.Stacks)

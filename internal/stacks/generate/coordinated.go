@@ -104,6 +104,8 @@ func generateCoordinatedLevel(
 				}
 
 				stack, err := generateStackFileAndWait(ctx, scopedLogger, v, s, scopedPctx, pool, node.FilePath)
+				coordinator.filesWritten(ctx, err)
+
 				if err != nil {
 					return err
 				}
