@@ -6,6 +6,9 @@ sidebar:
   order: 7
 ---
 
+import Before from '@components/Before.astro';
+import Since from '@components/Since.astro';
+
 *Auto-Init* is a feature of Terragrunt that makes it so that `terragrunt init` does not need to be called explicitly before other terragrunt commands.
 
 When Auto-Init is enabled (the default), terragrunt will automatically call [`tofu init`](https://opentofu.org/docs/cli/commands/init/)/[`terraform init`](https://www.terraform.io/docs/commands/init.html) before other commands (e.g. `terragrunt plan`) when terragrunt detects that any of the following are true:
@@ -13,7 +16,23 @@ When Auto-Init is enabled (the default), terragrunt will automatically call [`to
 - `init` has never been called.
 - `source` needs to be downloaded.
 - The `.terragrunt-init-required` file is in the downloaded module directory (`.terragrunt-cache/aaa/bbb/modules/<module>`).
+
+<Before version="v1.2.3">
+
 - The modules or remote state used by a module have changed since the previous call to `init`.
+
+</Before>
+
+<Since version="v1.2.3">
+
+- A `.tf`, `.tofu`, `.tf.json`, or `.tofu.json` file of the unit, or of a local module it calls, has changed since the previous call to `init`.
+- The `.terraform.lock.hcl` file has changed since the previous call to `init`.
+- The `.terraform/providers` or `.terraform/modules` directory has been deleted.
+- The remote state used by a module has changed since the previous call to `init`.
+
+Terragrunt detects these changes only after an `init` it ran itself. If you run `tofu init` directly, run `terragrunt init` afterwards.
+
+</Since>
 
 As [mentioned](/features/units/extra-arguments/#extra_arguments-for-init), `extra_arguments` can be configured to allow customization of the `tofu init` command.
 

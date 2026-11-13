@@ -150,6 +150,8 @@ func (w *Worktrees) Cleanup(ctx context.Context, l log.Logger, v *venv.Venv) err
 			// the first one's filesystem sizes removal for all of them.
 			g.SetLimit(min(vfs.FSWorkersFor(v.FS, toRemove[0].Path), len(toRemove)))
 
+			var unregisterMu sync.Mutex
+
 			for _, worktree := range toRemove {
 				g.Go(func() error {
 					// Skip removal if the worktree path doesn't exist (may have been cleaned up already)
@@ -167,6 +169,20 @@ func (w *Worktrees) Cleanup(ctx context.Context, l log.Logger, v *venv.Venv) err
 						worktree.Ref,
 						worktree.Path,
 						func(ctx context.Context) error {
+							if err := v.FS.RemoveAll(worktree.Path); err != nil {
+								l.Debugf(
+									"Failed to delete worktree directory %s, leaving it to git: %v",
+									worktree.Path,
+									err,
+								)
+							}
+
+							// `git worktree remove` reads the entry of every other worktree
+							// under `.git/worktrees/`. On Windows it fails with "Permission
+							// denied" on an entry a concurrent removal is deleting.
+							unregisterMu.Lock()
+							defer unregisterMu.Unlock()
+
 							return gitRunner.RemoveWorktree(ctx, worktree.Path)
 						},
 					)

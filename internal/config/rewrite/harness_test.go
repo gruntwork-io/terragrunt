@@ -173,7 +173,7 @@ func assertParity(t *testing.T, tc parityCase) parityResult {
 		store = &config.Store{}
 	}
 
-	pc := config.NewParseContext(pctx)
+	pc := config.NewParseContext(v, pctx)
 
 	parsed, parseErr := store.ResolveUnitConfig(ctx, l, v, pc, tc.cfgPath)
 

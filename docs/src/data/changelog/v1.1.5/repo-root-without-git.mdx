@@ -5,7 +5,7 @@ category: "performance-improvements"
 
 #### Finding the repository root no longer launches `git`
 
-[`get_repo_root()`](/reference/hcl/functions#get_repo_root), [`get_path_from_repo_root()`](/reference/hcl/functions#get_path_from_repo_root), [`get_path_to_repo_root()`](/reference/hcl/functions#get_path_to_repo_root), the runner, and discovery all need the root of the enclosing repository. Terragrunt used to ask Git for it by running `git rev-parse --show-toplevel`, and starting that process cost far more than producing the answer did.
+[`get_repo_root()`](/reference/hcl/functions/get_repo_root), [`get_path_from_repo_root()`](/reference/hcl/functions/get_path_from_repo_root), [`get_path_to_repo_root()`](/reference/hcl/functions/get_path_to_repo_root), the runner, and discovery all need the root of the enclosing repository. Terragrunt used to ask Git for it by running `git rev-parse --show-toplevel`, and starting that process cost far more than producing the answer did.
 
 Terragrunt now finds the root itself, by looking for a `.git` entry in the working directory and each directory above it. Linked worktrees and submodules resolve the way they did before.
 

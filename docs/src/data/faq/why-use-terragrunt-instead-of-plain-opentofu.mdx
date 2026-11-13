@@ -12,7 +12,7 @@ If you have one or two root modules and no dependencies between them, using Open
 
 ## State segmentation, and the lock that comes with it
 
-Each Terragrunt [unit](/features/units/) has its own state, and a root configuration shared by every unit can derive each one's backend key from its path with [`path_relative_to_include()`](/reference/hcl/functions#path_relative_to_include). You get per-unit state without configuring a backend by hand for every root module.
+Each Terragrunt [unit](/features/units/) has its own state, and a root configuration shared by every unit can derive each one's backend key from its path with [`path_relative_to_include()`](/reference/hcl/functions/path_relative_to_include). You get per-unit state without configuring a backend by hand for every root module.
 
 The obvious benefit is blast radius: your current working directory is what you can break. The less obvious one matters more on a team. One state file means one lock, so two engineers touching unrelated infrastructure still queue behind each other. Segmented state gives each unit its own lock, and unrelated work proceeds in parallel. A monolithic state file is an organizational bottleneck as much as a technical one, and it produces a [Terralith](/guides/terralith-to-terragrunt/): slow plans, risky changes, and diffs nobody wants to review.
 
@@ -46,11 +46,11 @@ terragrunt run --all --filter-affected -- plan
 
 ## Shared configuration in one place
 
-Backend configuration, provider blocks, and common inputs live in a root configuration file that units pull in with an [`include` block](/features/units/includes/). [`generate` blocks](/reference/hcl/blocks#generate) write files into the module before a run, so you can inject a provider or backend into a module you do not control. You write these once rather than in every root module.
+Backend configuration, provider blocks, and common inputs live in a root configuration file that units pull in with an [`include` block](/features/units/includes/). [`generate` blocks](/reference/hcl/blocks/generate) write files into the module before a run, so you can inject a provider or backend into a module you do not control. You write these once rather than in every root module.
 
 ## Rolling changes out without a pile of pull requests
 
-Promoting a change through environments usually means either applying it everywhere at once or opening a pull request per environment to bump versions one at a time. [Feature flags](/features/units/runtime-control/) offer a third option: codify both configurations, then control which one is active at runtime with the [`feature` block](/reference/hcl/blocks#feature) or the `--feature` flag. Shipping the change and turning it on become separate steps.
+Promoting a change through environments usually means either applying it everywhere at once or opening a pull request per environment to bump versions one at a time. [Feature flags](/features/units/runtime-control/) offer a third option: codify both configurations, then control which one is active at runtime with the [`feature` block](/reference/hcl/blocks/feature) or the `--feature` flag. Shipping the change and turning it on become separate steps.
 
 ## Self-service for people who are not IaC experts
 
@@ -58,7 +58,7 @@ The [catalog](/features/catalog/) gives you a searchable [terminal UI](/features
 
 ## Surviving flaky infrastructure
 
-Large runs fail for boring reasons: rate limits, eventual consistency, an API having a bad minute. The [`errors` block](/reference/hcl/blocks#errors) makes that configuration rather than a shell retry loop. `retry` matches errors by regex and retries with a bounded attempt count and sleep interval; `ignore` lets known-safe errors through without failing the run.
+Large runs fail for boring reasons: rate limits, eventual consistency, an API having a bad minute. The [`errors` block](/reference/hcl/blocks/errors) makes that configuration rather than a shell retry loop. `retry` matches errors by regex and retries with a bounded attempt count and sleep interval; `ignore` lets known-safe errors through without failing the run.
 
 ## Operational work that does not belong in a module
 

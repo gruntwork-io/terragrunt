@@ -1,0 +1,85 @@
+---
+name: exclude
+description: Leaves the unit out of a run queue when a condition is true, for the commands you list.
+configs: [unit]
+attributes:
+  - name: if
+    type: bool
+    required: true
+    description: Whether to exclude the unit. It's an expression, e.g. a [feature flag](/reference/hcl/blocks/feature), but it can't read `dependency` outputs, because Terragrunt evaluates it while building the run queue, before any dependency has run.
+    example: |
+      # terragrunt.hcl
+
+      feature "skip_unit" {
+        default = false
+      }
+
+      exclude {
+        if      = feature.skip_unit.value
+        actions = ["all"]
+      }
+  - name: actions
+    type: list(string)
+    required: true
+    description: The OpenTofu/Terraform commands to exclude the unit from, e.g. `plan` or `apply`. `all` matches every command, and `all_except_output` matches every command except `output`, so other units can still read this unit's outputs through `dependency` blocks.
+    example: |
+      # terragrunt.hcl
+
+      exclude {
+        if      = true
+        actions = ["all_except_output"]
+      }
+  - name: no_run
+    type: bool
+    default: "false"
+    description: Also stops a single-unit command, e.g. `terragrunt run -- plan`, when `if` is `true` and `actions` matches the command. Without it, `exclude` only affects a run queue, e.g. `run --all`.
+    example: |
+      # terragrunt.hcl
+
+      exclude {
+        if      = true
+        no_run  = true
+        actions = ["plan"]
+      }
+  - name: exclude_dependencies
+    type: bool
+    default: "false"
+    description: Also leaves out the units this unit depends on.
+    example: |
+      # terragrunt.hcl
+
+      feature "is_dev_environment" {
+        default = false
+      }
+
+      exclude {
+        if                   = feature.is_dev_environment.value
+        actions              = ["all"]
+        exclude_dependencies = true
+      }
+---
+
+With a feature flag in `if`, a unit can stay out of `run --all` until a run opts in:
+
+```hcl
+# live/canary/terragrunt.hcl
+
+feature "canary" {
+  default = false
+}
+
+exclude {
+  if      = !feature.canary.value
+  actions = ["all_except_output"]
+}
+```
+
+```bash
+# Applies every unit in live except canary.
+terragrunt run --all -- apply
+
+# Applies canary too.
+terragrunt run --all --feature canary=true -- apply
+```
+
+See [Excludes](/features/units/runtime-control#excludes) for more patterns, e.g. excluding units per environment from a shared `root.hcl`.

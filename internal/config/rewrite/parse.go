@@ -143,7 +143,7 @@ func (s *Store) ReadTerragruntConfig(
 		util.RelPathForLog(run.RootWorkingDir, run.TerragruntConfigPath, run.LogShowAbsPaths),
 	)
 
-	return s.ResolveRunConfig(ctx, l, v, NewParseContext(run), run.TerragruntConfigPath)
+	return s.ResolveRunConfig(ctx, l, v, NewParseContext(v, run), run.TerragruntConfigPath)
 }
 
 // resolvedFile is what a memoized resolution produces.

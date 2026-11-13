@@ -57,7 +57,7 @@ dependency "vpc" {
 			ctx, pctx := newTestParsingContext(t, cfgPath)
 			l := logger.CreateLogger()
 
-			pc := config.NewParseContext(pctx)
+			pc := config.NewParseContext(v, pctx)
 
 			parsed, parseErr := new(config.Store).ResolveUnitConfig(ctx, l, v, pc, cfgPath)
 			require.Error(t, parseErr)

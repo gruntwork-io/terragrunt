@@ -9,7 +9,7 @@ This experiment is ongoing and disabled by default. A configuration with a `vari
 
 ### `variables-block` - What it does
 
-The `inputs` attribute passes every value to OpenTofu/Terraform as a `TF_VAR_` environment variable. When a unit has many inputs, the environment can exceed the operating system's size limit for a new process. A single large input can also exceed the limit for one environment variable. In either case OpenTofu/Terraform fails to start with `argument list too long`. A [`variables`](/reference/hcl/blocks#variables) block can write its inputs to an auto-loaded variables file.
+The `inputs` attribute passes every value to OpenTofu/Terraform as a `TF_VAR_` environment variable. When a unit has many inputs, the environment can exceed the operating system's size limit for a new process. A single large input can also exceed the limit for one environment variable. In either case OpenTofu/Terraform fails to start with `argument list too long`. A [`variables`](/reference/hcl/blocks/variables) block can write its inputs to an auto-loaded variables file.
 
 ```hcl
 variables {
@@ -28,7 +28,7 @@ terragrunt run --experiment variables-block -- plan
 
 To move a unit from the `inputs` attribute, wrap its map in a `variables` block. Add `nullable = true` if the module relies on `null` values from the map.
 
-See the [`variables` block reference](/reference/hcl/blocks#variables) for its attributes, how blocks combine, and where Terragrunt writes the variables files.
+See the [`variables` block reference](/reference/hcl/blocks/variables) for its attributes, how blocks combine, and where Terragrunt writes the variables files.
 
 ### `variables-block` - How to provide feedback
 

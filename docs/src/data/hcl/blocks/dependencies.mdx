@@ -1,0 +1,53 @@
+---
+name: dependencies
+description: Lists the units that run before this one in a run queue, without reading their outputs.
+configs: [unit]
+attributes:
+  - name: paths
+    type: list(string)
+    required: true
+    description: Paths to the units this unit depends on. Relative paths resolve against the unit's directory, even in a file the unit includes. A path to a stack directory adds every unit the stack generates. See [Depending on a stack](/reference/hcl/blocks#depending-on-a-stack).
+    example: |
+      # terragrunt.hcl
+
+      dependencies {
+        paths = ["../vpc", "../rds"]
+      }
+---
+
+import FileTree from '@components/vendored/starlight/FileTree.astro';
+
+The `dependencies` block orders units in a run queue. To also read a unit's outputs, use a [`dependency`](/reference/hcl/blocks#dependency) block, which orders the run the same way.
+
+```hcl
+# live/app/terragrunt.hcl
+
+dependencies {
+  paths = ["../vpc", "../rds"]
+}
+```
+
+<FileTree>
+
+- live
+  - vpc
+    - terragrunt.hcl
+  - rds
+    - terragrunt.hcl
+  - app
+    - **terragrunt.hcl**
+
+</FileTree>
+
+Running `terragrunt run --all -- apply` in `live` applies `vpc` and `rds` concurrently, then `app`:
+
+```d2
+direction: right
+
+vpc -> app: before
+rds -> app: before
+```
+
+`terragrunt run --all -- destroy` runs in the reverse order: `app` first, then `vpc` and `rds`.
+
+A configuration file can have one `dependencies` block. When a unit includes a file with its own `dependencies` block, the unit depends on the paths from both.

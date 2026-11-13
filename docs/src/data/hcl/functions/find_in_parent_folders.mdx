@@ -1,0 +1,68 @@
+---
+name: find_in_parent_folders
+description: Returns the absolute path of the nearest file or directory with a given name in a folder above the configuration.
+configs: [unit, stack]
+params:
+  - name: name
+    type: string
+    description: The file or directory to find, e.g. `root.hcl` or `prod/env.hcl`. Searching for a root `terragrunt.hcl` is deprecated. See [Migrating from root `terragrunt.hcl`](/migrate/migrating-from-root-terragrunt-hcl).
+  - name: fallback
+    type: string
+    optional: true
+    description: The value to return, as given, when no folder above has `name`. Without it, the function fails.
+returns: string
+examples:
+  - description: Falls back to a default file when no folder above the unit has `region.hcl`.
+    code: |
+      # prod/mysql/terragrunt.hcl
+
+      locals {
+        default     = "${get_repo_root()}/defaults/region.hcl"
+        region_file = find_in_parent_folders("region.hcl", local.default)
+      }
+---
+
+import FileTree from '@components/vendored/starlight/FileTree.astro';
+
+A unit uses `find_in_parent_folders` to find the file it includes:
+
+```hcl
+# prod/mysql/terragrunt.hcl
+
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+```
+
+<FileTree>
+
+- **root.hcl**
+- prod
+  - mysql
+    - terragrunt.hcl
+
+</FileTree>
+
+The search starts in the folder above the unit or stack file and moves up until it finds `name`.
+
+### In an included file
+
+The search starts from the unit that includes the file. Here, `root.hcl` finds `prod/env.hcl` when `prod/mysql` includes it:
+
+```hcl
+# root.hcl
+
+locals {
+  env = read_terragrunt_config(find_in_parent_folders("env.hcl"))
+}
+```
+
+<FileTree>
+
+- root.hcl
+- prod
+  - **env.hcl**
+  - mysql
+    - terragrunt.hcl
+
+</FileTree>

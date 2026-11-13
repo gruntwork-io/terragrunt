@@ -4,22 +4,25 @@ package test_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
-	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/hashicorp/hcl/v2"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
+	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -450,9 +453,7 @@ func TestTFStackOutputsJsonFlag(t *testing.T) {
 }
 
 // TestTFStackOutputsParallelFetchingWithRacing verifies that `terragrunt stack output` reads each
-// unit's outputs concurrently. A strict serial fetcher would always emit unit prefixes in the
-// natural u01..u12 order; concurrent fetching makes the observed order non-ascending in at least
-// one run. The WithRacing suffix enrolls this test in CI runs with `-race`.
+// unit's outputs concurrently. The WithRacing suffix enrolls this test in CI runs with `-race`.
 func TestTFStackOutputsParallelFetchingWithRacing(t *testing.T) {
 	t.Parallel()
 
@@ -467,55 +468,85 @@ func TestTFStackOutputsParallelFetchingWithRacing(t *testing.T) {
 		unitCount   = 12
 	)
 
-	prefixRe := regexp.MustCompile(`prefix=\.terragrunt-stack/(u\d+)`)
-	observedNonSerialOrder := false
+	for range maxAttempts {
+		outputs := &outputOverlapExec{Exec: vexec.NewOSExec()}
 
-	for i := range maxAttempts {
-		_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		_, _, err := helpers.RunTerragruntCommandWithOutputWithVenv(
 			t,
+			helpers.RunVenv(t).WithExec(outputs),
 			"terragrunt stack output --parallelism "+strconv.Itoa(
 				unitCount,
 			)+" --non-interactive --working-dir "+rootPath,
 		)
 		require.NoError(t, err)
+		require.Equal(t, unitCount, outputs.started)
 
-		seen := make(map[string]bool, unitCount)
-		order := make([]string, 0, unitCount)
-
-		for _, match := range prefixRe.FindAllStringSubmatch(stderr, -1) {
-			unit := match[1]
-			if seen[unit] {
-				continue
-			}
-
-			seen[unit] = true
-			order = append(order, unit)
-		}
-
-		require.Len(
-			t,
-			order,
-			unitCount,
-			"run %d: expected %d distinct units, got %d (%v)",
-			i,
-			unitCount,
-			len(order),
-			order,
-		)
-		t.Logf("run %d order: %s", i, strings.Join(order, ","))
-
-		if !slices.IsSorted(order) {
-			observedNonSerialOrder = true
-			break
+		if outputs.peak > 1 {
+			return
 		}
 	}
 
-	require.True(
+	require.Failf(
 		t,
-		observedNonSerialOrder,
-		"expected at least one run to execute unit output fetches out of ascending u01..u12 order within %d attempts; all sampled runs were strictly sorted",
+		"unit outputs were fetched serially",
+		"no two `output` commands ran at the same time in %d attempts",
 		maxAttempts,
 	)
+}
+
+// outputOverlapExec wraps a [vexec.Exec] and counts the `output` commands that run at the same time.
+type outputOverlapExec struct {
+	vexec.Exec
+
+	mu      sync.Mutex
+	started int
+	running int
+	peak    int
+}
+
+// Command prepares the command through the wrapped Exec, tracking it when it is an `output` command.
+func (e *outputOverlapExec) Command(ctx context.Context, name string, args ...string) vexec.Cmd {
+	cmd := e.Exec.Command(ctx, name, args...)
+	if len(args) == 0 || args[0] != tf.CommandNameOutput {
+		return cmd
+	}
+
+	return &outputOverlapCmd{Cmd: cmd, exec: e}
+}
+
+// outputOverlapCmd counts as running from a successful Start until Wait returns.
+//
+// Terragrunt runs OpenTofu/Terraform through Start and Wait, so the other run methods are not tracked.
+type outputOverlapCmd struct {
+	vexec.Cmd
+
+	exec *outputOverlapExec
+}
+
+func (c *outputOverlapCmd) Start() error {
+	if err := c.Cmd.Start(); err != nil {
+		return err
+	}
+
+	c.exec.mu.Lock()
+	defer c.exec.mu.Unlock()
+
+	c.exec.started++
+	c.exec.running++
+	c.exec.peak = max(c.exec.peak, c.exec.running)
+
+	return nil
+}
+
+func (c *outputOverlapCmd) Wait() error {
+	err := c.Cmd.Wait()
+
+	c.exec.mu.Lock()
+	defer c.exec.mu.Unlock()
+
+	c.exec.running--
+
+	return err
 }
 
 func TestTFStacksUnitValues(t *testing.T) {

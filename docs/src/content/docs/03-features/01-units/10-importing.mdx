@@ -204,7 +204,7 @@ Without `import` in that list, Terragrunt errors out while resolving the depende
 
 The command above is a one-off: it changes state on the machine that runs it and leaves no record. OpenTofu/Terraform [`import` blocks](https://opentofu.org/docs/language/import/) declare imports in configuration instead, so they show up in a plan, get reviewed, and run the same way in CI.
 
-If the unit sources a local module you control, add the block to the module's `.tf` files. If it sources a remote module you do not control, use a [`generate` block](/reference/hcl/blocks#generate) to write the file into the working directory:
+If the unit sources a local module you control, add the block to the module's `.tf` files. If it sources a remote module you do not control, use a [`generate` block](/reference/hcl/blocks/generate) to write the file into the working directory:
 
 <StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure', 'GCP']}>
 <Fragment slot="aws">

@@ -464,7 +464,7 @@ inputs = {
 
 	l := logger.CreateLogger()
 
-	pc := config.NewParseContext(pctx)
+	pc := config.NewParseContext(v, pctx)
 
 	parsed, err := new(config.Store).ResolveUnitConfig(ctx, l, v, pc, cfgPath)
 	require.NoError(t, err)
