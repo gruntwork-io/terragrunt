@@ -81,7 +81,12 @@ func (attr *Attribute) ValidateIdentifier() error {
 
 // Value evaluates the attribute's expression in evalCtx. It returns the value even when evaluation fails.
 func (attr *Attribute) Value(evalCtx *hcl.EvalContext) (cty.Value, error) {
-	evaluatedVal, diags := attr.Expr.Value(evalCtx)
+	expr := attr.Expr
+	if syntaxExpr, ok := expr.(hclsyntax.Expression); ok && hasConditionalRunCmd(syntaxExpr) {
+		expr = wrapConditionalRunCmd(syntaxExpr)
+	}
+
+	evaluatedVal, diags := expr.Value(evalCtx)
 
 	if err := attr.HandleDiagnostics(diags); err != nil {
 		return evaluatedVal, err
