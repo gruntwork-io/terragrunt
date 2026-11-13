@@ -916,6 +916,8 @@ func TestFilterFlagWithFindGitFilter(t *testing.T) {
 				return
 			}
 
+			require.NoError(t, err)
+
 			results := strings.Split(strings.TrimSpace(stdout), "\n")
 			assert.ElementsMatch(t, tc.expectedUnits, results)
 		})
