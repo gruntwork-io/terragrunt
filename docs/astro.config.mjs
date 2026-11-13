@@ -105,16 +105,6 @@ export default defineConfig({
             "http://localhost:9090/",
             "http://localhost:7280/ui",
 
-            // Command pages are assembled by `src/pages/reference/cli/commands/[...slug].astro`
-            // from the `commands` and `flags` collections, so the validator never sees the
-            // headings these anchors point at. Page paths themselves are still validated.
-            "/reference/cli/commands/**/*#*",
-
-            // HCL block, attribute, and function pages are assembled by
-            // `src/pages/reference/hcl/[kind]/[name].astro` from the `hclBlocks`,
-            // `hclAttributes`, and `hclFunctions` collections, for the same reason.
-            "/reference/hcl/{blocks,attributes,functions}/*#*",
-
             // Custom .astro pages — can't be validated statically
             "/reference/experiments/active",
             "/reference/experiments/active#*",

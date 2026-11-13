@@ -73,29 +73,22 @@ export const sidebar: StarlightUserConfig["sidebar"] = [
           { label: "Overview", slug: "reference/hcl" },
           { label: "Units", slug: "reference/hcl/units" },
           { label: "Stacks", slug: "reference/hcl/stacks" },
+          // `src/route-middleware.ts` appends the block, attribute, function,
+          // and command pages, which are rendered from data collections.
           {
             label: "Blocks",
             collapsed: true,
-            items: [
-              { label: "Overview", slug: "reference/hcl/blocks" },
-              { autogenerate: { directory: "04-reference/01-hcl/blocks", collapsed: true } },
-            ],
+            items: [{ label: "Overview", slug: "reference/hcl/blocks" }],
           },
           {
             label: "Attributes",
             collapsed: true,
-            items: [
-              { label: "Overview", slug: "reference/hcl/attributes" },
-              { autogenerate: { directory: "04-reference/01-hcl/attributes", collapsed: true } },
-            ],
+            items: [{ label: "Overview", slug: "reference/hcl/attributes" }],
           },
           {
             label: "Functions",
             collapsed: true,
-            items: [
-              { label: "Overview", slug: "reference/hcl/functions" },
-              { autogenerate: { directory: "04-reference/01-hcl/functions", collapsed: true } },
-            ],
+            items: [{ label: "Overview", slug: "reference/hcl/functions" }],
           },
         ],
       },
@@ -107,7 +100,7 @@ export const sidebar: StarlightUserConfig["sidebar"] = [
           {
             label: "Commands",
             collapsed: true,
-            items: [{ autogenerate: { directory: "04-reference/02-cli/02-commands", collapsed: true } }],
+            items: [],
           },
           { label: "Global Flags", slug: "reference/cli/global-flags" },
         ],
