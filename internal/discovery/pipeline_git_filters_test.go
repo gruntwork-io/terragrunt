@@ -59,6 +59,9 @@ func TestDiscoveryPipelineMatchesPhasesForGitFiltersWithRacing(t *testing.T) {
 			queries:       []string{"...^[HEAD~1...HEAD]..."},
 			omitGitFilter: true,
 		},
+		{name: "dependents of the changed units", queries: []string{"...[HEAD~1...HEAD]"}},
+		{name: "direct dependents of the changed units", queries: []string{"1...[HEAD~1...HEAD]"}},
+		{name: "dependents of the changed units within a boundary", queries: []string{"(./web)...[HEAD~1...HEAD]"}},
 	}
 
 	for _, tt := range tests {
@@ -70,6 +73,7 @@ func TestDiscoveryPipelineMatchesPhasesForGitFiltersWithRacing(t *testing.T) {
 			createUnit(t, repo, "db", "")
 			createUnit(t, repo, "app", dependenciesOn("../db"))
 			createUnit(t, repo, "web", dependenciesOn("../app"))
+			createUnit(t, repo, "edge", dependenciesOn("../web"))
 			createUnit(t, repo, "untouched", `locals { shared = read_terragrunt_config("../shared.hcl") }`)
 			createUnit(t, repo, "removed", "")
 
