@@ -161,7 +161,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		{
 			args: []string{
 				"plan",
-				doubleDashed(run.ConfigFlagName),
+				doubleDashed(shared.ConfigFlagName),
 				"/some/path/" + config.DefaultTerragruntConfigPath,
 			},
 			expectedOptions: mockOptions(
@@ -198,7 +198,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		},
 
 		{
-			args: []string{"plan", doubleDashed(run.SourceFlagName), "/some/path"},
+			args: []string{"plan", doubleDashed(shared.SourceFlagName), "/some/path"},
 			expectedOptions: mockOptions(
 				t,
 				filepath.Join(
@@ -219,7 +219,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		{
 			args: []string{
 				"plan",
-				doubleDashed(run.SourceMapFlagName),
+				doubleDashed(shared.SourceMapFlagName),
 				"git::git@github.com:one/gw-terraform-aws-vpc.git=git::git@github.com:two/test.git?ref=FEATURE",
 			},
 			expectedOptions: mockOptionsWithSourceMap(
@@ -277,7 +277,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		{
 			args: []string{
 				"plan",
-				doubleDashed(run.IAMAssumeRoleFlagName),
+				doubleDashed(shared.IAMAssumeRoleFlagName),
 				"arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME",
 			},
 			expectedOptions: mockOptionsWithIamRole(
@@ -291,7 +291,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		},
 
 		{
-			args: []string{"plan", doubleDashed(run.IAMAssumeRoleDurationFlagName), "36000"},
+			args: []string{"plan", doubleDashed(shared.IAMAssumeRoleDurationFlagName), "36000"},
 			expectedOptions: mockOptionsWithIamAssumeRoleDuration(
 				t,
 				filepath.Join(
@@ -310,7 +310,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		{
 			args: []string{
 				"plan",
-				doubleDashed(run.IAMAssumeRoleSessionNameFlagName),
+				doubleDashed(shared.IAMAssumeRoleSessionNameFlagName),
 				"terragrunt-iam-role-session-name",
 			},
 			expectedOptions: mockOptionsWithIamAssumeRoleSessionName(
@@ -326,7 +326,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		{
 			args: []string{
 				"plan",
-				doubleDashed(run.IAMAssumeRoleWebIdentityTokenFlagName),
+				doubleDashed(shared.IAMAssumeRoleWebIdentityTokenFlagName),
 				"web-identity-token",
 			},
 			expectedOptions: mockOptionsWithIamWebIdentityToken(
@@ -347,7 +347,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		{
 			args: []string{
 				"plan",
-				doubleDashed(run.ConfigFlagName),
+				doubleDashed(shared.ConfigFlagName),
 				"/some/path/" + config.DefaultTerragruntConfigPath,
 				"-non-interactive",
 			},
@@ -369,14 +369,14 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		{
 			args: []string{
 				"plan",
-				doubleDashed(run.ConfigFlagName),
+				doubleDashed(shared.ConfigFlagName),
 				"/some/path/" + config.DefaultTerragruntConfigPath,
 				"bar",
 				doubleDashed(global.NonInteractiveFlagName),
 				"--baz",
 				doubleDashed(global.WorkingDirFlagName),
 				"/some/path",
-				doubleDashed(run.SourceFlagName),
+				doubleDashed(shared.SourceFlagName),
 				"github.com/foo/bar//baz?ref=1.0.3",
 			},
 
@@ -414,8 +414,8 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 			),
 		},
 		{
-			args:        []string{"plan", doubleDashed(run.ConfigFlagName)},
-			expectedErr: argMissingValueError(run.ConfigFlagName),
+			args:        []string{"plan", doubleDashed(shared.ConfigFlagName)},
+			expectedErr: argMissingValueError(shared.ConfigFlagName),
 		},
 
 		{
@@ -424,11 +424,11 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		},
 
 		{
-			args:        []string{"plan", "--foo", "bar", doubleDashed(run.ConfigFlagName)},
-			expectedErr: argMissingValueError(run.ConfigFlagName),
+			args:        []string{"plan", "--foo", "bar", doubleDashed(shared.ConfigFlagName)},
+			expectedErr: argMissingValueError(shared.ConfigFlagName),
 		},
 		{
-			args: []string{"plan", doubleDashed(run.InputsDebugFlagName)},
+			args: []string{"plan", doubleDashed(shared.InputsDebugFlagName)},
 			expectedOptions: mockOptions(
 				t,
 				filepath.Join(workingDir,
@@ -682,7 +682,7 @@ func TestFilterTerragruntArgs(t *testing.T) {
 		{
 			args: []string{
 				"plan",
-				doubleDashed(run.ConfigFlagName),
+				doubleDashed(shared.ConfigFlagName),
 				"/some/path/" + config.DefaultTerragruntConfigPath,
 			},
 			expected: []string{"plan"},
@@ -692,7 +692,7 @@ func TestFilterTerragruntArgs(t *testing.T) {
 			expected: []string{"plan"},
 		},
 		{
-			args:     []string{"plan", doubleDashed(run.InputsDebugFlagName)},
+			args:     []string{"plan", doubleDashed(shared.InputsDebugFlagName)},
 			expected: []string{"plan"},
 		},
 		{
@@ -703,7 +703,7 @@ func TestFilterTerragruntArgs(t *testing.T) {
 				doubleDashed(global.WorkingDirFlagName),
 				"/some/path",
 				"--baz",
-				doubleDashed(run.ConfigFlagName),
+				doubleDashed(shared.ConfigFlagName),
 				"/some/path/" + config.DefaultTerragruntConfigPath,
 			},
 			expected: []string{"plan", "-bar", "-baz"},
@@ -774,7 +774,7 @@ func TestFilterTerragruntArgs(t *testing.T) {
 func TestParseMultiStringArg(t *testing.T) {
 	t.Parallel()
 
-	flagName := doubleDashed(run.ProviderCacheRegistryNamesFlagName)
+	flagName := doubleDashed(shared.ProviderCacheRegistryNamesFlagName)
 
 	testCases := []struct {
 		expectedErr  error
@@ -821,7 +821,7 @@ func TestParseMultiStringArg(t *testing.T) {
 				"value",
 			},
 			defaultValue: []string{"registry.terraform.io", "registry.opentofu.org"},
-			expectedErr:  argMissingValueError(run.ProviderCacheRegistryNamesFlagName),
+			expectedErr:  argMissingValueError(shared.ProviderCacheRegistryNamesFlagName),
 		},
 	}
 
@@ -993,7 +993,7 @@ func TestTerragruntHelp(t *testing.T) {
 		},
 		{
 			args:        []string{"terragrunt", awsproviderpatch.CommandName, "-h"},
-			expected:    run.ConfigFlagName,
+			expected:    shared.ConfigFlagName,
 			notExpected: hcl.CommandName + " " + hclformat.CommandName,
 		},
 		{

@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/internal/cli/commands/aws-provider-patch"
+	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
@@ -42,6 +43,51 @@ const modulesJSON = `{"Modules":[{"Key":"","Source":"","Dir":"."},{"Key":"vpc","
 const regionOverride = `region="eu-west-1"`
 
 var memRoot = venvtest.Root("/patch")
+
+// TestNewCommandExposesThePatchFlags pins the flags users pass to `aws-provider-patch`.
+func TestNewCommandExposesThePatchFlags(t *testing.T) {
+	t.Parallel()
+
+	v := venv.MemVenv()
+	cmd := awsproviderpatch.NewCommand(logger.CreateLogger(), newOpts(t, v, "unit"), v, new(rewrite.Store))
+
+	for _, name := range []string{
+		awsproviderpatch.OverrideAttrFlagName,
+		shared.AllFlagName,
+		shared.FailFastFlagName,
+		shared.FilterFlagName,
+		shared.ConfigFlagName,
+		shared.DownloadDirFlagName,
+		shared.TFPathFlagName,
+		shared.SourceFlagName,
+		shared.SourceUpdateFlagName,
+		shared.NoAutoInitFlagName,
+		shared.NoAutoRetryFlagName,
+		shared.NoRunHooksFlagName,
+		shared.InputsDebugFlagName,
+		shared.FeatureFlagName,
+		shared.IAMAssumeRoleFlagName,
+		shared.AuthProviderCmdFlagName,
+		shared.ProviderCacheFlagName,
+		shared.BackendBootstrapFlagName,
+	} {
+		assert.NotNil(t, cmd.Flags.Get(name), name)
+	}
+
+	for _, name := range []string{
+		shared.OutDirFlagName,
+		shared.ReportFileFlagName,
+		shared.SummaryDisableFlagName,
+		shared.QueueIgnoreErrorsFlagName,
+		shared.QueueExcludeDirFlagName,
+		shared.NoAutoApproveFlagName,
+		shared.NoStackGenerateFlagName,
+		shared.ParallelismFlagName,
+		shared.DestroyDependenciesCheckFlagName,
+	} {
+		assert.Nil(t, cmd.Flags.Get(name), "%s has no effect on a patch", name)
+	}
+}
 
 // TestNewCommandPatchesDownloadedModules pins that the command rewrites the AWS provider in modules init downloaded.
 func TestNewCommandPatchesDownloadedModules(t *testing.T) {

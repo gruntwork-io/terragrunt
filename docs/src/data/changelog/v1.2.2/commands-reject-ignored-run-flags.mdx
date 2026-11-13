@@ -1,0 +1,28 @@
+---
+version: "v1.2.2"
+category: "bug-fixes"
+---
+
+#### Commands reject `run` flags they ignore
+
+`render`, `info print`, `stack generate`, and `stack output` accepted every flag of `run` and ignored the ones that only apply to a run. `terragrunt render --all --parallelism 4` rendered one unit at a time, and `terragrunt stack generate --report-file report.json` wrote no report.
+
+Passing one of those flags is now an error:
+
+```console
+$ terragrunt render --all --parallelism 4
+ERROR  flag `--parallelism` is not a valid flag for `render`. Did you mean to use `run --parallelism`?
+```
+
+Remove the flag from the command. It had no effect.
+
+| Command | Flags it stops accepting |
+| --- | --- |
+| `render` | `--parallelism`, `--source-update`, `--no-hooks`, `--no-auto-retry`, `--inputs-debug`, `--no-stack-generate`, the `--queue-*` flags |
+| `info print` | `--parallelism`, `--inputs-debug`, `--no-stack-generate`, the `--queue-*` flags |
+| `stack generate` | `--fail-fast`, `--no-hooks`, `--no-auto-retry`, `--inputs-debug`, `--queue-ignore-errors`, `--queue-ignore-dag-order` |
+| `stack output` | `--fail-fast`, `--source-update`, `--no-hooks`, `--no-auto-retry`, `--inputs-debug`, `--no-stack-generate`, `--queue-ignore-errors`, `--queue-ignore-dag-order` |
+
+All four also stop accepting `--out-dir`, `--json-out-dir`, `--graph-root`, `--no-auto-approve`, `--destroy-dependencies-check`, `--summary-disable`, `--summary-per-unit`, `--report-file`, `--report-format`, and `--report-schema-file`. `stack run` stops accepting `--graph-root`, and keeps every other flag of `run`.
+
+The environment variables for these flags, such as `TG_PARALLELISM`, can stay set. A command reads only the variables of the flags it accepts.
