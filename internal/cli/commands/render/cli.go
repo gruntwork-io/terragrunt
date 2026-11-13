@@ -178,6 +178,7 @@ func newSharedFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv)
 		shared.NewNoAutoInitFlag(opts, nil),
 		shared.NewSourceFlag(opts, nil),
 		shared.NewSourceMapFlag(opts, nil),
+		shared.NewInputsDebugFlag(opts, nil),
 		shared.NewUsePartialParseConfigCacheFlag(opts),
 		shared.NewAuthProviderCmdFlag(opts, nil),
 		shared.NewNoDiscoveryAuthProviderCmdFlag(opts, nil),

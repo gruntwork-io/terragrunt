@@ -18,10 +18,10 @@ Remove the flag from the command. It had no effect.
 
 | Command | Flags it stops accepting |
 | --- | --- |
-| `render` | `--parallelism`, `--source-update`, `--no-hooks`, `--no-auto-retry`, `--inputs-debug`, `--no-stack-generate`, `--queue-ignore-errors`, `--queue-ignore-dag-order` |
-| `info print` | `--parallelism`, `--inputs-debug`, `--no-stack-generate`, `--queue-ignore-errors`, `--queue-ignore-dag-order` |
-| `stack generate` | `--fail-fast`, `--no-hooks`, `--no-auto-retry`, `--inputs-debug`, `--queue-ignore-errors`, `--queue-ignore-dag-order` |
-| `stack output` | `--fail-fast`, `--source-update`, `--no-hooks`, `--no-auto-retry`, `--inputs-debug`, `--no-stack-generate`, `--queue-ignore-errors`, `--queue-ignore-dag-order` |
+| `render` | `--parallelism`, `--source-update`, `--no-hooks`, `--no-auto-retry`, `--no-stack-generate`, `--queue-ignore-errors`, `--queue-ignore-dag-order` |
+| `info print` | `--parallelism`, `--no-stack-generate`, `--queue-ignore-errors`, `--queue-ignore-dag-order` |
+| `stack generate` | `--fail-fast`, `--no-hooks`, `--no-auto-retry`, `--queue-ignore-errors`, `--queue-ignore-dag-order` |
+| `stack output` | `--fail-fast`, `--source-update`, `--no-hooks`, `--no-auto-retry`, `--no-stack-generate`, `--queue-ignore-errors`, `--queue-ignore-dag-order` |
 | `aws-provider-patch` | `--parallelism`, `--no-stack-generate`, `--queue-ignore-errors`, `--queue-ignore-dag-order` |
 
 All five also stop accepting `--out-dir`, `--json-out-dir`, `--graph-root`, `--no-auto-approve`, `--destroy-dependencies-check`, `--summary-disable`, `--summary-per-unit`, `--report-file`, `--report-format`, and `--report-schema-file`. `stack run` stops accepting `--graph-root`, and keeps every other flag of `run`. `aws-provider-patch` also rejects flags that no command defines, which it accepted and dropped.

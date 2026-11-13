@@ -28,7 +28,6 @@ var cliInventory = cliCommand{
 			flags: slices.Concat(configParsingFlags, filterFlags, queueSelectionFlags, []cliFlag{
 				allFlag,
 				failFastFlag,
-				inputsDebugFlag,
 				noAutoRetryFlag,
 				noHooksFlag,
 				sourceUpdateFlag,
@@ -867,6 +866,7 @@ var queueSelectionFlags = []cliFlag{
 // unit or a stack file.
 var configParsingFlags = slices.Concat(backendFlags, []cliFlag{
 	featureFlag,
+	inputsDebugFlag,
 	{
 		names:             []string{"auth-provider-cmd"},
 		envVars:           []string{"TG_AUTH_PROVIDER_CMD"},
@@ -1082,7 +1082,6 @@ var unitRunFlags = slices.Concat(
 	configParsingFlags, filterFlags, queueRunFlags, queueSelectionFlags, runOnlyFlags,
 	[]cliFlag{
 		failFastFlag,
-		inputsDebugFlag,
 		noAutoRetryFlag,
 		noHooksFlag,
 		noStackGenerateFlag,
