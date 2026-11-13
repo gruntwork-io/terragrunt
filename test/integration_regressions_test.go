@@ -11,6 +11,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
@@ -267,6 +268,8 @@ func TestExposedIncludePartialParseSucceeds(t *testing.T) {
 // This ensures we only swallow include resolution errors during partial parse, not during full parse.
 func TestExposedIncludeFullParseReturnsError(t *testing.T) {
 	t.Parallel()
+
+	helpers.SkipInExperimentMode(t, experiment.EmptyDependencyOutputs)
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureExposedIncludePartialParseError)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureExposedIncludePartialParseError)

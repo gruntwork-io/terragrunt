@@ -44,6 +44,9 @@ type ParsingContext struct {
 	FilesRead *FilesRead
 	Telemetry *telemetry.Options
 
+	// DependencyBlocks are the dependency blocks DecodedDependencies was resolved from.
+	DependencyBlocks []Dependency
+
 	DecodedDependencies *cty.Value
 	Values              *cty.Value
 	Features            *cty.Value
@@ -387,6 +390,7 @@ func readConfigChainPaths(chain []readConfigFrame, last readConfigFrame) []strin
 // reading config's values.
 func (ctx *ParsingContext) forReadTarget() *ParsingContext {
 	c := ctx.Clone()
+	c.DependencyBlocks = nil
 	c.DecodedDependencies = nil
 	c.SkipOutputsResolution = false
 	c.Locals = nil

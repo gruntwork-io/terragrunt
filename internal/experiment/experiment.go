@@ -145,6 +145,10 @@ const (
 	VariablesBlock = "variables-block"
 	// OutputsBlock gates the outputs block, which declares the outputs of a unit and their mock values.
 	OutputsBlock = "outputs-block"
+	// EmptyDependencyOutputs resolves the outputs of a dependency block to an
+	// empty object when the dependency has no outputs or has not been applied
+	// and no mock outputs apply, where Terragrunt otherwise returns an error.
+	EmptyDependencyOutputs = "empty-dependency-outputs"
 )
 
 const (
@@ -295,6 +299,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: OutputsBlock,
+		},
+		{
+			Name: EmptyDependencyOutputs,
 		},
 	}
 }

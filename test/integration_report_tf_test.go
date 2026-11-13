@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -90,6 +91,8 @@ func TestTFTerragruntReport(t *testing.T) {
 // outputs fails during config evaluation, before OpenTofu/Terraform runs).
 func TestTFTerragruntReportRunErrorCause(t *testing.T) {
 	t.Parallel()
+
+	helpers.SkipInExperimentMode(t, experiment.EmptyDependencyOutputs)
 
 	helpers.CleanupTerraformFolder(t, testFixtureReportPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReportPath)

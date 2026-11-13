@@ -14,6 +14,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
@@ -25,6 +26,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
+	"github.com/hashicorp/hcl/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -771,6 +773,170 @@ func TestDependencyStateMissingDirectStateRequiresEligibleMockOutputs(t *testing
 	}
 }
 
+func TestDependencyStateEmptyDependencyOutputsExperimentResolvesEmptyObject(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name       string
+		httpBody   string
+		httpStatus int
+	}{
+		{
+			name:       "state is missing",
+			httpStatus: http.StatusNotFound,
+			httpBody:   `{"error":{"code":404,"message":"missing"}}`,
+		},
+		{
+			name:       "state has no outputs",
+			httpStatus: http.StatusOK,
+			httpBody:   `{"version":4,"outputs":{}}`,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			recorder := newDependencyStateRecorder(t, testCase.httpStatus, []byte(testCase.httpBody))
+			ctx, v, pctx, configPath := prepareEmptyDependencyOutputsFixture(
+				t,
+				recorder,
+				`dependency "producer" {
+  config_path = "../producer"
+}
+
+inputs = {
+  output_names = keys(dependency.producer.outputs)
+}
+`,
+			)
+
+			cfg, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, configPath, nil)
+
+			require.NoError(t, err)
+			assert.Empty(t, cfg.Inputs["output_names"])
+			assert.Empty(t, recorder.outputInvocations(), "a direct state read must not invoke OpenTofu")
+		})
+	}
+}
+
+func TestDependencyStateEmptyDependencyOutputsExperimentReportsNoOutputsForMissingOutput(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		consumer string
+	}{
+		{
+			name: "plain dependency",
+			consumer: `dependency "producer" {
+  config_path = "../producer"
+}
+
+inputs = {
+  result = dependency.producer.outputs.producer_value
+}
+`,
+		},
+		{
+			name: "expanded dependency with a literal key",
+			consumer: `dependency "upstream" {
+  expansion {
+    for_each = toset(["producer"])
+  }
+
+  config_path = "../${each.key}"
+}
+
+inputs = {
+  result = dependency.upstream["producer"].outputs.producer_value
+}
+`,
+		},
+		{
+			name: "expanded dependency with a computed key",
+			consumer: `locals {
+  key = "producer"
+}
+
+dependency "upstream" {
+  expansion {
+    for_each = toset(["producer"])
+  }
+
+  config_path = "../${each.key}"
+}
+
+inputs = {
+  result = dependency.upstream[local.key].outputs.producer_value
+}
+`,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			recorder := newDependencyStateRecorder(t, http.StatusNotFound, []byte(`{"error":{"code":404,"message":"missing"}}`))
+			ctx, v, pctx, configPath := prepareEmptyDependencyOutputsFixture(t, recorder, testCase.consumer)
+
+			_, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, configPath, nil)
+
+			var noOutputs config.TerragruntOutputTargetNoOutputs
+			require.ErrorAs(t, err, &noOutputs)
+		})
+	}
+}
+
+func TestDependencyStateEmptyDependencyOutputsExperimentKeepsDiagnosticForUnknownOutput(t *testing.T) {
+	t.Parallel()
+
+	recorder := newDependencyStateRecorder(t, http.StatusOK, terraformState("from-state"))
+	ctx, v, pctx, configPath := prepareEmptyDependencyOutputsFixture(
+		t,
+		recorder,
+		`dependency "producer" {
+  config_path = "../producer"
+}
+
+inputs = {
+  result = dependency.producer.outputs.misspelled_value
+}
+`,
+	)
+
+	_, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, configPath, nil)
+
+	var diags hcl.Diagnostics
+	require.ErrorAs(t, err, &diags)
+
+	var noOutputs config.TerragruntOutputTargetNoOutputs
+	require.NotErrorAs(t, err, &noOutputs)
+}
+
+func TestDependencyStateEmptyDependencyOutputsExperimentKeepsMockOutputs(t *testing.T) {
+	t.Parallel()
+
+	recorder := newDependencyStateRecorder(t, http.StatusNotFound, []byte(`{"error":{"code":404,"message":"missing"}}`))
+	ctx, v, pctx, configPath := prepareDependencyStateFixture(
+		t,
+		recorder,
+		"gcs",
+		`access_token = "test-token"
+        bucket       = "state-bucket"
+        prefix       = "environment/service"`,
+		map[string]string{},
+		`mock_outputs = { producer_value = "from-mock" }`,
+	)
+	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.EmptyDependencyOutputs))
+
+	cfg, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, configPath, nil)
+
+	require.NoError(t, err)
+	assert.Equal(t, "from-mock", cfg.Inputs["result"])
+}
+
 func TestDependencyStateAzureClientSetupFailureFallsBackWithoutMocks(t *testing.T) {
 	t.Parallel()
 
@@ -1167,6 +1333,34 @@ inputs = {
 	pctx.OriginalTerragruntConfigPath = consumerPath
 
 	return ctx, v, pctx, consumerPath
+}
+
+// prepareEmptyDependencyOutputsFixture is [prepareDependencyStateFixture] with the
+// empty-dependency-outputs experiment enabled, a plan command, and consumer as the consumer's config.
+func prepareEmptyDependencyOutputsFixture(
+	t *testing.T,
+	recorder *dependencyStateRecorder,
+	consumer string,
+) (context.Context, *venv.Venv, *config.ParsingContext, string) {
+	t.Helper()
+
+	ctx, v, pctx, configPath := prepareDependencyStateFixture(
+		t,
+		recorder,
+		"gcs",
+		`access_token = "test-token"
+        bucket       = "state-bucket"
+        prefix       = "environment/service"`,
+		map[string]string{},
+		"",
+	)
+	pctx.OriginalTofuCommand = "plan"
+	pctx.TerraformCliArgs = iacargs.New("plan")
+
+	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.EmptyDependencyOutputs))
+	require.NoError(t, vfs.WriteFile(v.FS, configPath, []byte(consumer), 0o600))
+
+	return ctx, v, pctx, configPath
 }
 
 func terraformState(value string) []byte {
