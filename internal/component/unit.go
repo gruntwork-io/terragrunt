@@ -24,6 +24,7 @@ type Unit struct {
 	discoveryContext *DiscoveryContext
 	path             string
 	configFile       string
+	configDir        string
 	reading          []string
 	dependencies     Components
 	dependents       Components
@@ -107,6 +108,35 @@ func (u *Unit) ConfigFile() string {
 // SetConfigFile sets the discovered config filename for this unit.
 func (u *Unit) SetConfigFile(filename string) {
 	u.configFile = filename
+}
+
+// ConfigDir returns the directory that holds the config file of this unit: its path, unless [Unit.SetConfigDir]
+// set another.
+//
+// It exists only for a deprecated behavior. Until the dependency-config-path-file strict control is the default, a
+// dependency block can set its config_path to an HCL file, and the unit for that dependency has the file as its
+// path. Its directory can hold other HCL files that are dependencies too, each a unit of its own. Once that
+// behavior is removed, the path of every unit is a directory and callers can read it in place of this.
+func (u *Unit) ConfigDir() string {
+	u.lock()
+	defer u.unlock()
+
+	if u.configDir != "" {
+		return u.configDir
+	}
+
+	return u.path
+}
+
+// SetConfigDir sets the directory that holds the config file of this unit, for a unit whose path names that file.
+//
+// Like [Unit.ConfigDir], it exists only while a dependency block can set its config_path to an HCL file, and goes
+// away with that deprecated behavior.
+func (u *Unit) SetConfigDir(dir string) {
+	u.lock()
+	defer u.unlock()
+
+	u.configDir = dir
 }
 
 // Kind returns the kind of component (always Unit for Unit).
