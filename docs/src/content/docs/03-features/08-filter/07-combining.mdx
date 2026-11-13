@@ -189,6 +189,16 @@ live/foo
 
 The reason for this is usually that a unit with the same name has been discovered twice: once discovered from your current working directory and once from a git worktree. From Terragrunt's perspective, these are two different units and can be operated on independently.
 
+When a Git expression is combined with a selecting filter, the selecting filter also narrows which generated stack units the Git expression surfaces. For example, `--filter '[main...HEAD]' --filter './live | type=stack'` returns only the changed stacks in `./live`, not their generated units. To discover all changed stack units independently, run the Git filter on its own:
+
+```bash
+# Git filter alone surfaces stacks and their generated units
+terragrunt find --no-filters-file --filter '[main...HEAD]'
+
+# Combine with other selections separately
+terragrunt find --filter './live/foo'
+```
+
 If your intent is not to use Terragrunt in this way (to operate on units in temporary Git worktrees and units in your current working directory independently), you can use the `find` command instead to perform the logic of discovering components that have changed between Git references, then separately perform a `run` against units in your current working directory.
 
 ```bash
