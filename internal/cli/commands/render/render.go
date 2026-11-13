@@ -34,7 +34,7 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, opts
 		return runAll(ctx, l, v, s, opts)
 	}
 
-	prepared, err := prepare.PrepareConfig(ctx, l, v, opts.TerragruntOptions)
+	prepared, err := prepare.PrepareConfig(ctx, l, v, s, opts.TerragruntOptions)
 	if err != nil {
 		return err
 	}
@@ -68,7 +68,7 @@ func runAll(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, o
 		// unit gets its own clone to keep them from leaking to siblings.
 		unitV := v.WithEnvCloned()
 
-		prepared, err := prepare.PrepareConfig(ctx, l, unitV, unitOpts.TerragruntOptions)
+		prepared, err := prepare.PrepareConfig(ctx, l, unitV, s, unitOpts.TerragruntOptions)
 		if err != nil {
 			errs = append(errs, err)
 			continue

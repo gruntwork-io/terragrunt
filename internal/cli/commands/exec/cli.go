@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -58,7 +59,7 @@ func NewFlags(
 // NewCommand returns the `terragrunt exec` command. It runs the arguments
 // after `--` as the command, or every argument when `--` is absent, and prints
 // help when there are none.
-func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *clihelper.Command {
+func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *rewrite.Store) *clihelper.Command {
 	cmdOpts := NewOptions()
 
 	return &clihelper.Command{
@@ -84,7 +85,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *cl
 				return clihelper.ShowCommandHelp(ctx, cliCtx)
 			}
 
-			return Run(ctx, l, v, opts, cmdOpts, cmdArgs)
+			return Run(ctx, l, v, s, opts, cmdOpts, cmdArgs)
 		},
 	}
 }

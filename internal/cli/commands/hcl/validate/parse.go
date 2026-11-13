@@ -210,6 +210,7 @@ func (p ComponentParser) Unit(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	opts *options.TerragruntOptions,
 	unitDir string,
 ) error {
@@ -232,7 +233,7 @@ func (p ComponentParser) Unit(
 
 	pctx = pctx.WithParserSettings(p.parserSettings(pctx.Parser))
 
-	cfg, err := config.ReadTerragruntConfig(ctx, l, v, pctx)
+	cfg, err := s.ReadTerragruntConfig(ctx, l, v, pctx)
 	if err != nil {
 		err = p.pointAtOutputsErrors(l, v, pctx, err)
 
