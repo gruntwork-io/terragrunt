@@ -98,7 +98,8 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihe
 		shared.NewTFPathFlag(opts),
 	}
 
-	flagSet = flagSet.Add(shared.NewQueueFlags(opts, nil)...)
+	flagSet = flagSet.Add(shared.NewQueueRunFlags(opts, nil)...)
+	flagSet = flagSet.Add(shared.NewQueueSelectionFlags(opts, nil)...)
 	flagSet = flagSet.Add(shared.NewFilterFlags(l, opts, v)...)
 
 	return flagSet

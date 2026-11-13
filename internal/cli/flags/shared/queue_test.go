@@ -60,7 +60,7 @@ func TestQueueFlagsTranslateToFilters(t *testing.T) {
 				env = map[string]string{}
 			}
 
-			require.NoError(t, parseAndRunActions(t, shared.NewQueueFlags(opts, nil), tc.args, env))
+			require.NoError(t, parseAndRunActions(t, queueFlags(opts), tc.args, env))
 			assert.Equal(t, tc.wantFilters, filterQueries(opts), "queue flag should expand into these filter queries")
 		})
 	}
@@ -126,7 +126,7 @@ func TestQueueFlagsWithoutFilters(t *testing.T) {
 				env = map[string]string{}
 			}
 
-			require.NoError(t, parseAndRunActions(t, shared.NewQueueFlags(opts, nil), tc.args, env))
+			require.NoError(t, parseAndRunActions(t, queueFlags(opts), tc.args, env))
 			assert.Equal(t, tc.want, tc.got(opts), "queue flag should write the parsed value")
 		})
 	}
@@ -151,7 +151,7 @@ func TestQueueFlagsRejectInvalidGlobs(t *testing.T) {
 
 			opts := options.NewTerragruntOptions(vexec.NewOSExec())
 
-			require.Error(t, parseAndRunActions(t, shared.NewQueueFlags(opts, nil), tc.args, map[string]string{}))
+			require.Error(t, parseAndRunActions(t, queueFlags(opts), tc.args, map[string]string{}))
 			assert.Empty(t, opts.Filters, "a rejected glob must not add a filter")
 		})
 	}
@@ -179,9 +179,9 @@ func TestQueueDeprecatedFlagsEvaluateStrictControls(t *testing.T) {
 			t.Parallel()
 
 			opts := options.NewTerragruntOptions(vexec.NewOSExec())
-			queueFlags := shared.NewQueueFlags(opts, nil)
+			selectionFlags := shared.NewQueueSelectionFlags(opts, nil)
 
-			require.NoError(t, parseAndRunActions(t, queueFlags, tc.args, map[string]string{}),
+			require.NoError(t, parseAndRunActions(t, selectionFlags, tc.args, map[string]string{}),
 				"a deprecated flag should only warn while its control is off")
 
 			require.NoError(t, opts.StrictControls.EnableControl(tc.controlName))
@@ -189,7 +189,7 @@ func TestQueueDeprecatedFlagsEvaluateStrictControls(t *testing.T) {
 			ctrl, ok := opts.StrictControls.Find(tc.controlName).(*controls.Control)
 			require.True(t, ok, "control %s should be a *controls.Control", tc.controlName)
 
-			err := queueFlags.RunActions(t.Context(), &clihelper.Context{})
+			err := selectionFlags.RunActions(t.Context(), &clihelper.Context{})
 			require.ErrorIs(t, err, ctrl.Error, "an enabled control should reject the deprecated flag")
 		})
 	}
@@ -204,4 +204,9 @@ func filterQueries(opts *options.TerragruntOptions) []string {
 	}
 
 	return queries
+}
+
+// queueFlags returns every queue flag: the ones that control how the queue runs and the ones that select its units.
+func queueFlags(opts *options.TerragruntOptions) clihelper.Flags {
+	return append(shared.NewQueueRunFlags(opts, nil), shared.NewQueueSelectionFlags(opts, nil)...)
 }

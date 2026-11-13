@@ -3,7 +3,6 @@ package print
 import (
 	"context"
 
-	runcmd "github.com/gruntwork-io/terragrunt/internal/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
@@ -17,16 +16,47 @@ const (
 	CommandName = "print"
 )
 
+// NewFlags returns the flags of `terragrunt info print`, bound to opts: the
+// ones that reach config parsing and the source download, and the ones that
+// select units for --all.
+func NewFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.Flags {
+	cmdFlags := clihelper.Flags{
+		shared.NewConfigFlag(opts, nil),
+		shared.NewDownloadDirFlag(opts, nil),
+		shared.NewTFPathFlag(opts),
+		shared.NewTFForwardStdoutFlag(opts),
+		shared.NewVersionManagerFileNameFlag(opts),
+		shared.NewNoAutoInitFlag(opts, nil),
+		shared.NewNoAutoRetryFlag(opts),
+		shared.NewNoRunHooksFlag(opts),
+		shared.NewSourceFlag(opts, nil),
+		shared.NewSourceMapFlag(opts, nil),
+		shared.NewSourceUpdateFlag(opts),
+		shared.NewUsePartialParseConfigCacheFlag(opts),
+		shared.NewAuthProviderCmdFlag(opts, nil),
+		shared.NewNoDiscoveryAuthProviderCmdFlag(opts, nil),
+		shared.NewFailFastFlag(opts),
+	}
+
+	cmdFlags = cmdFlags.Add(shared.NewDependencyOutputFlags(opts)...)
+	cmdFlags = cmdFlags.Add(shared.NewProviderCacheFlags(opts)...)
+	cmdFlags = cmdFlags.Add(shared.NewEngineFlags(opts)...)
+	cmdFlags = cmdFlags.Add(shared.NewBackendFlags(opts, nil)...)
+	cmdFlags = cmdFlags.Add(shared.NewFeatureFlags(opts, nil)...)
+	cmdFlags = cmdFlags.Add(shared.NewIAMAssumeRoleFlags(opts, nil)...)
+	cmdFlags = cmdFlags.Add(shared.NewFilterFlags(l, opts, v)...)
+	cmdFlags = cmdFlags.Add(shared.NewCASFlags(opts, nil)...)
+
+	return append(cmdFlags.Sort(), shared.NewAllFlag(opts, nil))
+}
+
 // NewCommand returns the `terragrunt info print` command.
 func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *rewrite.Store) *clihelper.Command {
-	cmdFlags := runcmd.NewFlags(l, opts, v, nil)
-	cmdFlags = append(cmdFlags, shared.NewAllFlag(opts, nil))
-
 	cmd := &clihelper.Command{
 		Name:      CommandName,
 		Usage:     "Print out a short description of Terragrunt context.",
 		UsageText: "terragrunt info print",
-		Flags:     cmdFlags,
+		Flags:     NewFlags(l, opts, v),
 		Action: func(ctx context.Context, _ *clihelper.Context) error {
 			return Run(ctx, l, v, s, opts.OptionsFromContext(ctx))
 		},

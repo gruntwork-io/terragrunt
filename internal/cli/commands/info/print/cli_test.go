@@ -49,8 +49,56 @@ func TestNewCommandExposesThePrintFlags(t *testing.T) {
 
 	assert.Equal(t, print.CommandName, cmd.Name)
 
-	for _, name := range []string{shared.AllFlagName, shared.ConfigFlagName, shared.DownloadDirFlagName} {
+	for _, name := range []string{
+		shared.AllFlagName,
+		shared.FailFastFlagName,
+		shared.FilterFlagName,
+		shared.FilterAffectedFlagName,
+		shared.DiscoveryBoundaryFlagName,
+		shared.ConfigFlagName,
+		shared.DownloadDirFlagName,
+		shared.TFPathFlagName,
+		shared.SourceFlagName,
+		shared.SourceMapFlagName,
+		shared.SourceUpdateFlagName,
+		shared.NoRunHooksFlagName,
+		shared.NoAutoRetryFlagName,
+		shared.FeatureFlagName,
+		shared.IAMAssumeRoleFlagName,
+		shared.AuthProviderCmdFlagName,
+		shared.NoDependencyOutputsFlagName,
+		shared.ProviderCacheFlagName,
+		shared.NoCASFlagName,
+	} {
 		assert.NotNil(t, cmd.Flags.Get(name), name)
+	}
+}
+
+// TestNewCommandRejectsFlagsPrintDoesNotRead pins that a `run` flag with no effect on `info print` is an error.
+func TestNewCommandRejectsFlagsPrintDoesNotRead(t *testing.T) {
+	t.Parallel()
+
+	for _, arg := range []string{
+		"--" + shared.OutDirFlagName + "=plans",
+		"--" + shared.ReportFileFlagName + "=report.json",
+		"--" + shared.SummaryDisableFlagName,
+		"--" + shared.QueueIgnoreErrorsFlagName,
+		"--" + shared.QueueExcludeDirFlagName + "=unit",
+		"--" + shared.NoAutoApproveFlagName,
+		"--" + shared.NoStackGenerateFlagName,
+		"--" + shared.InputsDebugFlagName,
+		"--" + shared.ParallelismFlagName + "=1",
+		"--" + shared.DestroyDependenciesCheckFlagName,
+		"--graph-root=.",
+	} {
+		t.Run(arg, func(t *testing.T) {
+			t.Parallel()
+
+			v := venv.MemVenv()
+			cmd := print.NewCommand(logger.CreateLogger(), options.NewTerragruntOptions(v.Exec), v, new(rewrite.Store))
+
+			require.ErrorAs(t, runCommand(t, cmd, arg), new(clihelper.UndefinedFlagError))
+		})
 	}
 }
 
