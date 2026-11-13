@@ -512,17 +512,26 @@ func (s *Store) prepare(
 		errs = append(errs, base.evalErr)
 	}
 
-	evalCtx := c.evalContext(ctx, l, v, pc.parsingContext())
+	pctx := pc.parsingContext()
+	evalCtx := c.evalContext(ctx, l, v, pctx)
 	c.prepErrs = errs
 
 	c.decodeErr = file.ApplyFileUpdate()
 	if c.decodeErr == nil {
-		diags := gohcl.DecodeBody(file.Body, evalCtx, c)
+		dependencyAttrs := dependencyAttributes(file.Body)
+
+		diags := gohcl.DecodeBody(withoutAttributes{Body: file.Body, hidden: dependencyAttrs}, evalCtx, c)
+		c.dependencyAttrs = dependencyAttrs
 
 		var queueDiags hcl.Diagnostics
 
 		c.Queue, queueDiags = c.decodeQueue(evalCtx)
-		c.Queue.Engine, c.queueEngineDiags = c.decodeQueueEngine(evalCtx)
+		c.Queue.Engine, c.queueUnknownDiags = c.decodeQueueEngine(evalCtx)
+
+		if pctx.SkipOutputsResolution {
+			c.queueUnknownDiags = append(c.queueUnknownDiags, c.decodeQueueAttributes(evalCtx)...)
+		}
+
 		c.decodeErr = file.HandleDiagnostics(append(diags, queueDiags...))
 	}
 

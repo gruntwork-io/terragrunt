@@ -12,7 +12,8 @@ import (
 // [UnitConfig.ToV1] assembles them into the config [pkgconfig.ParseConfigFile] returns.
 //
 // The tagged fields decode in the parse, which fetches no dependency outputs, so an attribute among them cannot
-// read `dependency`. The Remain of each block, and each [hcl.Attribute] field, is a queue part or a run part. The
+// read `dependency`. The exceptions are the top-level attributes [pkgconfig.ParseConfig] decodes after it resolves
+// the outputs: one of those that reads `dependency` is a run part. The Remain of each block, and each [hcl.Attribute] field, is a queue part or a run part. The
 // parse decodes the queue parts, which [QueueBodies] names, into Queue, with no `dependency` variable in scope, or an
 // unknown one for the engine block.
 // ToV1 decodes the run parts, which [RunBodies] names, with the outputs resolved. An exclude block that reads
@@ -97,9 +98,13 @@ type UnitConfig struct {
 	// decodeErr is the error of the file update before the decode, which leaves the blocks empty, or of the
 	// parse's decode diagnostics.
 	decodeErr error
-	// queueEngineDiags is the diagnostics of decoding Queue.Engine, which only a queue assembly reports. ToV1 decodes
-	// the block again with the outputs and reports its own.
-	queueEngineDiags hcl.Diagnostics
+	// dependencyAttrs is the top-level attributes that read `dependency` among those ToV1 decodes with the outputs,
+	// by name. The tagged field of each stays nil.
+	dependencyAttrs map[string]*hcl.Attribute
+	// queueUnknownDiags is the diagnostics of decoding Queue.Engine and the queue attributes in dependencyAttrs with
+	// `dependency` unknown, which only a queue assembly reports. ToV1 decodes them again with the outputs and
+	// reports its own.
+	queueUnknownDiags hcl.Diagnostics
 	// prepErrs is the non-fatal errors of the stages before the decode.
 	prepErrs []error
 	// kept is the files the parse merged.

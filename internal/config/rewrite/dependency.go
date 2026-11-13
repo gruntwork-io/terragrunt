@@ -42,7 +42,9 @@ func (c *UnitConfig) newDependencySet(
 
 	pctx := pc.parsingContext()
 
-	own, err := pkgconfig.DecodeOwnDependencies(ctx, l, v, pctx, file, c.evalContext(ctx, l, v, pctx))
+	evalCtx := dependencyBlockContext(pctx, c.evalContext(ctx, l, v, pctx))
+
+	own, err := pkgconfig.DecodeOwnDependencies(ctx, l, v, pctx, file, evalCtx)
 	if err != nil {
 		return nil, err
 	}
