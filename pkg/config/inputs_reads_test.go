@@ -16,6 +16,7 @@ func TestFindInputsReads(t *testing.T) {
 		function string
 		expr     string
 		line     int
+		marked   bool
 	}
 
 	testCases := []struct {
@@ -60,7 +61,7 @@ inputs = merge(local.defaults, {
 			want: []read{
 				{function: "file", expr: `file("config.yml")`, line: 3},
 				{function: "read_tfvars_file", expr: `read_tfvars_file("shared.tfvars")`, line: 4},
-				{function: "mark_as_read", expr: `mark_as_read("read-by-tofu.txt")`, line: 5},
+				{function: "mark_as_read", expr: `mark_as_read("read-by-tofu.txt")`, line: 5, marked: true},
 			},
 		},
 		{
@@ -84,7 +85,45 @@ inputs = {
   marked   = mark_as_read("read-by-tofu.txt")
 }
 `,
-			want: []read{{function: "mark_as_read", expr: `mark_as_read("read-by-tofu.txt")`, line: 6}},
+			want: []read{
+				{function: "mark_as_read", expr: `mark_as_read("read-by-tofu.txt")`, line: 6, marked: true},
+			},
+		},
+		{
+			name:     "path marked as read",
+			filename: "terragrunt.hcl",
+			content: `
+inputs = {
+  policy  = templatefile(mark_as_read("policy.json.tftpl"), { role_arn = dependency.iam.outputs.role_arn })
+  message = file(mark_as_read("message.txt"))
+  listed  = [for name in local.names : mark_as_read("${name}.txt")]
+}
+`,
+			want: []read{
+				{function: "templatefile", expr: `mark_as_read("policy.json.tftpl")`, line: 3, marked: true},
+				{function: "mark_as_read", expr: `mark_as_read("policy.json.tftpl")`, line: 3, marked: true},
+				{function: "file", expr: `file(mark_as_read("message.txt"))`, line: 4, marked: true},
+				{function: "mark_as_read", expr: `mark_as_read("message.txt")`, line: 4, marked: true},
+				{function: "mark_as_read", expr: `mark_as_read("${name}.txt")`, line: 5, marked: true},
+			},
+		},
+		{
+			name:     "path marked with the variable of a loop over a dependency output",
+			filename: "terragrunt.hcl",
+			content: `
+inputs = {
+  rendered = [for name in dependency.iam.outputs.names : templatefile(mark_as_read("${name}.tftpl"), {})]
+  listed   = [for name in local.names : mark_as_read("${name}.txt")]
+  shared   = [for arn in dependency.iam.outputs.arns : templatefile(mark_as_read("shared.tftpl"), { arn = arn })]
+}
+`,
+			want: []read{
+				{function: "templatefile", expr: `mark_as_read("${name}.tftpl")`, line: 3},
+				{function: "mark_as_read", expr: `mark_as_read("${name}.tftpl")`, line: 3},
+				{function: "mark_as_read", expr: `mark_as_read("${name}.txt")`, line: 4, marked: true},
+				{function: "templatefile", expr: `mark_as_read("shared.tftpl")`, line: 5, marked: true},
+				{function: "mark_as_read", expr: `mark_as_read("shared.tftpl")`, line: 5, marked: true},
+			},
 		},
 		{
 			name:     "templatefile without arguments",
@@ -121,6 +160,7 @@ inputs = {
 					function: r.Function,
 					expr:     string(r.Range.SliceBytes(file.Bytes)),
 					line:     r.Range.Start.Line,
+					marked:   r.MarkedAsRead,
 				})
 			}
 

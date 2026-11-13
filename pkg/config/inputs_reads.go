@@ -16,6 +16,8 @@ type InputsRead struct {
 	// the rest of that call may render dependency outputs and stays where it is, and the whole call
 	// of any other function.
 	Range hcl.Range
+	// MarkedAsRead reports whether a mark_as_read call that stack generation runs names the file.
+	MarkedAsRead bool
 }
 
 // FindInputsReads returns the calls to file-reading functions in the inputs attribute of body, in source order,
@@ -36,7 +38,15 @@ func FindInputsReads(body hcl.Body) ([]InputsRead, hcl.Diagnostics) {
 
 	var reads []InputsRead
 
+	var deferredLoops []*hclsyntax.ForExpr
+
 	diags := hclsyntax.VisitAll(attr.Expr, func(node hclsyntax.Node) hcl.Diagnostics {
+		if loop, ok := node.(*hclsyntax.ForExpr); ok && referencesDependency(loop) {
+			deferredLoops = append(deferredLoops, loop)
+
+			return nil
+		}
+
 		call, ok := node.(*hclsyntax.FunctionCallExpr)
 		if !ok {
 			return nil
@@ -51,7 +61,11 @@ func FindInputsReads(body hcl.Body) ([]InputsRead, hcl.Diagnostics) {
 			return nil
 		}
 
-		reads = append(reads, InputsRead{Function: call.Name, Range: fileExpr.Range()})
+		reads = append(reads, InputsRead{
+			Function:     call.Name,
+			Range:        fileExpr.Range(),
+			MarkedAsRead: marksPathAsRead(call, deferredLoops),
+		})
 
 		return nil
 	})
@@ -67,6 +81,49 @@ func fileExpression(call *hclsyntax.FunctionCallExpr) hclsyntax.Expression {
 	}
 
 	return call
+}
+
+// marksPathAsRead reports whether call, or its path argument, is a mark_as_read call that no loop in loops defers.
+func marksPathAsRead(call *hclsyntax.FunctionCallExpr, loops []*hclsyntax.ForExpr) bool {
+	marker := pathMarker(call)
+	if marker == nil {
+		return false
+	}
+
+	deferred := make(map[string]struct{})
+
+	for _, loop := range loops {
+		if loop.Range().ContainsOffset(marker.Range().Start.Byte) {
+			deferred[loop.KeyVar] = struct{}{}
+			deferred[loop.ValVar] = struct{}{}
+		}
+	}
+
+	for _, traversal := range marker.Variables() {
+		if _, ok := deferred[traversal.RootName()]; ok {
+			return false
+		}
+	}
+
+	return true
+}
+
+// pathMarker returns call when it is mark_as_read, its first argument when that is, and nil otherwise.
+func pathMarker(call *hclsyntax.FunctionCallExpr) *hclsyntax.FunctionCallExpr {
+	if call.Name == FuncNameMarkAsRead {
+		return call
+	}
+
+	if len(call.Args) == 0 {
+		return nil
+	}
+
+	arg, ok := call.Args[0].(*hclsyntax.FunctionCallExpr)
+	if !ok || arg.Name != FuncNameMarkAsRead {
+		return nil
+	}
+
+	return arg
 }
 
 // referencesDependency reports whether expr reads a dependency output.

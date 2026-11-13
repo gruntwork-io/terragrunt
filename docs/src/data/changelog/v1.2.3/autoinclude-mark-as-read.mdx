@@ -1,0 +1,25 @@
+---
+version: "v1.2.3"
+category: "bug-fixes"
+---
+
+#### `mark_as_read` in a unit's `autoinclude` block marks the file as read by the unit
+
+A `mark_as_read()` call in a unit's `autoinclude` block did not mark the file as read. Terragrunt ran the call when it generated the stack and wrote only the result into the generated unit, so `--filter 'reading=config.yml'` did not match the unit `app`:
+
+```hcl
+# terragrunt.stack.hcl
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+
+  autoinclude {
+    inputs = {
+      message = yamldecode(file(mark_as_read("config.yml"))).message
+    }
+  }
+}
+```
+
+The generated unit now marks the file as read, so the filter matches `app`.

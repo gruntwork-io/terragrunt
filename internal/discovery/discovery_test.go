@@ -1049,9 +1049,10 @@ locals {
 }
 
 inputs = {
-  message = local.tracked.message
-  region  = yamldecode(file("../shared.yml")).region
-  config  = read_terragrunt_config("../shared.hcl")
+  message  = local.tracked.message
+  region   = yamldecode(file("../shared.yml")).region
+  config   = read_terragrunt_config("../shared.hcl")
+  rendered = templatefile(mark_as_read("../msg.tftpl"), {})
 }
 `
 
@@ -1075,8 +1076,9 @@ unit "api" {
     }
 
     inputs = {
-      policy  = templatefile("policy.json.tftpl", { role_arn = dependency.iam.outputs.role_arn })
-      message = yamldecode(file("shared.yml")).message
+      policy   = templatefile("policy.json.tftpl", { role_arn = dependency.iam.outputs.role_arn })
+      message  = yamldecode(file("shared.yml")).message
+      rendered = templatefile(mark_as_read("msg.tftpl"), { role_arn = dependency.iam.outputs.role_arn })
     }
   }
 }
@@ -1121,6 +1123,7 @@ unit "api" {
 			want: []read{
 				{file: filepath.Join("app", "terragrunt.hcl"), expr: `file("../shared.yml")`, line: 11},
 				{file: filepath.Join("app", "terragrunt.hcl"), expr: `read_terragrunt_config("../shared.hcl")`, line: 12},
+				{file: filepath.Join("app", "terragrunt.hcl"), expr: `mark_as_read("../msg.tftpl")`, line: 13},
 				{
 					file:  filepath.Join("live", "terragrunt.stack.hcl"),
 					expr:  `"policy.json.tftpl"`,
@@ -1135,6 +1138,7 @@ unit "api" {
 				},
 				{file: filepath.Join("other", "terragrunt.hcl"), expr: `file("../shared.yml")`, line: 11},
 				{file: filepath.Join("other", "terragrunt.hcl"), expr: `read_terragrunt_config("../shared.hcl")`, line: 12},
+				{file: filepath.Join("other", "terragrunt.hcl"), expr: `mark_as_read("../msg.tftpl")`, line: 13},
 				{file: "root.hcl", expr: `file("account.yml")`, line: 2},
 			},
 		},

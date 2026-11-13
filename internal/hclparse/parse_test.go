@@ -1,6 +1,7 @@
 package hclparse_test
 
 import (
+	"cmp"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -2311,6 +2312,217 @@ unit "app" {
 	)
 }
 
+func TestGenerateAutoIncludeFile_RepeatsMarkAsReadInLocals(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name    string
+		mock    string
+		content string
+		want    string
+	}{
+		{
+			name:    "absolute path written relative to the unit",
+			content: `templatefile(mark_as_read("${local.dir}/tpl/msg.tftpl"), { v = dependency.vpc.outputs.id })`,
+			want:    "marked_as_read = [mark_as_read(" + hclPath("..", "..", "tpl", "msg.tftpl") + ")]",
+		},
+		{
+			name:    "relative path resolved against the stack directory",
+			content: `mark_as_read("config.yml")`,
+			want:    "marked_as_read = [mark_as_read(" + hclPath("..", "..", "config.yml") + ")]",
+		},
+		{
+			name: "paths sorted and listed once",
+			content: `[mark_as_read("${local.dir}/b.txt"), mark_as_read("${local.dir}/a.txt"), ` +
+				`mark_as_read("${local.dir}/b.txt")]`,
+			want: "marked_as_read = [mark_as_read(" + hclPath("..", "..", "a.txt") +
+				"), mark_as_read(" + hclPath("..", "..", "b.txt") + ")]",
+		},
+		{
+			name:    "calls in a for expression",
+			content: `[for f in ["b.txt", "a.txt"] : mark_as_read("${local.dir}/${f}")]`,
+			want: "marked_as_read = [mark_as_read(" + hclPath("..", "..", "a.txt") +
+				"), mark_as_read(" + hclPath("..", "..", "b.txt") + ")]",
+		},
+		{
+			name:    "call in a dependency block",
+			mock:    `mark_as_read("${local.dir}/mock.txt")`,
+			content: `dependency.vpc.outputs.id`,
+			want:    "marked_as_read = [mark_as_read(" + hclPath("..", "..", "mock.txt") + ")]",
+		},
+		{
+			name:    "call in the unselected branch of a conditional",
+			content: `false ? mark_as_read("${local.dir}/a.txt") : "b.txt"`,
+			want:    "marked_as_read = [mark_as_read(" + hclPath("..", "..", "a.txt") + ")]",
+		},
+		{
+			name:    "call in a branch that generation drops",
+			content: `false ? templatefile(mark_as_read("a.txt"), { v = dependency.vpc.outputs.id }) : "b.txt"`,
+		},
+		{
+			name:    "path from a dependency output",
+			content: `templatefile(mark_as_read(dependency.vpc.outputs.tpl), {})`,
+		},
+		{
+			name:    "null path",
+			content: `mark_as_read(null)`,
+		},
+		{
+			name:    "no mark_as_read call",
+			content: `dependency.vpc.outputs.id`,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			src := `
+locals {
+  dir = "` + filepath.ToSlash(testStackDir) + `"
+}
+
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = "vpc"
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+
+  autoinclude {
+    dependency "vpc" {
+      config_path  = unit.vpc.path
+      mock_outputs = { id = ` + cmp.Or(tc.mock, `"mock"`) + ` }
+    }
+
+    inputs = {
+      content = ` + tc.content + `
+    }
+  }
+}
+`
+			srcBytes := []byte(src)
+			fs := vfs.NewMemMapFS()
+
+			result, err := hclparse.ParseStackFile(t.Context(), fs, &hclparse.ParseStackFileInput{
+				Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: testStackDir, Functions: markAsReadFuncs(),
+			})
+			require.NoError(t, err)
+
+			resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
+			require.True(t, ok)
+
+			err = hclparse.GenerateAutoIncludeFile(fs, resolved, testGenDir, srcBytes, resolved.EvalCtx)
+			require.NoError(t, err)
+
+			generated, err := vfs.ReadFile(fs, filepath.Join(testGenDir, hclparse.AutoIncludeFile))
+			require.NoError(t, err)
+
+			content := string(generated)
+			require.Contains(t, content, "inputs")
+
+			if tc.want == "" {
+				assert.NotContains(t, content, "locals")
+
+				return
+			}
+
+			assert.Contains(t, content, tc.want)
+		})
+	}
+}
+
+func TestGenerateAutoIncludeFile_RepeatsMarkAsReadPerExpandedUnit(t *testing.T) {
+	t.Parallel()
+
+	src := `
+locals {
+  dir = "` + filepath.ToSlash(testStackDir) + `"
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app-${each.key}"
+
+  expansion {
+    for_each = { a = "a", b = "b" }
+  }
+
+  autoinclude {
+    inputs = {
+      content = mark_as_read("${local.dir}/tpl/${each.key}.tftpl")
+    }
+  }
+}
+`
+	srcBytes := []byte(src)
+	fs := vfs.NewMemMapFS()
+
+	result, err := hclparse.ParseStackFile(t.Context(), fs, &hclparse.ParseStackFileInput{
+		Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: testStackDir, Functions: markAsReadFuncs(),
+	})
+	require.NoError(t, err)
+
+	for _, key := range []string{"a", "b"} {
+		resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey(hclparse.KindUnit, "app["+key+"]")]
+		require.True(t, ok, key)
+
+		unitDir := filepath.Join(testStackDir, hclparse.StackDir, "app-"+key)
+
+		err = hclparse.GenerateAutoIncludeFile(fs, resolved, unitDir, srcBytes, resolved.EvalCtx)
+		require.NoError(t, err)
+
+		generated, err := vfs.ReadFile(fs, filepath.Join(unitDir, hclparse.AutoIncludeFile))
+		require.NoError(t, err)
+
+		want := "marked_as_read = [mark_as_read(" + hclPath("..", "..", "tpl", key+".tftpl") + ")]"
+		assert.Contains(t, string(generated), want)
+	}
+}
+
+func TestGenerateAutoIncludeFile_StackAutoIncludeWritesNoMarkAsReadLocals(t *testing.T) {
+	t.Parallel()
+
+	src := `
+stack "networking" {
+  source = "../stacks/networking"
+  path   = "networking"
+
+  autoinclude {
+    unit "extra" {
+      source = "../catalog/units/extra"
+      path   = "extra"
+      values = { tpl = mark_as_read("tpl/msg.tftpl") }
+    }
+  }
+}
+`
+	srcBytes := []byte(src)
+	fs := vfs.NewMemMapFS()
+
+	result, err := hclparse.ParseStackFile(t.Context(), fs, &hclparse.ParseStackFileInput{
+		Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: testStackDir, Functions: markAsReadFuncs(),
+	})
+	require.NoError(t, err)
+
+	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("stack", "networking")]
+	require.True(t, ok)
+
+	stackDir := filepath.Join(testStackDir, ".terragrunt-stack", "networking")
+
+	err = hclparse.GenerateAutoIncludeFile(fs, resolved, stackDir, srcBytes, resolved.EvalCtx)
+	require.NoError(t, err)
+
+	generated, err := vfs.ReadFile(fs, filepath.Join(stackDir, hclparse.AutoIncludeStackFile))
+	require.NoError(t, err)
+
+	content := string(generated)
+	require.Contains(t, content, `tpl = "tpl/msg.tftpl"`)
+	assert.NotContains(t, content, "locals")
+}
+
 // TestAutoIncludeResolve_RejectsLocalsBlock verifies a locals block inside autoinclude is rejected for both kinds.
 func TestAutoIncludeResolve_RejectsLocalsBlock(t *testing.T) {
 	t.Parallel()
@@ -3205,4 +3417,17 @@ unit "app" {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `path`)
+}
+
+// markAsReadFuncs returns a mark_as_read function that returns its path argument.
+func markAsReadFuncs() map[string]function.Function {
+	return map[string]function.Function{
+		"mark_as_read": function.New(&function.Spec{
+			Params: []function.Parameter{{Name: "path", Type: cty.String}},
+			Type:   function.StaticReturnType(cty.String),
+			Impl: func(args []cty.Value, _ cty.Type) (cty.Value, error) {
+				return args[0], nil
+			},
+		}),
+	}
 }

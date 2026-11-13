@@ -174,6 +174,10 @@ func ParseStackFile(
 		return result, err
 	}
 
+	for _, resolved := range autoIncludes {
+		resolved.StackDir = input.StackDir
+	}
+
 	result.AutoIncludes = autoIncludes
 
 	return result, nil
