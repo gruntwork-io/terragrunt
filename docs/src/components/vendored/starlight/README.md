@@ -1,10 +1,12 @@
 # Vendored Starlight Components
 
-This directory contains components vendored from `@astrojs/starlight` version 0.35.2.
+This directory contains components vendored from `@astrojs/starlight`: the sidebar components from version 0.42.10, and the rest from version 0.35.2.
 
 ## Why Vendored?
 
 These components were vendored to add custom file tree icons for Terragrunt and OpenTofu file types, eliminating the need to patch the `@astrojs/starlight` dependency.
+
+The sidebar components let a long label such as `get_terraform_commands_that_need_parallelism` break only after an underscore, and indent its wrapped lines. Starlight renders a label as plain text, so it can't hold a `<wbr>`.
 
 ## Custom Icons
 
@@ -26,6 +28,11 @@ The following custom icons have been added to `file-tree-icons.ts` and `Icons.ts
 
 - **`Card.astro`** - Card component for displaying content with optional icons (vendored to support custom icons)
 - **`Icon.astro`** - Icon component for rendering SVG icons (vendored to use custom icon definitions)
+
+### Sidebar Components
+
+- **`Sidebar.astro`** - Overrides Starlight's `Sidebar` in `astro.config.mjs` to render the vendored `SidebarSublist`
+- **`SidebarSublist.astro`** - Renders the sidebar's links and groups (breaks labels after underscores, indents wrapped lines)
 
 ### Icon Registry
 
@@ -67,3 +74,5 @@ When upgrading `@astrojs/starlight`, check if there are changes to these compone
 - `node_modules/@astrojs/starlight/user-components/Card.astro`
 - `node_modules/@astrojs/starlight/user-components/Icon.astro`
 - `node_modules/@astrojs/starlight/components/Icons.ts`
+- `node_modules/@astrojs/starlight/dist/components/Sidebar.astro`
+- `node_modules/@astrojs/starlight/dist/components/SidebarSublist.astro`
