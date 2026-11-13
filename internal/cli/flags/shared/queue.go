@@ -7,6 +7,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
@@ -42,6 +44,17 @@ const (
 	// limits the queue to units that read the named file. Setting it evaluates its strict control.
 	UnitsThatIncludeFlagName = "units-that-include"
 )
+
+// NewSelectionFlags creates every flag that adds to opts.Filters, which select the stacks and units a
+// command acts on: the filter flags, the queue selection flags, and --units-that-include.
+func NewSelectionFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.Flags {
+	selectionFlags := clihelper.Flags{NewUnitsThatIncludeFlag(opts)}
+
+	selectionFlags = selectionFlags.Add(NewQueueSelectionFlags(opts, nil)...)
+	selectionFlags = selectionFlags.Add(NewFilterFlags(l, opts, v)...)
+
+	return selectionFlags
+}
 
 // NewUnitsThatIncludeFlag creates the hidden, deprecated flag that limits the queue to units that read the
 // named file.

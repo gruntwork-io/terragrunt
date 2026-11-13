@@ -56,6 +56,10 @@ func TestNewCommandExposesThePatchFlags(t *testing.T) {
 		shared.AllFlagName,
 		shared.FailFastFlagName,
 		shared.FilterFlagName,
+		shared.QueueExcludeDirFlagName,
+		shared.QueueIncludeDirFlagName,
+		shared.QueueExcludesFileFlagName,
+		shared.UnitsThatIncludeFlagName,
 		shared.ConfigFlagName,
 		shared.DownloadDirFlagName,
 		shared.TFPathFlagName,
@@ -79,7 +83,6 @@ func TestNewCommandExposesThePatchFlags(t *testing.T) {
 		shared.ReportFileFlagName,
 		shared.SummaryDisableFlagName,
 		shared.QueueIgnoreErrorsFlagName,
-		shared.QueueExcludeDirFlagName,
 		shared.NoAutoApproveFlagName,
 		shared.NoStackGenerateFlagName,
 		shared.ParallelismFlagName,
@@ -87,6 +90,53 @@ func TestNewCommandExposesThePatchFlags(t *testing.T) {
 	} {
 		assert.Nil(t, cmd.Flags.Get(name), "%s has no effect on a patch", name)
 	}
+}
+
+// TestNewCommandRejectsFlagsPatchDoesNotRead pins that a `run` flag with no effect on a patch is an error.
+func TestNewCommandRejectsFlagsPatchDoesNotRead(t *testing.T) {
+	t.Parallel()
+
+	for _, arg := range []string{
+		"--" + shared.ParallelismFlagName + "=1",
+		"--" + shared.ReportFileFlagName + "=report.json",
+		"--" + shared.QueueIgnoreErrorsFlagName,
+	} {
+		t.Run(arg, func(t *testing.T) {
+			t.Parallel()
+
+			fake := &fakeInit{}
+			v := fake.venv(t, map[string]string{"unit/terragrunt.hcl": "", "unit/main.tf": ""})
+
+			cmd := awsproviderpatch.NewCommand(logger.CreateLogger(), newOpts(t, v, "unit"), v, new(rewrite.Store))
+
+			err := runCommand(t, cmd, "--"+awsproviderpatch.OverrideAttrFlagName, regionOverride, arg)
+
+			require.ErrorAs(t, err, new(clihelper.UndefinedFlagError))
+			assert.Empty(t, fake.initDirs(), "nothing ran")
+		})
+	}
+}
+
+// TestNewCommandAllSkipsExcludedUnits pins that --all leaves a unit named by --queue-exclude-dir alone.
+func TestNewCommandAllSkipsExcludedUnits(t *testing.T) {
+	t.Parallel()
+
+	fake := &fakeInit{modulesJSON: modulesJSON, moduleFiles: map[string]string{"main.tf": moduleCode}}
+	v := fake.venv(t, map[string]string{
+		"a/terragrunt.hcl": "", "a/main.tf": "",
+		"b/terragrunt.hcl": "",
+	})
+
+	cmd := awsproviderpatch.NewCommand(logger.CreateLogger(), newOpts(t, v, ""), v, new(rewrite.Store))
+
+	require.NoError(t, runCommand(
+		t,
+		cmd,
+		"--"+shared.AllFlagName,
+		"--"+shared.QueueExcludeDirFlagName, "b",
+		"--"+awsproviderpatch.OverrideAttrFlagName, regionOverride,
+	))
+	assert.Len(t, fake.initDirs(), 1, "b has no OpenTofu files and fails if patched")
 }
 
 // TestNewCommandPatchesDownloadedModules pins that the command rewrites the AWS provider in modules init downloaded.
