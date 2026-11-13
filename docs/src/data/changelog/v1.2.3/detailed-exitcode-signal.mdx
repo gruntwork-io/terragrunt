@@ -1,0 +1,10 @@
+---
+version: "v1.2.3"
+category: "bug-fixes"
+---
+
+#### `-detailed-exitcode` no longer hides an OpenTofu/Terraform process killed by a signal
+
+With `-detailed-exitcode`, e.g. `terragrunt run -- plan -detailed-exitcode`, a `tofu` or `terraform` process killed by a signal, such as by the kernel's out-of-memory killer, made Terragrunt exit 0 with no error logged. Under `run --all`, the unit was reported as successful.
+
+Terragrunt now records exit code `1` for the unit and returns the error.

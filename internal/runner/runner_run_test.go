@@ -454,16 +454,26 @@ func TestRunnerRun_ReportsUnitOutcome(t *testing.T) {
 		name       string
 		wantResult report.Result
 		exitCode   int
+		wantCode   int
 		wantErr    bool
 	}{
 		{
 			name:       "plan with changes",
 			exitCode:   tf.DetailedExitCodeChanges,
+			wantCode:   tf.DetailedExitCodeChanges,
 			wantResult: report.ResultSucceeded,
 		},
 		{
 			name:       "plan that fails",
 			exitCode:   tf.DetailedExitCodeError,
+			wantCode:   tf.DetailedExitCodeError,
+			wantResult: report.ResultFailed,
+			wantErr:    true,
+		},
+		{
+			name:       "plan killed by a signal",
+			exitCode:   signaledExitStatus,
+			wantCode:   tf.DetailedExitCodeError,
 			wantResult: report.ResultFailed,
 			wantErr:    true,
 		},
@@ -501,7 +511,7 @@ func TestRunnerRun_ReportsUnitOutcome(t *testing.T) {
 			run, err := r.GetRun(vpc.Path())
 			require.NoError(t, err)
 			assert.Equal(t, tc.wantResult, run.Result)
-			assert.Equal(t, tc.exitCode, exitCodes.Get(vpc.Path()), "the unit exit code reaches the caller")
+			assert.Equal(t, tc.wantCode, exitCodes.Get(vpc.Path()), "the unit exit code reaches the caller")
 		})
 	}
 }
@@ -961,6 +971,9 @@ func (c *dirCalls) dirsUnder(dir string) []string {
 
 	return dirs
 }
+
+// signaledExitStatus is the exit status [syscall.WaitStatus.ExitStatus] reports for a process a signal killed.
+const signaledExitStatus = -1
 
 // exitStatusErr fails a fake OpenTofu/Terraform process with code, as an exited process does.
 type exitStatusErr struct {
