@@ -593,7 +593,12 @@ func DecodeTerragruntDependencies(
 	pctx *ParsingContext,
 	file *hclparse.File,
 ) (*TerragruntDependency, error) {
-	own, err := DecodeOwnDependencies(ctx, l, v, pctx, file)
+	evalCtx, err := CreateTerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath)
+	if err != nil {
+		return nil, err
+	}
+
+	own, err := DecodeOwnDependencies(ctx, l, v, pctx, file, evalCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -615,7 +620,8 @@ func DecodeTerragruntDependencies(
 	return &TerragruntDependency{Dependencies: merged}, nil
 }
 
-// DecodeOwnDependencies decodes the dependency blocks of file and folds in those of its sibling autoinclude.
+// DecodeOwnDependencies decodes the dependency blocks of file with evalCtx and folds in those of its sibling
+// autoinclude.
 //
 // Returns [DependencyInvalidConfigPathError] when an enabled block has no usable config_path, unless pctx skips
 // outputs.
@@ -625,19 +631,15 @@ func DecodeOwnDependencies(
 	v *venv.Venv,
 	pctx *ParsingContext,
 	file *hclparse.File,
+	evalCtx *hcl.EvalContext,
 ) (Dependencies, error) {
-	evalParsingContext, err := CreateTerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath)
-	if err != nil {
-		return nil, err
-	}
-
 	dependencies, err := DecodeDependencyBlocks(
 		ctx,
 		l,
 		v,
 		pctx,
 		file,
-		evalParsingContext,
+		evalCtx,
 	)
 	if err != nil {
 		return nil, err
@@ -2970,6 +2972,7 @@ func foldSiblingAutoIncludeDeps(
 		autoFile,
 		nil,
 		parsedIncludeFeatureFlags(v, autoPctx, IncludeParseFeatureFlags),
+		ParsedExposedInclude(v),
 	)
 	if err != nil {
 		return nil, err

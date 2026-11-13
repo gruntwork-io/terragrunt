@@ -2209,7 +2209,7 @@ func processLocals(
 		return err
 	}
 
-	evaluatedLocals, err := evaluateLocalsInOrder(ctx, l, v, parser, file, attrs)
+	evaluatedLocals, err := evaluateLocalsInOrder(ctx, l, v, parser, file, attrs, ParsedExposedInclude(v))
 	if err != nil {
 		l.Debugf(
 			"Encountered error while evaluating locals in file %s",
