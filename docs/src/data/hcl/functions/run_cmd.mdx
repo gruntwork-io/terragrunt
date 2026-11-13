@@ -1,0 +1,88 @@
+---
+name: run_cmd
+description: Runs a command and returns its stdout.
+configs: [unit, stack]
+params:
+  - name: args
+    type: string
+    variadic: true
+    description: The command, then its arguments. [Options](#options) go before the command.
+returns: string
+examples:
+  - code: |
+      # terragrunt.hcl
+
+      locals {
+        commit = run_cmd("git", "rev-parse", "--short", "HEAD") # "a1b2c3d"
+      }
+---
+
+`run_cmd` runs a command and returns what it prints to stdout, without the final newline. Terragrunt also prints the output, unless you pass [`--terragrunt-quiet`](#options). A command that exits with a non-zero status is an error.
+
+The command runs in the unit's directory, even from an included file. In a file read with [`read_terragrunt_config`](/reference/hcl/functions/read_terragrunt_config), it runs in that file's directory, and in a stack file, in the stack file's directory.
+
+Terragrunt runs the command without a shell, so `run_cmd("echo", "$HOME")` returns `$HOME`. For shell features such as variables and pipes, run a shell:
+
+```hcl
+# terragrunt.hcl
+
+locals {
+  bucket = run_cmd("sh", "-c", "./get_names.sh bucket | tr A-Z a-z")
+}
+```
+
+### Options
+
+Pass options before the command, in any order:
+
+| Option | Effect |
+| --- | --- |
+| `--terragrunt-quiet` | Doesn't print the output. The function still returns it. |
+| `--terragrunt-global-cache` | Shares the cached result across directories. |
+| `--terragrunt-no-cache` | Runs the command on every call. |
+
+`--terragrunt-quiet` keeps a secret out of Terragrunt's output. OpenTofu/Terraform still prints it unless the variable it's passed to is [sensitive](https://opentofu.org/docs/language/values/variables/):
+
+```hcl
+# terragrunt.hcl
+
+inputs = {
+  db_password = run_cmd("--terragrunt-quiet", "./decrypt.sh", "db")
+}
+```
+
+### Caching
+
+Terragrunt runs a command once per directory and set of arguments during a command, and reuses the result for later calls. A unit whose environment differs, e.g. through credentials from [`--auth-provider-cmd`](/features/units/authentication/#auth-provider-command), runs the command itself.
+
+A call with an argument that changes each time, such as `uuid()`, runs every time.
+
+For a command whose output doesn't depend on the directory, `--terragrunt-global-cache` runs it once for all units:
+
+```hcl
+# terragrunt.hcl
+
+locals {
+  account_id = run_cmd(
+    "--terragrunt-global-cache",
+    "aws", "sts", "get-caller-identity",
+    "--query", "Account", "--output", "text",
+  )
+}
+```
+
+For a command whose output changes, such as a timestamp or a token, `--terragrunt-no-cache` runs it on every call:
+
+```hcl
+# terragrunt.hcl
+
+locals {
+  session_token = run_cmd(
+    "--terragrunt-no-cache",
+    "--terragrunt-quiet",
+    "./generate-token.sh",
+  )
+}
+```
+
+Passing both `--terragrunt-global-cache` and `--terragrunt-no-cache` is an error.

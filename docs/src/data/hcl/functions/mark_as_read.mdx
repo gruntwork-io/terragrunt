@@ -1,0 +1,41 @@
+---
+name: mark_as_read
+description: Records a file as read by the unit and returns the path unchanged.
+configs: [unit, stack]
+params:
+  - name: file_path
+    type: string
+    description: The file to record. A relative path resolves from the unit's directory, even in an included file.
+returns: string
+examples:
+  - code: |
+      # terragrunt.hcl
+
+      locals {
+        config_path = mark_as_read("config/app.yaml") # "config/app.yaml"
+      }
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`mark_as_read` records a file as read without reading it, so [`--queue-include-units-reading`](/reference/cli/commands/run#queue-include-units-reading) and [`reading=` filters](/features/filter/attributes#reading-based-expressions) find the unit when the file changes. Functions that read files, such as `file` and [`read_tfvars_file`](/reference/hcl/functions/read_tfvars_file), record them already. Use `mark_as_read` for a file that something else reads, e.g. the module or a script that [`run_cmd`](/reference/hcl/functions/run_cmd) runs:
+
+```hcl
+# terragrunt.hcl
+
+locals {
+  policy_file = mark_as_read("${get_terragrunt_dir()}/policy.json")
+}
+
+inputs = {
+  policy_file = local.policy_file
+}
+```
+
+`terragrunt run --all --queue-include-units-reading policy.json -- plan` now includes this unit.
+
+<Aside type="caution">
+Call `mark_as_read` in `locals`. During `run --all`, Terragrunt builds the queue before it evaluates `inputs`, so a call in `inputs` doesn't affect which units run.
+</Aside>
+
+To record every file that matches a glob, use [`mark_glob_as_read`](/reference/hcl/functions/mark_glob_as_read).

@@ -1,69 +1,25 @@
-# Vendored Starlight Components
+# Vendored Starlight components
 
-This directory contains components vendored from `@astrojs/starlight` version 0.35.2.
+Copies of components from `@astrojs/starlight` 0.42.10, changed where Starlight has no option for what the docs need:
 
-## Why Vendored?
+- The file tree shows Terragrunt and OpenTofu icons for their files. Pages import `FileTree` from `@components/vendored/starlight/FileTree.astro` in place of Starlight's.
+- Sidebar labels break only after an underscore, and their wrapped lines are indented, so a name such as `get_terraform_commands_that_need_parallelism` doesn't break mid-word. Starlight renders a label as plain text, so it can't hold a `<wbr>`. `astro.config.mjs` registers `Sidebar.astro` as Starlight's `Sidebar`.
 
-These components were vendored to add custom file tree icons for Terragrunt and OpenTofu file types, eliminating the need to patch the `@astrojs/starlight` dependency.
+| File | Starlight source | Changes |
+| --- | --- | --- |
+| `FileTree.astro` | `src/user-components/FileTree.astro` | None |
+| `file-tree-processor.ts` | `src/user-components/file-tree-processor.ts` | Reads icons from `terragrunt-icons.ts` |
+| `file-tree-icons.ts` | `src/user-components/file-tree-icons.ts` | None |
+| `Icons.ts` | `src/components-internals/Icons.ts` | Import path |
+| `Sidebar.astro` | `src/components/Sidebar.astro` | Import paths |
+| `SidebarSublist.astro` | `src/components/SidebarSublist.astro` | Import paths, a local `hasCurrent` in place of Starlight's internal `sidebarGroupHasCurrent`, and label line breaks and indent |
 
-## Custom Icons
+`terragrunt-icons.ts` isn't from Starlight. It adds the `custom:terragrunt` icon for `.hcl` files, and the `custom:opentofu` icon for `.tf`, `.tf.json`, `.tfvars`, `.tfvars.json`, `.tfplan`, and `.terraform.lock.hcl` files.
 
-The following custom icons have been added to `file-tree-icons.ts` and `Icons.ts`:
+## License
 
-- **`.hcl`** → `custom:terragrunt` (Terragrunt logo)
-- **`.tf`, `.tf.json`, `.tfvars`, `.tfvars.json`** → `custom:opentofu` (OpenTofu logo)
-- **`.terraform.lock.hcl`, `.tfplan`** → `custom:opentofu` (OpenTofu logo)
+The copies from Starlight are under Starlight's MIT license, in `LICENSE`. The Seti UI icons in `file-tree-icons.ts` keep their own MIT notice in the file's header. `terragrunt-icons.ts` and the changes listed above belong to this repository.
 
-## Components
+## Upgrading
 
-### File Tree Components
-
-- **`FileTree.astro`** - Main FileTree component for rendering file/directory trees in documentation
-- **`rehype-file-tree.ts`** - Rehype plugin that processes FileTree markup
-- **`file-tree-icons.ts`** - Icon definitions and mappings for file types (includes custom icons)
-
-### Card Components
-
-- **`Card.astro`** - Card component for displaying content with optional icons (vendored to support custom icons)
-- **`Icon.astro`** - Icon component for rendering SVG icons (vendored to use custom icon definitions)
-
-### Icon Registry
-
-- **`Icons.ts`** - Icon registry and SVG path definitions (includes custom Terragrunt and OpenTofu icons)
-
-## Usage
-
-### FileTree Component
-
-```astro
-import FileTree from '@components/vendored/starlight/FileTree.astro';
-
-<FileTree>
-- src/
-  - main.tf
-  - variables.tf
-  - terragrunt.hcl
-- .terraform.lock.hcl
-</FileTree>
-```
-
-### Card Component
-
-```astro
-import Card from '@components/vendored/starlight/Card.astro';
-
-<Card title="Terragrunt Configuration" icon="custom:terragrunt">
-  Content goes here
-</Card>
-```
-
-## Maintenance
-
-When upgrading `@astrojs/starlight`, check if there are changes to these components that should be merged. The original components can be found at:
-
-- `node_modules/@astrojs/starlight/user-components/FileTree.astro`
-- `node_modules/@astrojs/starlight/user-components/rehype-file-tree.ts`
-- `node_modules/@astrojs/starlight/user-components/file-tree-icons.ts`
-- `node_modules/@astrojs/starlight/user-components/Card.astro`
-- `node_modules/@astrojs/starlight/user-components/Icon.astro`
-- `node_modules/@astrojs/starlight/components/Icons.ts`
+Copy each file from `packages/starlight/` at the new release's tag in [withastro/starlight](https://github.com/withastro/starlight), e.g. `@astrojs/starlight@0.42.10`. The npm package has only compiled JavaScript for the `.ts` files. Then reapply the changes in the table and update the version above.

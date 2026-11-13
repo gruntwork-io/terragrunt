@@ -26,6 +26,6 @@ locals {
 }
 ```
 
-`**` only collapses the surrounding separators when the adjacent segments are literals, so match-at-any-depth with a wildcard trailing segment is written as `{*.yaml,**/*.yaml}`. See the [HCL reference](/reference/hcl/functions/#mark_glob_as_read) for full pattern syntax.
+`**` only collapses the surrounding separators when the adjacent segments are literals, so match-at-any-depth with a wildcard trailing segment is written as `{*.yaml,**/*.yaml}`. See the [HCL reference](/reference/hcl/functions/mark_glob_as_read) for full pattern syntax.
 
 This is useful when a unit reads a collection of files indirectly (for example, via `run_cmd` or `templatefile`) and you want changes to any of them to trigger the unit through reading-based filters. Calling `mark_glob_as_read` without the experiment enabled returns an error.

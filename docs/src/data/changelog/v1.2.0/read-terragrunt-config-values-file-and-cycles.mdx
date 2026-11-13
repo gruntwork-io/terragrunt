@@ -5,7 +5,7 @@ category: "bug-fixes"
 
 #### Fixed `read_terragrunt_config` on suffixed values files and dependency cycles
 
-[`read_terragrunt_config`](/reference/hcl/functions#read_terragrunt_config) treated any file whose name ended in `terragrunt.values.hcl`, such as `prod.terragrunt.values.hcl`, as the values file of its directory. It returned the contents of the `terragrunt.values.hcl` next to it, or failed with `panic in function implementation: runtime error: invalid memory address or nil pointer dereference` when there was none.
+[`read_terragrunt_config`](/reference/hcl/functions/read_terragrunt_config) treated any file whose name ended in `terragrunt.values.hcl`, such as `prod.terragrunt.values.hcl`, as the values file of its directory. It returned the contents of the `terragrunt.values.hcl` next to it, or failed with `panic in function implementation: runtime error: invalid memory address or nil pointer dereference` when there was none.
 
 Only a file named exactly `terragrunt.values.hcl` is now read as a values file. A file such as `prod.terragrunt.values.hcl` is parsed as a Terragrunt configuration, so its attributes belong in blocks such as `locals`.
 

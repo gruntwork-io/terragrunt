@@ -1,0 +1,28 @@
+---
+name: get_terraform_commands_that_need_input
+description: Returns the OpenTofu/Terraform commands that accept `-input`.
+configs: [unit, stack]
+params: []
+returns: list(string)
+examples:
+  - code: |
+      # terragrunt.hcl
+
+      locals {
+        commands = get_terraform_commands_that_need_input()
+        # ["apply", "import", "init", "plan", "refresh"]
+      }
+---
+
+`get_terraform_commands_that_need_input` returns `apply`, `import`, `init`, `plan`, and `refresh`. Use it as the `commands` of an [`extra_arguments`](/reference/hcl/blocks/terraform#extra_arguments) block that passes `-input`, e.g. to fail instead of prompting for a variable with no value:
+
+```hcl
+# terragrunt.hcl
+
+terraform {
+  extra_arguments "disable_input" {
+    commands  = get_terraform_commands_that_need_input()
+    arguments = ["-input=false"]
+  }
+}
+```
