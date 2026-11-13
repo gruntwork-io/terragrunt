@@ -292,6 +292,8 @@ func (o *Options) RunWithErrorHandling(
 		if action.ShouldIgnore {
 			l.Warnf("Ignoring error, reason: %s", action.IgnoreMessage)
 
+			clearDetailedExitCodeError(ctx, filepath.Dir(o.OriginalTerragruntConfigPath))
+
 			if len(action.IgnoreSignals) > 0 {
 				if err := o.handleIgnoreSignals(l, fsys, action.IgnoreSignals); err != nil {
 					return err
@@ -376,4 +378,19 @@ func (o *Options) handleIgnoreSignals(l log.Logger, fsys vfs.FS, signals map[str
 	}
 
 	return nil
+}
+
+// clearDetailedExitCodeError replaces an error exit code recorded for unitDir in the context's
+// [tf.DetailedExitCodeMap] with [tf.DetailedExitCodeSuccess]. Any other recorded code is kept.
+func clearDetailedExitCodeError(ctx context.Context, unitDir string) {
+	exitCodes := tf.DetailedExitCodeFromContext(ctx)
+	if exitCodes == nil {
+		return
+	}
+
+	if exitCodes.Get(unitDir) != tf.DetailedExitCodeError {
+		return
+	}
+
+	exitCodes.Set(unitDir, tf.DetailedExitCodeSuccess)
 }

@@ -454,16 +454,26 @@ func TestRunnerRun_ReportsUnitOutcome(t *testing.T) {
 		name       string
 		wantResult report.Result
 		exitCode   int
+		wantCode   int
 		wantErr    bool
 	}{
 		{
 			name:       "plan with changes",
 			exitCode:   tf.DetailedExitCodeChanges,
+			wantCode:   tf.DetailedExitCodeChanges,
 			wantResult: report.ResultSucceeded,
 		},
 		{
 			name:       "plan that fails",
 			exitCode:   tf.DetailedExitCodeError,
+			wantCode:   tf.DetailedExitCodeError,
+			wantResult: report.ResultFailed,
+			wantErr:    true,
+		},
+		{
+			name:       "plan killed by a signal",
+			exitCode:   signaledExitStatus,
+			wantCode:   tf.DetailedExitCodeError,
 			wantResult: report.ResultFailed,
 			wantErr:    true,
 		},
@@ -501,7 +511,127 @@ func TestRunnerRun_ReportsUnitOutcome(t *testing.T) {
 			run, err := r.GetRun(vpc.Path())
 			require.NoError(t, err)
 			assert.Equal(t, tc.wantResult, run.Result)
-			assert.Equal(t, tc.exitCode, exitCodes.Get(vpc.Path()), "the unit exit code reaches the caller")
+			assert.Equal(t, tc.wantCode, exitCodes.Get(vpc.Path()), "the unit exit code reaches the caller")
+		})
+	}
+}
+
+// TestRunnerRun_IgnoredErrorDetailedExitCode pins the aggregate `-detailed-exitcode` exit code when an `errors`
+// block ignores a unit's error.
+func TestRunnerRun_IgnoredErrorDetailedExitCode(t *testing.T) {
+	t.Parallel()
+
+	const (
+		failingHook   = "failing-hook"
+		knownSafeErr  = "Error: Known safe error\n"
+		ignoredUnit   = "ignored"
+		changedUnit   = "changed"
+		hookErrorUnit = "hook-error"
+	)
+
+	const ignoreKnownSafe = `
+errors {
+  ignore "known_safe" {
+    ignorable_errors = [".*Known safe error.*"]
+  }
+}
+`
+
+	const ignoreFailingHook = `
+terraform {
+  after_hook "fail" {
+    commands = ["plan"]
+    execute  = ["` + failingHook + `"]
+  }
+}
+
+errors {
+  ignore "hook_failure" {
+    ignorable_errors = [".*"]
+  }
+}
+`
+
+	testCases := []struct {
+		units     map[string]string
+		planCodes map[string]int
+		name      string
+		want      int
+	}{
+		{
+			name:      "ignored plan error",
+			units:     map[string]string{ignoredUnit: ignoreKnownSafe},
+			planCodes: map[string]int{ignoredUnit: tf.DetailedExitCodeError},
+			want:      tf.DetailedExitCodeSuccess,
+		},
+		{
+			name: "ignored plan error beside a unit with changes",
+			units: map[string]string{
+				ignoredUnit: ignoreKnownSafe,
+				changedUnit: "",
+			},
+			planCodes: map[string]int{
+				ignoredUnit: tf.DetailedExitCodeError,
+				changedUnit: tf.DetailedExitCodeChanges,
+			},
+			want: tf.DetailedExitCodeChanges,
+		},
+		{
+			name:      "ignored hook error after a plan with changes",
+			units:     map[string]string{hookErrorUnit: ignoreFailingHook},
+			planCodes: map[string]int{hookErrorUnit: tf.DetailedExitCodeChanges},
+			want:      tf.DetailedExitCodeChanges,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v := venv.MemVenv().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+				if inv.Name == failingHook {
+					return vexec.Result{Err: exitStatusErr{code: 1}}
+				}
+
+				if !slices.Contains(inv.Args, tf.FlagNameDetailedExitCode) {
+					return vexec.Result{Stdout: []byte(tfVersionOutput + "\n")}
+				}
+
+				for name, code := range tc.planCodes {
+					if !strings.HasPrefix(inv.Dir, filepath.Join(memRoot, name)) {
+						continue
+					}
+
+					if code == tf.DetailedExitCodeError {
+						return vexec.Result{Stderr: []byte(knownSafeErr), Err: exitStatusErr{code: code}}
+					}
+
+					return vexec.Result{Err: exitStatusErr{code: code}}
+				}
+
+				return vexec.Result{Err: errors.New("plan ran outside the test units, in " + inv.Dir)}
+			})
+
+			units := make(component.Components, 0, len(tc.units))
+
+			for name, hcl := range tc.units {
+				units = append(units, newTestUnit(t, v, memRoot, name, hcl))
+			}
+
+			opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
+			opts.TerraformCliArgs = iacargs.New(tf.CommandNamePlan, tf.FlagNameDetailedExitCode)
+
+			l := thlogger.CreateLogger()
+
+			rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, units)
+			require.NoError(t, err)
+
+			exitCodes := tf.NewDetailedExitCodeMap()
+			ctx := tf.ContextWithDetailedExitCode(config.WithCaches(t.Context()), exitCodes)
+			r := report.NewReport().WithWorkingDir(memRoot)
+
+			require.NoError(t, rnr.Run(ctx, l, v, new(rewrite.Store), opts, r))
+			assert.Equal(t, tc.want, exitCodes.GetFinalDetailedExitCode())
 		})
 	}
 }
@@ -961,6 +1091,9 @@ func (c *dirCalls) dirsUnder(dir string) []string {
 
 	return dirs
 }
+
+// signaledExitStatus is the exit status [syscall.WaitStatus.ExitStatus] reports for a process a signal killed.
+const signaledExitStatus = -1
 
 // exitStatusErr fails a fake OpenTofu/Terraform process with code, as an exited process does.
 type exitStatusErr struct {
