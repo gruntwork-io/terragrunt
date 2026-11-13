@@ -1,0 +1,28 @@
+---
+name: get_terraform_commands_that_need_locking
+description: Returns the OpenTofu/Terraform commands that accept `-lock-timeout`.
+configs: [unit, stack]
+params: []
+returns: list(string)
+examples:
+  - code: |
+      # terragrunt.hcl
+
+      locals {
+        commands = get_terraform_commands_that_need_locking()
+        # ["apply", "destroy", "import", "plan", "refresh", "taint", "untaint"]
+      }
+---
+
+`get_terraform_commands_that_need_locking` returns `apply`, `destroy`, `import`, `plan`, `refresh`, `taint`, and `untaint`. Use it as the `commands` of an [`extra_arguments`](/reference/hcl/blocks/terraform#extra_arguments) block that passes `-lock-timeout`, e.g. to wait up to 20 minutes for another run's state lock:
+
+```hcl
+# terragrunt.hcl
+
+terraform {
+  extra_arguments "retry_lock" {
+    commands  = get_terraform_commands_that_need_locking()
+    arguments = ["-lock-timeout=20m"]
+  }
+}
+```

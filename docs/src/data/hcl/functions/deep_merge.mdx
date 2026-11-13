@@ -1,0 +1,45 @@
+---
+name: deep_merge
+description: Merges maps and objects, including nested ones, into one object.
+configs: [unit, stack]
+params:
+  - name: maps
+    type: any
+    variadic: true
+    description: The maps or objects to merge, in order. `null` arguments are skipped, and any other type is an error.
+returns: object
+examples:
+  - code: |
+      # terragrunt.hcl
+
+      locals {
+        config = deep_merge(
+          { service = { retries = 1, mode = "safe" }, ports = [80] },
+          { service = { retries = 3 }, ports = [443] },
+        )
+        # { service = { retries = 3, mode = "safe" }, ports = [80, 443] }
+      }
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip" title="Experimental">
+`deep_merge` needs the [`deep-merge`](/reference/experiments/active#deep-merge) experiment. Enable it with `--experiment=deep-merge` or `TG_EXPERIMENT=deep-merge`. Calling it without the experiment is an error. Its behavior may change while the experiment runs.
+</Aside>
+
+`deep_merge` merges its arguments from first to last. When two arguments set the same key, the later value wins, except that nested maps merge key by key and lists are appended. OpenTofu's `merge` replaces a nested map whole.
+
+To merge every JSON file in the unit's directory into its inputs, expand a list into arguments with `...`:
+
+```hcl
+# terragrunt.hcl
+
+locals {
+  json_files = sort(fileset(get_terragrunt_dir(), "*.json"))
+  config = deep_merge([
+    for f in local.json_files : jsondecode(file("${get_terragrunt_dir()}/${f}"))
+  ]...)
+}
+
+inputs = local.config
+```

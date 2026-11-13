@@ -1,0 +1,94 @@
+---
+name: read_terragrunt_config
+description: Parses a Terragrunt configuration file and returns its blocks and attributes.
+configs: [unit, stack]
+params:
+  - name: config_path
+    type: string
+    description: The file to parse. It can be a unit file, a file units include, a `terragrunt.stack.hcl`, or a `terragrunt.values.hcl`.
+  - name: default_val
+    type: any
+    optional: true
+    description: The value to return when the file doesn't exist. Without it, a missing file is an error.
+returns: object
+examples:
+  - code: |
+      # terragrunt.hcl
+
+      locals {
+        env = read_terragrunt_config(find_in_parent_folders("env.hcl"))
+      }
+
+      inputs = {
+        env = local.env.locals.name
+      }
+---
+
+`read_terragrunt_config` returns an object with a key for each block and attribute in the file, e.g. `locals`, `inputs`, and `dependency`. Use it to share values among units without an `include`:
+
+```hcl
+# common.hcl
+
+inputs = {
+  stack_name = "staging"
+  account_id = "123456789012"
+}
+```
+
+```hcl
+# app/terragrunt.hcl
+
+locals {
+  common = read_terragrunt_config(find_in_parent_folders("common.hcl"))
+}
+
+inputs = merge(local.common.inputs, {
+  instance_type = "t3.micro"
+})
+```
+
+The file can't see the locals or feature flags of the unit reading it, and relative paths in it resolve from its own directory. To get the reading unit's directory in the file, use [`get_original_terragrunt_dir`](/reference/hcl/functions/get_original_terragrunt_dir).
+
+To read a file only when it exists, pass a default:
+
+```hcl
+# terragrunt.hcl
+
+locals {
+  overrides = read_terragrunt_config("overrides.hcl", { inputs = {} })
+}
+
+inputs = local.overrides.inputs
+```
+
+### Dependency outputs
+
+Terragrunt resolves the file's `dependency` blocks, so the object has their outputs:
+
+```hcl
+# common_deps.hcl
+
+dependency "vpc" {
+  config_path = "${get_terragrunt_dir()}/../vpc"
+}
+```
+
+```hcl
+# app/terragrunt.hcl
+
+locals {
+  deps = read_terragrunt_config(find_in_parent_folders("common_deps.hcl"))
+}
+
+inputs = {
+  vpc_id = local.deps.dependency.vpc.outputs.vpc_id
+}
+```
+
+### Caching
+
+Terragrunt parses the file once and gives every unit the same result. It parses the file again when the file, or a file it reads, changes during the command, and `run --all` parses it a second time when the run starts, after discovering units.
+
+Terragrunt parses the file for each unit if the file has `dependency` blocks or calls [`get_original_terragrunt_dir`](/reference/hcl/functions/get_original_terragrunt_dir), [`get_working_dir`](/reference/hcl/functions/get_working_dir), `uuid`, `timestamp`, `bcrypt`, or [`run_cmd`](/reference/hcl/functions/run_cmd) with `--terragrunt-no-cache`. The same goes for any file that reads one of those.
+
+An [auth provider command](/features/units/authentication/#auth-provider-command) runs for each unit and can set different environment variables for each one, such as its own credentials. Units whose environment variables differ get separate results.

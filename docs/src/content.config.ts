@@ -214,6 +214,8 @@ const hclFunctions = defineCollection({
 			name: z.string(),
 			type: z.string(),
 			optional: z.boolean().default(false),
+			// Takes any number of arguments in its place.
+			variadic: z.boolean().optional(),
 			description: z.string(),
 		})),
 		returns: z.string(),

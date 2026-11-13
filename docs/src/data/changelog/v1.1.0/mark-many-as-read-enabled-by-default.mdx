@@ -14,7 +14,7 @@ When a unit's source is a local module, Terragrunt now records the module's `*.t
 terragrunt run --all --filter 'reading=./modules/vpc/main.tf' -- plan
 ```
 
-For files that reading detection doesn't track on its own, the new [`mark_glob_as_read()`](/reference/hcl/functions#mark_glob_as_read) HCL function expands a glob and marks every matching file as read in one call:
+For files that reading detection doesn't track on its own, the new [`mark_glob_as_read()`](/reference/hcl/functions/mark_glob_as_read) HCL function expands a glob and marks every matching file as read in one call:
 
 ```hcl
 locals {

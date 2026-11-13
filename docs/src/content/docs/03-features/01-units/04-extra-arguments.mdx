@@ -56,7 +56,7 @@ $ terragrunt apply
 # tofu apply -lock-timeout=20m
 ```
 
-You can even use built-in functions such as [`get_terraform_commands_that_need_locking`](/reference/hcl/functions/#get_terraform_commands_that_need_locking) to conveniently populate the list of OpenTofu/Terraform commands that need locking:
+You can even use built-in functions such as [`get_terraform_commands_that_need_locking`](/reference/hcl/functions/get_terraform_commands_that_need_locking) to conveniently populate the list of OpenTofu/Terraform commands that need locking:
 
 ``` hcl
 # terragrunt.hcl
@@ -72,10 +72,10 @@ terraform {
 
 Terragrunt provides four similar helper functions for populating the `commands` list:
 
-- [`get_terraform_commands_that_need_locking`](/reference/hcl/functions/#get_terraform_commands_that_need_locking)
-- [`get_terraform_commands_that_need_vars`](/reference/hcl/functions/#get_terraform_commands_that_need_vars)
-- [`get_terraform_commands_that_need_input`](/reference/hcl/functions/#get_terraform_commands_that_need_input)
-- [`get_terraform_commands_that_need_parallelism`](/reference/hcl/functions/#get_terraform_commands_that_need_parallelism)
+- [`get_terraform_commands_that_need_locking`](/reference/hcl/functions/get_terraform_commands_that_need_locking)
+- [`get_terraform_commands_that_need_vars`](/reference/hcl/functions/get_terraform_commands_that_need_vars)
+- [`get_terraform_commands_that_need_input`](/reference/hcl/functions/get_terraform_commands_that_need_input)
+- [`get_terraform_commands_that_need_parallelism`](/reference/hcl/functions/get_terraform_commands_that_need_parallelism)
 
 ## Multiple extra_arguments blocks
 

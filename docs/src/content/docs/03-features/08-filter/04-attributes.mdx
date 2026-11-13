@@ -82,8 +82,8 @@ read the file `shared.hcl`. This hook is used by all native HCL functions that T
 
 Note, however, that there are certain scenarios where Terragrunt may not be able to track that a file has been read this way.
 
-For example, you may be using a bash script to read a file via [`run_cmd`](/reference/hcl/functions/#run_cmd), or reading the file via OpenTofu/Terraform code. To support these
-use-cases, the [`mark_as_read`](/reference/hcl/functions/#mark_as_read) function can be used to explicitly mark a file as read in the unit.
+For example, you may be using a bash script to read a file via [`run_cmd`](/reference/hcl/functions/run_cmd), or reading the file via OpenTofu/Terraform code. To support these
+use-cases, the [`mark_as_read`](/reference/hcl/functions/mark_as_read) function can be used to explicitly mark a file as read in the unit.
 
 That would look something like this:
 
@@ -104,7 +104,7 @@ Due to how Terragrunt parses configurations during `run --all`, functions will o
 Reading a file directly in the `inputs` attribute will not mark the file as read, as the `inputs` attribute is not parsed until after the queue has already been populated to support rendering of dependency outputs, which are only available after dependencies have been run.
 </Aside>
 
-To mark many files at once, use [`mark_glob_as_read`](/reference/hcl/functions/#mark_glob_as_read), which accepts a glob (with `**` support) and marks every matching file.
+To mark many files at once, use [`mark_glob_as_read`](/reference/hcl/functions/mark_glob_as_read), which accepts a glob (with `**` support) and marks every matching file.
 
 If a unit's `terraform` block points at a local module source, Terragrunt automatically marks that module's `*.tf`, `*.tf.json`, `*.hcl`, `*.tofu`, and `*.tofu.json` files as read. Reading-based filters cascade local module changes to every unit that consumes the module.
 

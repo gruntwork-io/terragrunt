@@ -1,0 +1,87 @@
+---
+name: mark_glob_as_read
+description: Records every file that matches a glob as read by the unit and returns their absolute paths.
+configs: [unit, stack]
+params:
+  - name: pattern
+    type: string
+    description: The glob to expand. A relative pattern resolves from the unit's directory. To set the [boundary](#boundary), pass `--terragrunt-boundary=<dir>` before it.
+returns: list(string)
+examples:
+  - code: |
+      # terragrunt.hcl
+
+      locals {
+        configs = mark_glob_as_read("${get_terragrunt_dir()}/config/*.yaml")
+        # ["/home/me/infra/app/config/a.yaml",
+        #  "/home/me/infra/app/config/b.yaml"]
+      }
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`mark_glob_as_read` records each matching file as read, like [`mark_as_read`](/reference/hcl/functions/mark_as_read), so [`reading=` filters](/features/filter/attributes#reading-based-expressions) such as `--filter 'reading=./config/**'` find the unit when any of them changes. It returns the matches as absolute paths, or an empty list when nothing matches:
+
+```hcl
+# terragrunt.hcl
+
+locals {
+  configs = mark_glob_as_read(
+    "${get_terragrunt_dir()}/config/{*.yaml,**/*.yaml}",
+  )
+}
+
+inputs = {
+  configs = [for f in local.configs : yamldecode(file(f))]
+}
+```
+
+<Aside type="caution">
+Call `mark_glob_as_read` in `locals`. During `run --all`, Terragrunt builds the queue before it evaluates `inputs`, so a call in `inputs` doesn't affect which units run.
+</Aside>
+
+### Pattern syntax
+
+Patterns follow [`gobwas/glob`](https://github.com/gobwas/glob):
+
+- `*` matches within one path segment.
+- `**` matches any sequence of characters, including `/`.
+- `?` matches one character other than `/`.
+- `[abc]` matches one character in the class.
+- `{a,b}` matches any of the alternatives.
+- `\` escapes the next character.
+
+Separate path segments with `/`, even on Windows, since `\` escapes.
+
+`**` stands for directories only between literal segments. `config/**/*.yaml` matches files in subdirectories of `config`, but not files directly in it. Use `config/{*.yaml,**/*.yaml}` for both.
+
+### Boundary
+
+`mark_glob_as_read` fails when a pattern starts outside its boundary directory, so a pattern built from an empty value can't scan the whole filesystem. For example, `"${local.dir}/{*.yaml}"` becomes `/{*.yaml}` when `local.dir` is `""`. The boundary is the root of the Git repository, and outside a Git repository there is none.
+
+To set the boundary, pass `--terragrunt-boundary` first. A relative directory resolves from the unit's directory:
+
+```hcl
+# terragrunt.hcl
+
+locals {
+  # Allow only files under /etc/terragrunt.
+  scoped = mark_glob_as_read(
+    "--terragrunt-boundary=/etc/terragrunt",
+    "/etc/terragrunt/{*.yaml}",
+  )
+
+  # Allow any directory.
+  everything = mark_glob_as_read("--terragrunt-boundary=/", "/{*.yaml}")
+}
+```
+
+HCL evaluates both branches of a `? :` conditional, so a guard such as `local.dir != "" ? mark_glob_as_read(...) : []` doesn't skip the call. Wrap the call in [`try`](https://opentofu.org/docs/language/functions/try/) to fall back when it fails:
+
+```hcl
+# terragrunt.hcl
+
+locals {
+  files = sort(try(mark_glob_as_read("${local.dir}/{*.yaml,*.yml,*.json}"), []))
+}
+```

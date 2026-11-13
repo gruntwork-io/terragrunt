@@ -1,0 +1,25 @@
+---
+name: get_aws_caller_identity_arn
+description: Returns the ARN of the AWS identity behind Terragrunt's credentials.
+configs: [unit, stack]
+params: []
+returns: string
+examples:
+  - code: |
+      # terragrunt.hcl
+
+      inputs = {
+        caller_arn = get_aws_caller_identity_arn()
+        # "arn:aws:iam::123456789012:user/deploy"
+      }
+---
+
+`get_aws_caller_identity_arn` asks AWS STS for the ARN of the user or role the current credentials belong to, and fails when Terragrunt has no AWS credentials. For an assumed role, the ARN names the session, e.g. `arn:aws:sts::123456789012:assumed-role/deploy/my-session`. Once Terragrunt has evaluated the unit's [`iam_role`](/reference/hcl/attributes/iam_role), it asks with that role, so a call evaluated before and after it can return different ARNs.
+
+```hcl
+# terragrunt.hcl
+
+inputs = {
+  admin_arns = [get_aws_caller_identity_arn()]
+}
+```

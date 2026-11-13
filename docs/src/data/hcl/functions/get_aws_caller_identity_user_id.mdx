@@ -1,0 +1,24 @@
+---
+name: get_aws_caller_identity_user_id
+description: Returns the unique ID of the AWS identity behind Terragrunt's credentials.
+configs: [unit, stack]
+params: []
+returns: string
+examples:
+  - code: |
+      # terragrunt.hcl
+
+      inputs = {
+        caller_user_id = get_aws_caller_identity_user_id()
+      }
+---
+
+`get_aws_caller_identity_user_id` asks AWS STS for the `UserId` of the user or role the current credentials belong to, and fails when Terragrunt has no AWS credentials. For an assumed role, the ID ends with the session name after a colon. Once Terragrunt has evaluated the unit's [`iam_role`](/reference/hcl/attributes/iam_role), it asks with that role, so a call evaluated before and after it can return different IDs.
+
+```hcl
+# terragrunt.hcl
+
+inputs = {
+  allowed_user_ids = [get_aws_caller_identity_user_id()]
+}
+```

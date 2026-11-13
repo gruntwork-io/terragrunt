@@ -61,6 +61,14 @@ describe('functionSignature', () => {
 		}).data;
 		expect(functionSignature(data)).toBe('get_env(name: string, [default: string]) --> string');
 	});
+
+	test('prefixes variadic parameters with an ellipsis', () => {
+		const data = functionEntry({
+			name: 'run_cmd',
+			params: [{ name: 'args', type: 'string', optional: false, variadic: true, description: '' }],
+		}).data;
+		expect(functionSignature(data)).toBe('run_cmd(...args: string) --> string');
+	});
 });
 
 describe('itemHeadings', () => {
