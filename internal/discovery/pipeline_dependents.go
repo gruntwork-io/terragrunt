@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -32,10 +33,14 @@ type boundaryUnit struct {
 
 // linksDependentsToBoundary reports whether the dependents of the graph target c come from
 // [GraphPhase.linkDependentsToBoundaries] in place of [GraphPhase.discoverDependentsUpstream]. They do when the
-// pipeline read the dependencies and c was found in the working directory of the discovery.
+// pipeline read the dependencies and c was found in a Git worktree or in the working directory of the discovery.
 func (p *GraphPhase) linksDependentsToBoundary(state *graphTraversalState, c component.Component) bool {
-	if p.relations == nil || isWorktreeComponent(c) {
+	if p.relations == nil {
 		return false
+	}
+
+	if isWorktreeComponent(c) {
+		return true
 	}
 
 	dctx := c.DiscoveryContext()
@@ -73,26 +78,45 @@ func (p *GraphPhase) linkDependentsToBoundaries(
 			continue
 		}
 
-		start, boundary, err := dependentWalkScope(v.FS, state.discovery, target.Component, graphExpr)
+		walk, err := dependentWalkOf(l, v.FS, state.discovery, target.Component, graphExpr)
 		if err != nil {
 			errs = append(errs, err)
 
 			continue
 		}
 
-		walk := dependentWalk{start: start, boundary: boundary}
-		if _, done := walked[walk]; done || boundary == "" {
+		if _, done := walked[walk]; done || walk.boundary == "" {
 			continue
 		}
 
 		walked[walk] = struct{}{}
 
-		l.Debugf("Linking dependents from %s to boundary %s", start, boundary)
+		l.Debugf("Linking dependents from %s to boundary %s", walk.start, walk.boundary)
 
 		errs = append(errs, p.linkUnitsOf(ctx, l, v, state, walk, target.Component)...)
 	}
 
 	return errs
+}
+
+// dependentWalkOf returns the walk that finds the dependents of c for graphExpr, which has no boundary when there is
+// nowhere to search. A component found in a Git worktree is searched for in that worktree only.
+func dependentWalkOf(
+	l log.Logger,
+	fsys vfs.FS,
+	d *Discovery,
+	c component.Component,
+	graphExpr *filter.GraphExpressionInfo,
+) (dependentWalk, error) {
+	if isWorktreeComponent(c) {
+		root, err := worktreeDependentRoot(l, fsys, d, c, graphExpr)
+
+		return dependentWalk{start: root, boundary: root}, err
+	}
+
+	start, boundary, err := dependentWalkScope(fsys, d, c, graphExpr)
+
+	return dependentWalk{start: start, boundary: boundary}, err
 }
 
 // linkUnitsOf links each unit walk finds to its dependencies. A unit discovery did not hold yet takes its discovery

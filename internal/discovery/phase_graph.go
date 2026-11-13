@@ -228,12 +228,12 @@ func (p *GraphPhase) processGraphTarget(
 			return err
 		}
 
-		if isWorktreeComponent(c) {
-			return p.discoverWorktreeDependents(ctx, l, v, s, state, c, graphExpr, depth)
-		}
-
 		if p.linksDependentsToBoundary(state, c) {
 			return nil
+		}
+
+		if isWorktreeComponent(c) {
+			return p.discoverWorktreeDependents(ctx, l, v, s, state, c, graphExpr, depth)
 		}
 
 		startDir, boundaryRoot, err := dependentWalkScope(v.FS, state.discovery, c, graphExpr)
@@ -370,19 +370,37 @@ func (p *GraphPhase) discoverWorktreeDependents(
 	graphExpr *filter.GraphExpressionInfo,
 	depth int,
 ) error {
-	root := state.discovery.evaluationContext().TargetBoundary(graphExpr.Dependents, c)
-	if root == "" {
-		root = c.DiscoveryContext().WorkingDir
-	}
-
-	if _, ok, err := WorktreeWalkRoot(v.FS, root, ""); err != nil || !ok {
-		l.Debugf("Boundary %s is not a directory at %s; no dependents of %s there", root, c.DiscoveryContext().Ref, c.Path())
+	root, err := worktreeDependentRoot(l, v.FS, state.discovery, c, graphExpr)
+	if err != nil || root == "" {
 		return err
 	}
 
 	l.Debugf("Starting worktree dependent discovery for %s within %s", c.Path(), root)
 
 	return p.discoverDependentsUpstream(ctx, l, v, s, state, c, newStringSet(), root, root, depth)
+}
+
+// worktreeDependentRoot returns the directory of the Git worktree of c that the search for its dependents covers:
+// the dependent boundary of graphExpr there, or the whole worktree without one. It is empty when the boundary is
+// not a directory at the ref of c.
+func worktreeDependentRoot(
+	l log.Logger,
+	fsys vfs.FS,
+	d *Discovery,
+	c component.Component,
+	graphExpr *filter.GraphExpressionInfo,
+) (string, error) {
+	root := d.evaluationContext().TargetBoundary(graphExpr.Dependents, c)
+	if root == "" {
+		root = c.DiscoveryContext().WorkingDir
+	}
+
+	if _, ok, err := WorktreeWalkRoot(fsys, root, ""); err != nil || !ok {
+		l.Debugf("Boundary %s is not a directory at %s; no dependents of %s there", root, c.DiscoveryContext().Ref, c.Path())
+		return "", err
+	}
+
+	return root, nil
 }
 
 // discoverDependencies recursively discovers dependencies of a component.
