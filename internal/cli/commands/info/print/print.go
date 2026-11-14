@@ -12,6 +12,7 @@ import (
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/discoverysetup"
+	runcmd "github.com/gruntwork-io/terragrunt/internal/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
@@ -62,12 +63,18 @@ func runPrint(
 		// Even on error, try to print what info we have
 		l.Debugf("Fetching info with error: %v", err)
 
+		if partialCfg, partialErr := runcmd.ParseVersionCheckConfig(ctx, l, v, opts); partialErr == nil {
+			opts.SetTFPathFromConfig(partialCfg.TerraformBinary)
+		}
+
 		if printErr := printTerragruntContext(l, v, opts, layout); printErr != nil {
 			l.Errorf("Error printing info: %v", printErr)
 		}
 
 		return nil
 	}
+
+	opts.SetTFPathFromConfig(prepared.Cfg.TerraformBinary)
 
 	// Download source
 	updatedOpts, _, err := prepare.PrepareSource(

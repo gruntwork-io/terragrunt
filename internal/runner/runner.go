@@ -533,9 +533,7 @@ func (rnr *Runner) Run(
 					return err
 				}
 
-				if !unitOpts.TFPathExplicitlySet && cfg.TerraformBinary != "" {
-					unitOpts.TFPath = cfg.TerraformBinary
-				}
+				unitOpts.SetTFPathFromConfig(cfg.TerraformBinary)
 
 				engineConfig, err := cfg.EngineOptions()
 				if err != nil {

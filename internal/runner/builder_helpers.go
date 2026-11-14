@@ -256,9 +256,7 @@ func CheckUnitVersionConstraints(
 		}
 	}
 
-	if !unitOpts.TFPathExplicitlySet && unitConfig.TerraformBinary != "" {
-		unitOpts.TFPath = unitConfig.TerraformBinary
-	}
+	unitOpts.SetTFPathFromConfig(unitConfig.TerraformBinary)
 
 	if unitLogger != nil {
 		l = unitLogger

@@ -96,6 +96,40 @@ func TestInfoPrintAllReportsEachUnitsContext(t *testing.T) {
 	}
 }
 
+// TestInfoPrintReportsTGTFPathOverTerraformBinary pins that TG_TF_PATH names
+// the binary reported for a unit whose config sets terraform_binary.
+func TestInfoPrintReportsTGTFPathOverTerraformBinary(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		args []string
+	}{
+		{name: "single unit", args: []string{"info", "print", "--working-dir", filepath.Join(unitRoot, "a")}},
+		{name: "all units", args: []string{"info", "print", "--all", "--working-dir", unitRoot}},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v := venv.MemVenv().
+				WithEnv(map[string]string{"TG_TF_PATH": "/fake/bin/tofu-env"}).
+				WithFS(venvtest.NewFS(t, unitRoot, map[string]string{
+					"a/terragrunt.hcl": `terraform_binary = "/fake/bin/tofu-a"`,
+				}))
+
+			out, err := runCLI(t, v, tc.args...)
+			require.NoError(t, err)
+
+			var info print.InfoOutput
+
+			require.NoError(t, json.Unmarshal([]byte(out), &info))
+			assert.Equal(t, "/fake/bin/tofu-env", info.TerraformBinary)
+		})
+	}
+}
+
 func infoPrintUnits(t *testing.T) *venv.Venv {
 	t.Helper()
 
