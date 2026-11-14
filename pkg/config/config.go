@@ -25,6 +25,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/hclhelper"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
@@ -388,7 +389,7 @@ func localsBlock(locals map[string]any, asCty cty.Value) *hclwrite.Block {
 	body := block.Body()
 
 	for name := range locals {
-		body.SetAttributeValue(name, asCty.GetAttr(name))
+		body.SetAttributeRaw(name, hclhelper.TokensForValue(asCty.GetAttr(name)))
 	}
 
 	return block
@@ -465,7 +466,7 @@ func extraArgumentsBlock(arg *TerraformExtraArguments, asCty cty.Value) *hclwrit
 	}
 
 	if arg.EnvVars != nil {
-		body.SetAttributeValue("env_vars", asCty.GetAttr("env_vars"))
+		body.SetAttributeRaw("env_vars", hclhelper.TokensForValue(asCty.GetAttr("env_vars")))
 	}
 
 	return block
@@ -530,7 +531,7 @@ func remoteStateBlock(state *remotestate.RemoteState, asCty cty.Value) *hclwrite
 	}
 
 	if state.BackendConfig != nil {
-		body.SetAttributeValue("config", asCty.GetAttr("config"))
+		body.SetAttributeRaw("config", hclhelper.TokensForValue(asCty.GetAttr("config")))
 	}
 
 	return block
@@ -606,7 +607,7 @@ func featureBlock(flag *FeatureFlag, asCty cty.Value) *hclwrite.Block {
 	block := hclwrite.NewBlock("feature", []string{flag.Name})
 
 	if flag.Default != nil {
-		block.Body().SetAttributeValue("default", asCty.GetAttr("default"))
+		block.Body().SetAttributeRaw("default", hclhelper.TokensForValue(asCty.GetAttr("default")))
 	}
 
 	return block
@@ -630,7 +631,7 @@ func engineBlock(engine *EngineConfig, asCty cty.Value) *hclwrite.Block {
 	}
 
 	if engine.Meta != nil {
-		body.SetAttributeValue("meta", asCty.GetAttr("meta"))
+		body.SetAttributeRaw("meta", hclhelper.TokensForValue(asCty.GetAttr("meta")))
 	}
 
 	return block
@@ -726,7 +727,7 @@ func ignoreBlock(ignore *IgnoreBlock) *hclwrite.Block {
 	}
 
 	if ignore.Signals != nil {
-		body.SetAttributeValue("signals", cty.MapVal(ignore.Signals))
+		body.SetAttributeRaw("signals", hclhelper.TokensForValue(cty.MapVal(ignore.Signals)))
 	}
 
 	return block
@@ -756,7 +757,7 @@ func outputsBlock(outputs *OutputsConfig) *hclwrite.Block {
 
 		if output.MockValue != nil {
 			mockValue, _ := output.MockValue.UnmarkDeep()
-			outputBlock.Body().SetAttributeValue("mock_value", mockValue)
+			outputBlock.Body().SetAttributeRaw("mock_value", hclhelper.TokensForValue(mockValue))
 		}
 
 		body.AppendBlock(outputBlock)
@@ -837,7 +838,7 @@ func appendRootAttributes(body *hclwrite.Body, cfg *TerragruntConfig, asCty cty.
 	}
 
 	if len(cfg.Inputs) > 0 {
-		body.SetAttributeValue("inputs", asCty.GetAttr("inputs"))
+		body.SetAttributeRaw("inputs", hclhelper.TokensForValue(asCty.GetAttr("inputs")))
 	}
 }
 
@@ -986,7 +987,7 @@ func dependencyBlock(dep *Dependency) (*hclwrite.Block, error) {
 	}
 
 	if dep.MockOutputs != nil {
-		depBody.SetAttributeValue("mock_outputs", depAsCty.GetAttr("mock_outputs"))
+		depBody.SetAttributeRaw("mock_outputs", hclhelper.TokensForValue(depAsCty.GetAttr("mock_outputs")))
 	}
 
 	if dep.MockOutputsAllowedTerraformCommands != nil {

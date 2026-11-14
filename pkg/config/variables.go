@@ -12,6 +12,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/hclhelper"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 )
 
@@ -431,7 +432,7 @@ func variablesBlock(asCty cty.Value) *hclwrite.Block {
 	body := block.Body()
 
 	for _, name := range []string{"kind", "nullable", "validate", "inputs"} {
-		body.SetAttributeValue(name, asCty.GetAttr(name))
+		body.SetAttributeRaw(name, hclhelper.TokensForValue(asCty.GetAttr(name)))
 	}
 
 	return block

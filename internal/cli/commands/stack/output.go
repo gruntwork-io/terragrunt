@@ -11,6 +11,7 @@ import (
 
 	"github.com/zclconf/go-cty/cty"
 
+	"github.com/gruntwork-io/terragrunt/internal/hclhelper"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 
 	"errors"
@@ -160,7 +161,7 @@ func PrintOutputs(writer io.Writer, outputs cty.Value) error {
 	rootBody := f.Body()
 
 	for key, val := range outputs.AsValueMap() {
-		rootBody.SetAttributeRaw(key, hclwrite.TokensForValue(val))
+		rootBody.SetAttributeRaw(key, hclhelper.TokensForValue(val))
 	}
 
 	if _, err := writer.Write(f.Bytes()); err != nil {

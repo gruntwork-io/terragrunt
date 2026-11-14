@@ -10,6 +10,8 @@ import (
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/convert"
+
+	"github.com/gruntwork-io/terragrunt/internal/hclhelper"
 )
 
 // deferredRoots lists variable root names that cannot be evaluated at generation time.
@@ -427,7 +429,7 @@ func partialEvalTuple(e *hclsyntax.TupleConsExpr, args *EvalArgs) ([]byte, error
 
 // valueToHCLBytes converts a cty.Value to HCL source text bytes.
 func valueToHCLBytes(val cty.Value) []byte {
-	tokens := hclwrite.TokensForValue(val)
+	tokens := hclhelper.TokensForValue(val)
 
 	return tokens.Bytes()
 }

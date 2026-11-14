@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	ctyjson "github.com/zclconf/go-cty/cty/json"
 )
 
 func TestParseTerragruntStackConfig(t *testing.T) {
@@ -478,4 +479,82 @@ terraform {
 
 	combined := stdout + "\n" + stderr + "\n" + err.Error()
 	assert.Contains(t, combined, "expected object or map")
+}
+
+func TestWriteValuesWithKeywordKeysReadsBack(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+
+	stackConfig := `
+unit "app" {
+  source = "./unit"
+  path   = "app"
+  values = {
+    "for" = "top"
+    "a-b" = "dash"
+    m     = { "for" = "x", zone = "y" }
+    list  = [{ "for" = "x" }, [{ "for" = { "for" = "y" } }]]
+    keys  = { "a b" = "space", "a-b" = "dash", "if" = "keyword" }
+  }
+}
+`
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, config.DefaultStackFile), []byte(stackConfig), 0644))
+
+	unitDir := filepath.Join(tmpDir, "unit")
+	require.NoError(t, os.MkdirAll(unitDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(unitDir, config.DefaultTerragruntConfigPath), []byte(""), 0644))
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --working-dir "+tmpDir)
+	require.NoError(t, err)
+
+	values, err := config.ReadValues(
+		config.WithCaches(t.Context()),
+		logger.CreateLogger(),
+		venvtest.NewWithOSFS(),
+		config.NewParsingContext(),
+		filepath.Join(tmpDir, ".terragrunt-stack", "app"),
+	)
+	require.NoError(t, err)
+	require.NotNil(t, values)
+
+	encoded, err := ctyjson.Marshal(*values, values.Type())
+	require.NoError(t, err)
+
+	assert.JSONEq(t, `{
+  "for": "top",
+  "a-b": "dash",
+  "m": {"for": "x", "zone": "y"},
+  "list": [{"for": "x"}, [{"for": {"for": "y"}}]],
+  "keys": {"a b": "space", "a-b": "dash", "if": "keyword"}
+}`, string(encoded))
+}
+
+func TestWriteValuesRejectsKeysThatAreNotIdentifiers(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+
+	stackConfig := `
+unit "app" {
+  source = "./unit"
+  path   = "app"
+  values = {
+    "a b" = "space"
+  }
+}
+`
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, config.DefaultStackFile), []byte(stackConfig), 0644))
+
+	unitDir := filepath.Join(tmpDir, "unit")
+	require.NoError(t, os.MkdirAll(unitDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(unitDir, config.DefaultTerragruntConfigPath), []byte(""), 0644))
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --working-dir "+tmpDir)
+
+	var invalidKey config.InvalidValuesKeyError
+
+	require.ErrorAs(t, err, &invalidKey)
+	assert.Equal(t, config.InvalidValuesKeyError{Kind: config.ComponentKindUnit, Name: "app", Key: "a b"}, invalidKey)
+	assert.NoFileExists(t, filepath.Join(tmpDir, ".terragrunt-stack", "app", "terragrunt.values.hcl"))
 }

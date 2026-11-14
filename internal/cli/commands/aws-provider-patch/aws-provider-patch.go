@@ -15,6 +15,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/discoverysetup"
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
+	"github.com/gruntwork-io/terragrunt/internal/hclhelper"
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -367,7 +368,7 @@ func overrideAttributeInBlock(block *hclwrite.Block, key string, value string) (
 		return false, returnErr
 	}
 
-	body.SetAttributeValue(attr, ctyVal)
+	body.SetAttributeRaw(attr, hclhelper.TokensForValue(ctyVal))
 
 	return true, nil
 }

@@ -69,7 +69,7 @@ func TestRunWritesVarFilesToCacheDir(t *testing.T) {
 
 	assert.Equal(t, `name = "value"
 tags = {
-  "team" = "platform"
+  team = "platform"
 }
 template = "$${not_a_reference}"
 unset    = null

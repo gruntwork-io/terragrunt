@@ -6,6 +6,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
@@ -14,8 +15,11 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	ctyjson "github.com/zclconf/go-cty/cty/json"
 )
 
 func TestRemoteStateConfigToTerraformCode(t *testing.T) {
@@ -428,6 +432,82 @@ func TestRemoteStateConfigToTerraformCode_StringBoolProducesQuotedValue(t *testi
 
 	// String "true" produces a quoted string literal in HCL, which Terraform rejects
 	assert.Contains(t, string(output), `use_lockfile = "true"`)
+}
+
+func TestRemoteStateConfigToTerraformCodeParsesBackForKeys(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		config     map[string]any
+		encryption map[string]any
+		name       string
+		backend    string
+		attribute  string
+		expected   string
+		blocks     []string
+	}{
+		{
+			name:      "s3 assume_role tags",
+			backend:   "s3",
+			config:    map[string]any{"assume_role": `{role_arn="arn:aws:iam::123456789012:role/MyRole",tags={"for"="x"}}`},
+			blocks:    []string{"terraform", "backend"},
+			attribute: "assume_role",
+			expected:  `{"role_arn": "arn:aws:iam::123456789012:role/MyRole", "tags": {"for": "x"}}`,
+		},
+		{
+			name:      "backend config",
+			backend:   "local",
+			config:    map[string]any{"workspaces": map[string]any{"for": "x"}},
+			blocks:    []string{"terraform", "backend"},
+			attribute: "workspaces",
+			expected:  `{"for": "x"}`,
+		},
+		{
+			name:    "encryption key provider",
+			backend: "local",
+			config:  map[string]any{},
+			encryption: map[string]any{
+				"key_provider": "test",
+				"options":      map[string]any{"for": "x"},
+			},
+			blocks:    []string{"terraform", "encryption", "key_provider"},
+			attribute: "options",
+			expected:  `{"for": "x"}`,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			output, err := codegen.RemoteStateConfigToTerraformCode(tc.backend, tc.config, tc.encryption)
+			require.NoError(t, err)
+
+			file, diags := hclsyntax.ParseConfig(output, "backend.tf", hcl.InitialPos)
+			require.False(t, diags.HasErrors(), "%s\n%s", diags, output)
+
+			body, ok := file.Body.(*hclsyntax.Body)
+			require.True(t, ok)
+
+			for _, blockType := range tc.blocks {
+				index := slices.IndexFunc(body.Blocks, func(block *hclsyntax.Block) bool {
+					return block.Type == blockType
+				})
+				require.NotEqual(t, -1, index, "no %s block in\n%s", blockType, output)
+
+				body = body.Blocks[index].Body
+			}
+
+			require.Contains(t, body.Attributes, tc.attribute)
+
+			value, diags := body.Attributes[tc.attribute].Expr.Value(nil)
+			require.False(t, diags.HasErrors(), "%s", diags)
+
+			encoded, err := ctyjson.Marshal(value, value.Type())
+			require.NoError(t, err)
+			assert.JSONEq(t, tc.expected, string(encoded))
+		})
+	}
 }
 
 func TestFmtGeneratedFile(t *testing.T) {

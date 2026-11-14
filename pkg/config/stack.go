@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/hclhelper"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/spinner"
@@ -880,8 +881,8 @@ func generateComponent(
 		return err
 	}
 
-	if err := writeValues(l, v.FS, cmp.values, dest); err != nil {
-		return fmt.Errorf("failed to write values %v %w", cmp.name, err)
+	if err := writeValues(l, v.FS, cmp, ComponentKind(kindStr), dest); err != nil {
+		return fmt.Errorf("failed to write values for %s %s: %w", kindStr, cmp.address, err)
 	}
 
 	return generateAutoInclude(l, v, opts, cmp, dest)
@@ -2059,8 +2060,12 @@ func stackName(s *Stack) string {
 	return s.Name
 }
 
-// writeValues generates and writes values to a terragrunt.values.hcl file in the specified directory.
-func writeValues(l log.Logger, fsys vfs.FS, values *cty.Value, directory string) error {
+// writeValues writes the values of cmp to a terragrunt.values.hcl file in directory.
+//
+// Returns [InvalidValuesKeyError] when a top-level key is not an HCL identifier.
+func writeValues(l log.Logger, fsys vfs.FS, cmp *componentToGenerate, kind ComponentKind, directory string) error {
+	values := cmp.values
+
 	if values == nil {
 		l.Debugf("No values to write in %s", directory)
 		return nil
@@ -2116,7 +2121,11 @@ func writeValues(l log.Logger, fsys vfs.FS, values *cty.Value, directory string)
 	sort.Strings(keys)
 
 	for _, key := range keys {
-		body.SetAttributeValue(key, valueMap[key])
+		if !hclsyntax.ValidIdentifier(key) {
+			return InvalidValuesKeyError{Kind: kind, Name: cmp.address, Key: key}
+		}
+
+		body.SetAttributeRaw(key, hclhelper.TokensForValue(valueMap[key]))
 	}
 
 	// CAS may materialize the target as a read-only hard link, so remove it before writing

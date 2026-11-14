@@ -10,10 +10,10 @@ import (
 
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/hashicorp/hcl/v2/hclwrite"
-	"github.com/zclconf/go-cty/cty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/hclhelper"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -111,43 +111,10 @@ func encodeTFVars(inputs map[string]any) ([]byte, error) {
 			return nil, InvalidVariableNameError{Name: name}
 		}
 
-		body.SetAttributeRaw(name, tfvarsTokens(values.GetAttr(name)))
+		body.SetAttributeRaw(name, hclhelper.TokensForValue(values.GetAttr(name)))
 	}
 
 	return hclwrite.Format(file.Bytes()), nil
-}
-
-// tfvarsTokens renders value with every object key quoted. hclwrite leaves identifier keys bare, and a bare "for" as
-// the first key of an object parses as a for expression.
-func tfvarsTokens(value cty.Value) hclwrite.Tokens {
-	ty := value.Type()
-
-	if ty.IsTupleType() {
-		elements := make([]hclwrite.Tokens, 0, value.LengthInt())
-
-		for it := value.ElementIterator(); it.Next(); {
-			_, element := it.Element()
-			elements = append(elements, tfvarsTokens(element))
-		}
-
-		return hclwrite.TokensForTuple(elements)
-	}
-
-	if ty.IsObjectType() {
-		attrs := make([]hclwrite.ObjectAttrTokens, 0, value.LengthInt())
-
-		for it := value.ElementIterator(); it.Next(); {
-			key, element := it.Element()
-			attrs = append(attrs, hclwrite.ObjectAttrTokens{
-				Name:  hclwrite.TokensForValue(key),
-				Value: tfvarsTokens(element),
-			})
-		}
-
-		return hclwrite.TokensForObject(attrs)
-	}
-
-	return hclwrite.TokensForValue(value)
 }
 
 // encodeJSONVars renders inputs as a .tfvars.json file. OpenTofu/Terraform read its strings literally, so a "${"

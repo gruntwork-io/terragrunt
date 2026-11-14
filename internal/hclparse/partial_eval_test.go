@@ -252,6 +252,33 @@ func TestPartialEval(t *testing.T) {
 	}
 }
 
+// TestPartialEval_PureObjectWithForKeyEvaluatesBack checks a resolved object keyed by "for" renders as HCL that
+// evaluates to the same object.
+func TestPartialEval_PureObjectWithForKeyEvaluatesBack(t *testing.T) {
+	t.Parallel()
+
+	expr, srcBytes := parseFirstAttrExpr(t, `val = { "for" = local.env, zone = [{ "for" = local.env }] }`)
+
+	resultBytes, err := hclparse.PartialEval(
+		expr,
+		&hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: buildEvalCtx(), Deferred: testDeferred},
+	)
+	require.NoError(t, err)
+
+	rendered, diags := hclsyntax.ParseExpression(resultBytes, "test.hcl", hcl.InitialPos)
+	require.False(t, diags.HasErrors(), "%s\n%s", diags, resultBytes)
+
+	value, diags := rendered.Value(nil)
+	require.False(t, diags.HasErrors(), "%s\n%s", diags, resultBytes)
+
+	production := cty.StringVal("production")
+
+	assert.True(t, cty.ObjectVal(map[string]cty.Value{
+		"for":  production,
+		"zone": cty.TupleVal([]cty.Value{cty.ObjectVal(map[string]cty.Value{"for": production})}),
+	}).RawEquals(value), "%s", resultBytes)
+}
+
 // TestPartialEval_NonFiniteNumberFallsBackToSource checks a non-finite result (1 / 0 -> +Inf) falls back to verbatim source, not an invalid bare "Inf".
 func TestPartialEval_NonFiniteNumberFallsBackToSource(t *testing.T) {
 	t.Parallel()
