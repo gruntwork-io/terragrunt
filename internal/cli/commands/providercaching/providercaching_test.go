@@ -1,4 +1,4 @@
-package commands_test
+package providercaching_test
 
 import (
 	"bytes"
@@ -7,7 +7,8 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/cli/commands"
+	"github.com/gruntwork-io/terragrunt/internal/cache"
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/providercaching"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
@@ -32,10 +33,10 @@ func fakeTerraformVersionHandler(context.Context, vexec.Invocation) vexec.Result
 	return vexec.Result{Stdout: []byte("Terraform v1.15.3\non linux_amd64\n")}
 }
 
-// TestRunActionDetectsImplementationForProviderCache pins the RunAction wiring: with the
+// TestRunDetectsImplementation pins the Run wiring: with the
 // provider cache enabled, the implementation is resolved before the cache server starts,
 // and a failed probe degrades to OpenTofu's file locations without failing the run.
-func TestRunActionDetectsImplementationForProviderCache(t *testing.T) {
+func TestRunDetectsImplementation(t *testing.T) {
 	t.Parallel()
 
 	newOpts := func() *options.TerragruntOptions {
@@ -70,7 +71,7 @@ func TestRunActionDetectsImplementationForProviderCache(t *testing.T) {
 
 		l, output := newDebugTestLogger()
 
-		require.NoError(t, commands.RunAction(config.WithCaches(t.Context()), nil, l, opts, v, action))
+		require.NoError(t, runWithProviderCaching(config.WithCaches(t.Context()), l, opts, v, action))
 		assert.NotContains(t, output.String(), "falls back to OpenTofu's CLI config file locations")
 	})
 
@@ -84,17 +85,17 @@ func TestRunActionDetectsImplementationForProviderCache(t *testing.T) {
 
 		l, output := newDebugTestLogger()
 
-		require.NoError(t, commands.RunAction(config.WithCaches(t.Context()), nil, l, opts, v, action))
+		require.NoError(t, runWithProviderCaching(config.WithCaches(t.Context()), l, opts, v, action))
 		assert.Contains(t, output.String(), "falls back to OpenTofu's CLI config file locations")
 	})
 }
 
-// TestRunActionProviderCacheUsesDetectedImplementation pins the InitServer boundary
-// end-to-end: the cache server must be initialized with the implementation RunAction
+// TestRunUsesDetectedImplementation pins the InitServer boundary
+// end-to-end: the cache server must be initialized with the implementation Run
 // detected, proven by the generated CLI config a unit's run receives. Hard-coding the
 // wrong implementation at the InitServer call site makes the hook bypass the cache and
 // fails this test.
-func TestRunActionProviderCacheUsesDetectedImplementation(t *testing.T) {
+func TestRunUsesDetectedImplementation(t *testing.T) {
 	t.Parallel()
 
 	const (
@@ -141,7 +142,7 @@ provider_installation {
 
 	action := func(ctx context.Context, _ *clihelper.Context) error {
 		hook := tf.TerraformCommandHookFromContext(ctx)
-		require.NotNil(t, hook, "RunAction must install the provider cache hook")
+		require.NotNil(t, hook, "Run must install the provider cache hook")
 
 		tfOpts := &tf.TFOptions{
 			TerraformCliArgs:   iacargs.New(),
@@ -154,7 +155,7 @@ provider_installation {
 		return err
 	}
 
-	require.NoError(t, commands.RunAction(config.WithCaches(t.Context()), nil, logger.CreateLogger(), opts, v, action))
+	require.NoError(t, runWithProviderCaching(config.WithCaches(t.Context()), logger.CreateLogger(), opts, v, action))
 
 	generated, err := vfs.ReadFile(v.FS, workDir+"/.terraformrc")
 	require.NoError(t, err, "a matching implementation must go through the cache and generate its CLI config")
@@ -169,4 +170,71 @@ func newDebugTestLogger() (log.Logger, *bytes.Buffer) {
 	output := new(bytes.Buffer)
 
 	return log.New(log.WithOutput(output), log.WithLevel(log.DebugLevel), log.WithFormatter(formatter)), output
+}
+
+// runWithProviderCaching runs action under [providercaching.Run], on a context that holds the
+// run-scoped caches the version probe reads.
+func runWithProviderCaching(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	v *venv.Venv,
+	action clihelper.ActionFunc,
+) error {
+	return providercaching.Run(cache.ContextWithCache(ctx), nil, l, opts, v, action)
+}
+
+// TestRunStartupFailures pins that a provider cache server that cannot start fails the run before its action.
+func TestRunStartupFailures(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		venv     func(v *venv.Venv) *venv.Venv
+		wantErr  error
+		name     string
+		cacheDir string
+	}{
+		{
+			name:     "listener refused",
+			cacheDir: "/virtual/provider-cache",
+			wantErr:  venv.ErrNoListen,
+		},
+		{
+			name: "cache dir unresolvable",
+			venv: func(v *venv.Venv) *venv.Venv {
+				return v.WithUserCacheDir(func() (string, error) { return "", errInjected })
+			},
+			wantErr: errInjected,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v := venv.MemVenv().WithGOOS("linux").WithHandler(fakeTerraformVersionHandler)
+			if tc.venv != nil {
+				v = tc.venv(v)
+			}
+
+			opts := options.NewTerragruntOptions()
+			opts.NoAutoProviderCacheDir = true
+			opts.TFPath = "terraform"
+			opts.ProviderCacheOptions.Enabled = true
+			opts.ProviderCacheOptions.Dir = tc.cacheDir
+			opts.ProviderCacheOptions.Hostname = "127.0.0.1"
+			opts.ProviderCacheOptions.Token = "11111111-2222-3333-4444-555555555555"
+
+			actionRan := false
+
+			err := runWithProviderCaching(config.WithCaches(t.Context()), logger.CreateLogger(), opts, v,
+				func(context.Context, *clihelper.Context) error {
+					actionRan = true
+
+					return nil
+				})
+			require.ErrorIs(t, err, tc.wantErr)
+			assert.False(t, actionRan, "the action must not run without the provider cache server")
+		})
+	}
 }
