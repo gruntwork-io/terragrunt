@@ -242,6 +242,10 @@ func FilterOutputs(outputs cty.Value, index string) (cty.Value, error) {
 // A name need not be an HCL identifier, because a unit or stack name is a block label:
 // `1-vpc` is a valid name.
 func parseOutputAddress(index string) ([]string, error) {
+	if len(index) > MaxOutputAddressLen {
+		return nil, InvalidOutputAddressError{Address: index, Err: errAddressTooLong}
+	}
+
 	var segments []string
 
 	for pos := 0; pos < len(index); {
@@ -295,15 +299,26 @@ func readName(address string, pos int) (string, int, error) {
 }
 
 var (
+	errAddressTooLong  = fmt.Errorf("longer than %d bytes", MaxOutputAddressLen)
 	errEmptyName       = errors.New("empty name")
 	errNameAfterKey    = errors.New("expected a dot or a bracket after a key")
 	errKeySyntaxInName = errors.New("a name cannot contain a closing bracket or a quote")
-	errKeyNotAnIndex   = errors.New("a number key must be a whole number")
+	errKeyNotAnIndex   = errors.New("a number key must be a whole number that fits in 64 bits")
 )
+
+// MaxOutputAddressLen is the longest output address, in bytes, that [FilterOutputs]
+// reads.
+//
+// It bounds the time spent reading an address: each key is lexed along with everything
+// after it, which is quadratic in the number of keys.
+const MaxOutputAddressLen = 4096
 
 // readKey returns the key in the brackets of address that open at pos, and where they
 // close. It reads the key as an HCL index, so that it takes the same quoted strings and
 // numbers as `dependency.foo["web"]`.
+//
+// Panics when HCL parses the brackets without error into something other than an index.
+// The HCL parser reports an error for every bracketed step that is not a literal index.
 func readKey(address string, pos int) (string, int, error) {
 	end, err := keyEnd(address, pos)
 	if err != nil {
@@ -355,7 +370,7 @@ func keyEnd(address string, pos int) (int, error) {
 	// The lexer also read what follows the key, where a name may hold characters that
 	// HCL rejects.
 	for _, diag := range diags {
-		if diag.Severity == hcl.DiagError && diag.Subject.Start.Byte < end {
+		if diag.Subject.Start.Byte < end {
 			return 0, diag
 		}
 	}

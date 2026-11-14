@@ -46,6 +46,8 @@ func FuzzFilterOutputs(f *testing.F) {
 		"shard]",
 		"shard..id",
 		" vpc . id ",
+		"\ufeffvpc.id",
+		"shard" + strings.Repeat("[0]", 2000),
 		"vpc.\xff",
 	} {
 		f.Add(seed)
@@ -59,9 +61,10 @@ func FuzzFilterOutputs(f *testing.F) {
 			assert.Equal(t, address, addressErr.Address)
 		}
 
-		// HCL reads some invalid UTF-8, quotes included, as part of an identifier.
+		// HCL reads some invalid UTF-8, quotes included, as part of an identifier, and
+		// drops a leading byte order mark.
 		segments, ok := traversalSegments(address)
-		if !ok || !utf8.ValidString(address) || strings.ContainsAny(address, " \t\r\n#/") {
+		if !ok || !utf8.ValidString(address) || strings.ContainsAny(address, " \t\r\n#/\ufeff") {
 			return
 		}
 
@@ -125,6 +128,7 @@ func FuzzFilterOutputsResolvesQuotedKey(f *testing.F) {
 		{name: "x", key: `back\slash`},
 		{name: "x", key: "new\nline"},
 		{name: "x", key: ""},
+		{name: "other", key: "other"},
 		{name: "x", key: "web", before: `"`},
 		{name: "x", key: "web", after: `"`},
 		{name: "x", key: "web", before: "].y[", after: `]#"`},
@@ -146,19 +150,27 @@ func FuzzFilterOutputsResolvesQuotedKey(f *testing.F) {
 			t.Skip("the text would end the block comment it is put in")
 		}
 
+		if !utf8.ValidString(before) || !utf8.ValidString(after) {
+			t.Skip("HCL rejects invalid UTF-8 in a comment")
+		}
+
 		// cty normalizes strings to NFC, so the key is compared in that form.
 		value := cty.StringVal(key)
 		element := cty.ObjectVal(map[string]cty.Value{"id": cty.StringVal("element-id")})
 		outputs := cty.ObjectVal(map[string]cty.Value{
 			name: cty.ObjectVal(map[string]cty.Value{
-				value.AsString(): element,
-				"other":          cty.EmptyObjectVal,
+				value.AsString():              element,
+				value.AsString() + "-sibling": cty.EmptyObjectVal,
 			}),
-			"other": cty.EmptyObjectVal,
+			name + "-sibling": cty.EmptyObjectVal,
 		})
 
 		quoted := string(hclwrite.TokensForValue(value).Bytes())
 		address := name + "[/*" + before + "*/" + quoted + "/*" + after + "*/].id"
+
+		if len(address) > stack.MaxOutputAddressLen {
+			t.Skip("longer than an address may be")
+		}
 
 		filtered, err := stack.FilterOutputs(outputs, address)
 		require.NoError(t, err, "address %q", address)

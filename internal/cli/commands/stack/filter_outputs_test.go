@@ -1,6 +1,7 @@
 package stack_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -241,6 +242,8 @@ func TestFilterOutputsRejectsUnreadableAddresses(t *testing.T) {
 		`shard["web"/*"*/]//"].id`,
 		"shard[0.5].id",
 		"shard[1e99999999].id",
+		"shard[9223372036854775808].id",
+		"shard" + strings.Repeat("[0]", 2000),
 	} {
 		t.Run(address, func(t *testing.T) {
 			t.Parallel()
