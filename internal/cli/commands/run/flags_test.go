@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	runcommand "github.com/gruntwork-io/terragrunt/internal/cli/commands/run"
+	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/report"
@@ -51,22 +52,22 @@ func TestNewFlagsDeprecatedFlagsRunTheirStrictControls(t *testing.T) {
 		{
 			name:    "dependency-fetch-output-from-state",
 			control: controls.DependencyFetchOutputFromState,
-			args:    clihelper.Args{"--" + runcommand.DependencyFetchOutputFromStateFlagName},
+			args:    clihelper.Args{"--" + shared.DependencyFetchOutputFromStateFlagName},
 		},
 		{
 			name:    "units-that-include",
 			control: controls.UnitsThatInclude,
-			args:    clihelper.Args{"--" + runcommand.UnitsThatIncludeFlagName, "root.hcl"},
+			args:    clihelper.Args{"--" + shared.UnitsThatIncludeFlagName, "root.hcl"},
 		},
 		{
 			name:    "disable-command-validation",
 			control: controls.DisableCommandValidation,
-			args:    clihelper.Args{"--" + runcommand.DisableCommandValidationFlagName},
+			args:    clihelper.Args{"--" + shared.DisableCommandValidationFlagName},
 		},
 		{
 			name:    "no-destroy-dependencies-check",
 			control: controls.NoDestroyDependenciesCheck,
-			args:    clihelper.Args{"--" + runcommand.NoDestroyDependenciesCheckFlagName},
+			args:    clihelper.Args{"--" + shared.NoDestroyDependenciesCheckFlagName},
 		},
 	}
 
@@ -105,17 +106,17 @@ func TestNewFlagsBoolFlagsSetToFalseSkipTheirStrictControls(t *testing.T) {
 		{
 			name:    "dependency-fetch-output-from-state",
 			control: controls.DependencyFetchOutputFromState,
-			flag:    runcommand.DependencyFetchOutputFromStateFlagName,
+			flag:    shared.DependencyFetchOutputFromStateFlagName,
 		},
 		{
 			name:    "disable-command-validation",
 			control: controls.DisableCommandValidation,
-			flag:    runcommand.DisableCommandValidationFlagName,
+			flag:    shared.DisableCommandValidationFlagName,
 		},
 		{
 			name:    "no-destroy-dependencies-check",
 			control: controls.NoDestroyDependenciesCheck,
-			flag:    runcommand.NoDestroyDependenciesCheckFlagName,
+			flag:    shared.NoDestroyDependenciesCheckFlagName,
 		},
 	}
 
@@ -145,14 +146,14 @@ func TestNewFlagsUnitsThatIncludeAddsReadingFilters(t *testing.T) {
 		{
 			name: "every value becomes a reading filter",
 			args: clihelper.Args{
-				"--" + runcommand.UnitsThatIncludeFlagName, "root.hcl",
-				"--" + runcommand.UnitsThatIncludeFlagName, "common/*.hcl",
+				"--" + shared.UnitsThatIncludeFlagName, "root.hcl",
+				"--" + shared.UnitsThatIncludeFlagName, "common/*.hcl",
 			},
 			wantFilters: []string{"reading=root.hcl", "reading=common/*.hcl"},
 		},
 		{
 			name:    "an invalid glob is rejected",
-			args:    clihelper.Args{"--" + runcommand.UnitsThatIncludeFlagName, "[unclosed"},
+			args:    clihelper.Args{"--" + shared.UnitsThatIncludeFlagName, "[unclosed"},
 			wantErr: true,
 		},
 	}
@@ -194,8 +195,8 @@ func TestNewFlagsExperimentalEngineEnablesTheExperiment(t *testing.T) {
 		want bool
 	}{
 		{name: "unset"},
-		{name: "set", args: clihelper.Args{"--" + runcommand.EngineEnableFlagName}, want: true},
-		{name: "set to false", args: clihelper.Args{"--" + runcommand.EngineEnableFlagName + "=false"}},
+		{name: "set", args: clihelper.Args{"--" + shared.EngineEnableFlagName}, want: true},
+		{name: "set to false", args: clihelper.Args{"--" + shared.EngineEnableFlagName + "=false"}},
 	}
 
 	for _, tc := range testCases {

@@ -3,7 +3,6 @@ package render
 import (
 	"context"
 
-	runcmd "github.com/gruntwork-io/terragrunt/internal/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
@@ -40,7 +39,7 @@ const (
 )
 
 // NewFlags returns the flags of `terragrunt render`, bound to opts.
-func NewFlags(opts *Options) clihelper.Flags {
+func NewFlags(l log.Logger, opts *Options, v *venv.Venv) clihelper.Flags {
 	tgPrefix := flags.Prefix{flags.TgPrefix}
 	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
 
@@ -141,20 +140,18 @@ func NewFlags(opts *Options) clihelper.Flags {
 
 	flags.DeprecateEnvVarPrefix(renderFlags, flags.Prefix{flags.TgPrefix, CommandName}, opts.StrictControls)
 
-	return renderFlags
+	return append(newSharedFlags(l, opts.TerragruntOptions, v), renderFlags...)
 }
 
 // NewCommand returns the `terragrunt render` command.
 func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *rewrite.Store) *clihelper.Command {
 	renderOpts := NewOptions(opts)
 
-	cmdFlags := append(runcmd.NewFlags(l, opts, v, nil), NewFlags(renderOpts)...)
-
 	cmd := &clihelper.Command{
 		Name:        CommandName,
 		Usage:       "Render the final terragrunt config, with all variables, includes, and functions resolved, in the specified format.",
 		Description: "This is useful for enforcing policies using static analysis tools like Open Policy Agent, or for debugging your terragrunt config.",
-		Flags:       cmdFlags,
+		Flags:       NewFlags(l, renderOpts, v),
 		Action: func(ctx context.Context, _ *clihelper.Context) error {
 			tgOpts := opts.OptionsFromContext(ctx)
 
@@ -166,4 +163,37 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *
 	}
 
 	return cmd
+}
+
+// newSharedFlags returns the flags `terragrunt render` takes from the shared
+// package: the ones that reach config parsing, and the ones that select units
+// for --all.
+func newSharedFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.Flags {
+	sharedFlags := clihelper.Flags{
+		shared.NewConfigFlag(opts, nil),
+		shared.NewDownloadDirFlag(opts, nil),
+		shared.NewTFPathFlag(opts),
+		shared.NewTFForwardStdoutFlag(opts),
+		shared.NewVersionManagerFileNameFlag(opts),
+		shared.NewNoAutoInitFlag(opts, nil),
+		shared.NewSourceFlag(opts, nil),
+		shared.NewSourceMapFlag(opts, nil),
+		shared.NewInputsDebugFlag(opts, nil),
+		shared.NewUsePartialParseConfigCacheFlag(opts),
+		shared.NewAuthProviderCmdFlag(opts, nil),
+		shared.NewNoDiscoveryAuthProviderCmdFlag(opts, nil),
+		shared.NewFailFastFlag(opts),
+		shared.NewParallelismFlag(opts),
+	}
+
+	sharedFlags = sharedFlags.Add(shared.NewDependencyOutputFlags(opts)...)
+	sharedFlags = sharedFlags.Add(shared.NewProviderCacheFlags(opts)...)
+	sharedFlags = sharedFlags.Add(shared.NewEngineFlags(opts)...)
+	sharedFlags = sharedFlags.Add(shared.NewBackendFlags(opts, nil)...)
+	sharedFlags = sharedFlags.Add(shared.NewFeatureFlags(opts, nil)...)
+	sharedFlags = sharedFlags.Add(shared.NewIAMAssumeRoleFlags(opts, nil)...)
+	sharedFlags = sharedFlags.Add(shared.NewSelectionFlags(l, opts, v)...)
+	sharedFlags = sharedFlags.Add(shared.NewCASFlags(opts, nil)...)
+
+	return sharedFlags.Sort()
 }

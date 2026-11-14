@@ -32,7 +32,6 @@ package awsproviderpatch
 import (
 	"context"
 
-	runcmd "github.com/gruntwork-io/terragrunt/internal/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
@@ -52,12 +51,44 @@ const (
 	OverrideAttrFlagName = "override-attr"
 )
 
-// NewFlags returns the flags of `terragrunt aws-provider-patch`, bound to opts.
-func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix) clihelper.Flags {
-	tgPrefix := prefix.Prepend(flags.TgPrefix)
+// NewFlags returns the flags of `terragrunt aws-provider-patch`, bound to opts:
+// --override-attr, the shared flags that reach config parsing, the source
+// download and init, and the ones that select units for --all.
+func NewFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.Flags {
+	tgPrefix := flags.Prefix{flags.TgPrefix}
 	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
 
-	return clihelper.Flags{
+	cmdFlags := clihelper.Flags{
+		shared.NewConfigFlag(opts, nil),
+		shared.NewDownloadDirFlag(opts, nil),
+		shared.NewTFPathFlag(opts),
+		shared.NewTFForwardStdoutFlag(opts),
+		shared.NewVersionManagerFileNameFlag(opts),
+		shared.NewNoAutoInitFlag(opts, nil),
+		shared.NewNoAutoRetryFlag(opts),
+		shared.NewNoRunHooksFlag(opts),
+		shared.NewSourceFlag(opts, nil),
+		shared.NewSourceMapFlag(opts, nil),
+		shared.NewSourceUpdateFlag(opts),
+		shared.NewInputsDebugFlag(opts, nil),
+		shared.NewUsePartialParseConfigCacheFlag(opts),
+		shared.NewAuthProviderCmdFlag(opts, nil),
+		shared.NewNoDiscoveryAuthProviderCmdFlag(opts, nil),
+		shared.NewFailFastFlag(opts),
+		shared.NewParallelismFlag(opts),
+	}
+
+	cmdFlags = cmdFlags.Add(shared.NewDependencyOutputFlags(opts)...)
+	cmdFlags = cmdFlags.Add(shared.NewProviderCacheFlags(opts)...)
+	cmdFlags = cmdFlags.Add(shared.NewEngineFlags(opts)...)
+	cmdFlags = cmdFlags.Add(shared.NewBackendFlags(opts, nil)...)
+	cmdFlags = cmdFlags.Add(shared.NewFeatureFlags(opts, nil)...)
+	cmdFlags = cmdFlags.Add(shared.NewIAMAssumeRoleFlags(opts, nil)...)
+	cmdFlags = cmdFlags.Add(shared.NewSelectionFlags(l, opts, v)...)
+	cmdFlags = cmdFlags.Add(shared.NewCASFlags(opts, nil)...)
+
+	return append(
+		cmdFlags.Sort(),
 		flags.NewFlag(
 			&clihelper.MapFlag[string, string]{
 				Name:        OverrideAttrFlagName,
@@ -70,7 +101,8 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 				opts.StrictControls,
 			),
 		),
-	}
+		shared.NewAllFlag(opts, nil),
+	)
 }
 
 // NewCommand returns the hidden, deprecated `terragrunt aws-provider-patch`
@@ -80,14 +112,11 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *
 	opts.StrictControls.FilterByNames(controls.DeprecatedCommands, controls.CLIRedesign, CommandName).
 		AddSubcontrols(control)
 
-	cmdFlags := append(runcmd.NewFlags(l, opts, v, nil), NewFlags(l, opts, nil)...)
-	cmdFlags = append(cmdFlags, shared.NewAllFlag(opts, nil))
-
 	cmd := &clihelper.Command{
 		Name:   CommandName,
 		Usage:  "Overwrite settings on nested AWS providers to work around a Terraform bug (issue #13018).",
 		Hidden: true,
-		Flags:  cmdFlags,
+		Flags:  NewFlags(l, opts, v),
 		Before: func(ctx context.Context, _ *clihelper.Context) error {
 			if err := control.Evaluate(ctx); err != nil {
 				return clihelper.NewExitError(err, clihelper.ExitCodeGeneralError)
@@ -98,7 +127,6 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *
 		Action: func(ctx context.Context, _ *clihelper.Context) error {
 			return Run(ctx, l, v, s, opts.OptionsFromContext(ctx))
 		},
-		DisabledErrorOnUndefinedFlag: true,
 	}
 
 	return cmd

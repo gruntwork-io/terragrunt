@@ -6,7 +6,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/exec"
-	"github.com/gruntwork-io/terragrunt/internal/cli/commands/run"
+	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
@@ -37,7 +37,7 @@ func TestExecAcceptsSourceAndAutoInitFlags(t *testing.T) {
 		},
 		{
 			name:              "source flag",
-			args:              []string{exec.CommandName, doubleDashed(run.SourceFlagName), "/local/vpc", "--", "echo", "hi"},
+			args:              []string{exec.CommandName, doubleDashed(shared.SourceFlagName), "/local/vpc", "--", "echo", "hi"},
 			expectedSource:    "/local/vpc",
 			expectedSourceMap: map[string]string{},
 			expectedAutoInit:  true,
@@ -46,7 +46,7 @@ func TestExecAcceptsSourceAndAutoInitFlags(t *testing.T) {
 			name: "source map flag",
 			args: []string{
 				exec.CommandName,
-				doubleDashed(run.SourceMapFlagName),
+				doubleDashed(shared.SourceMapFlagName),
 				"git::ssh://git@github.com/acme/vpc.git=/local/vpc",
 				"--",
 				"echo",
@@ -59,16 +59,16 @@ func TestExecAcceptsSourceAndAutoInitFlags(t *testing.T) {
 		},
 		{
 			name:              "no auto init flag",
-			args:              []string{exec.CommandName, doubleDashed(run.NoAutoInitFlagName), "--", "echo", "hi"},
+			args:              []string{exec.CommandName, doubleDashed(shared.NoAutoInitFlagName), "--", "echo", "hi"},
 			expectedSourceMap: map[string]string{},
 		},
 		{
 			name: "both flags together",
 			args: []string{
 				exec.CommandName,
-				doubleDashed(run.SourceMapFlagName),
+				doubleDashed(shared.SourceMapFlagName),
 				"git::ssh://git@github.com/acme/vpc.git=/local/vpc",
-				doubleDashed(run.NoAutoInitFlagName),
+				doubleDashed(shared.NoAutoInitFlagName),
 				"--",
 				"echo",
 				"hi",

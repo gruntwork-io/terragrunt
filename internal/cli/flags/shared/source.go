@@ -14,7 +14,29 @@ const (
 	// SourceMapFlagName is the flag name for `--source-map`, pairs of source URL prefixes and their
 	// replacements.
 	SourceMapFlagName = "source-map"
+	// SourceUpdateFlagName is the flag name for `--source-update`, which clears the download directory
+	// before downloading the unit's source.
+	SourceUpdateFlagName = "source-update"
 )
+
+// NewSourceUpdateFlag creates a flag for clearing the download directory before downloading source code into it.
+func NewSourceUpdateFlag(opts *options.TerragruntOptions) *flags.Flag {
+	tgPrefix := flags.Prefix{flags.TgPrefix}
+	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
+
+	return flags.NewFlag(
+		&clihelper.BoolFlag{
+			Name:        SourceUpdateFlagName,
+			EnvVars:     tgPrefix.EnvVars(SourceUpdateFlagName),
+			Destination: &opts.SourceUpdate,
+			Usage:       "Delete the contents of the temporary folder to clear out any old, cached source code before downloading new source code into it.",
+		},
+		flags.WithDeprecatedEnvVars(
+			terragruntPrefix.EnvVars("source-update"),
+			opts.StrictControls,
+		),
+	)
+}
 
 // NewSourceFlag creates a flag for downloading configuration from a source URL instead of the configured one.
 func NewSourceFlag(opts *options.TerragruntOptions, prefix flags.Prefix) *flags.Flag {

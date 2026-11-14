@@ -49,8 +49,55 @@ func TestNewCommandExposesThePrintFlags(t *testing.T) {
 
 	assert.Equal(t, print.CommandName, cmd.Name)
 
-	for _, name := range []string{shared.AllFlagName, shared.ConfigFlagName, shared.DownloadDirFlagName} {
+	for _, name := range []string{
+		shared.AllFlagName,
+		shared.FailFastFlagName,
+		shared.ParallelismFlagName,
+		shared.FilterFlagName,
+		shared.FilterAffectedFlagName,
+		shared.DiscoveryBoundaryFlagName,
+		shared.ConfigFlagName,
+		shared.DownloadDirFlagName,
+		shared.TFPathFlagName,
+		shared.SourceFlagName,
+		shared.SourceMapFlagName,
+		shared.SourceUpdateFlagName,
+		shared.NoRunHooksFlagName,
+		shared.InputsDebugFlagName,
+		shared.NoAutoRetryFlagName,
+		shared.FeatureFlagName,
+		shared.IAMAssumeRoleFlagName,
+		shared.AuthProviderCmdFlagName,
+		shared.NoDependencyOutputsFlagName,
+		shared.ProviderCacheFlagName,
+		shared.NoCASFlagName,
+	} {
 		assert.NotNil(t, cmd.Flags.Get(name), name)
+	}
+}
+
+// TestNewCommandRejectsFlagsPrintDoesNotRead pins that a `run` flag with no effect on `info print` is an error.
+func TestNewCommandRejectsFlagsPrintDoesNotRead(t *testing.T) {
+	t.Parallel()
+
+	for _, arg := range []string{
+		"--" + shared.OutDirFlagName + "=plans",
+		"--" + shared.ReportFileFlagName + "=report.json",
+		"--" + shared.SummaryDisableFlagName,
+		"--" + shared.QueueIgnoreErrorsFlagName,
+		"--" + shared.NoAutoApproveFlagName,
+		"--" + shared.NoStackGenerateFlagName,
+		"--" + shared.DestroyDependenciesCheckFlagName,
+		"--graph-root=.",
+	} {
+		t.Run(arg, func(t *testing.T) {
+			t.Parallel()
+
+			v := venv.MemVenv()
+			cmd := print.NewCommand(logger.CreateLogger(), options.NewTerragruntOptions(v.Exec), v, new(rewrite.Store))
+
+			require.ErrorAs(t, runCommand(t, cmd, arg), new(clihelper.UndefinedFlagError))
+		})
 	}
 }
 
@@ -130,7 +177,7 @@ func TestNewCommandAllPrintsOneLinePerUnit(t *testing.T) {
 	assert.Equal(t, filepath.Join(memRoot, "b"), workingDirs[1], "b failed to parse and keeps its own directory")
 }
 
-// TestNewCommandPrintsOnlyFilteredUnits pins that --filter selects the units printed, with or without --all.
+// TestNewCommandPrintsOnlyFilteredUnits pins that --filter and --queue-exclude-dir select the units printed.
 func TestNewCommandPrintsOnlyFilteredUnits(t *testing.T) {
 	t.Parallel()
 
@@ -140,6 +187,7 @@ func TestNewCommandPrintsOnlyFilteredUnits(t *testing.T) {
 	}{
 		{name: "with --all", args: []string{"--all", "--filter", "a"}},
 		{name: "without --all", args: []string{"--filter", "a"}},
+		{name: "excluding the other unit", args: []string{"--all", "--" + shared.QueueExcludeDirFlagName, "b"}},
 	}
 
 	for _, tc := range testCases {

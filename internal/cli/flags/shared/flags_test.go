@@ -252,6 +252,161 @@ func TestSharedFlagsSetOptions(t *testing.T) {
 			got:      func(opts *options.TerragruntOptions) any { return []bool{opts.NoShell, opts.NoHooks} },
 			want:     []bool{true, true},
 		},
+		{
+			name:     "source update by name",
+			newFlags: sourceUpdateFlags,
+			args:     clihelper.Args{"--source-update"},
+			got:      func(opts *options.TerragruntOptions) any { return opts.SourceUpdate },
+			want:     true,
+		},
+		{
+			name:     "source update by deprecated env var",
+			newFlags: sourceUpdateFlags,
+			env:      map[string]string{"TERRAGRUNT_SOURCE_UPDATE": "true"},
+			got:      func(opts *options.TerragruntOptions) any { return opts.SourceUpdate },
+			want:     true,
+		},
+		{
+			name:     "no auto retry disables auto retry",
+			newFlags: noAutoRetryFlags,
+			args:     clihelper.Args{"--no-auto-retry"},
+			got:      func(opts *options.TerragruntOptions) any { return opts.AutoRetry },
+			want:     false,
+		},
+		{
+			name:     "deprecated auto retry env var false disables auto retry",
+			newFlags: noAutoRetryFlags,
+			env:      map[string]string{"TERRAGRUNT_AUTO_RETRY": "false"},
+			got:      func(opts *options.TerragruntOptions) any { return opts.AutoRetry },
+			want:     false,
+		},
+		{
+			name:     "no auto approve disables auto approve",
+			newFlags: noAutoApproveFlags,
+			args:     clihelper.Args{"--no-auto-approve"},
+			got:      func(opts *options.TerragruntOptions) any { return opts.RunAllAutoApprove },
+			want:     false,
+		},
+		{
+			name:     "no hooks skips run hooks and leaves scaffolding hooks on",
+			newFlags: noRunHooksFlags,
+			args:     clihelper.Args{"--no-hooks"},
+			got:      func(opts *options.TerragruntOptions) any { return []bool{opts.NoRunHooks, opts.NoHooks} },
+			want:     []bool{true, false},
+		},
+		{
+			name:     "tf forward stdout by deprecated env var",
+			newFlags: tfForwardStdoutFlags,
+			env:      map[string]string{"TERRAGRUNT_FORWARD_TF_STDOUT": "true"},
+			got:      func(opts *options.TerragruntOptions) any { return opts.ForwardTFStdout },
+			want:     true,
+		},
+		{
+			name:     "version manager file name by name",
+			newFlags: versionManagerFileNameFlags,
+			args:     clihelper.Args{"--version-manager-file-name", ".tool-versions"},
+			got:      func(opts *options.TerragruntOptions) any { return opts.VersionManagerFileName },
+			want:     []string{".tool-versions"},
+		},
+		{
+			name:     "out dirs by name",
+			newFlags: shared.NewOutDirFlags,
+			args:     clihelper.Args{"--out-dir=plans", "--json-out-dir=json-plans"},
+			got:      func(opts *options.TerragruntOptions) any { return []string{opts.OutputFolder, opts.JSONOutputFolder} },
+			want:     []string{"plans", "json-plans"},
+		},
+		{
+			name:     "destroy dependencies check by name",
+			newFlags: shared.NewDestroyDependenciesCheckFlags,
+			args:     clihelper.Args{"--destroy-dependencies-check"},
+			got:      func(opts *options.TerragruntOptions) any { return opts.DestroyDependenciesCheck },
+			want:     true,
+		},
+		{
+			name:     "no stack generate by name",
+			newFlags: noStackGenerateFlags,
+			args:     clihelper.Args{"--no-stack-generate"},
+			got:      func(opts *options.TerragruntOptions) any { return opts.NoStackGenerate },
+			want:     true,
+		},
+		{
+			name:     "dependency output flags by name",
+			newFlags: shared.NewDependencyOutputFlags,
+			args:     clihelper.Args{"--no-dependency-outputs", "--no-dependency-fetch-output-from-state"},
+			got: func(opts *options.TerragruntOptions) any {
+				return []bool{opts.SkipOutput, opts.NoDependencyFetchOutputFromState}
+			},
+			want: []bool{true, true},
+		},
+		{
+			name:     "use partial parse config cache by deprecated env var",
+			newFlags: usePartialParseConfigCacheFlags,
+			env:      map[string]string{"TERRAGRUNT_USE_PARTIAL_PARSE_CONFIG_CACHE": "true"},
+			got:      func(opts *options.TerragruntOptions) any { return opts.UsePartialParseConfigCache },
+			want:     true,
+		},
+		{
+			name:     "provider cache flags by name",
+			newFlags: shared.NewProviderCacheFlags,
+			args: clihelper.Args{
+				"--provider-cache",
+				"--provider-cache-dir=/providers",
+				"--provider-cache-hostname=cache.internal",
+				"--provider-cache-port=5758",
+				"--provider-cache-token=fake-token",
+				"--provider-cache-registry-names=registry.example.com",
+				"--no-auto-provider-cache-dir",
+			},
+			got: func(opts *options.TerragruntOptions) any {
+				return []any{
+					opts.ProviderCacheOptions.Enabled,
+					opts.ProviderCacheOptions.Dir,
+					opts.ProviderCacheOptions.Hostname,
+					opts.ProviderCacheOptions.Port,
+					opts.ProviderCacheOptions.Token,
+					opts.ProviderCacheOptions.RegistryNames,
+					opts.NoAutoProviderCacheDir,
+				}
+			},
+			want: []any{
+				true, "/providers", "cache.internal", 5758, "fake-token", []string{"registry.example.com"}, true,
+			},
+		},
+		{
+			name:     "provider cache by deprecated env var",
+			newFlags: shared.NewProviderCacheFlags,
+			env:      map[string]string{"TERRAGRUNT_PROVIDER_CACHE": "true"},
+			got:      func(opts *options.TerragruntOptions) any { return opts.ProviderCacheOptions.Enabled },
+			want:     true,
+		},
+		{
+			name:     "engine flags by name",
+			newFlags: shared.NewEngineFlags,
+			args: clihelper.Args{
+				"--engine-cache-path=/engines",
+				"--engine-skip-check",
+				"--engine-log-level=debug",
+				"--no-engine",
+			},
+			got: func(opts *options.TerragruntOptions) any {
+				return []any{
+					opts.EngineOptions.CachePath,
+					opts.EngineOptions.SkipChecksumCheck,
+					opts.EngineOptions.LogLevel,
+					opts.EngineOptions.NoEngine,
+				}
+			},
+			want: []any{"/engines", true, "debug", true},
+		},
+		{
+			name:     "summary flags by name",
+			newFlags: shared.NewReportFlags,
+			args:     clihelper.Args{"--summary-disable", "--summary-per-unit", "--report-schema-file=schema.json"},
+			got: func(opts *options.TerragruntOptions) any {
+				return []any{opts.SummaryDisable, opts.SummaryPerUnit, opts.ReportSchemaFile}
+			},
+			want: []any{true, true, "schema.json"},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -382,6 +537,38 @@ func tfPathFlags(opts *options.TerragruntOptions) clihelper.Flags {
 
 func scaffoldingFlags(opts *options.TerragruntOptions) clihelper.Flags {
 	return shared.NewScaffoldingFlags(opts, nil)
+}
+
+func sourceUpdateFlags(opts *options.TerragruntOptions) clihelper.Flags {
+	return clihelper.Flags{shared.NewSourceUpdateFlag(opts)}
+}
+
+func noAutoRetryFlags(opts *options.TerragruntOptions) clihelper.Flags {
+	return clihelper.Flags{shared.NewNoAutoRetryFlag(opts)}
+}
+
+func noAutoApproveFlags(opts *options.TerragruntOptions) clihelper.Flags {
+	return clihelper.Flags{shared.NewNoAutoApproveFlag(opts)}
+}
+
+func noRunHooksFlags(opts *options.TerragruntOptions) clihelper.Flags {
+	return clihelper.Flags{shared.NewNoRunHooksFlag(opts)}
+}
+
+func tfForwardStdoutFlags(opts *options.TerragruntOptions) clihelper.Flags {
+	return clihelper.Flags{shared.NewTFForwardStdoutFlag(opts)}
+}
+
+func versionManagerFileNameFlags(opts *options.TerragruntOptions) clihelper.Flags {
+	return clihelper.Flags{shared.NewVersionManagerFileNameFlag(opts)}
+}
+
+func noStackGenerateFlags(opts *options.TerragruntOptions) clihelper.Flags {
+	return clihelper.Flags{shared.NewNoStackGenerateFlag(opts)}
+}
+
+func usePartialParseConfigCacheFlags(opts *options.TerragruntOptions) clihelper.Flags {
+	return clihelper.Flags{shared.NewUsePartialParseConfigCacheFlag(opts)}
 }
 
 // parseAndRunActions parses args and env into fs and runs the actions of every flag that was set.
