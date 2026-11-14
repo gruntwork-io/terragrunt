@@ -95,7 +95,7 @@ func buildDirOptions(
 	workingDir string,
 	filterQueries []string,
 ) (*options.TerragruntOptions, map[string]string, error) {
-	opts := options.NewTerragruntOptions(rootVenv.Exec)
+	opts := options.NewTerragruntOptions()
 	pinBinaries(d, opts)
 
 	// A filter that follows the graph otherwise walks out to the git repository
@@ -156,7 +156,7 @@ func buildUnitOptions(
 		)
 	}
 
-	opts, err := options.NewTerragruntOptionsWithConfigPath(rootVenv.Exec, configPath)
+	opts, err := options.NewTerragruntOptionsWithConfigPath(configPath)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -43,7 +43,7 @@ func TestCLIInventory(t *testing.T) {
 	t.Parallel()
 
 	v := venv.MemVenv()
-	app := cli.NewApp(logger.CreateLogger(), options.NewTerragruntOptions(v.Exec), v)
+	app := cli.NewApp(logger.CreateLogger(), options.NewTerragruntOptions(), v)
 
 	got := flattenCommands(&cliCommand{
 		name:        app.Name,

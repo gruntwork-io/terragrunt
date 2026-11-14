@@ -13,7 +13,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -88,7 +87,7 @@ func (f *boundaryFixture) discover(
 ) (component.Components, error) {
 	t.Helper()
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = f.stagingDir
 	opts.RootWorkingDir = f.stagingDir
 
@@ -358,7 +357,7 @@ func TestDiscoveryBoundary_SurvivesFilterEvaluationWithRelationships(t *testing.
 				paths[i] = byName[n]
 			}
 
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts := options.NewTerragruntOptions()
 			opts.WorkingDir = f.stagingDir
 			opts.RootWorkingDir = f.stagingDir
 
@@ -426,7 +425,7 @@ func TestDiscoveryBoundary_WithholdingAcrossFilterShapes(t *testing.T) {
 				paths[i] = byName[n]
 			}
 
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts := options.NewTerragruntOptions()
 			opts.WorkingDir = f.stagingDir
 			opts.RootWorkingDir = f.stagingDir
 
@@ -501,7 +500,7 @@ func TestDiscoveryBoundary_UnfilteredRunWithholdsOnlyWhatTraversalReached(t *tes
 
 	f, v := newBoundaryFixture(t)
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = f.stagingDir
 	opts.RootWorkingDir = f.stagingDir
 
@@ -583,7 +582,7 @@ func TestDiscoveryBoundary_ExcludedDependencyStaysLinked(t *testing.T) {
 				expected[i] = byName[n]
 			}
 
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts := options.NewTerragruntOptions()
 			opts.WorkingDir = f.stagingDir
 			opts.RootWorkingDir = f.stagingDir
 
@@ -785,7 +784,7 @@ func TestNewForStackGenerate_BoundaryNarrowsWalk(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts := options.NewTerragruntOptions()
 			opts.WorkingDir = tc.workDir
 			opts.RootWorkingDir = tc.workDir
 

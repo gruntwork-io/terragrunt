@@ -28,7 +28,7 @@ func run() (code int) {
 	defer originalConsole.Restore()
 
 	v := venv.OSVenv()
-	opts := options.NewTerragruntOptions(v.Exec)
+	opts := options.NewTerragruntOptions()
 
 	l := log.New(
 		log.WithOutput(v.Writers.ErrWriter),

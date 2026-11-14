@@ -45,7 +45,7 @@ func TestNewCommandExposesThePrintFlags(t *testing.T) {
 	t.Parallel()
 
 	v := venv.MemVenv()
-	cmd := print.NewCommand(logger.CreateLogger(), options.NewTerragruntOptions(v.Exec), v, new(rewrite.Store))
+	cmd := print.NewCommand(logger.CreateLogger(), options.NewTerragruntOptions(), v, new(rewrite.Store))
 
 	assert.Equal(t, print.CommandName, cmd.Name)
 
@@ -264,7 +264,7 @@ func (failingWriter) Write([]byte) (int, error) {
 func newOpts(t *testing.T, v *venv.Venv, configPath string) *options.TerragruntOptions {
 	t.Helper()
 
-	opts, err := options.NewTerragruntOptionsWithConfigPath(v.Exec, configPath)
+	opts, err := options.NewTerragruntOptionsWithConfigPath(configPath)
 	require.NoError(t, err)
 
 	if configPath == "" {

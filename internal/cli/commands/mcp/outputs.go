@@ -160,7 +160,7 @@ func outputsFetchViaRun(
 		externalcmd.NewProvider(
 			l,
 			opts.AuthProviderCmd,
-			configbridge.ShellRunOptsFromOpts(cv.Env, opts),
+			configbridge.ShellRunOptsFromOpts(cv.Exec, cv.Env, opts),
 		),
 	); err != nil {
 		return getOutputsOutput{}, err

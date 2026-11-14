@@ -10,7 +10,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -24,7 +23,7 @@ func TestWrapWithProfilingNoFlagsRunsAction(t *testing.T) {
 
 	v := venv.MemVenv()
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 
 	called := false
 	wrapped := commands.WrapWithProfiling(logger.CreateLogger(), opts, v)
@@ -43,7 +42,7 @@ func TestWrapWithProfilingWritesProfile(t *testing.T) {
 
 	v := venv.MemVenv()
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.ProfileGoroutine = filepath.Join(t.TempDir(), "goroutine.prof")
 
 	wrapped := commands.WrapWithProfiling(logger.CreateLogger(), opts, v)
@@ -63,7 +62,7 @@ func TestWrapWithProfilingTightensExistingFilePermissions(t *testing.T) {
 
 	v := venv.MemVenv()
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.ProfileGoroutine = filepath.Join(t.TempDir(), "goroutine.prof")
 
 	require.NoError(t, vfs.WriteFile(v.FS, opts.ProfileGoroutine, []byte("stale"), 0o644))
@@ -87,11 +86,11 @@ func TestWrapWithProfilingProfileDirWritesAllProfiles(t *testing.T) {
 
 	v := venv.MemVenv()
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = testWorkDir
 	opts.ProfileDir = "profiles"
 
-	competing := options.NewTerragruntOptions(vexec.NewOSExec())
+	competing := options.NewTerragruntOptions()
 	competing.ProfileDir = venvtest.Root("/competing")
 
 	var nestedRan bool
@@ -164,7 +163,7 @@ func TestWrapWithProfilingStartupFailures(t *testing.T) {
 			v := venv.MemVenv()
 			v = v.WithFS(newFaultFS(v.FS, atPath(tc.op, tc.path)))
 
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts := options.NewTerragruntOptions()
 			opts.ProfileDir = "/profiles"
 
 			err := commands.WrapWithProfiling(logger.CreateLogger(), opts, v)(t.Context(), &clihelper.Context{}, failIfCalled(t))
@@ -211,7 +210,7 @@ func TestWrapWithProfilingFlushFailuresDoNotFailCommand(t *testing.T) {
 			fsys := newFaultFS(v.FS, atPath(tc.op, tc.mem+tc.goroutine))
 			v = v.WithFS(fsys)
 
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts := options.NewTerragruntOptions()
 			opts.ProfileMem = tc.mem
 			opts.ProfileGoroutine = tc.goroutine
 
@@ -270,7 +269,7 @@ func TestWrapWithProfilingCleanupFailuresKeepStartupError(t *testing.T) {
 			fsys := newFaultFS(v.FS, atPath(tc.startup.op, tc.startup.path), atPath(tc.cleanup.op, tc.cleanup.path))
 			v = v.WithFS(fsys)
 
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts := options.NewTerragruntOptions()
 			opts.ProfileMem = memPath
 			opts.ProfileGoroutine = goroutinePath
 

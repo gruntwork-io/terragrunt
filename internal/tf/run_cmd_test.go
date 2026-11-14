@@ -95,7 +95,7 @@ func testCommandOutput(
 		t.Context(),
 		l,
 		v,
-		configbridge.TFRunOptsFromOpts(map[string]string{}, terragruntOptions, tfimpl.Unknown),
+		configbridge.TFRunOptsFromOpts(vexec.NewOSExec(), map[string]string{}, terragruntOptions, tfimpl.Unknown),
 		"same",
 	)
 

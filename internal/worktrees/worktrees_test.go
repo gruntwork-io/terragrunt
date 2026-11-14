@@ -371,7 +371,7 @@ func TestNewWorktreesWithInvalidReference(t *testing.T) {
 	runner := helpers.InitTestGitRunner(t, tmpDir)
 	require.NoError(t, runner.Commit(t.Context(), "Initial commit", "--allow-empty"))
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 
@@ -885,7 +885,7 @@ func TestWorktreeCleanup(t *testing.T) {
 		require.NoError(t, runner.Commit(t.Context(), fmt.Sprintf("Commit %d", i), "--allow-empty"))
 	}
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 

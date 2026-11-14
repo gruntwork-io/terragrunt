@@ -15,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 
@@ -44,7 +45,7 @@ func TestRunCommandWithOutputInterrupt(t *testing.T) {
 	cmdPath := "testdata/test_sigint_wait.sh"
 	readyPath := filepath.Join(t.TempDir(), "sigint-ready")
 
-	shellOpts := configbridge.ShellRunOptsFromOpts(map[string]string{}, terragruntOptions)
+	shellOpts := configbridge.ShellRunOptsFromOpts(vexec.NewOSExec(), map[string]string{}, terragruntOptions)
 	// Forward the interrupt near-immediately instead of waiting the production
 	// grace period so the test does not pay that delay.
 	shellOpts.SignalForwardingDelay = 100 * time.Millisecond

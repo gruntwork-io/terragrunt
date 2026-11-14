@@ -7,10 +7,10 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/info/print"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 
 	"github.com/stretchr/testify/assert"
@@ -84,7 +84,7 @@ func TestInfoPrintAllReportsEachUnitsContext(t *testing.T) {
 		assert.Equal(t, filepath.Join(unitDir, config.DefaultTerragruntConfigPath), info.ConfigPath)
 		assert.Equal(t, downloadDir, info.DownloadDir)
 		assert.Empty(t, info.IAMRole)
-		assert.Equal(t, options.TofuDefaultPath, info.TerraformBinary)
+		assert.Equal(t, tfimpl.TofuDefaultPath, info.TerraformBinary)
 		assert.Equal(t, "print", info.TerraformCommand)
 		assert.True(
 			t,

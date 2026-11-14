@@ -182,7 +182,7 @@ func newVenv() *venv.Venv {
 func newOpts(t *testing.T, v *venv.Venv) *options.TerragruntOptions {
 	t.Helper()
 
-	opts, err := options.NewTerragruntOptionsWithConfigPath(v.Exec, filepath.Join(memRoot, "terragrunt.hcl"))
+	opts, err := options.NewTerragruntOptionsWithConfigPath(filepath.Join(memRoot, "terragrunt.hcl"))
 	require.NoError(t, err)
 
 	opts.NonInteractive = true

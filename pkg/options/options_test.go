@@ -5,7 +5,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/stretchr/testify/assert"
 )
@@ -82,27 +81,6 @@ func TestInsertTerraformCliArgsNilGuard(t *testing.T) {
 func TestNewTerragruntOptions_DefaultCASCloneDepth(t *testing.T) {
 	t.Parallel()
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	assert.Equal(t, cas.DefaultCASCloneDepth, opts.CASCloneDepth)
-}
-
-// TestIdentifyDefaultWrappedExecutableDoesNotSpawn guards the PATH-lookup-only
-// contract: NewNoSpawnExec resolves LookPath but errors on any process launch,
-// so a probe that spawns falls through to Terraform here.
-func TestIdentifyDefaultWrappedExecutableDoesNotSpawn(t *testing.T) {
-	t.Parallel()
-
-	assert.Equal(
-		t,
-		options.TofuDefaultPath,
-		options.IdentifyDefaultWrappedExecutable(vexec.NewNoSpawnExec()),
-	)
-}
-
-func TestIdentifyDefaultWrappedExecutableFallsBackToTerraform(t *testing.T) {
-	t.Parallel()
-
-	e := &vexec.NoLookPathExec{Exec: vexec.NewNoSpawnExec()}
-
-	assert.Equal(t, options.TerraformDefaultPath, options.IdentifyDefaultWrappedExecutable(e))
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
@@ -164,7 +165,7 @@ func printTerragruntContext(
 		ConfigPath:       opts.TerragruntConfigPath,
 		DownloadDir:      opts.DownloadDir,
 		IAMRole:          opts.IAMRoleOptions.RoleARN,
-		TerraformBinary:  opts.TFPath,
+		TerraformBinary:  tfimpl.BinaryOrDefault(v.Exec, opts.TFPath),
 		TerraformCommand: opts.TofuCommand,
 		WorkingDir:       opts.WorkingDir,
 	}

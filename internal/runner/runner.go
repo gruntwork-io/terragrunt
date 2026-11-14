@@ -495,7 +495,7 @@ func (rnr *Runner) Run(
 					unitLogger,
 					unitV,
 					unitOpts.AuthProviderCmd,
-					configbridge.ShellRunOptsFromOpts(v.Env, unitOpts),
+					configbridge.ShellRunOptsFromOpts(v.Exec, v.Env, unitOpts),
 				)
 				if err != nil {
 					logTaskOutcome(childCtx, l, unitPath, unitOpts.TofuCommand, err)

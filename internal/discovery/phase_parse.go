@@ -398,7 +398,7 @@ func parseComponent(
 			// ObtainCredsForParsing writes auth-provider-cmd output into it.
 			parseV := v.WithEnvCloned().WithWriter(io.Discard).WithErrWriter(io.Discard)
 
-			shellOpts := configbridge.ShellRunOptsFromOpts(v.Env, parseOpts)
+			shellOpts := configbridge.ShellRunOptsFromOpts(v.Exec, v.Env, parseOpts)
 
 			if parseOpts.DiscoveryAuthProviderCmd {
 				if _, err := creds.ObtainCredsForParsing(
