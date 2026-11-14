@@ -1300,6 +1300,16 @@ func TestTFInputsWithInterpolationPatterns(t *testing.T) {
 	assert.Equal(t, "test ${bar} test", anyValue["foo"])
 	assert.Equal(t, "test %{bar} test", anyValue["directive"])
 	assert.Equal(t, "no interpolation here", anyValue["baz"])
+
+	// A map given to a variable declared as a string is read verbatim as JSON, so decoding it in
+	// the module gives back the same values.
+	decodedOutput, ok := outputs["string_from_map"]
+	require.True(t, ok, "string_from_map output not found")
+	decodedValue, ok := decodedOutput.Value.(map[string]any)
+	require.True(t, ok, "string_from_map value is not an object")
+	assert.Equal(t, "test ${bar} test", decodedValue["foo"])
+	assert.Equal(t, "test %{bar} test", decodedValue["directive"])
+	assert.Equal(t, "no interpolation here", decodedValue["baz"])
 }
 
 func TestTFTerragruntMissingDependenciesFail(t *testing.T) {

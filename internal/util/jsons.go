@@ -13,7 +13,7 @@ import (
 var templateSequenceEscaper = strings.NewReplacer("$${", "$${", "${", "$${", "%%{", "%%{", "%{", "%%{")
 
 // AsTerraformEnvVarJSONValue converts the given value to a JSON value that can be passed to
-// OpenTofu/Terraform as an environment variable. For the most part, this converts the value directly
+// OpenTofu/Terraform as an environment variable that they parse as HCL. For the most part, this converts the value directly
 // to JSON using Go's built-in json.Marshal. However, we have special handling
 // for strings, which with normal JSON conversion would be wrapped in quotes, but when passing them to OpenTofu/Terraform via
 // env vars, we need to NOT wrap them in quotes, so this method adds special handling for that case.
@@ -41,6 +41,24 @@ func AsTerraformEnvVarJSONValue(value any) (string, error) {
 
 		return string(envVarValue), nil
 	}
+}
+
+// AsLiteralTerraformEnvVarJSONValue converts the given value to a JSON value for an environment
+// variable that OpenTofu/Terraform read verbatim. Nothing is escaped, so a module that decodes the
+// JSON gets every string as given.
+//
+// A top-level string is returned as given, without the quotes json.Marshal would add.
+func AsLiteralTerraformEnvVarJSONValue(value any) (string, error) {
+	if str, ok := value.(string); ok {
+		return str, nil
+	}
+
+	envVarValue, err := json.Marshal(value)
+	if err != nil {
+		return "", err
+	}
+
+	return string(envVarValue), nil
 }
 
 // escapeTemplateSequencesInValue recursively walks a value tree and escapes the HCL template
