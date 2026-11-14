@@ -1,0 +1,223 @@
+---
+name: include
+description: Merges another Terragrunt configuration file into this one, e.g. a root.hcl that every unit shares.
+configs: [unit, stack]
+labels:
+  - name: name
+    description: Names the include. With `expose = true`, the configuration reads the included file as `include.<name>`. Each `include` block in a file needs a different name. An `include` block without a label is deprecated. See [Bare includes](/migrate/bare-include/).
+attributes:
+  - name: path
+    type: string
+    required: true
+    description: The configuration file to include, often found with [`find_in_parent_folders`](/reference/hcl/functions#find_in_parent_folders). A relative path resolves against the directory of the file that declares the `include`.
+    example: |
+      # terragrunt.hcl
+
+      include "root" {
+        path = find_in_parent_folders("root.hcl")
+      }
+  - name: expose
+    type: bool
+    default: "false"
+    description: Makes the included file's configuration readable as `include.<name>`, e.g. `include.root.locals.region` or `include.root.inputs`. It's not accepted in a `terragrunt.stack.hcl` file.
+    example: |
+      # terragrunt.hcl
+
+      include "root" {
+        path   = find_in_parent_folders("root.hcl")
+        expose = true
+      }
+
+      inputs = {
+        region = include.root.locals.region
+      }
+  - name: merge_strategy
+    type: string
+    default: '"shallow"'
+    description: How to merge the included file into this one, `shallow`, `deep`, or `no_merge`. `no_merge` merges nothing, so with `expose = true` the unit only reads the file's values. See [Merge strategies](/reference/hcl/blocks/include#merge-strategies). It's not accepted in a `terragrunt.stack.hcl` file.
+    example: |
+      # terragrunt.hcl
+
+      include "root" {
+        path           = find_in_parent_folders("root.hcl")
+        merge_strategy = "deep"
+      }
+---
+
+import FileTree from '@components/vendored/starlight/FileTree.astro';
+
+An `include` block merges another configuration file into the unit's `terragrunt.hcl`, so settings that every unit shares can live in one file:
+
+```hcl
+# root.hcl
+
+remote_state {
+  backend = "s3"
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite_terragrunt"
+  }
+  config = {
+    bucket       = "my-tofu-state"
+    key          = "${path_relative_to_include()}/tofu.tfstate"
+    region       = "us-east-1"
+    encrypt      = true
+    use_lockfile = true
+  }
+}
+```
+
+```hcl
+# vpc/terragrunt.hcl
+
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+```
+
+<FileTree>
+
+- root.hcl
+- vpc
+  - **terragrunt.hcl** state key `vpc/tofu.tfstate`
+- app
+  - **terragrunt.hcl** state key `app/tofu.tfstate`
+
+</FileTree>
+
+Each unit that includes `root.hcl` gets the same `remote_state` block, and [`path_relative_to_include`](/reference/hcl/functions/path_relative_to_include) gives each one its own state key. See [Includes](/features/units/includes) for more patterns.
+
+A unit can include several files, but an included file can't have an `include` block of its own.
+
+### Merge strategies
+
+`merge_strategy` sets how the included file's settings combine with the unit's. Given these two files:
+
+```hcl
+# root.hcl
+
+inputs = {
+  region = "us-east-1"
+  tags   = { team = "platform" }
+  zones  = ["us-east-1a"]
+}
+```
+
+```hcl
+# app/terragrunt.hcl
+
+include "root" {
+  path           = find_in_parent_folders("root.hcl")
+  merge_strategy = "deep"
+}
+
+inputs = {
+  tags  = { app = "web" }
+  zones = ["us-east-1b"]
+}
+```
+
+The unit's `inputs` come out as:
+
+| Input    | `shallow`                | `deep`                                    |
+| -------- | ------------------------ | ----------------------------------------- |
+| `region` | `"us-east-1"`            | `"us-east-1"`                             |
+| `tags`   | `{ app = "web" }`        | `{ app = "web", team = "platform" }`      |
+| `zones`  | `["us-east-1b"]`         | `["us-east-1a", "us-east-1b"]`            |
+
+- `shallow` combines the top-level attributes and blocks, and the unit's value replaces the included one when both set it. The `paths` of [`dependencies`](/reference/hcl/blocks/dependencies) blocks combine.
+- `deep` also combines maps key by key and appends lists. Blocks with the same label merge, e.g. two `dependency "vpc"` blocks combine their `mock_outputs`. The unit's `remote_state` block, and a `generate` block with the same name, replace the included one.
+- `no_merge` merges nothing.
+
+With `shallow` or `deep`, the `dependency` blocks of both files are readable in both, so `root.hcl` can read `dependency.mysql.outputs` from a `dependency "mysql"` block in the unit.
+
+`locals` never merge. Neither file can read the other's `local` values. To read the included file's locals, set `expose = true` and use `include.<name>.locals`.
+
+### Multiple includes
+
+When two included files set the same value, the later `include` wins, and the unit's own value overrides both. With `merge_strategy = "no_merge"`, an include only supplies values to read:
+
+```hcl
+# region.hcl
+
+locals {
+  region = "us-east-1"
+}
+```
+
+```hcl
+# app/terragrunt.hcl
+
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+
+include "region" {
+  path           = find_in_parent_folders("region.hcl")
+  expose         = true
+  merge_strategy = "no_merge"
+}
+
+inputs = {
+  region = include.region.locals.region
+}
+```
+
+### Limitations on accessing exposed config
+
+Terragrunt reads a unit's `include` and `dependency` blocks to build a run queue, before any unit runs. When an included file has `dependency` blocks, the unit's `include` and `dependency` blocks can only read `include.<name>.locals` from that file. In a `run --all`, reading another attribute there, e.g. `include.root.inputs`, fails with `Attempt to get attribute from null value`. The rest of the unit, e.g. `inputs`, can read any exposed attribute.
+
+Put a value that a `dependency` block needs in the included file's `locals`:
+
+```hcl
+# root.hcl
+
+locals {
+  alb_path = "../alb-public"
+}
+
+dependency "vpc" {
+  config_path = "${get_terragrunt_dir()}/../vpc"
+}
+```
+
+```hcl
+# app/terragrunt.hcl
+
+include "root" {
+  path   = find_in_parent_folders("root.hcl")
+  expose = true
+}
+
+dependency "alb" {
+  config_path = include.root.locals.alb_path
+}
+```
+
+### Includes in stack files
+
+A `terragrunt.stack.hcl` file can also declare `include` blocks. The included file adds its `unit` and `stack` blocks to the stack, so a set of components shared by several stacks can live in one file:
+
+```hcl
+# live/dev/terragrunt.stack.hcl
+
+include "shared" {
+  path = "../shared.stack.hcl"
+}
+
+unit "app" {
+  source = "../../catalog/units/app"
+  path   = "app"
+}
+```
+
+```hcl
+# live/shared.stack.hcl
+
+unit "vpc" {
+  source = "${get_repo_root()}/catalog/units/vpc"
+  path   = "vpc"
+}
+```
+
+A relative `path` resolves against the directory of the stack file that declares the include. Terragrunt evaluates the included file with the including stack's `local` and `values` in scope. The included file may declare only `unit` and `stack` blocks. A `locals` block or a nested `include` in the included file fails generation, and so does a unit or stack name that collides with one in the including file. `expose` and `merge_strategy` aren't accepted here.
