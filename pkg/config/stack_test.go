@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
+	"github.com/hashicorp/hcl/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
@@ -530,31 +532,70 @@ unit "app" {
 }`, string(encoded))
 }
 
-func TestWriteValuesRejectsKeysThatAreNotIdentifiers(t *testing.T) {
+func TestStackGenerateRejectsValuesKeysThatAreNotIdentifiers(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := helpers.TmpDirWOSymlinks(t)
+	testCases := []struct {
+		name       string
+		values     string
+		block      string
+		sourceFile string
+		line       int
+	}{
+		{
+			name:       "literal key",
+			block:      "unit",
+			sourceFile: config.DefaultTerragruntConfigPath,
+			values:     "{\n    \"a b\" = \"space\"\n  }",
+			line:       6,
+		},
+		{
+			name:       "computed key",
+			block:      "unit",
+			sourceFile: config.DefaultTerragruntConfigPath,
+			values:     `merge({ "a b" = "space" }, {})`,
+			line:       5,
+		},
+		{
+			name:       "stack block",
+			block:      "stack",
+			sourceFile: config.DefaultStackFile,
+			values:     "{\n    \"a b\" = \"space\"\n  }",
+			line:       6,
+		},
+	}
 
-	stackConfig := `
-unit "app" {
-  source = "./unit"
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpDir := helpers.TmpDirWOSymlinks(t)
+
+			stackConfig := fmt.Sprintf(`
+%s "app" {
+  source = "./app"
   path   = "app"
-  values = {
-    "a b" = "space"
-  }
+  values = %s
 }
-`
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, config.DefaultStackFile), []byte(stackConfig), 0644))
+`, tc.block, tc.values)
+			stackFile := filepath.Join(tmpDir, config.DefaultStackFile)
+			require.NoError(t, os.WriteFile(stackFile, []byte(stackConfig), 0644))
 
-	unitDir := filepath.Join(tmpDir, "unit")
-	require.NoError(t, os.MkdirAll(unitDir, 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(unitDir, config.DefaultTerragruntConfigPath), []byte(""), 0644))
+			appDir := filepath.Join(tmpDir, "app")
+			require.NoError(t, os.MkdirAll(appDir, 0755))
+			require.NoError(t, os.WriteFile(filepath.Join(appDir, tc.sourceFile), []byte(""), 0644))
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --working-dir "+tmpDir)
+			_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --working-dir "+tmpDir)
 
-	var invalidKey config.InvalidValuesKeyError
+			var diags hcl.Diagnostics
 
-	require.ErrorAs(t, err, &invalidKey)
-	assert.Equal(t, config.InvalidValuesKeyError{Kind: config.ComponentKindUnit, Name: "app", Key: "a b"}, invalidKey)
-	assert.NoFileExists(t, filepath.Join(tmpDir, ".terragrunt-stack", "app", "terragrunt.values.hcl"))
+			require.ErrorAs(t, err, &diags)
+			require.Len(t, diags, 1)
+			assert.Equal(t, "Invalid values key", diags[0].Summary)
+			require.NotNil(t, diags[0].Subject)
+			assert.Equal(t, stackFile, diags[0].Subject.Filename)
+			assert.Equal(t, tc.line, diags[0].Subject.Start.Line)
+			assert.NoDirExists(t, filepath.Join(tmpDir, ".terragrunt-stack", "app"))
+		})
+	}
 }

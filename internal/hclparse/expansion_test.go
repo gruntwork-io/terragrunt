@@ -306,7 +306,7 @@ func TestGenerateAutoIncludeFileWritesExpandedDependencyKeyedByFor(t *testing.T)
 		},
 	})
 	require.False(t, diags.HasErrors(), "%s", diags)
-	assert.Equal(t, "../dev", configPath.AsString())
+	assert.Equal(t, filepath.Join("..", "dev"), configPath.AsString())
 }
 
 // TestParseStackFileReportsEveryFailingExpandedDependencyElement pins that an expanded autoinclude

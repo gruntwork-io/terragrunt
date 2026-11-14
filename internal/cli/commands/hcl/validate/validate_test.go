@@ -180,3 +180,25 @@ func TestRunValidateReportsOneParserDiagnosticPerRange(t *testing.T) {
 	require.NotNil(t, result.diags[0].Range)
 	assert.Equal(t, 2, result.diags[0].Range.Start.Line)
 }
+
+func TestRunValidateReportsValuesKeysThatAreNotIdentifiers(t *testing.T) {
+	t.Parallel()
+
+	result := runValidate(t, &validateRun{files: map[string]string{
+		"live/terragrunt.stack.hcl": `unit "app" {
+  source = "../app"
+  path   = "app"
+  values = {
+    "a b" = "space"
+  }
+}
+`,
+		"app/terragrunt.hcl": "",
+	}})
+
+	require.Error(t, result.err)
+	require.Len(t, result.diags, 1)
+	assert.Equal(t, "Invalid values key", result.diags[0].Summary)
+	require.NotNil(t, result.diags[0].Range)
+	assert.Equal(t, 5, result.diags[0].Range.Start.Line)
+}

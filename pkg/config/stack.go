@@ -881,7 +881,7 @@ func generateComponent(
 		return err
 	}
 
-	if err := writeValues(l, v.FS, cmp, ComponentKind(kindStr), dest); err != nil {
+	if err := writeValues(l, v.FS, cmp.values, dest); err != nil {
 		return fmt.Errorf("failed to write values for %s %s: %w", kindStr, cmp.address, err)
 	}
 
@@ -1767,7 +1767,17 @@ func decodeComponents(
 		return nil, nil, err
 	}
 
+	units, err = withValidValuesKeys(file, MetadataUnit, units)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	stacks, err := decodeStackBlocks(ctx, file, evalCtx)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	stacks, err = withValidValuesKeys(file, MetadataStack, stacks)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1839,6 +1849,148 @@ func decodeStackBlocks(
 	}
 
 	return stacks, nil
+}
+
+// componentValues is the values one unit or stack instance sets, with where they were set.
+type componentValues struct {
+	values     *cty.Value
+	blockLabel string
+	address    string
+}
+
+// valuesComponent is a unit or stack decoded from a stack file.
+type valuesComponent interface {
+	valuesOf() componentValues
+}
+
+func (u *Unit) valuesOf() componentValues {
+	return componentValues{values: u.Values, blockLabel: u.Name, address: componentAddress(u.Name, u.Expansion)}
+}
+
+func (s *Stack) valuesOf() componentValues {
+	return componentValues{values: s.Values, blockLabel: s.Name, address: componentAddress(s.Name, s.Expansion)}
+}
+
+// withValidValuesKeys returns components, decoded from the blockType blocks of file, without those whose values set a
+// top-level key that is not an HCL identifier. An attribute of terragrunt.values.hcl needs an identifier.
+//
+// Reports a diagnostic through file for each such key. A component is dropped even when the diagnostics handlers
+// swallow its diagnostics, as [hclparse.File.ExpandBlocks] drops a block whose diagnostics they swallow.
+func withValidValuesKeys[C valuesComponent](file *hclparse.File, blockType string, components []C) ([]C, error) {
+	valid := make([]C, 0, len(components))
+
+	for _, component := range components {
+		ok, err := valuesKeysValid(file, blockType, component.valuesOf())
+		if err != nil {
+			return nil, err
+		}
+
+		if ok {
+			valid = append(valid, component)
+		}
+	}
+
+	return valid, nil
+}
+
+// valuesKeysValid reports whether every top-level key of cv, set by a blockType block, is an HCL identifier.
+//
+// Reports a diagnostic through file for each key that is not one, on the key or, when the keys are computed, on the
+// values expression. Returns false with a nil error when the diagnostics handlers swallow the diagnostics.
+func valuesKeysValid(file *hclparse.File, blockType string, cv componentValues) (bool, error) {
+	var invalid []string
+
+	for _, key := range valuesKeys(cv.values) {
+		if !hclsyntax.ValidIdentifier(key) {
+			invalid = append(invalid, key)
+		}
+	}
+
+	if len(invalid) == 0 {
+		return true, nil
+	}
+
+	expr, err := valuesExpr(file, blockType, cv.blockLabel)
+	if err != nil {
+		return false, err
+	}
+
+	diags := make(hcl.Diagnostics, 0, len(invalid))
+
+	for _, key := range invalid {
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  "Invalid values key",
+			Detail: fmt.Sprintf(
+				"The %s %q sets the values key %q, which is not a valid identifier, "+
+					"so Terragrunt cannot write it to %s.",
+				blockType,
+				cv.address,
+				key,
+				valuesFile,
+			),
+			Subject: objectKeyRange(expr, key).Ptr(),
+		})
+	}
+
+	return false, file.HandleDiagnostics(diags)
+}
+
+// valuesKeys returns the top-level keys of values, or none when values is absent, null, unknown, or not an object or
+// map.
+func valuesKeys(values *cty.Value) []string {
+	if values == nil || values.IsNull() || !values.IsKnown() {
+		return nil
+	}
+
+	unmarked, _ := values.Unmark()
+
+	if ty := unmarked.Type(); !ty.IsObjectType() && !ty.IsMapType() {
+		return nil
+	}
+
+	keys := make([]string, 0, unmarked.LengthInt())
+
+	for it := unmarked.ElementIterator(); it.Next(); {
+		key, _ := it.Element()
+		keys = append(keys, key.AsString())
+	}
+
+	return keys
+}
+
+// valuesExpr returns the values expression of the blockType block labeled label in file.
+//
+// Panics when file has no such block setting values. A component that decoded values from file came from one.
+func valuesExpr(file *hclparse.File, blockType, label string) (hcl.Expression, error) {
+	content, _, diags := file.Body.PartialContent(&hcl.BodySchema{
+		Blocks: []hcl.BlockHeaderSchema{{Type: blockType, LabelNames: []string{"name"}}},
+	})
+	if diags.HasErrors() {
+		return nil, diags
+	}
+
+	for _, block := range content.Blocks {
+		if block.Labels[0] != label {
+			continue
+		}
+
+		attrs, _, diags := block.Body.PartialContent(&hcl.BodySchema{
+			Attributes: []hcl.AttributeSchema{{Name: MetadataValues}},
+		})
+		if diags.HasErrors() {
+			return nil, diags
+		}
+
+		attr, found := attrs.Attributes[MetadataValues]
+		if !found {
+			continue
+		}
+
+		return attr.Expr, nil
+	}
+
+	panic(fmt.Sprintf("no %s block labeled %q sets values in %s", blockType, label, file.ConfigPath))
 }
 
 // processStackConfigIncludes resolves include blocks during stack file parsing.
@@ -2060,12 +2212,10 @@ func stackName(s *Stack) string {
 	return s.Name
 }
 
-// writeValues writes the values of cmp to a terragrunt.values.hcl file in directory.
+// writeValues generates and writes values to a terragrunt.values.hcl file in the specified directory.
 //
-// Returns [InvalidValuesKeyError] when a top-level key is not an HCL identifier.
-func writeValues(l log.Logger, fsys vfs.FS, cmp *componentToGenerate, kind ComponentKind, directory string) error {
-	values := cmp.values
-
+// Panics when a top-level key of values is not an HCL identifier. [ParseStackConfig] rejects such a key first.
+func writeValues(l log.Logger, fsys vfs.FS, values *cty.Value, directory string) error {
 	if values == nil {
 		l.Debugf("No values to write in %s", directory)
 		return nil
@@ -2122,7 +2272,7 @@ func writeValues(l log.Logger, fsys vfs.FS, cmp *componentToGenerate, kind Compo
 
 	for _, key := range keys {
 		if !hclsyntax.ValidIdentifier(key) {
-			return InvalidValuesKeyError{Kind: kind, Name: cmp.address, Key: key}
+			panic(fmt.Sprintf("values key %q is not an HCL identifier, which ParseStackConfig rejects", key))
 		}
 
 		body.SetAttributeRaw(key, hclhelper.TokensForValue(valueMap[key]))

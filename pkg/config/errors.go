@@ -1083,21 +1083,3 @@ func (err UnknownMockValueError) Error() string {
 		err.ConfigPath,
 	)
 }
-
-// InvalidValuesKeyError reports a top-level key in the values of a unit or stack that is not an HCL identifier,
-// which terragrunt.values.hcl cannot assign.
-type InvalidValuesKeyError struct {
-	Kind ComponentKind
-	Name string
-	Key  string
-}
-
-func (err InvalidValuesKeyError) Error() string {
-	return fmt.Sprintf(
-		"%s %q has values key %q, which is not a valid identifier and cannot be written to %s",
-		err.Kind,
-		err.Name,
-		err.Key,
-		valuesFile,
-	)
-}

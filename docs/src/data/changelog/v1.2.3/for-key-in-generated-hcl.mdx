@@ -27,4 +27,4 @@ Terragrunt now writes the key as `"for"` in:
 
 `terragrunt.auto.tfvars`, written by the `variables-block` experiment, quoted every object key (`"team" = "platform"`). It now quotes only `for` and writes `team = "platform"`.
 
-`terragrunt stack generate` returns an error naming a top-level `values` key that is not a valid identifier, e.g. `"a b"`. It used to write a `terragrunt.values.hcl` file that could not be parsed.
+`terragrunt stack generate` and `terragrunt hcl validate` now report a top-level `values` key that is not a valid identifier, e.g. `"a b"`, and point at the key in the stack file. `terragrunt stack generate` used to write a `terragrunt.values.hcl` file that could not be parsed.
