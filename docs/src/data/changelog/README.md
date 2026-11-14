@@ -2,7 +2,7 @@
 
 Each file here is one change in the changelog at `/process/changelog`, in a directory named for its release. `src/pages/process/changelog.astro` renders the release index, and `src/pages/process/changelog/[version].astro` renders each release's page.
 
-```
+```text
 v1.2.3/
   my-new-feature.mdx
   fix-some-bug.mdx
