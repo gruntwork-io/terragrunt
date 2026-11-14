@@ -1,0 +1,8 @@
+---
+version: "v1.2.2"
+category: "bug-fixes"
+---
+
+#### `hcl validate` handles dependency outputs read through `read_terragrunt_config`
+
+A dependency block in a file read with `read_terragrunt_config()`, such as `read_terragrunt_config("dependencies.hcl").dependency.vpc.outputs.vpc_id`, failed `hcl validate` with `Attempt to get attribute from null value` when the dependency had no `mock_outputs`. Its outputs are now unknown values, the same as for a dependency block declared in the unit.
