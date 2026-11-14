@@ -1,0 +1,23 @@
+---
+version: "v1.2.3"
+category: "bug-fixes"
+---
+
+#### Map and list `inputs` accept a literal `%{`
+
+An [`inputs`](/reference/hcl/attributes/inputs/) map or list with a string whose value contains `%{` (written `%%{` in HCL, or read from a file) failed when OpenTofu/Terraform parsed the value:
+
+```hcl
+# terragrunt.hcl
+inputs = {
+  alert_templates = {
+    summary = "%%{ if firing }FIRING%%{ endif }"
+  }
+}
+```
+
+```text
+Error: Invalid template control keyword
+```
+
+Terragrunt now escapes `%{` in these values as it escapes `${`, so the module receives the string as written.

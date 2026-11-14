@@ -117,6 +117,42 @@ func TestSetTerragruntInputsAsEnvVars(t *testing.T) {
 			expected:       map[string]string{"TF_VAR_foo": `{"a": "$${b}"}`},
 		},
 		{
+			description:    "input with a template directive for a string variable",
+			inputsInConfig: map[string]any{"foo": `{"a": "%{b}"}`},
+			moduleFiles:    map[string]string{"main.tf": `variable "foo" { type = string }`},
+			expected:       map[string]string{"TF_VAR_foo": `{"a": "%{b}"}`},
+		},
+		{
+			description:    "input with a template directive for a variable of any type",
+			inputsInConfig: map[string]any{"foo": `{"a": "%{b}"}`},
+			moduleFiles:    map[string]string{"main.tf": `variable "foo" { type = any }`},
+			expected:       map[string]string{"TF_VAR_foo": `{"a": "%%{b}"}`},
+		},
+		{
+			description:    "map input with template sequences for a map variable",
+			inputsInConfig: map[string]any{"foo": map[string]any{"a": "${b}", "c": "%{d}"}},
+			moduleFiles:    map[string]string{"main.tf": `variable "foo" { type = map(string) }`},
+			expected:       map[string]string{"TF_VAR_foo": `{"a":"$${b}","c":"%%{d}"}`},
+		},
+		{
+			description:    "map input with template sequences for a string variable",
+			inputsInConfig: map[string]any{"foo": map[string]any{"a": "${b}", "c": "%{d}"}},
+			moduleFiles:    map[string]string{"main.tf": `variable "foo" { type = string }`},
+			expected:       map[string]string{"TF_VAR_foo": `{"a":"${b}","c":"%{d}"}`},
+		},
+		{
+			description:    "list input with template sequences for a list variable",
+			inputsInConfig: map[string]any{"foo": []any{"${b}", "%{d}"}},
+			moduleFiles:    map[string]string{"main.tf": `variable "foo" { type = list(string) }`},
+			expected:       map[string]string{"TF_VAR_foo": `["$${b}","%%{d}"]`},
+		},
+		{
+			description:    "list input with template sequences for a string variable",
+			inputsInConfig: map[string]any{"foo": []any{"${b}", "%{d}"}},
+			moduleFiles:    map[string]string{"main.tf": `variable "foo" { type = string }`},
+			expected:       map[string]string{"TF_VAR_foo": `["${b}","%{d}"]`},
+		},
+		{
 			description:    "input with an interpolation pattern for an unparseable module",
 			inputsInConfig: map[string]any{"foo": `{"a": "${b}"}`},
 			moduleFiles:    map[string]string{"main.tf": `variable "foo" {`},
@@ -317,9 +353,15 @@ func TestToTerraformEnvVars(t *testing.T) {
 			},
 		},
 		{
-			description: "map value with interpolation pattern",
+			description: "map value with interpolation pattern for an HCL parsed variable",
 			vars:        map[string]any{"stuff": map[string]any{"foo": "test ${bar} test"}},
+			declared:    map[string]tf.ModuleVariable{"stuff": {ParsingMode: tf.VariableParseHCL}},
 			expected:    map[string]string{"TF_VAR_stuff": `{"foo":"test $${bar} test"}`},
+		},
+		{
+			description: "map value with interpolation pattern for a literally read variable",
+			vars:        map[string]any{"stuff": map[string]any{"foo": "test ${bar} test"}},
+			expected:    map[string]string{"TF_VAR_stuff": `{"foo":"test ${bar} test"}`},
 		},
 		{
 			description: "string with interpolation pattern for a literally read variable",
@@ -345,8 +387,31 @@ func TestToTerraformEnvVars(t *testing.T) {
 			expected:    map[string]string{"TF_VAR_mystr": `plain ${bar} string`},
 		},
 		{
-			description: "typed slice with interpolation pattern",
+			description: "map value with template directive for an HCL parsed variable",
+			vars:        map[string]any{"stuff": map[string]any{"foo": "test %{bar} test"}},
+			declared:    map[string]tf.ModuleVariable{"stuff": {ParsingMode: tf.VariableParseHCL}},
+			expected:    map[string]string{"TF_VAR_stuff": `{"foo":"test %%{bar} test"}`},
+		},
+		{
+			description: "map value with template directive for a literally read variable",
+			vars:        map[string]any{"stuff": map[string]any{"foo": "test %{bar} test"}},
+			expected:    map[string]string{"TF_VAR_stuff": `{"foo":"test %{bar} test"}`},
+		},
+		{
+			description: "string with template directive for a literally read variable",
+			vars:        map[string]any{"mystr": "plain %{bar} string"},
+			expected:    map[string]string{"TF_VAR_mystr": `plain %{bar} string`},
+		},
+		{
+			description: "string with template directive for an HCL parsed variable",
+			vars:        map[string]any{"mystr": "plain %{bar} string"},
+			declared:    map[string]tf.ModuleVariable{"mystr": {ParsingMode: tf.VariableParseHCL}},
+			expected:    map[string]string{"TF_VAR_mystr": `plain %%{bar} string`},
+		},
+		{
+			description: "typed slice with interpolation pattern for an HCL parsed variable",
 			vars:        map[string]any{"list": []string{"${a}", "b"}},
+			declared:    map[string]tf.ModuleVariable{"list": {ParsingMode: tf.VariableParseHCL}},
 			expected:    map[string]string{"TF_VAR_list": `["$${a}","b"]`},
 		},
 	}

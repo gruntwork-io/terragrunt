@@ -560,13 +560,16 @@ func SetTerragruntInputsAsEnvVars(
 		panic(venv.ErrVenvEnvUnset)
 	}
 
-	asEnvVars, err := ToTerraformEnvVars(
-		l,
-		cfg.Inputs,
-		declaredVariables(l, fsys, modulePath, cfg.Inputs),
-	)
+	asEnvVars, err := ToTerraformEnvVars(l, cfg.Inputs, nil)
 	if err != nil {
 		return err
+	}
+
+	if hasTemplateSequence(asEnvVars) {
+		asEnvVars, err = ToTerraformEnvVars(l, cfg.Inputs, declaredVariables(l, fsys, modulePath))
+		if err != nil {
+			return err
+		}
 	}
 
 	for key, value := range asEnvVars {
@@ -764,9 +767,9 @@ func FilterTerraformExtraArgs(l log.Logger, fsys vfs.FS, opts *Options, cfg *run
 // keys will be of the format TF_VAR_xxx and the values will be converted to JSON, which Terraform knows how to read
 // natively.
 //
-// A string value only has its interpolation sequences escaped when the module declares the matching
-// variable with a type constraint that makes OpenTofu/Terraform parse the value as HCL. Escaping a
-// value that is read literally would deliver $${...} to the module instead of ${...}.
+// A value only has its template sequences escaped when the module declares the matching variable
+// with a type constraint that makes OpenTofu/Terraform parse the value as HCL. Escaping a value that
+// is read literally would deliver $${...} to the module instead of ${...}.
 func ToTerraformEnvVars(
 	l log.Logger,
 	vars map[string]any,
@@ -781,11 +784,7 @@ func ToTerraformEnvVars(
 
 		envVarName := fmt.Sprintf(tf.EnvNameTFVarFmt, varName)
 
-		if str, ok := varValue.(string); ok && declared[varName].ParsingMode == tf.VariableParseHCL {
-			varValue = util.EscapeInterpolationInString(str)
-		}
-
-		envVarValue, err := util.AsTerraformEnvVarJSONValue(varValue)
+		envVarValue, err := terraformEnvVarValue(varValue, declared[varName].ParsingMode)
 		if err != nil {
 			return nil, err
 		}
@@ -796,31 +795,37 @@ func ToTerraformEnvVars(
 	return out, nil
 }
 
-// declaredVariables reads how the module at modulePath declared its variables, so that only the
-// values OpenTofu/Terraform parse as HCL get escaped.
-//
-// Reading the module is skipped unless an input actually carries an interpolation sequence, and a
-// module that cannot be read yields no declarations at all: values are then passed through
-// untouched, and OpenTofu/Terraform report the malformed module themselves.
-func declaredVariables(
-	l log.Logger,
-	fsys vfs.FS,
-	modulePath string,
-	inputs map[string]any,
-) map[string]tf.ModuleVariable {
-	needsDeclarations := false
+// terraformEnvVarValue encodes value for a TF_VAR_* environment variable that OpenTofu/Terraform
+// read in the given mode.
+func terraformEnvVarValue(value any, mode tf.VariableParsingMode) (string, error) {
+	if mode != tf.VariableParseHCL {
+		return util.AsLiteralTerraformEnvVarJSONValue(value)
+	}
 
-	for _, value := range inputs {
-		if str, ok := value.(string); ok && strings.Contains(str, "${") {
-			needsDeclarations = true
-			break
+	if str, ok := value.(string); ok {
+		return util.EscapeTemplateSequencesInString(str), nil
+	}
+
+	return util.AsTerraformEnvVarJSONValue(value)
+}
+
+// hasTemplateSequence reports whether any of the given environment variable values contains ${ or %{.
+func hasTemplateSequence(envVars map[string]string) bool {
+	for _, value := range envVars {
+		if strings.Contains(value, "${") || strings.Contains(value, "%{") {
+			return true
 		}
 	}
 
-	if !needsDeclarations {
-		return nil
-	}
+	return false
+}
 
+// declaredVariables reads how the module at modulePath declared its variables, so that only the
+// values OpenTofu/Terraform parse as HCL get escaped.
+//
+// A module that cannot be read yields no declarations at all: values are then passed through
+// untouched, and OpenTofu/Terraform report the malformed module themselves.
+func declaredVariables(l log.Logger, fsys vfs.FS, modulePath string) map[string]tf.ModuleVariable {
 	declared, err := tf.ModuleVariables(fsys, modulePath)
 	if err != nil {
 		l.Debugf("Failed to read variable declarations in %s: %v", modulePath, err)
