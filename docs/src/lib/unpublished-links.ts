@@ -20,8 +20,11 @@ interface LinkContext {
  *   entries. A link to a command or HCL item that doesn't exist still fails.
  * - A link from unpublished content to an unpublished page, since neither end
  *   is in the build: e.g. an unreleased changelog entry linking to the page of
- *   the command it announces. A link from published content to an unpublished
- *   page still fails.
+ *   the command it announces.
+ * - A link to an unpublished page that a file only makes inside
+ *   `<Since version="...">` blocks for unreleased versions, since the build
+ *   leaves those blocks out. Any other link from published content to an
+ *   unpublished page still fails.
  *
  * `srcDir` is the absolute path of the site's `src/` directory. A docs page
  * gated on `since` must set `slug`, which is how links name it.
@@ -38,11 +41,17 @@ export async function excludeLinks(
   const dataPaths = new Set<string>();
   const unpublishedFiles = new Set<string>();
   const unpublishedPaths = new Set<string>();
+  const gatedLinks = new Map<string, Set<string>>();
 
   for (const file of [...markdownFiles(docsDir), ...markdownFiles(dataDir)]) {
-    const { data } = matter(fs.readFileSync(file, "utf-8"));
+    const { data, content } = matter(fs.readFileSync(file, "utf-8"));
     const since = file.startsWith(changelogDir + path.sep) ? data.version : data.since;
     const published = await isPublished(since);
+
+    if (published) {
+      const gated = await unreleasedSinceLinks(content);
+      if (gated.size > 0) gatedLinks.set(file, gated);
+    }
 
     if (file.startsWith(docsDir + path.sep)) {
       if (published) continue;
@@ -66,7 +75,29 @@ export async function excludeLinks(
   return ({ file, link }) =>
     isExcluded(link.split("?")[0]) ||
     dataPaths.has(linkPath(link)) ||
-    (unpublishedFiles.has(file) && unpublishedPaths.has(linkPath(link)));
+    (unpublishedPaths.has(linkPath(link)) &&
+      (unpublishedFiles.has(file) || gatedLinks.get(file)?.has(link) === true));
+}
+
+const SINCE_BLOCK = /<Since\s+version="([^"]+)"\s*>([\s\S]*?)<\/Since>/g;
+const LINK_URL = /\]\(\s*<?([^\s)>]+)|href="([^"]+)"/g;
+
+// Returns the links that `content` makes only inside `<Since>` blocks for
+// unreleased versions.
+async function unreleasedSinceLinks(content: string): Promise<Set<string>> {
+  const gated = new Set<string>();
+  let rest = content;
+  for (const [block, version, body] of content.matchAll(SINCE_BLOCK)) {
+    if (await isPublished(version)) continue;
+    for (const url of linkUrls(body)) gated.add(url);
+    rest = rest.replace(block, "");
+  }
+  for (const url of linkUrls(rest)) gated.delete(url);
+  return gated;
+}
+
+function linkUrls(markdown: string): string[] {
+  return [...markdown.matchAll(LINK_URL)].map(([, url, href]) => url ?? href);
 }
 
 // Returns the path of the page rendered from a data file, given its path
