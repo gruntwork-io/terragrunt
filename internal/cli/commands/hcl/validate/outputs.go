@@ -372,11 +372,8 @@ func unitTFImpl(
 		return tfimpl.Unknown
 	}
 
-	probeOpts := opts
-	if !opts.TFPathExplicitlySet && cfg.TerraformBinary != "" {
-		probeOpts = opts.Clone()
-		probeOpts.TFPath = cfg.TerraformBinary
-	}
+	probeOpts := opts.Clone()
+	probeOpts.SetTFPathFromConfig(cfg.TerraformBinary)
 
 	_, probe, err := configbridge.ProbeTF(ctx, l, v, probeOpts)
 	if err != nil {
