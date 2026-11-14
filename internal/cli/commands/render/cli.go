@@ -183,6 +183,7 @@ func newSharedFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv)
 		shared.NewAuthProviderCmdFlag(opts, nil),
 		shared.NewNoDiscoveryAuthProviderCmdFlag(opts, nil),
 		shared.NewFailFastFlag(opts),
+		shared.NewParallelismFlag(opts),
 	}
 
 	sharedFlags = sharedFlags.Add(shared.NewDependencyOutputFlags(opts)...)

@@ -30,6 +30,7 @@ var cliInventory = cliCommand{
 				failFastFlag,
 				noAutoRetryFlag,
 				noHooksFlag,
+				parallelismFlag,
 				sourceUpdateFlag,
 				unitsThatIncludeFlag,
 				{
@@ -360,6 +361,7 @@ var cliInventory = cliCommand{
 						failFastFlag,
 						noAutoRetryFlag,
 						noHooksFlag,
+						parallelismFlag,
 						sourceUpdateFlag,
 						unitsThatIncludeFlag,
 					}),
@@ -506,6 +508,7 @@ var cliInventory = cliCommand{
 			category: commands.ConfigurationCommandsCategoryName,
 			flags: slices.Concat(configParsingFlags, filterFlags, queueSelectionFlags, []cliFlag{
 				failFastFlag,
+				parallelismFlag,
 				unitsThatIncludeFlag,
 				{
 					names:             []string{"all", "a"},

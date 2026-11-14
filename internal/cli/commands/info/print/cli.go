@@ -37,6 +37,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihe
 		shared.NewAuthProviderCmdFlag(opts, nil),
 		shared.NewNoDiscoveryAuthProviderCmdFlag(opts, nil),
 		shared.NewFailFastFlag(opts),
+		shared.NewParallelismFlag(opts),
 	}
 
 	cmdFlags = cmdFlags.Add(shared.NewDependencyOutputFlags(opts)...)

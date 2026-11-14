@@ -32,6 +32,7 @@ func TestNewCommandExposesTheRenderFlags(t *testing.T) {
 		render.WithMetadataFlagName,
 		shared.AllFlagName,
 		shared.FailFastFlagName,
+		shared.ParallelismFlagName,
 		shared.FilterFlagName,
 		shared.FilterAffectedFlagName,
 		shared.DiscoveryBoundaryFlagName,
@@ -73,7 +74,6 @@ func TestNewCommandRejectsFlagsRenderDoesNotRead(t *testing.T) {
 		"--" + shared.NoRunHooksFlagName,
 		"--" + shared.NoStackGenerateFlagName,
 		"--" + shared.SourceUpdateFlagName,
-		"--" + shared.ParallelismFlagName + "=1",
 		"--" + shared.DestroyDependenciesCheckFlagName,
 		"--graph-root=.",
 	} {
