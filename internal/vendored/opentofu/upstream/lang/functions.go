@@ -31,7 +31,7 @@ func MakeBaseFunctionTable(baseDir string) map[string]function.Function {
 
 	ret := map[string]function.Function{
 		"abs": stdlib.AbsoluteFunc,
-		// "abspath":             funcs.AbsPathFunc, // Replaced by patch.Functions
+		// "abspath" is registered by patch.Functions.
 		"alltrue":             funcs.AllTrueFunc,
 		"anytrue":             funcs.AnyTrueFunc,
 		"assumeequal":         funcs.AssumeEqualFunc,
@@ -47,7 +47,7 @@ func MakeBaseFunctionTable(baseDir string) map[string]function.Function {
 		"assumesetlengthmin":  funcs.AssumeSetLengthMinFunc,
 		"assumestringprefix":  funcs.AssumeStringPrefixFunc,
 		"basename":            funcs.BasenameFunc,
-		// "base64decode":        funcs.Base64DecodeFunc, // Replaced by patch.Functions
+		// "base64decode" is registered by patch.Functions.
 		"base64encode":    funcs.Base64EncodeFunc,
 		"base64gzip":      funcs.Base64GzipFunc,
 		"base64gunzip":    funcs.Base64GunzipFunc,
@@ -74,16 +74,16 @@ func MakeBaseFunctionTable(baseDir string) map[string]function.Function {
 		"endswith":        funcs.EndsWithFunc,
 		"ephemeralasnull": funcs.EphemeralAsNullFunc,
 		"chunklist":       stdlib.ChunklistFunc,
-		// "file":                funcs.MakeFileFunc(baseDir, false), // Replaced by patch.Functions
-		// "fileexists":          funcs.MakeFileExistsFunc(baseDir), // Replaced by patch.Functions
-		// "fileset":             funcs.MakeFileSetFunc(baseDir), // Replaced by patch.Functions
-		// "filebase64":          funcs.MakeFileFunc(baseDir, true), // Replaced by patch.Functions
-		// "filebase64sha256":    funcs.MakeFileBase64Sha256Func(baseDir), // Replaced by patch.Functions
-		// "filebase64sha512":    funcs.MakeFileBase64Sha512Func(baseDir), // Replaced by patch.Functions
-		// "filemd5":             funcs.MakeFileMd5Func(baseDir), // Replaced by patch.Functions
-		// "filesha1":            funcs.MakeFileSha1Func(baseDir), // Replaced by patch.Functions
-		// "filesha256":          funcs.MakeFileSha256Func(baseDir), // Replaced by patch.Functions
-		// "filesha512":          funcs.MakeFileSha512Func(baseDir), // Replaced by patch.Functions
+		// "file" is registered by patch.Functions.
+		// "fileexists" is registered by patch.Functions.
+		// "fileset" is registered by patch.Functions.
+		// "filebase64" is registered by patch.Functions.
+		// "filebase64sha256" is registered by patch.Functions.
+		// "filebase64sha512" is registered by patch.Functions.
+		// "filemd5" is registered by patch.Functions.
+		// "filesha1" is registered by patch.Functions.
+		// "filesha256" is registered by patch.Functions.
+		// "filesha512" is registered by patch.Functions.
 		"flatten":    stdlib.FlattenFunc,
 		"floor":      stdlib.FloorFunc,
 		"format":     stdlib.FormatFunc,
@@ -108,7 +108,7 @@ func MakeBaseFunctionTable(baseDir string) map[string]function.Function {
 		"min":        stdlib.MinFunc,
 		"one":        funcs.OneFunc,
 		"parseint":   stdlib.ParseIntFunc,
-		// "pathexpand":          funcs.PathExpandFunc, // Replaced by patch.Functions
+		// "pathexpand" is registered by patch.Functions.
 		"pow":              stdlib.PowFunc,
 		"range":            stdlib.RangeFunc,
 		"regex":            stdlib.RegexFunc,
@@ -164,11 +164,7 @@ func MakeBaseFunctionTable(baseDir string) map[string]function.Function {
 		"zipmap":           stdlib.ZipmapFunc,
 	}
 
-	// The patch package registers a vfs-backed replacement for this:
-	//
-	// ret["templatefile"] = funcs.MakeTemplateFileFunc(baseDir, func() map[string]function.Function {
-	// 	return ret
-	// })
+	// "templatefile" is registered by patch.Functions.
 
 	// Registers "templatestring" function in function map.
 	ret["templatestring"] = funcs.MakeTemplateStringFunc(baseDir, func() map[string]function.Function {

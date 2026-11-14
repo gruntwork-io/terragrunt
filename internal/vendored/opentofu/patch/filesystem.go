@@ -64,7 +64,7 @@ var ErrStat = errors.New("failed to stat")
 // FuncNameTemplateFile is the name templatefile is registered under in [Functions].
 const FuncNameTemplateFile = "templatefile"
 
-// Functions returns the replacements for the upstream functions commented out
+// Functions returns the replacements for the upstream functions vend leaves out
 // of the vendored function table, each going through the Terragrunt venv or
 // logger. funcsCb returns the table templatefile renders a template with,
 // which is the table these functions are registered in.

@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/zclconf/go-cty/cty"
@@ -145,14 +146,15 @@ func TestFileExistsFailsWhenStatIsDenied(t *testing.T) {
 	v.FS = &statFailFS{FS: v.FS, err: fs.ErrPermission}
 
 	fn := patch.FileExistsFunc(v, baseDir, noRead)
+	quoted := strconv.Quote(filepath.Join(baseDir, name))
 
 	_, err := fn.Call([]cty.Value{cty.StringVal(name)})
 	require.ErrorIs(t, err, patch.ErrStat)
-	require.ErrorContains(t, err, filepath.FromSlash(name))
+	require.ErrorContains(t, err, quoted)
 
 	_, err = fn.Call([]cty.Value{cty.StringVal(name).Mark(marks.Sensitive)})
 	require.ErrorIs(t, err, patch.ErrStat)
-	assert.NotContains(t, err.Error(), filepath.FromSlash(name))
+	assert.NotContains(t, err.Error(), quoted)
 }
 
 func TestFileSetMatchesRelativePaths(t *testing.T) {
