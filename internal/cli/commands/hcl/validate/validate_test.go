@@ -29,34 +29,75 @@ func TestGetVarFlagsFromExtraArgs(t *testing.T) {
 		expectedVarFiles []string
 	}{
 		{
-			"QuotesStayPartOfTheArgument",
-			[]string{`-var='hello=world'`, `-var-file="other_vars.tfvars"`},
-			[]string{"'hello"},
-			[]string{`"other_vars.tfvars"`},
+			name:             "QuotesStayPartOfTheArgument",
+			args:             []string{`-var='hello=world'`, `-var-file="other_vars.tfvars"`},
+			expectedVars:     []string{"'hello"},
+			expectedVarFiles: []string{`"other_vars.tfvars"`},
 		},
 		{
-			"BackslashesInVarFileName",
-			[]string{`-var-file=C:\work\unit\varfiles\main.tfvars`},
-			[]string{},
-			[]string{`C:\work\unit\varfiles\main.tfvars`},
+			name:             "BackslashesInVarFileName",
+			args:             []string{`-var-file=C:\work\unit\varfiles\main.tfvars`},
+			expectedVars:     []string{},
+			expectedVarFiles: []string{`C:\work\unit\varfiles\main.tfvars`},
 		},
 		{
-			"MixedWithOtherIrrelevantArgs",
-			[]string{"-lock=true", "-var=enabled=true", "-refresh=false"},
-			[]string{"enabled"},
-			[]string{},
+			name:             "MixedWithOtherIrrelevantArgs",
+			args:             []string{"-lock=true", "-var=enabled=true", "-refresh=false"},
+			expectedVars:     []string{"enabled"},
+			expectedVarFiles: []string{},
 		},
 		{
-			"None",
-			[]string{"-lock=true", "-refresh=false"},
-			[]string{},
-			[]string{},
+			name:             "None",
+			args:             []string{"-lock=true", "-refresh=false"},
+			expectedVars:     []string{},
+			expectedVarFiles: []string{},
 		},
 		{
-			"SpaceInVarFileName",
-			[]string{"-var-file=this is a test.tfvars"},
-			[]string{},
-			[]string{"this is a test.tfvars"},
+			name:             "SpaceInVarFileName",
+			args:             []string{"-var-file=this is a test.tfvars"},
+			expectedVars:     []string{},
+			expectedVarFiles: []string{"this is a test.tfvars"},
+		},
+		{
+			name:             "ValueInNextArgument",
+			args:             []string{"-var", "enabled=true", "-var-file", "main.tfvars"},
+			expectedVars:     []string{"enabled"},
+			expectedVarFiles: []string{"main.tfvars"},
+		},
+		{
+			name:             "DoubleDash",
+			args:             []string{"--var=enabled=true", "--var-file=main.tfvars"},
+			expectedVars:     []string{"enabled"},
+			expectedVarFiles: []string{"main.tfvars"},
+		},
+		{
+			name:             "DoubleDashWithValueInNextArgument",
+			args:             []string{"--var", "enabled=true", "--var-file", "main.tfvars"},
+			expectedVars:     []string{"enabled"},
+			expectedVarFiles: []string{"main.tfvars"},
+		},
+		{
+			name:             "EqualsSignInVarValue",
+			args:             []string{"-var=first=a=b", "-var", "second=a=b"},
+			expectedVars:     []string{"first", "second"},
+			expectedVarFiles: []string{},
+		},
+		{
+			name:             "NextArgumentIsTheValueEvenWhenItLooksLikeAFlag",
+			args:             []string{"-var-file", "-var=enabled=true", "-lock=true"},
+			expectedVars:     []string{},
+			expectedVarFiles: []string{"-var=enabled=true"},
+		},
+		{
+			name: "FlagsWithAVarPrefix",
+			args: []string{
+				"-variable=enabled=true",
+				"-var-files=main.tfvars",
+				"---var=enabled=true",
+				"var=enabled=true",
+			},
+			expectedVars:     []string{},
+			expectedVarFiles: []string{},
 		},
 	}
 
@@ -72,6 +113,120 @@ func TestGetVarFlagsFromExtraArgs(t *testing.T) {
 			assert.Equal(t, tc.expectedVarFiles, varFiles)
 		})
 	}
+}
+
+func TestGetVarFlagsFromArgListRejectsFlagWithoutValue(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name         string
+		expectedFlag string
+		args         []string
+	}{
+		{name: "Var", expectedFlag: "var", args: []string{"-lock=true", "-var"}},
+		{name: "VarFile", expectedFlag: "var-file", args: []string{"-var=enabled=true", "-var-file"}},
+		{name: "DoubleDashVar", expectedFlag: "var", args: []string{"--var"}},
+		{name: "DoubleDashVarFile", expectedFlag: "var-file", args: []string{"--var-file"}},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, _, err := validate.GetVarFlagsFromArgList(tc.args)
+
+			var missingValueErr validate.MissingVarFlagValueError
+
+			require.ErrorAs(t, err, &missingValueErr)
+			assert.Equal(t, tc.expectedFlag, missingValueErr.Flag)
+		})
+	}
+}
+
+func TestGetVarFlagsFromArgListRejectsVarWithoutEqualsSign(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		args []string
+	}{
+		{name: "ValueAfterEqualsSign", args: []string{"-var=enabled"}},
+		{name: "ValueInNextArgument", args: []string{"-var", "enabled"}},
+		{name: "EmptyValue", args: []string{"-var="}},
+		{name: "NextArgumentIsAnotherFlag", args: []string{"-var", "-refresh"}},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, _, err := validate.GetVarFlagsFromArgList(tc.args)
+			require.ErrorIs(t, err, validate.ErrMalformedVarFlag)
+		})
+	}
+}
+
+func TestRunValidateInputsCountsVarFlagsWithValueInNextArgument(t *testing.T) {
+	t.Parallel()
+
+	result := runValidate(t, &validateRun{
+		files: map[string]string{
+			"main.tf": `variable "region" {}
+variable "team" {}
+`,
+			"extra.tfvars": `team = "platform"` + "\n",
+			"terragrunt.hcl": `terraform {
+  extra_arguments "vars" {
+    commands  = ["apply", "plan"]
+    arguments = ["-var", "region=us-east-1", "-var-file", "${get_terragrunt_dir()}/extra.tfvars"]
+  }
+}
+`,
+		},
+		inputs: true,
+	})
+
+	require.NoError(t, result.err)
+}
+
+func TestRunValidateInputsCountsVarFlagWithValueInNextExtraArgumentsBlock(t *testing.T) {
+	t.Parallel()
+
+	result := runValidate(t, &validateRun{
+		files: map[string]string{
+			"main.tf": `variable "region" {}` + "\n",
+			"terragrunt.hcl": `terraform {
+  extra_arguments "flag" {
+    commands  = ["apply", "plan"]
+    arguments = ["-var"]
+  }
+
+  extra_arguments "value" {
+    commands  = ["apply", "plan"]
+    arguments = ["region=us-east-1"]
+  }
+}
+`,
+		},
+		inputs: true,
+	})
+
+	require.NoError(t, result.err)
+}
+
+func TestRunValidateInputsCountsCLIVarFlagWithValueInNextArgument(t *testing.T) {
+	t.Parallel()
+
+	result := runValidate(t, &validateRun{
+		files: map[string]string{
+			"main.tf":        `variable "region" {}` + "\n",
+			"terragrunt.hcl": "",
+		},
+		tfCLIArgs: []string{"-var", "region=us-east-1"},
+		inputs:    true,
+	})
+
+	require.NoError(t, result.err)
 }
 
 // writeValidateInputsUnits lays out two units: unit-a satisfies its required
