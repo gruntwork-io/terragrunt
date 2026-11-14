@@ -12,6 +12,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
@@ -94,7 +95,7 @@ func testCommandOutput(
 		t.Context(),
 		l,
 		v,
-		configbridge.TFRunOptsFromOpts(map[string]string{}, terragruntOptions),
+		configbridge.TFRunOptsFromOpts(map[string]string{}, terragruntOptions, tfimpl.Unknown),
 		"same",
 	)
 

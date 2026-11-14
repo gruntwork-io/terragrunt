@@ -55,7 +55,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/os/exec"
-	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	semver "github.com/gruntwork-io/terragrunt/internal/semver"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tips"
@@ -359,16 +358,22 @@ func RunAction(
 		}
 	}
 
+	probe := tfimpl.Unprobed()
+
 	// Set up automatic provider caching if enabled
 	if !opts.NoAutoProviderCacheDir {
-		if err := setupAutoProviderCacheDir(actionCtx, l, opts, v); err != nil {
+		var err error
+
+		if probe, err = setupAutoProviderCacheDir(actionCtx, l, opts, v); err != nil {
 			l.Debugf("Auto provider cache dir setup failed: %v", err)
 		}
 	}
 
 	// The implementation decides which CLI config files the cache server reads, so resolve it before the tips and the server start; a run the probe leaves mismatched is warned about, and bypasses the cache, in the command hook.
 	if opts.ProviderCacheOptions.Enabled {
-		if err := PopulateTFImplementation(actionCtx, l, opts, v); err != nil {
+		var err error
+
+		if _, probe, err = configbridge.ProbeTF(actionCtx, l, v, opts); err != nil {
 			l.Debugf(
 				"Failed to detect the OpenTofu/Terraform implementation; the provider cache server falls back to OpenTofu's CLI config file locations: %v",
 				err,
@@ -385,8 +390,8 @@ func RunAction(
 		opts.Tips,
 		v.Env,
 		opts.ProviderCacheOptions.Enabled,
-		opts.TofuImplementation,
-		opts.TerraformVersion,
+		probe.Type,
+		probe.Version,
 	)
 
 	// Re-enable VT processing after subprocess execution may have reset console mode.
@@ -400,7 +405,7 @@ func RunAction(
 		server, err := providercache.InitServer(
 			l,
 			v,
-			opts.TofuImplementation,
+			probe.Type,
 			&opts.ProviderCacheOptions,
 			opts.RootWorkingDir,
 		)
@@ -444,40 +449,14 @@ func RunAction(
 	return errGroup.Wait()
 }
 
-// PopulateTFImplementation resolves which OpenTofu/Terraform implementation opts.TFPath names, so
-// callers like the provider cache server can follow that implementation's behavior. It reuses the
-// run version cache and returns without probing when both the implementation and version are known.
-func PopulateTFImplementation(
-	ctx context.Context,
-	l log.Logger,
-	opts *options.TerragruntOptions,
-	v *venv.Venv,
-) error {
-	if opts.TofuImplementation != "" && opts.TofuImplementation != tfimpl.Unknown &&
-		opts.TerraformVersion != nil {
-		return nil
-	}
-
-	_, ver, impl, err := run.PopulateTFVersion(ctx, l, v, run.PopulateTFVersionInput{
-		TFOpts:       configbridge.TFRunOptsFromOpts(v.Env, opts),
-		WorkingDir:   opts.WorkingDir,
-		VersionFiles: opts.VersionManagerFileName,
-	})
-	if err != nil {
-		return err
-	}
-
-	opts.TerraformVersion = ver
-	opts.TofuImplementation = impl
-
-	return nil
-}
-
 const minTofuVersionForAutoProviderCacheDir = "1.10.0"
 
 // setupAutoProviderCacheDir configures native provider caching by setting TF_PLUGIN_CACHE_DIR.
 //
 // Only works with OpenTofu version >= 1.10. Returns error if conditions aren't met.
+//
+// The returned probe is the one it ran on the binary at opts.TFPath, and
+// [tfimpl.Unprobed] when TF_PLUGIN_CACHE_DIR was already set or the probe failed.
 //
 // Panics if v.Env is nil, as it mutates it.
 func setupAutoProviderCacheDir(
@@ -485,7 +464,7 @@ func setupAutoProviderCacheDir(
 	l log.Logger,
 	opts *options.TerragruntOptions,
 	v *venv.Venv,
-) error {
+) (tfimpl.Probe, error) {
 	if v.Env == nil {
 		panic("setupAutoProviderCacheDir: venv environment map is nil")
 	}
@@ -497,19 +476,20 @@ func setupAutoProviderCacheDir(
 			v.Env[tf.EnvNameTFPluginCacheDir],
 		)
 
-		return nil
+		return tfimpl.Unprobed(), nil
 	}
 
-	if err := PopulateTFImplementation(ctx, l, opts, v); err != nil {
-		return err
+	_, probe, err := configbridge.ProbeTF(ctx, l, v, opts)
+	if err != nil {
+		return probe, err
 	}
 
-	terraformVersion := opts.TerraformVersion
-	tfImplementation := opts.TofuImplementation
+	terraformVersion := probe.Version
+	tfImplementation := probe.Type
 
 	// Check if OpenTofu is being used
 	if tfImplementation != tfimpl.OpenTofu {
-		return fmt.Errorf(
+		return probe, fmt.Errorf(
 			"auto provider cache dir requires OpenTofu, but detected %s",
 			tfImplementation,
 		)
@@ -517,16 +497,16 @@ func setupAutoProviderCacheDir(
 
 	// Check OpenTofu version > 1.10
 	if terraformVersion == nil {
-		return errors.New("cannot determine OpenTofu version")
+		return probe, errors.New("cannot determine OpenTofu version")
 	}
 
 	requiredVersion, err := semver.Parse(minTofuVersionForAutoProviderCacheDir)
 	if err != nil {
-		return fmt.Errorf("failed to parse required version: %w", err)
+		return probe, fmt.Errorf("failed to parse required version: %w", err)
 	}
 
 	if terraformVersion.LessThan(requiredVersion) {
-		return fmt.Errorf(
+		return probe, fmt.Errorf(
 			"auto provider cache dir requires OpenTofu version >= 1.10, but found %s",
 			terraformVersion,
 		)
@@ -537,7 +517,7 @@ func setupAutoProviderCacheDir(
 	if providerCacheDir == "" {
 		cacheDir, err := util.EnsureCacheDir(v)
 		if err != nil {
-			return fmt.Errorf("failed to get cache directory: %w", err)
+			return probe, fmt.Errorf("failed to get cache directory: %w", err)
 		}
 
 		providerCacheDir = filepath.Join(cacheDir, "providers")
@@ -554,14 +534,14 @@ func setupAutoProviderCacheDir(
 
 	// Create the cache directory if it doesn't exist
 	if err := v.FS.MkdirAll(providerCacheDir, cacheDirMode); err != nil {
-		return fmt.Errorf("failed to create provider cache directory: %w", err)
+		return probe, fmt.Errorf("failed to create provider cache directory: %w", err)
 	}
 
 	v.Env[tf.EnvNameTFPluginCacheDir] = providerCacheDir
 
 	l.Debugf("Auto provider cache dir enabled: TF_PLUGIN_CACHE_DIR=%s", providerCacheDir)
 
-	return nil
+	return probe, nil
 }
 
 // resolveWorkingDir makes opts.WorkingDir a clean absolute path, using the

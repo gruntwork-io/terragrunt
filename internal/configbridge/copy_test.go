@@ -56,7 +56,7 @@ func TestNewParsingContextCopiesEveryOption(t *testing.T) {
 	assert.Same(t, opts.EngineConfig, pctx.EngineConfig)
 	assert.Same(t, opts.EngineOptions, pctx.EngineOptions)
 	assert.Equal(t, opts.TFPath, pctx.TFPath)
-	assert.Equal(t, opts.TofuImplementation, pctx.TofuImplementation)
+	assert.Equal(t, opts.VersionManagerFileName, pctx.VersionManagerFileName)
 	assert.True(t, pctx.ForwardTFStdout)
 	assert.True(t, pctx.JSONLogFormat)
 	assert.True(t, pctx.Debug)
@@ -114,7 +114,7 @@ func TestNewRunOptionsCopiesEveryOption(t *testing.T) {
 		},
 	}
 
-	runOpts := configbridge.NewRunOptions(opts)
+	runOpts := configbridge.NewRunOptions(opts, tfimpl.OpenTofu)
 	require.NotNil(t, runOpts)
 
 	assert.True(t, runOpts.LogShowAbsPaths)
@@ -139,7 +139,7 @@ func TestNewRunOptionsCopiesEveryOption(t *testing.T) {
 	assert.True(t, runOpts.Experiments.Evaluate(experiment.Stacks), "enabled experiments must reach the runner")
 	assert.Equal(t, opts.StrictControls, runOpts.StrictControls)
 	assert.Equal(t, opts.TFPath, runOpts.TFPath)
-	assert.Equal(t, opts.TofuImplementation, runOpts.TofuImplementation)
+	assert.Equal(t, tfimpl.OpenTofu, runOpts.TofuImplementation)
 	assert.True(t, runOpts.ForwardTFStdout)
 	assert.True(t, runOpts.JSONLogFormat)
 	assert.True(t, runOpts.Headless)
@@ -173,7 +173,7 @@ func TestNewRunOptionsLeavesHooksEnabledByDefault(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("terragrunt.hcl")
 	require.NoError(t, err)
 
-	runOpts := configbridge.NewRunOptions(opts)
+	runOpts := configbridge.NewRunOptions(opts, tfimpl.Unknown)
 
 	assert.False(t, runOpts.NoHooks, "hooks run unless the user asks for --no-run-hooks")
 }
@@ -206,13 +206,13 @@ func TestTFRunOptsFromOptsCopiesEveryOption(t *testing.T) {
 
 	opts := optionsWithDistinctValues(t)
 
-	tfOpts := configbridge.TFRunOptsFromOpts(map[string]string{}, opts)
+	tfOpts := configbridge.TFRunOptsFromOpts(map[string]string{}, opts, tfimpl.OpenTofu)
 	require.NotNil(t, tfOpts)
 
 	assert.True(t, tfOpts.JSONLogFormat)
 	assert.Equal(t, opts.TerragruntConfigPath, tfOpts.TerragruntConfigPath)
 	assert.Equal(t, opts.OriginalTerragruntConfigPath, tfOpts.OriginalTerragruntConfigPath)
-	assert.Equal(t, opts.TofuImplementation, tfOpts.TofuImplementation)
+	assert.Equal(t, tfimpl.OpenTofu, tfOpts.TofuImplementation)
 	assert.Same(t, opts.TerraformCliArgs, tfOpts.TerraformCliArgs)
 
 	require.NotNil(t, tfOpts.ShellOptions, "tf commands shell out, so the shell options must be threaded through")
@@ -286,7 +286,6 @@ func optionsWithDistinctValues(t *testing.T) *options.TerragruntOptions {
 	opts.SourceMap = map[string]string{"github.com/acme/units": "/copy/local/units"}
 	opts.AuthProviderCmd = "/copy/bin/auth-provider"
 	opts.TFPath = "/copy/bin/tofu"
-	opts.TofuImplementation = tfimpl.OpenTofu
 	opts.ScaffoldRootFileName = "copy-root.hcl"
 	opts.TerragruntStackConfigPath = "/copy/unit/terragrunt.stack.hcl"
 	opts.MaxFoldersToCheck = 42

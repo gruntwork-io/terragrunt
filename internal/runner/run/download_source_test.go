@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -40,7 +41,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -370,7 +370,7 @@ func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDirSameVe
 		logger.CreateLogger(),
 		venvtest.NewOSWithEmptyEnv(),
 		terraformSource,
-		configbridge.NewRunOptions(opts),
+		configbridge.NewRunOptions(opts, tfimpl.OpenTofu),
 		cfg,
 		report.NewReport(),
 	)
@@ -438,7 +438,7 @@ func TestDownloadTerraformSourceIfNecessaryInvalidTerraformSource(t *testing.T) 
 		logger.CreateLogger(),
 		venvtest.NewOSWithEmptyEnv(),
 		terraformSource,
-		configbridge.NewRunOptions(opts),
+		configbridge.NewRunOptions(opts, tfimpl.OpenTofu),
 		cfg,
 		report.NewReport(),
 	)
@@ -487,7 +487,7 @@ func TestDownloadTerraformSourceIfNecessaryRedactsSourceCredentials(t *testing.T
 		logger.CreateLogger(),
 		venvtest.NewOSWithEmptyEnv(),
 		terraformSource,
-		configbridge.NewRunOptions(opts),
+		configbridge.NewRunOptions(opts, tfimpl.OpenTofu),
 		cfg,
 		report.NewReport(),
 	)
@@ -648,7 +648,7 @@ func testDownloadTerraformSourceIfNecessary(
 		logger.CreateLogger(),
 		venvtest.NewOSWithEmptyEnv(),
 		terraformSource,
-		configbridge.NewRunOptions(opts),
+		configbridge.NewRunOptions(opts, tfimpl.OpenTofu),
 		cfg,
 		report.NewReport(),
 	)
@@ -708,44 +708,6 @@ func createConfig(
 		},
 	}
 
-	// Mem-backed venv: this helper only needs PopulateTFVersion to
-	// populate opts.TerraformVersion / TofuImplementation; the version
-	// probe behavior itself is covered by TestGetTFVersion* in
-	// version_check_mem_test.go. Forking real tofu here would make every
-	// download_source test depend on tofu being installed. Any invocation
-	// other than the version probe is a regression: fail loudly rather
-	// than silently absorb it.
-	versionExec := vexec.NewMemExec(func(_ context.Context, inv vexec.Invocation) vexec.Result {
-		// IdentifyDefaultWrappedExecutable resolves to tofu/terraform
-		// depending on what's on the host PATH; accept both so the assertion
-		// stays host-independent.
-		if (inv.Name != "tofu" && inv.Name != "terraform") ||
-			!slices.Contains(inv.Args, "-version") {
-			assert.Fail(t, "unexpected invocation during PopulateTFVersion",
-				"name=%q args=%v", inv.Name, inv.Args)
-
-			return vexec.Result{ExitCode: 1}
-		}
-
-		return vexec.Result{Stdout: []byte("OpenTofu v1.7.2\n")}
-	})
-
-	versionV := venv.MemVenv().WithExec(versionExec).WithEnv(venvtest.NewOSWithEmptyEnv().Env)
-	_, ver, impl, err := run.PopulateTFVersion(
-		config.WithCaches(t.Context()),
-		l,
-		versionV,
-		run.PopulateTFVersionInput{
-			TFOpts:       configbridge.TFRunOptsFromOpts(map[string]string{}, opts),
-			WorkingDir:   opts.WorkingDir,
-			VersionFiles: opts.VersionManagerFileName,
-		},
-	)
-	require.NoError(t, err)
-
-	opts.TerraformVersion = ver
-	opts.TofuImplementation = impl
-
 	return terraformSource, opts, cfg, err
 }
 
@@ -774,7 +736,7 @@ func testAlreadyHaveLatestCode(
 		l,
 		venvtest.NewOSWithEmptyEnv(),
 		terraformSource,
-		configbridge.NewRunOptions(opts),
+		configbridge.NewRunOptions(opts, tfimpl.Unknown),
 	)
 	require.NoError(t, err)
 	assert.Equal(t, expected, actual, "For terraform source %v", terraformSource)
@@ -869,7 +831,7 @@ func TestUpdateGettersExcludeFromCopy(t *testing.T) {
 			client, err := run.BuildDownloadClient(
 				logger.CreateLogger(),
 				venvtest.NewOSWithEmptyEnv(),
-				configbridge.NewRunOptions(terragruntOptions),
+				configbridge.NewRunOptions(terragruntOptions, tfimpl.Unknown),
 				tc.cfg,
 			)
 			require.NoError(t, err)
@@ -898,7 +860,7 @@ func TestBuildDownloadClientHTTPNetrc(t *testing.T) {
 	client, err := run.BuildDownloadClient(
 		logger.CreateLogger(),
 		venvtest.NewOSWithEmptyEnv(),
-		configbridge.NewRunOptions(terragruntOptions),
+		configbridge.NewRunOptions(terragruntOptions, tfimpl.Unknown),
 		&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
 	)
 	require.NoError(t, err)
@@ -926,7 +888,7 @@ func TestBuildDownloadClientCoversDefaultSchemes(t *testing.T) {
 	client, err := run.BuildDownloadClient(
 		logger.CreateLogger(),
 		venvtest.NewOSWithEmptyEnv(),
-		configbridge.NewRunOptions(terragruntOptions),
+		configbridge.NewRunOptions(terragruntOptions, tfimpl.Unknown),
 		&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
 	)
 	require.NoError(t, err)
@@ -993,7 +955,7 @@ func TestDownloadWithNoSourceCreatesCache(t *testing.T) {
 		l,
 		venvtest.NewOSWithEmptyEnv(),
 		".",
-		configbridge.NewRunOptions(opts),
+		configbridge.NewRunOptions(opts, tfimpl.Unknown),
 		cfg,
 		r,
 	)
@@ -1060,7 +1022,7 @@ func TestDownloadTerraformSourceLockWaitProgress(t *testing.T) {
 				l,
 				v,
 				".",
-				configbridge.NewRunOptions(opts),
+				configbridge.NewRunOptions(opts, tfimpl.Unknown),
 				&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
 				report.NewReport(),
 			)
@@ -1104,7 +1066,7 @@ func TestDownloadTerraformSourceProgressRelativePath(t *testing.T) {
 		l,
 		v,
 		"../modules/vpc",
-		configbridge.NewRunOptions(opts),
+		configbridge.NewRunOptions(opts, tfimpl.Unknown),
 		&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
 		report.NewReport(),
 	)
@@ -1138,7 +1100,7 @@ func TestDownloadTerraformSourceCancelled(t *testing.T) {
 		logger.CreateLogger(),
 		v,
 		".",
-		configbridge.NewRunOptions(opts),
+		configbridge.NewRunOptions(opts, tfimpl.Unknown),
 		&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
 		report.NewReport(),
 	)
@@ -1183,7 +1145,7 @@ func TestDownloadSourceWithCASExperimentDisabled(t *testing.T) {
 		l,
 		venvtest.NewOSWithEmptyEnv(),
 		src,
-		configbridge.NewRunOptions(opts),
+		configbridge.NewRunOptions(opts, tfimpl.Unknown),
 		cfg,
 		r,
 	)
@@ -1231,7 +1193,7 @@ func TestDownloadSourceWithCASExperimentEnabled(t *testing.T) {
 		l,
 		venvtest.NewOSWithEmptyEnv(),
 		src,
-		configbridge.NewRunOptions(opts),
+		configbridge.NewRunOptions(opts, tfimpl.Unknown),
 		cfg,
 		r,
 	)
@@ -1291,7 +1253,7 @@ func TestDownloadSourceOCIEntersCASPath(t *testing.T) {
 		l,
 		v,
 		src,
-		configbridge.NewRunOptions(opts),
+		configbridge.NewRunOptions(opts, tfimpl.Unknown),
 		cfg,
 		report.NewReport(),
 	)
@@ -1351,7 +1313,7 @@ func TestDownloadSourceOCIAgainstLocalRegistry(t *testing.T) {
 		l,
 		v,
 		src,
-		configbridge.NewRunOptions(opts),
+		configbridge.NewRunOptions(opts, tfimpl.Unknown),
 		cfg,
 		report.NewReport(),
 	)
@@ -1397,7 +1359,7 @@ func TestDownloadSourceWithCASGitSource(t *testing.T) {
 		l,
 		venvtest.NewOSWithEmptyEnv(),
 		src,
-		configbridge.NewRunOptions(opts),
+		configbridge.NewRunOptions(opts, tfimpl.Unknown),
 		cfg,
 		r,
 	)
@@ -1457,7 +1419,15 @@ func TestDownloadSourceWithCASOfflineDamagedStoreFails(t *testing.T) {
 
 	online := newSource("online")
 	_, err = run.DownloadTerraformSourceIfNecessary(
-		config.WithCaches(t.Context()), l, v, online, configbridge.NewRunOptions(opts), cfg, report.NewReport(),
+		config.WithCaches(
+			t.Context(),
+		),
+		l,
+		v,
+		online,
+		configbridge.NewRunOptions(opts, tfimpl.Unknown),
+		cfg,
+		report.NewReport(),
 	)
 	require.NoError(t, err)
 	require.FileExists(t, filepath.Join(online.DownloadDir, "main.tf"))
@@ -1468,7 +1438,15 @@ func TestDownloadSourceWithCASOfflineDamagedStoreFails(t *testing.T) {
 
 	offline := newSource("offline")
 	_, err = run.DownloadTerraformSourceIfNecessary(
-		config.WithCaches(t.Context()), l, v, offline, configbridge.NewRunOptions(opts), cfg, report.NewReport(),
+		config.WithCaches(
+			t.Context(),
+		),
+		l,
+		v,
+		offline,
+		configbridge.NewRunOptions(opts, tfimpl.Unknown),
+		cfg,
+		report.NewReport(),
 	)
 	require.Error(t, err)
 	require.NotErrorIs(t, err, cas.ErrCASOffline, "the probe is answered; the store fails on the content behind it")
@@ -1531,7 +1509,7 @@ func TestDownloadSourceWithCASOfflineMissFails(t *testing.T) {
 		l,
 		v,
 		src,
-		configbridge.NewRunOptions(opts),
+		configbridge.NewRunOptions(opts, tfimpl.Unknown),
 		cfg,
 		report.NewReport(),
 	)
@@ -1589,7 +1567,7 @@ func TestDownloadSourceWithCASOfflineInitFailureFails(t *testing.T) {
 		l,
 		v,
 		src,
-		configbridge.NewRunOptions(opts),
+		configbridge.NewRunOptions(opts, tfimpl.Unknown),
 		cfg,
 		report.NewReport(),
 	)
@@ -1633,7 +1611,7 @@ func TestDownloadSourceCASInitializationFailure(t *testing.T) {
 		l,
 		venvtest.NewOSWithEmptyEnv(),
 		src,
-		configbridge.NewRunOptions(opts),
+		configbridge.NewRunOptions(opts, tfimpl.Unknown),
 		cfg,
 		r,
 	)
@@ -1676,7 +1654,7 @@ func TestDownloadSourceUpdateSourceWithCASRequiresCAS(t *testing.T) {
 
 	_, err = run.DownloadTerraformSourceIfNecessary(
 		config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv(), src,
-		configbridge.NewRunOptions(opts),
+		configbridge.NewRunOptions(opts, tfimpl.Unknown),
 		cfg, report.NewReport(),
 	)
 	require.Error(t, err)
@@ -1743,7 +1721,7 @@ func TestDownloadSourceWithCASMultipleSources(t *testing.T) {
 				l,
 				venvtest.NewOSWithEmptyEnv(),
 				src,
-				configbridge.NewRunOptions(opts),
+				configbridge.NewRunOptions(opts, tfimpl.Unknown),
 				cfg,
 				r,
 			)
@@ -1802,7 +1780,7 @@ func TestHTTPGetterNetrcAuthentication(t *testing.T) {
 	client, err := run.BuildDownloadClient(
 		logger.CreateLogger(),
 		venvtest.NewOSWithEmptyEnv(),
-		configbridge.NewRunOptions(opts),
+		configbridge.NewRunOptions(opts, tfimpl.Unknown),
 		cfg,
 	)
 	require.NoError(t, err)
@@ -1888,7 +1866,7 @@ func TestDownloadTerraformSourceRejectsNonOSFilesystemPerSource(t *testing.T) {
 				l,
 				v,
 				tc.source,
-				configbridge.NewRunOptions(opts),
+				configbridge.NewRunOptions(opts, tfimpl.Unknown),
 				&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
 				report.NewReport(),
 			)
@@ -1919,7 +1897,7 @@ func TestDownloadTerraformSourceIfNecessaryPanicsOnNilSource(t *testing.T) {
 			logger.CreateLogger(),
 			venvtest.NewOSWithEmptyEnv(),
 			nil,
-			configbridge.NewRunOptions(opts),
+			configbridge.NewRunOptions(opts, tfimpl.Unknown),
 			&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
 			report.NewReport(),
 		)
@@ -1952,7 +1930,7 @@ func TestDownloadTerraformSourceIfNecessaryRejectsNonOSFilesystem(t *testing.T) 
 		logger.CreateLogger(),
 		v,
 		src,
-		configbridge.NewRunOptions(opts),
+		configbridge.NewRunOptions(opts, tfimpl.Unknown),
 		&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
 		report.NewReport(),
 	)
@@ -1971,7 +1949,7 @@ func TestBuildDownloadClientRegistersOCIGetter(t *testing.T) {
 	client, err := run.BuildDownloadClient(
 		logger.CreateLogger(),
 		venvtest.NewOSWithEmptyEnv(),
-		configbridge.NewRunOptions(terragruntOptions),
+		configbridge.NewRunOptions(terragruntOptions, tfimpl.Unknown),
 		&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
 	)
 	require.NoError(t, err)
@@ -2023,7 +2001,7 @@ func TestBuildDownloadClientThreadsVenvToOCIStore(t *testing.T) {
 	client, err := run.BuildDownloadClient(
 		logger.CreateLogger(),
 		v,
-		configbridge.NewRunOptions(terragruntOptions),
+		configbridge.NewRunOptions(terragruntOptions, tfimpl.Unknown),
 		&runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}},
 	)
 	require.NoError(t, err)
@@ -2096,7 +2074,7 @@ func TestDownloadSourceWithCASChecksumMismatchFailsOnce(t *testing.T) {
 		l,
 		v,
 		src,
-		configbridge.NewRunOptions(opts),
+		configbridge.NewRunOptions(opts, tfimpl.Unknown),
 		cfg,
 		report.NewReport(),
 	)

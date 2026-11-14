@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -75,7 +76,7 @@ func runTFHelp(
 		ctx,
 		l,
 		helpV,
-		configbridge.TFRunOptsFromOpts(v.Env, opts),
+		configbridge.TFRunOptsFromOpts(v.Env, opts, tfimpl.Unknown),
 		terraformHelpCmd...)
 	if err != nil {
 		var processError *util.ProcessExecutionError

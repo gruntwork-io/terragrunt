@@ -70,7 +70,7 @@ func runPrint(
 	}
 
 	// Download source
-	updatedOpts, err := prepare.PrepareSource(
+	updatedOpts, _, err := prepare.PrepareSource(
 		ctx,
 		l,
 		v,

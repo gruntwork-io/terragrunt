@@ -16,6 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/tips"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -91,7 +92,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v *
 		return err
 	}
 
-	l, err := checkVersionConstraints(ctx, l, opts, v)
+	l, probe, err := checkVersionConstraints(ctx, l, opts, v)
 	if err != nil {
 		return err
 	}
@@ -148,7 +149,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v *
 		}
 	}()
 
-	runErr = run.Run(ctx, l, v, configbridge.NewRunOptions(tgOpts), r, runCfg, credsGetter)
+	runErr = run.Run(ctx, l, v, configbridge.NewRunOptions(tgOpts, probe.Type), r, runCfg, credsGetter)
 
 	return runErr
 }
@@ -173,7 +174,7 @@ func runVersionCommand(
 		ctx,
 		l,
 		v,
-		configbridge.TFRunOptsFromOpts(v.Env, opts),
+		configbridge.TFRunOptsFromOpts(v.Env, opts, tfimpl.Unknown),
 		opts.TerraformCliArgs.Slice()...)
 }
 
@@ -197,11 +198,10 @@ func getTFPathFromConfig(
 	return cfg.TerraformBinary, nil
 }
 
-// CheckVersionConstraints checks the version constraints of both terragrunt and terraform.
+// checkVersionConstraints checks the version constraints of both terragrunt and terraform,
+// and returns the probe of the binary it checked.
 // Note that as a side effect this will set the following settings on terragruntOptions:
 // - TerraformPath
-// - TerraformVersion
-// - TofuImplementation
 // - EngineConfig
 // TODO: Look into a way to refactor this function to avoid the side effect.
 func checkVersionConstraints(
@@ -209,10 +209,10 @@ func checkVersionConstraints(
 	l log.Logger,
 	opts *options.TerragruntOptions,
 	v *venv.Venv,
-) (log.Logger, error) {
+) (log.Logger, tfimpl.Probe, error) {
 	partialTerragruntConfig, err := getTerragruntConfig(ctx, l, v, opts)
 	if err != nil {
-		return l, err
+		return l, tfimpl.Unprobed(), err
 	}
 
 	// If the TFPath is not explicitly set, use the TFPath from the config if it is set.
@@ -222,30 +222,23 @@ func checkVersionConstraints(
 
 	engineConfig, err := partialTerragruntConfig.EngineOptions()
 	if err != nil {
-		return l, err
+		return l, tfimpl.Unprobed(), err
 	}
 
 	opts.EngineConfig = engineConfig
 
-	l, ver, impl, err := run.PopulateTFVersion(ctx, l, v, run.PopulateTFVersionInput{
-		TFOpts:       configbridge.TFRunOptsFromOpts(v.Env, opts),
-		WorkingDir:   opts.WorkingDir,
-		VersionFiles: opts.VersionManagerFileName,
-	})
+	l, probe, err := configbridge.ProbeTF(ctx, l, v, opts)
 	if err != nil {
-		return l, err
+		return l, probe, err
 	}
-
-	opts.TerraformVersion = ver
-	opts.TofuImplementation = impl
 
 	if err := run.CheckTerraformVersionMeetsConstraint(
 		l,
-		opts.TerraformVersion,
-		opts.TofuImplementation,
+		probe.Version,
+		probe.Type,
 		partialTerragruntConfig.TerraformVersionConstraint,
 	); err != nil {
-		return l, err
+		return l, probe, err
 	}
 
 	if partialTerragruntConfig.TerragruntVersionConstraint != "" {
@@ -253,11 +246,11 @@ func checkVersionConstraints(
 			opts.TerragruntVersion,
 			partialTerragruntConfig.TerragruntVersionConstraint,
 		); err != nil {
-			return l, err
+			return l, probe, err
 		}
 	}
 
-	return l, nil
+	return l, probe, nil
 }
 
 func getTerragruntConfig(

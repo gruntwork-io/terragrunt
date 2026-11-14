@@ -24,7 +24,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
-	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/tips"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -94,8 +93,6 @@ type TerragruntOptions struct {
 	Telemetry *telemetry.Options
 	// Attributes to override in AWS provider nested within modules as part of the aws-provider-patch command.
 	AwsProviderPatchOverrides map[string]string
-	// Version of terraform (obtained by running 'terraform version')
-	TerraformVersion *semver.Version `clone:"shadowcopy"`
 	// Errors is a configuration for error handling.
 	Errors *errorconfig.Config
 	// Map to replace terraform source locations.
@@ -126,8 +123,6 @@ type TerragruntOptions struct {
 	DownloadDir string
 	// Original tofu command being executed by Terragrunt.
 	OriginalTofuCommand string
-	// Terraform implementation tool (e.g. terraform, tofu) that terragrunt is wrapping
-	TofuImplementation tfimpl.Type
 	// The file path that terragrunt should use when rendering the terragrunt.hcl config as json.
 	JSONOut string
 	// The command and arguments that can be used to fetch authentication configurations.
@@ -360,7 +355,6 @@ func NewTerragruntOptions(e vexec.Exec) *TerragruntOptions {
 		AutoRetry:                true,
 		Parallelism:              DefaultParallelism,
 		JSONOut:                  DefaultJSONOutName,
-		TofuImplementation:       tfimpl.Unknown,
 		ProviderCacheOptions: pcoptions.ProviderCacheOptions{
 			RegistryNames: pcoptions.DefaultRegistryNames,
 		},

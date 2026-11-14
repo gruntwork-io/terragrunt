@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -52,6 +53,7 @@ func (runner *UnitRunner) runTerragrunt(
 	l log.Logger,
 	v *venv.Venv,
 	opts *options.TerragruntOptions,
+	impl tfimpl.Type,
 	r *report.Report,
 	cfg *runcfg.RunConfig,
 	credsGetter *creds.Getter,
@@ -97,7 +99,7 @@ func (runner *UnitRunner) runTerragrunt(
 
 	ctx = tf.ContextWithDetailedExitCode(ctx, unitExitCode)
 
-	runErr := run.Run(ctx, l, v, configbridge.NewRunOptions(opts), r, cfg, credsGetter)
+	runErr := run.Run(ctx, l, v, configbridge.NewRunOptions(opts, impl), r, cfg, credsGetter)
 
 	if globalExitCode != nil {
 		unitPath := runner.Unit.Path()
@@ -134,12 +136,14 @@ func (runner *UnitRunner) runTerragrunt(
 }
 
 // Run executes the unit and, when the unit has a JSON output file configured,
-// writes its plan out as JSON.
+// writes its plan out as JSON. impl is the implementation of the binary at
+// opts.TFPath.
 func (runner *UnitRunner) Run(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	opts *options.TerragruntOptions,
+	impl tfimpl.Type,
 	r *report.Report,
 	cfg *runcfg.RunConfig,
 	credsGetter *creds.Getter,
@@ -150,7 +154,7 @@ func (runner *UnitRunner) Run(
 		return nil
 	}
 
-	if err := runner.runTerragrunt(ctx, l, v, opts, r, cfg, credsGetter); err != nil {
+	if err := runner.runTerragrunt(ctx, l, v, opts, impl, r, cfg, credsGetter); err != nil {
 		return err
 	}
 
@@ -174,7 +178,7 @@ func (runner *UnitRunner) Run(
 		// Use an ad-hoc report to avoid polluting the main report
 		adhocReport := report.NewReport()
 
-		runOpts := configbridge.NewRunOptions(jsonOptions)
+		runOpts := configbridge.NewRunOptions(jsonOptions, impl)
 		outputFile := runner.Unit.OutputJSONFile(opts.RootWorkingDir, opts.JSONOutputFolder)
 
 		if err := WriteJSONOutput(v.FS, outputFile, func(w io.Writer) error {

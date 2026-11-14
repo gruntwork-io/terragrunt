@@ -332,7 +332,7 @@ func RunValidateInputs(
 		}
 
 		// Download source
-		updatedOpts, err := prepare.PrepareSource(ctx, l, unitV, prepared.Opts, prepared.Cfg, r)
+		updatedOpts, impl, err := prepare.PrepareSource(ctx, l, unitV, prepared.Opts, prepared.Cfg, r)
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -344,6 +344,7 @@ func RunValidateInputs(
 			l,
 			unitV,
 			updatedOpts,
+			impl,
 			prepared.Cfg.ToRunConfig(l, unitV.FS),
 		); err != nil {
 			errs = append(errs, err)
