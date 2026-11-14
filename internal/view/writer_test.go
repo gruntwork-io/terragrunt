@@ -51,28 +51,42 @@ func TestWriterDiagnosticsJSON(t *testing.T) {
 func TestWriterShowConfigPath(t *testing.T) {
 	t.Parallel()
 
-	diags := diagnostic.Diagnostics{
-		{Range: &diagnostic.Range{Filename: "app/terragrunt.hcl"}},
+	withoutFiles := diagnostic.Diagnostics{
 		{Summary: "no range"},
 		{Range: &diagnostic.Range{}},
+	}
+
+	diags := diagnostic.Diagnostics{
 		{Range: &diagnostic.Range{Filename: "db/terragrunt.hcl"}},
+		withoutFiles[0],
+		withoutFiles[1],
 		{Range: &diagnostic.Range{Filename: "app/terragrunt.hcl"}},
+		{Range: &diagnostic.Range{Filename: "db/terragrunt.hcl"}},
 	}
 
 	testCases := []struct {
 		render   view.Render
 		name     string
 		expected string
+		diags    diagnostic.Diagnostics
 	}{
 		{
 			name:     "human",
 			render:   view.NewHumanRender(venv.MemVenv(), true),
-			expected: "app/terragrunt.hcl\ndb/terragrunt.hcl\n",
+			diags:    diags,
+			expected: "db/terragrunt.hcl\napp/terragrunt.hcl\n",
 		},
 		{
 			name:     "json",
 			render:   view.NewJSONRender(),
-			expected: `["app/terragrunt.hcl","db/terragrunt.hcl"]` + "\n",
+			diags:    diags,
+			expected: `["db/terragrunt.hcl","app/terragrunt.hcl"]` + "\n",
+		},
+		{
+			name:     "json without files",
+			render:   view.NewJSONRender(),
+			diags:    withoutFiles,
+			expected: "[]\n",
 		},
 	}
 
@@ -82,7 +96,7 @@ func TestWriterShowConfigPath(t *testing.T) {
 
 			var out bytes.Buffer
 
-			require.NoError(t, view.NewWriter(&out, tc.render).ShowConfigPath(diags))
+			require.NoError(t, view.NewWriter(&out, tc.render).ShowConfigPath(tc.diags))
 			assert.Equal(t, tc.expected, out.String())
 		})
 	}

@@ -43,7 +43,7 @@ func (writer *Writer) Diagnostics(diags diagnostic.Diagnostics) error {
 
 // ShowConfigPath writes each distinct file that diags point into, in order of first appearance.
 func (writer *Writer) ShowConfigPath(diags diagnostic.Diagnostics) error {
-	var filenames []string
+	filenames := []string{}
 
 	for _, diag := range diags {
 		if diag.Range != nil && diag.Range.Filename != "" &&
