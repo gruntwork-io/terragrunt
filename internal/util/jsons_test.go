@@ -59,6 +59,33 @@ func TestAsTerraformEnvVarJsonValue(t *testing.T) {
 	}
 }
 
+func TestAsLiteralTerraformEnvVarJSONValue(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		value    any
+		expected string
+	}{
+		{"plain ${bar} %{baz} string", "plain ${bar} %{baz} string"},
+		{map[string]any{"foo": "test ${bar} test"}, `{"foo":"test ${bar} test"}`},
+		{map[string]any{"foo": "test %%{bar} test"}, `{"foo":"test %%{bar} test"}`},
+		{[]any{"%{if foo}", "$${bar}"}, `["%{if foo}","$${bar}"]`},
+		{[]string{"${foo}", "bar"}, `["${foo}","bar"]`},
+		{(map[string]any)(nil), "null"},
+		{42, "42"},
+	}
+
+	for i, tc := range testCases {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			t.Parallel()
+
+			actual, err := util.AsLiteralTerraformEnvVarJSONValue(tc.value)
+			require.NoError(t, err)
+			assert.Equal(t, tc.expected, actual)
+		})
+	}
+}
+
 func TestAsTerraformEnvVarJsonValueDepthOverflow(t *testing.T) {
 	t.Parallel()
 

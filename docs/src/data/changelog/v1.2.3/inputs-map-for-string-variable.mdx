@@ -1,0 +1,34 @@
+---
+version: "v1.2.3"
+category: "bug-fixes"
+---
+
+#### Map and list `inputs` reach `string` variables with `${` intact
+
+A map or list in [`inputs`](/reference/hcl/attributes/inputs/) is passed to OpenTofu/Terraform as JSON. When the module declared the variable as `string`, or with no type, and decoded the JSON itself, every `${` in the decoded strings arrived as `$${`:
+
+```hcl
+# terragrunt.hcl
+inputs = {
+  rule = {
+    summary = "Instance $${instance} is down"
+  }
+}
+```
+
+```hcl
+# main.tf
+variable "rule" {
+  type = string
+}
+
+output "summary" {
+  value = jsondecode(var.rule).summary
+}
+```
+
+```text
+summary = "Instance $${instance} is down"
+```
+
+Terragrunt now escapes `${` and `%{` in a map or list only when the variable's type makes OpenTofu/Terraform parse the value as HCL, so the output is `Instance ${instance} is down`.
