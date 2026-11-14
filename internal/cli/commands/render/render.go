@@ -2,9 +2,7 @@
 package render
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -199,10 +197,8 @@ func writeRendered(
 	return vfs.StreamFileAtomic(fsys, outPath, ownerReadWritePerms, render)
 }
 
-// marshalCtyValueJSONWithoutType marshals the given cty.Value object into a JSON object that does not have the type.
-// Using ctyjson directly would render a json object with two attributes, "value" and "type", and this function returns
-// just the "value".
-// NOTE: We have to do two marshalling passes so that we can extract just the value.
+// marshalCtyValueJSONWithoutType marshals ctyVal to JSON without the "type" attribute that ctyjson adds when
+// marshaling as cty.DynamicPseudoType.
 func marshalCtyValueJSONWithoutType(ctyVal cty.Value) ([]byte, error) {
 	ctyVal, _ = ctyVal.UnmarkDeep()
 
@@ -210,21 +206,7 @@ func marshalCtyValueJSONWithoutType(ctyVal cty.Value) ([]byte, error) {
 		return nil, err
 	}
 
-	jsonBytesIntermediate, err := ctyjson.Marshal(ctyVal, cty.DynamicPseudoType)
-	if err != nil {
-		return nil, err
-	}
-
-	var ctyJSONOutput ctyhelper.CtyJSONOutput
-
-	decoder := json.NewDecoder(bytes.NewReader(jsonBytesIntermediate))
-	decoder.UseNumber()
-
-	if err = decoder.Decode(&ctyJSONOutput); err != nil {
-		return nil, err
-	}
-
-	jsonBytes, err := json.Marshal(ctyJSONOutput.Value)
+	jsonBytes, err := ctyjson.Marshal(ctyVal, ctyVal.Type())
 	if err != nil {
 		return nil, err
 	}

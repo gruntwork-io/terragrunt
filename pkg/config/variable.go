@@ -1,8 +1,6 @@
 package config
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
 
 	"github.com/gruntwork-io/terragrunt/internal/strict"
@@ -112,21 +110,7 @@ func ParseVariables(
 						defaultValueText := ""
 
 						if defaultValue != nil {
-							jsonBytes, err := ctyjson.Marshal(*defaultValue, cty.DynamicPseudoType)
-							if err != nil {
-								return nil, err
-							}
-
-							var ctyJSONOutput ctyJSONValue
-
-							decoder := json.NewDecoder(bytes.NewReader(jsonBytes))
-							decoder.UseNumber()
-
-							if err := decoder.Decode(&ctyJSONOutput); err != nil {
-								return nil, err
-							}
-
-							jsonBytes, err = json.Marshal(ctyJSONOutput.Value)
+							jsonBytes, err := ctyjson.Marshal(*defaultValue, defaultValue.Type())
 							if err != nil {
 								return nil, err
 							}
@@ -169,11 +153,6 @@ func generateDefaultValue(variableType string) string {
 	}
 	// fallback to empty value
 	return "\"\""
-}
-
-type ctyJSONValue struct {
-	Value any `json:"Value"`
-	Type  any `json:"Type"`
 }
 
 // readBlockAttribute - hcl block attribute.
