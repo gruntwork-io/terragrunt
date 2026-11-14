@@ -17,21 +17,18 @@ func defaultErrorsConfig() *errorconfig.Config {
 		compiled[i] = &errorconfig.Pattern{Pattern: re}
 	}
 
-	cfg := &errorconfig.Config{
-		Retry:  map[string]*errorconfig.RetryConfig{},
-		Ignore: map[string]*errorconfig.IgnoreConfig{},
-	}
-
 	if len(compiled) == 0 {
-		return cfg
+		return &errorconfig.Config{}
 	}
 
-	cfg.Retry["default"] = &errorconfig.RetryConfig{
-		Name:             "default",
-		RetryableErrors:  compiled,
-		MaxAttempts:      retry.DefaultMaxAttempts,
-		SleepIntervalSec: int(retry.DefaultSleepInterval / time.Second),
+	return &errorconfig.Config{
+		Retry: []*errorconfig.RetryConfig{
+			{
+				Name:             "default",
+				RetryableErrors:  compiled,
+				MaxAttempts:      retry.DefaultMaxAttempts,
+				SleepIntervalSec: int(retry.DefaultSleepInterval / time.Second),
+			},
+		},
 	}
-
-	return cfg
 }
