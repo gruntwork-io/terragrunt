@@ -126,51 +126,6 @@ func TestBase64Sha256(t *testing.T) {
 	}
 }
 
-func TestFileBase64Sha256(t *testing.T) {
-	tests := []struct {
-		Path cty.Value
-		Want cty.Value
-		Err  bool
-	}{
-		{
-			cty.StringVal("testdata/hello.txt"),
-			cty.StringVal("pZGm1Av0IEBKARczz7exkNYsZb8LzaMrV7J32a2fFG4="),
-			false,
-		},
-		{
-			cty.StringVal("testdata/icon.png"),
-			cty.StringVal("bun9+lNwoWcTxEze5pVIDfsf+mPDMtVUKZp04RCLHTc="),
-			false,
-		},
-		{
-			cty.StringVal("testdata/missing"),
-			cty.NilVal,
-			true, // no file exists
-		},
-	}
-
-	fileSHA256 := MakeFileBase64Sha256Func(".")
-
-	for _, test := range tests {
-		t.Run(fmt.Sprintf("filebase64sha256(%#v)", test.Path), func(t *testing.T) {
-			got, err := fileSHA256.Call([]cty.Value{test.Path})
-
-			if test.Err {
-				if err == nil {
-					t.Fatal("succeeded; want error")
-				}
-				return
-			} else if err != nil {
-				t.Fatalf("unexpected error: %s", err)
-			}
-
-			if !got.RawEquals(test.Want) {
-				t.Errorf("wrong result\ngot:  %#v\nwant: %#v", got, test.Want)
-			}
-		})
-	}
-}
-
 func TestBase64Sha512(t *testing.T) {
 	tests := []struct {
 		String cty.Value
@@ -190,51 +145,6 @@ func TestBase64Sha512(t *testing.T) {
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("base64sha512(%#v)", test.String), func(t *testing.T) {
 			got, err := Base64Sha512(test.String)
-
-			if test.Err {
-				if err == nil {
-					t.Fatal("succeeded; want error")
-				}
-				return
-			} else if err != nil {
-				t.Fatalf("unexpected error: %s", err)
-			}
-
-			if !got.RawEquals(test.Want) {
-				t.Errorf("wrong result\ngot:  %#v\nwant: %#v", got, test.Want)
-			}
-		})
-	}
-}
-
-func TestFileBase64Sha512(t *testing.T) {
-	tests := []struct {
-		Path cty.Value
-		Want cty.Value
-		Err  bool
-	}{
-		{
-			cty.StringVal("testdata/hello.txt"),
-			cty.StringVal("LHT9F+2v2A6ER7DUZ0HuJDt+t03SFJoKsbkkb7MDgvJ+hT2FhXGeDmfL2g2qj1FnEGRhXWRa4nrLFb+xRH9Fmw=="),
-			false,
-		},
-		{
-			cty.StringVal("testdata/icon.png"),
-			cty.StringVal("9FcRPvMPKG/8OO+zJpVnl3NZXBQEwOh3bBfrSh0boTkYvo6pq3xidR6ZuG/6rPnE0p7+rTYRfD3AVxdst62n9g=="),
-			false,
-		},
-		{
-			cty.StringVal("testdata/missing"),
-			cty.NilVal,
-			true, // no file exists
-		},
-	}
-
-	fileSHA512 := MakeFileBase64Sha512Func(".")
-
-	for _, test := range tests {
-		t.Run(fmt.Sprintf("filebase64sha512(%#v)", test.Path), func(t *testing.T) {
-			got, err := fileSHA512.Call([]cty.Value{test.Path})
 
 			if test.Err {
 				if err == nil {
@@ -308,51 +218,6 @@ func TestMd5(t *testing.T) {
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("md5(%#v)", test.String), func(t *testing.T) {
 			got, err := Md5(test.String)
-
-			if test.Err {
-				if err == nil {
-					t.Fatal("succeeded; want error")
-				}
-				return
-			} else if err != nil {
-				t.Fatalf("unexpected error: %s", err)
-			}
-
-			if !got.RawEquals(test.Want) {
-				t.Errorf("wrong result\ngot:  %#v\nwant: %#v", got, test.Want)
-			}
-		})
-	}
-}
-
-func TestFileMD5(t *testing.T) {
-	tests := []struct {
-		Path cty.Value
-		Want cty.Value
-		Err  bool
-	}{
-		{
-			cty.StringVal("testdata/hello.txt"),
-			cty.StringVal("b10a8db164e0754105b7a99be72e3fe5"),
-			false,
-		},
-		{
-			cty.StringVal("testdata/icon.png"),
-			cty.StringVal("a18e1dd95427740ff7c7654ecc0280ad"),
-			false,
-		},
-		{
-			cty.StringVal("testdata/missing"),
-			cty.NilVal,
-			true, // no file exists
-		},
-	}
-
-	fileMD5 := MakeFileMd5Func(".")
-
-	for _, test := range tests {
-		t.Run(fmt.Sprintf("filemd5(%#v)", test.Path), func(t *testing.T) {
-			got, err := fileMD5.Call([]cty.Value{test.Path})
 
 			if test.Err {
 				if err == nil {
@@ -482,51 +347,6 @@ func TestSha1(t *testing.T) {
 	}
 }
 
-func TestFileSHA1(t *testing.T) {
-	tests := []struct {
-		Path cty.Value
-		Want cty.Value
-		Err  bool
-	}{
-		{
-			cty.StringVal("testdata/hello.txt"),
-			cty.StringVal("0a4d55a8d778e5022fab701977c5d840bbc486d0"),
-			false,
-		},
-		{
-			cty.StringVal("testdata/icon.png"),
-			cty.StringVal("90ecc70d12bc0bca6efa8d5cc8b35091fb087686"),
-			false,
-		},
-		{
-			cty.StringVal("testdata/missing"),
-			cty.NilVal,
-			true, // no file exists
-		},
-	}
-
-	fileSHA1 := MakeFileSha1Func(".")
-
-	for _, test := range tests {
-		t.Run(fmt.Sprintf("filesha1(%#v)", test.Path), func(t *testing.T) {
-			got, err := fileSHA1.Call([]cty.Value{test.Path})
-
-			if test.Err {
-				if err == nil {
-					t.Fatal("succeeded; want error")
-				}
-				return
-			} else if err != nil {
-				t.Fatalf("unexpected error: %s", err)
-			}
-
-			if !got.RawEquals(test.Want) {
-				t.Errorf("wrong result\ngot:  %#v\nwant: %#v", got, test.Want)
-			}
-		})
-	}
-}
-
 func TestSha256(t *testing.T) {
 	tests := []struct {
 		String cty.Value
@@ -560,51 +380,6 @@ func TestSha256(t *testing.T) {
 	}
 }
 
-func TestFileSHA256(t *testing.T) {
-	tests := []struct {
-		Path cty.Value
-		Want cty.Value
-		Err  bool
-	}{
-		{
-			cty.StringVal("testdata/hello.txt"),
-			cty.StringVal("a591a6d40bf420404a011733cfb7b190d62c65bf0bcda32b57b277d9ad9f146e"),
-			false,
-		},
-		{
-			cty.StringVal("testdata/icon.png"),
-			cty.StringVal("6ee9fdfa5370a16713c44cdee695480dfb1ffa63c332d554299a74e1108b1d37"),
-			false,
-		},
-		{
-			cty.StringVal("testdata/missing"),
-			cty.NilVal,
-			true, // no file exists
-		},
-	}
-
-	fileSHA256 := MakeFileSha256Func(".")
-
-	for _, test := range tests {
-		t.Run(fmt.Sprintf("filesha256(%#v)", test.Path), func(t *testing.T) {
-			got, err := fileSHA256.Call([]cty.Value{test.Path})
-
-			if test.Err {
-				if err == nil {
-					t.Fatal("succeeded; want error")
-				}
-				return
-			} else if err != nil {
-				t.Fatalf("unexpected error: %s", err)
-			}
-
-			if !got.RawEquals(test.Want) {
-				t.Errorf("wrong result\ngot:  %#v\nwant: %#v", got, test.Want)
-			}
-		})
-	}
-}
-
 func TestSha512(t *testing.T) {
 	tests := []struct {
 		String cty.Value
@@ -621,51 +396,6 @@ func TestSha512(t *testing.T) {
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("sha512(%#v)", test.String), func(t *testing.T) {
 			got, err := Sha512(test.String)
-
-			if test.Err {
-				if err == nil {
-					t.Fatal("succeeded; want error")
-				}
-				return
-			} else if err != nil {
-				t.Fatalf("unexpected error: %s", err)
-			}
-
-			if !got.RawEquals(test.Want) {
-				t.Errorf("wrong result\ngot:  %#v\nwant: %#v", got, test.Want)
-			}
-		})
-	}
-}
-
-func TestFileSHA512(t *testing.T) {
-	tests := []struct {
-		Path cty.Value
-		Want cty.Value
-		Err  bool
-	}{
-		{
-			cty.StringVal("testdata/hello.txt"),
-			cty.StringVal("2c74fd17edafd80e8447b0d46741ee243b7eb74dd2149a0ab1b9246fb30382f27e853d8585719e0e67cbda0daa8f51671064615d645ae27acb15bfb1447f459b"),
-			false,
-		},
-		{
-			cty.StringVal("testdata/icon.png"),
-			cty.StringVal("f457113ef30f286ffc38efb32695679773595c1404c0e8776c17eb4a1d1ba13918be8ea9ab7c62751e99b86ffaacf9c4d29efead36117c3dc057176cb7ada7f6"),
-			false,
-		},
-		{
-			cty.StringVal("testdata/missing"),
-			cty.NilVal,
-			true, // no file exists
-		},
-	}
-
-	fileSHA512 := MakeFileSha512Func(".")
-
-	for _, test := range tests {
-		t.Run(fmt.Sprintf("filesha512(%#v)", test.Path), func(t *testing.T) {
-			got, err := fileSHA512.Call([]cty.Value{test.Path})
 
 			if test.Err {
 				if err == nil {

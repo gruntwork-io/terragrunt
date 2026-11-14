@@ -4,7 +4,7 @@ This directory holds code copied from [OpenTofu](https://github.com/opentofu/ope
 
 ## Layout
 
-- `upstream/` holds the code copied from OpenTofu. `vend` generates all of it, and nothing in it is edited by hand. CI runs `vend` and fails when the result differs from what is committed. Each file keeps its path in the OpenTofu repository, minus the leading `internal/`.
+- `upstream/` holds the code copied from OpenTofu. `vend` generates all of it, and nothing in it is edited by hand. CI runs `vend` and fails when the result differs from what is committed. Each file keeps its path in the OpenTofu repository, minus the leading `internal/`. `vend` leaves out the upstream tests of the functions that `patch/` replaces, and the `testdata` only those tests read, because Terragrunt never runs that code.
 - `patch/` holds code written by hand for Terragrunt on top of `upstream/`. `vend` never touches it.
 - `vend/` is the command that regenerates `upstream/`.
 

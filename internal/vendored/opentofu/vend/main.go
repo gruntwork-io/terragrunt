@@ -1,5 +1,6 @@
 // Command vend regenerates the OpenTofu code vendored in ../upstream.
-// [copies] and [extractions] list what is copied from upstream.
+// [copies] and [extractions] list what is copied from upstream, and
+// [replaced] lists the code whose tests are left out.
 //
 // Run it from the repository root:
 //
@@ -146,6 +147,39 @@ var patches = []patch{
 		old:  "\t\"log\"\n",
 		with: "",
 	},
+}
+
+// replaced names the declarations of upstream package funcs that only the
+// function table entries vend comments out reach, so nothing in Terragrunt
+// runs them. vend leaves out every upstream test that uses one.
+var replaced = deadCode{
+	dir: "internal/lang/funcs",
+	decls: []string{
+		"Base64Decode",
+		"File",
+		"FileBase64",
+		"FileExists",
+		"FileSet",
+		"MakeFileBase64Sha256Func",
+		"MakeFileBase64Sha512Func",
+		"MakeFileFunc",
+		"MakeFileMd5Func",
+		"MakeFileSha1Func",
+		"MakeFileSha256Func",
+		"MakeFileSha512Func",
+		"MakeTemplateFileFunc",
+		"Pathexpand",
+		"templateMaxRecursionDepth",
+	},
+	fixtures: "internal/lang/funcs/testdata",
+}
+
+// deadCode describes declarations of one copied upstream package whose tests
+// vend drops, along with the fixtures only those tests read.
+type deadCode struct {
+	dir      string
+	fixtures string
+	decls    []string
 }
 
 // patch replaces every occurrence of one piece of text in a copied upstream
@@ -344,6 +378,10 @@ func regenerate(
 		return release{}, err
 	}
 
+	if err := dropDeadTests(dst, &replaced); err != nil {
+		return release{}, err
+	}
+
 	for i := range extractions {
 		if err := writeExtraction(src, dst, &extractions[i]); err != nil {
 			return release{}, err
@@ -438,6 +476,201 @@ func copyUpstream(src fs.FS, dst string) error {
 	}
 
 	return nil
+}
+
+// dropDeadTests removes from the test files of the package d names, copied
+// under dst, every function that uses one of d.decls, then the imports only
+// those functions used and d.fixtures. It fails when the package no longer
+// declares one of d.decls, when no test uses one, or when d.fixtures is gone.
+func dropDeadTests(dst string, d *deadCode) error {
+	dir := filepath.Join(dst, filepath.FromSlash(vendoredRel(d.dir)))
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return err
+	}
+
+	declared := map[string]struct{}{}
+	tested := map[string]struct{}{}
+
+	for _, entry := range entries {
+		name := filepath.Join(dir, entry.Name())
+
+		switch {
+		case entry.IsDir() || filepath.Ext(name) != ".go":
+			continue
+		case strings.HasSuffix(name, "_test.go"):
+			err = transformFile(name, func(data []byte) ([]byte, error) {
+				return dropFuncsUsing(data, d.decls, tested)
+			})
+		default:
+			err = declaredNames(name, declared)
+		}
+
+		if err != nil {
+			return err
+		}
+	}
+
+	for _, decl := range d.decls {
+		if _, ok := declared[decl]; !ok {
+			return fmt.Errorf("%s: dead declaration %s not found", d.dir, decl)
+		}
+
+		if _, ok := tested[decl]; !ok {
+			return fmt.Errorf("%s: no test to drop uses %s", d.dir, decl)
+		}
+	}
+
+	fixtures := filepath.Join(dst, filepath.FromSlash(vendoredRel(d.fixtures)))
+	if _, err := os.Stat(fixtures); err != nil {
+		return err
+	}
+
+	return os.RemoveAll(fixtures)
+}
+
+// declaredNames adds to names the name of every top-level function, type,
+// variable, and constant the Go file at name declares.
+func declaredNames(name string, names map[string]struct{}) error {
+	file, err := parser.ParseFile(token.NewFileSet(), name, nil, parser.SkipObjectResolution)
+	if err != nil {
+		return err
+	}
+
+	for _, decl := range file.Decls {
+		switch d := decl.(type) {
+		case *ast.FuncDecl:
+			if d.Recv == nil {
+				names[d.Name.Name] = struct{}{}
+			}
+		case *ast.GenDecl:
+			for _, spec := range d.Specs {
+				switch s := spec.(type) {
+				case *ast.TypeSpec:
+					names[s.Name.Name] = struct{}{}
+				case *ast.ValueSpec:
+					for _, id := range s.Names {
+						names[id.Name] = struct{}{}
+					}
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+// dropFuncsUsing returns the Go source data without the top-level functions
+// that use one of decls and without the imports left unused. It adds each of
+// decls it found in use to used.
+func dropFuncsUsing(data []byte, decls []string, used map[string]struct{}) ([]byte, error) {
+	fset := token.NewFileSet()
+
+	file, err := parser.ParseFile(fset, "", data, parser.ParseComments|parser.SkipObjectResolution)
+	if err != nil {
+		return nil, err
+	}
+
+	offset := func(pos token.Pos) int { return fset.Position(pos).Offset }
+	out := data
+
+	for _, decl := range slices.Backward(file.Decls) {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || !usesAny(fn, decls, used) {
+			continue
+		}
+
+		start := fn.Pos()
+		if fn.Doc != nil {
+			start = fn.Doc.Pos()
+		}
+
+		out = slices.Concat(out[:offset(start)], out[offset(fn.End()):])
+	}
+
+	if len(out) == len(data) {
+		return data, nil
+	}
+
+	return dropUnusedImports(out)
+}
+
+// usesAny reports whether fn refers to one of decls by its bare name, and adds
+// each one it finds to used. A field or method of the same name, selected
+// as x.Name, does not count.
+func usesAny(fn *ast.FuncDecl, decls []string, used map[string]struct{}) bool {
+	found := false
+
+	ast.Inspect(fn, func(n ast.Node) bool {
+		switch x := n.(type) {
+		case *ast.SelectorExpr:
+			ast.Inspect(x.X, func(n ast.Node) bool {
+				id, ok := n.(*ast.Ident)
+				if ok && slices.Contains(decls, id.Name) {
+					used[id.Name] = struct{}{}
+					found = true
+				}
+
+				return true
+			})
+
+			return false
+		case *ast.Ident:
+			if slices.Contains(decls, x.Name) {
+				used[x.Name] = struct{}{}
+				found = true
+			}
+		}
+
+		return true
+	})
+
+	return found
+}
+
+// dropUnusedImports returns the Go source data without the named imports
+// that nothing in it refers to.
+func dropUnusedImports(data []byte) ([]byte, error) {
+	fset := token.NewFileSet()
+
+	file, err := parser.ParseFile(fset, "", data, parser.SkipObjectResolution)
+	if err != nil {
+		return nil, err
+	}
+
+	used := map[string]struct{}{}
+
+	ast.Inspect(file, func(n ast.Node) bool {
+		if sel, ok := n.(*ast.SelectorExpr); ok {
+			if id, ok := sel.X.(*ast.Ident); ok {
+				used[id.Name] = struct{}{}
+			}
+		}
+
+		return true
+	})
+
+	out := data
+
+	for _, spec := range slices.Backward(file.Imports) {
+		name, err := importName(spec)
+		if err != nil {
+			return nil, err
+		}
+
+		if _, ok := used[name]; ok || name == "_" || name == "." {
+			continue
+		}
+
+		// Cutting the whole line keeps gofmt from reading the gap as a group break.
+		pos := fset.Position(spec.Pos())
+		start := pos.Offset - (pos.Column - 1)
+		end := start + bytes.IndexByte(out[start:], '\n') + 1
+		out = slices.Concat(out[:start], out[end:])
+	}
+
+	return out, nil
 }
 
 // writeExtraction writes the file described by e into dst.
