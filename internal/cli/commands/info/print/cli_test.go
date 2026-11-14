@@ -65,6 +65,7 @@ func TestNewCommandExposesThePrintFlags(t *testing.T) {
 	for _, name := range []string{
 		shared.AllFlagName,
 		shared.FailFastFlagName,
+		shared.ParallelismFlagName,
 		shared.FilterFlagName,
 		shared.FilterAffectedFlagName,
 		shared.DiscoveryBoundaryFlagName,
@@ -99,7 +100,6 @@ func TestNewCommandRejectsFlagsPrintDoesNotRead(t *testing.T) {
 		"--" + shared.QueueIgnoreErrorsFlagName,
 		"--" + shared.NoAutoApproveFlagName,
 		"--" + shared.NoStackGenerateFlagName,
-		"--" + shared.ParallelismFlagName + "=1",
 		"--" + shared.DestroyDependenciesCheckFlagName,
 		"--graph-root=.",
 	} {

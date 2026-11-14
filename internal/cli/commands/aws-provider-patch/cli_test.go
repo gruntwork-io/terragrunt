@@ -55,6 +55,7 @@ func TestNewCommandExposesThePatchFlags(t *testing.T) {
 		awsproviderpatch.OverrideAttrFlagName,
 		shared.AllFlagName,
 		shared.FailFastFlagName,
+		shared.ParallelismFlagName,
 		shared.FilterFlagName,
 		shared.QueueExcludeDirFlagName,
 		shared.QueueIncludeDirFlagName,
@@ -85,7 +86,6 @@ func TestNewCommandExposesThePatchFlags(t *testing.T) {
 		shared.QueueIgnoreErrorsFlagName,
 		shared.NoAutoApproveFlagName,
 		shared.NoStackGenerateFlagName,
-		shared.ParallelismFlagName,
 		shared.DestroyDependenciesCheckFlagName,
 	} {
 		assert.Nil(t, cmd.Flags.Get(name), "%s has no effect on a patch", name)
@@ -97,7 +97,7 @@ func TestNewCommandRejectsFlagsPatchDoesNotRead(t *testing.T) {
 	t.Parallel()
 
 	for _, arg := range []string{
-		"--" + shared.ParallelismFlagName + "=1",
+		"--" + shared.OutDirFlagName + "=plans",
 		"--" + shared.ReportFileFlagName + "=report.json",
 		"--" + shared.QueueIgnoreErrorsFlagName,
 	} {
