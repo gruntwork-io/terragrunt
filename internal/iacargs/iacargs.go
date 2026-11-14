@@ -34,25 +34,50 @@ var (
 // NormalizeActsType is a rewrite that [IacArgs.Normalize] applies to each flag.
 type NormalizeActsType byte
 
-// valueTakingFlags contains flags that require space-separated values.
-// Only flags that commonly use a space-separated format need to be listed here.
-var valueTakingFlags = []string{
-	"chdir",
-	"config",
-	"from-module",
-	"fs-mirror",
-	"lock-timeout",
-	"net-mirror",
-	"out",
-	"parallelism",
-	"platform",
-	"plugin-dir",
-	"state",
-	"state-out",
-	"backup",
-	"target",
-	"var",
-	"var-file",
+// valueTakingFlags is the set of flags whose value may follow as a separate argument.
+//
+// The set applies to every command, so a name that is a boolean flag in one command
+// still takes a following non-flag argument as its value.
+var valueTakingFlags = map[string]struct{}{
+	"backend-config":      {},
+	"backup":              {},
+	"backup-out":          {},
+	"chdir":               {},
+	"cloud-run":           {},
+	"config":              {},
+	"deprecation":         {},
+	"exclude":             {},
+	"exclude-file":        {},
+	"filter":              {},
+	"format":              {},
+	"from-module":         {},
+	"fs-mirror":           {},
+	"generate-config-out": {},
+	"id":                  {},
+	"json-into":           {},
+	"junit-xml":           {},
+	"lint":                {},
+	"lock-timeout":        {},
+	"lockfile":            {},
+	"module":              {},
+	"module-depth":        {},
+	"net-mirror":          {},
+	"oci-mirror":          {},
+	"out":                 {},
+	"parallelism":         {},
+	"plan":                {},
+	"platform":            {},
+	"plugin-dir":          {},
+	"replace":             {},
+	"scope":               {},
+	"state":               {},
+	"state-out":           {},
+	"target":              {},
+	"target-file":         {},
+	"test-directory":      {},
+	"type":                {},
+	"var":                 {},
+	"var-file":            {},
 }
 
 // normalizeFlag strips leading dashes from a flag name.
@@ -185,7 +210,7 @@ func (a *IacArgs) RemoveFlag(name string) *IacArgs {
 			// Skip value too if: no =value, next entry is a value, and it's a known value-taking flag
 			hasNextValue := !strings.Contains(f, "=") && i+1 < len(a.Flags) &&
 				!strings.HasPrefix(a.Flags[i+1], "-")
-			if hasNextValue && slices.Contains(valueTakingFlags, current) {
+			if _, takesValue := valueTakingFlags[current]; hasNextValue && takesValue {
 				i++ // skip the value
 			}
 
@@ -501,7 +526,7 @@ func (a *IacArgs) processFlag(arg string, args []string, i int) bool {
 	flagName := normalizeFlag(extractFlagName(arg))
 	hasNextValue := i+1 < len(args) && !strings.HasPrefix(args[i+1], "-")
 
-	if slices.Contains(valueTakingFlags, flagName) && hasNextValue {
+	if _, takesValue := valueTakingFlags[flagName]; takesValue && hasNextValue {
 		a.Flags = append(a.Flags, arg, args[i+1])
 		return true
 	}

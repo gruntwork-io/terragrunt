@@ -199,6 +199,63 @@ func TestNew(t *testing.T) {
 	}
 }
 
+func TestNewKeepsSpaceSeparatedValueWithFlag(t *testing.T) {
+	t.Parallel()
+
+	names := []string{
+		"backend-config",
+		"backup",
+		"backup-out",
+		"chdir",
+		"cloud-run",
+		"config",
+		"deprecation",
+		"exclude",
+		"exclude-file",
+		"filter",
+		"format",
+		"from-module",
+		"fs-mirror",
+		"generate-config-out",
+		"id",
+		"json-into",
+		"junit-xml",
+		"lint",
+		"lock-timeout",
+		"lockfile",
+		"module",
+		"module-depth",
+		"net-mirror",
+		"oci-mirror",
+		"out",
+		"parallelism",
+		"plan",
+		"platform",
+		"plugin-dir",
+		"replace",
+		"scope",
+		"state",
+		"state-out",
+		"target",
+		"target-file",
+		"test-directory",
+		"type",
+		"var",
+		"var-file",
+	}
+
+	for _, name := range names {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			got := iacargs.New("plan", "-"+name, "value", "-no-color")
+
+			assert.Equal(t, []string{"-" + name, "value", "-no-color"}, got.Flags)
+			assert.Empty(t, got.Arguments)
+		})
+	}
+}
+
 func TestIacArgsSlice(t *testing.T) {
 	t.Parallel()
 
@@ -292,6 +349,16 @@ func TestIacArgsRoundTrip(t *testing.T) {
 			name:  "providers lock keeps the mirror source next to its flag",
 			input: []string{"providers", "lock", "-fs-mirror", "/tmp/mirror", "hashicorp/aws"},
 			want:  []string{"providers", "lock", "-fs-mirror", "/tmp/mirror", "hashicorp/aws"},
+		},
+		{
+			name:  "plan keeps the generated config path next to its flag",
+			input: []string{"plan", "-generate-config-out", "generated.tf", "-out", "plan.tfplan"},
+			want:  []string{"plan", "-generate-config-out", "generated.tf", "-out", "plan.tfplan"},
+		},
+		{
+			name:  "apply keeps the replaced address before the plan file",
+			input: []string{"apply", "-replace", "aws_instance.a", "-auto-approve", "tfplan"},
+			want:  []string{"apply", "-replace", "aws_instance.a", "-auto-approve", "tfplan"},
 		},
 		{
 			name:  "state mv subcommand preserves order",
