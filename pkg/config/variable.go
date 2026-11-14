@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 
@@ -117,7 +118,11 @@ func ParseVariables(
 							}
 
 							var ctyJSONOutput ctyJSONValue
-							if err := json.Unmarshal(jsonBytes, &ctyJSONOutput); err != nil {
+
+							decoder := json.NewDecoder(bytes.NewReader(jsonBytes))
+							decoder.UseNumber()
+
+							if err := decoder.Decode(&ctyJSONOutput); err != nil {
 								return nil, err
 							}
 

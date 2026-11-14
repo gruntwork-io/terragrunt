@@ -2,6 +2,7 @@
 package render
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -215,7 +216,11 @@ func marshalCtyValueJSONWithoutType(ctyVal cty.Value) ([]byte, error) {
 	}
 
 	var ctyJSONOutput ctyhelper.CtyJSONOutput
-	if err = json.Unmarshal(jsonBytesIntermediate, &ctyJSONOutput); err != nil {
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonBytesIntermediate))
+	decoder.UseNumber()
+
+	if err = decoder.Decode(&ctyJSONOutput); err != nil {
 		return nil, err
 	}
 
