@@ -292,6 +292,73 @@ func TestDiscoveryPipelineFindsWorktreeDependentsOfAnAbsolutePath(t *testing.T) 
 	}
 }
 
+func TestDiscoveryPipelineParsesComponentsFoundInWorktreesWithRacing(t *testing.T) {
+	t.Parallel()
+
+	repo, runner := setupGitRepo(t)
+
+	createUnit(t, repo, "kept", "")
+	createUnit(t, repo, "removed", `locals { shared = read_terragrunt_config("../shared.hcl") }`+"\n")
+
+	require.NoError(t, os.WriteFile(filepath.Join(repo, "shared.hcl"), []byte("locals {}\n"), 0o644))
+
+	commitChanges(t, runner, "Initial commit")
+
+	require.NoError(t, os.RemoveAll(filepath.Join(repo, "removed")))
+
+	commitChanges(t, runner, "Remove a unit")
+
+	l := logger.CreateLogger()
+	ctx := config.WithCaches(t.Context())
+
+	gitExpr := filter.NewGitExpression("HEAD~1", "HEAD")
+
+	w, err := worktrees.NewWorktrees(ctx, l, venvtest.NewOSWithEmptyEnv(), worktrees.WorktreeOpts{
+		WorkingDir:     repo,
+		GitExpressions: filter.GitExpressions{gitExpr},
+	})
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		require.NoError(t, w.Cleanup(context.WithoutCancel(ctx), l, venvtest.NewOSWithEmptyEnv()))
+	})
+
+	discover := func(pipeline string) map[string][]string {
+		opts := options.NewTerragruntOptions()
+		opts.WorkingDir = repo
+		opts.RootWorkingDir = repo
+
+		d := discovery.NewDiscovery(repo).
+			WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: repo}).
+			WithWorktrees(w).
+			WithFilters(filter.Filters{filter.NewFilter(gitExpr, gitExpr.String())}).
+			WithReadFiles()
+
+		v := venvtest.NewOSWithEmptyEnv()
+		v.Env[discovery.EnvPipeline] = pipeline
+
+		components, err := d.Discover(ctx, l, v, new(rewrite.Store), opts)
+		require.NoError(t, err)
+
+		reads := make(map[string][]string, len(components))
+
+		for _, c := range components {
+			reads[c.Path()] = slices.Sorted(slices.Values(c.Reading()))
+		}
+
+		return reads
+	}
+
+	want := discover("false")
+	require.Len(t, want, 1)
+
+	for _, read := range want {
+		require.NotEmpty(t, read)
+	}
+
+	assert.Equal(t, want, discover("true"))
+}
+
 // dependenciesByPath maps the path of each of components to the sorted paths of its dependencies.
 func dependenciesByPath(components component.Components) map[string][]string {
 	byPath := make(map[string][]string, len(components))
