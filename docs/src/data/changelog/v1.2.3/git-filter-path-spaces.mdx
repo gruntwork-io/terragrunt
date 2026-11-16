@@ -1,0 +1,10 @@
+---
+version: "v1.2.3"
+category: "bug-fixes"
+---
+
+#### Git filter expressions keep spaces in changed file paths
+
+[Git expressions](/features/filter/git/) such as `--filter '[main...HEAD]'` collapsed runs of spaces in the paths of changed files and dropped leading and trailing spaces, so a change to `a  b.tf` was read as a change to `a b.tf`. A unit whose changed files had such names could go unmatched.
+
+Terragrunt now reads each changed path exactly as Git reports it.

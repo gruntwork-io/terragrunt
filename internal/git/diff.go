@@ -28,10 +28,6 @@ func ParseDiff(output []byte) (*Diffs, error) {
 			continue
 		}
 
-		// `git diff --name-status --no-renames` separates the status from the
-		// path with a single tab, and the path is emitted literally. Splitting
-		// on the tab preserves a path that contains spaces, including leading,
-		// trailing, or consecutive ones, which strings.Fields would collapse.
 		status, path, found := strings.Cut(line, "\t")
 		if !found || path == "" {
 			return nil, &WrappedError{
