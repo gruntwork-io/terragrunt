@@ -31,6 +31,17 @@ func TestParseDiff(t *testing.T) {
 			},
 		},
 		{
+			name: "preserves leading, trailing, and consecutive spaces in paths",
+			output: "A\tdir/a  b.tf\n" +
+				"M\t  leading.tf\n" +
+				"D\ttrailing.tf \n",
+			want: &git.Diffs{
+				Added:   []string{"dir/a  b.tf"},
+				Removed: []string{"trailing.tf "},
+				Changed: []string{"  leading.tf"},
+			},
+		},
+		{
 			name:   "statuses other than A, D and M are dropped",
 			output: "T\ttypechanged.txt\nU\tunmerged.txt\n",
 			want: &git.Diffs{
