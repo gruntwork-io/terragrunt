@@ -36,7 +36,7 @@ func startSSHKeyServer(t *testing.T) (*helpers.GitServer, string, *venv.Venv) {
 
 	v := venvtest.NewOSWithEmptyEnv().WithEnv(map[string]string{
 		"PATH": os.Getenv("PATH"),
-		git.EnvGitSSHCommand: "ssh -o BatchMode=yes -o IdentitiesOnly=yes " +
+		git.EnvGitSSHCommand: "ssh -F none -o BatchMode=yes -o IdentitiesOnly=yes " +
 			"-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null",
 	})
 

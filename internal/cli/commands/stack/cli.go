@@ -4,6 +4,8 @@ package stack
 import (
 	"context"
 
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/providercaching"
+
 	runcmd "github.com/gruntwork-io/terragrunt/internal/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
@@ -47,30 +49,30 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *
 			&clihelper.Command{
 				Name:  generateCommandName,
 				Usage: "Generate a stack from a terragrunt.stack.hcl file",
-				Action: func(ctx context.Context, _ *clihelper.Context) error {
+				Action: providercaching.Wrap(l, opts, v, func(ctx context.Context, _ *clihelper.Context) error {
 					return RunGenerate(ctx, l, v, s, opts.OptionsFromContext(ctx))
-				},
+				}),
 				Flags: defaultFlags(l, opts, v, nil),
 			},
 			&clihelper.Command{
 				Name:  runCommandName,
 				Usage: "Run a command on the stack generated from the current directory",
-				Action: func(ctx context.Context, _ *clihelper.Context) error {
+				Action: providercaching.Wrap(l, opts, v, func(ctx context.Context, _ *clihelper.Context) error {
 					return Run(ctx, l, v, s, opts.OptionsFromContext(ctx))
-				},
+				}),
 				Flags: defaultFlags(l, opts, v, nil),
 			},
 			&clihelper.Command{
 				Name:  outputCommandName,
 				Usage: "Run fetch stack output",
-				Action: func(ctx context.Context, cliCtx *clihelper.Context) error {
+				Action: providercaching.Wrap(l, opts, v, func(ctx context.Context, cliCtx *clihelper.Context) error {
 					index := ""
 					if val := cliCtx.Args().Get(0); val != "" {
 						index = val
 					}
 
 					return RunOutput(ctx, l, v, s, opts.OptionsFromContext(ctx), index)
-				},
+				}),
 				Flags: outputFlags(l, opts, v, nil),
 			},
 			&clihelper.Command{

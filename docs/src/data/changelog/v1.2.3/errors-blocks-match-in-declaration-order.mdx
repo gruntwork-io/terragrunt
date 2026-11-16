@@ -1,0 +1,18 @@
+---
+version: "v1.2.3"
+category: "bug-fixes"
+---
+
+#### `errors` blocks match in the order they are declared
+
+When two `retry` blocks or two `ignore` blocks in an `errors` block matched the same error, Terragrunt picked one of them arbitrarily, and picked again on every attempt. A unit whose first `retry` block sets `max_attempts = 2` and whose broader `retry` blocks set `max_attempts = 4` logged:
+
+```text
+WARN   Encountered retryable error: quota
+Attempt 1 of 4. Waiting 0 second(s) before retrying...
+ERROR  max retry attempts (2) reached for error: error occurred:
+```
+
+The first matching block in declaration order now handles the error. [Matching errors](/reference/hcl/blocks/errors#matching-errors) gives the order for an `include` with `merge_strategy = "deep"`.
+
+`terragrunt render` printed the `retry` and `ignore` blocks of a deep-merged `errors` block in an order that changed between runs. It now prints them in the merged order.

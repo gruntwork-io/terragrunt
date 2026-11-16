@@ -5,6 +5,8 @@ package exec
 import (
 	"context"
 
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/providercaching"
+
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
@@ -72,7 +74,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *
 			"# Inspect `main.tf` file of module for Unit\nterragrunt exec --in-download-dir -- cat main.tf",
 		},
 		Flags: NewFlags(l, opts, cmdOpts, nil),
-		Action: func(ctx context.Context, cliCtx *clihelper.Context) error {
+		Action: providercaching.Wrap(l, opts, v, func(ctx context.Context, cliCtx *clihelper.Context) error {
 			tgArgs, cmdArgs := cliCtx.Args().Split(clihelper.BuiltinCmdSep)
 
 			// Use unspecified arguments from the terragrunt command if the user
@@ -86,6 +88,6 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *
 			}
 
 			return Run(ctx, l, v, s, opts, cmdOpts, cmdArgs)
-		},
+		}),
 	}
 }

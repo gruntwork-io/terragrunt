@@ -3,6 +3,8 @@ package delete
 import (
 	"context"
 
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/providercaching"
+
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
@@ -61,9 +63,9 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *
 		Name:  CommandName,
 		Usage: "Delete OpenTofu/Terraform state.",
 		Flags: cmdFlags,
-		Action: func(ctx context.Context, _ *clihelper.Context) error {
+		Action: providercaching.Wrap(l, opts, v, func(ctx context.Context, _ *clihelper.Context) error {
 			return Run(ctx, l, v, s, opts.OptionsFromContext(ctx))
-		},
+		}),
 	}
 
 	return cmd

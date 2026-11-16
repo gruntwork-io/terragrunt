@@ -208,7 +208,7 @@ func convertToTerragruntCatalogConfig(
 	}
 
 	if cfgFromFile.Errors != nil {
-		cfg.Errors = cfgFromFile.Errors
+		cfg.Errors = cfgFromFile.Errors.lastPerLabel()
 		cfg.SetFieldMetadata(MetadataErrors, defaultMetadata)
 	}
 

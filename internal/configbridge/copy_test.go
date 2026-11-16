@@ -110,8 +110,8 @@ func TestNewRunOptionsCopiesEveryOption(t *testing.T) {
 	opts.SourceUpdate = true
 	opts.NoRunHooks = true
 	opts.Errors = &errorconfig.Config{
-		Retry: map[string]*errorconfig.RetryConfig{
-			"transient": {Name: "transient", MaxAttempts: 3},
+		Retry: []*errorconfig.RetryConfig{
+			{Name: "transient", MaxAttempts: 3},
 		},
 	}
 

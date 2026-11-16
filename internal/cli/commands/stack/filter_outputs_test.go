@@ -1,6 +1,7 @@
 package stack_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -24,6 +25,14 @@ func stackOutputs() cty.Value {
 			"a.b":   cty.ObjectVal(map[string]cty.Value{"id": cty.StringVal("dotted-id")}),
 			`a"b`:   cty.ObjectVal(map[string]cty.Value{"id": cty.StringVal("quoted-id")}),
 			"12345": cty.ObjectVal(map[string]cty.Value{"id": cty.StringVal("numeric-id")}),
+			"a]b":   cty.ObjectVal(map[string]cty.Value{"id": cty.StringVal("bracket-id")}),
+		}),
+		"1-vpc": cty.ObjectVal(map[string]cty.Value{
+			"id": cty.StringVal("digit-leading-id"),
+		}),
+		"platform": cty.ObjectVal(map[string]cty.Value{
+			"02-db": cty.ObjectVal(map[string]cty.Value{"id": cty.StringVal("db-id")}),
+			"007":   cty.ObjectVal(map[string]cty.Value{"id": cty.StringVal("leading-zeros-id")}),
 		}),
 	})
 }
@@ -75,6 +84,51 @@ func TestFilterOutputsResolvesAddresses(t *testing.T) {
 			name:    "dotted form addresses the same element",
 			address: "shard.api.id",
 			want:    "api-id",
+		},
+		{
+			name:    "unit name starting with a digit",
+			address: "1-vpc.id",
+			want:    "digit-leading-id",
+		},
+		{
+			name:    "unit name starting with a digit inside a stack",
+			address: "platform.02-db.id",
+			want:    "db-id",
+		},
+		{
+			name:    "all-digit unit name keeps its leading zeros",
+			address: "platform.007.id",
+			want:    "leading-zeros-id",
+		},
+		{
+			name:    "iteration key after a unit name starting with a digit",
+			address: `1-vpc["id"]`,
+			want:    "digit-leading-id",
+		},
+		{
+			name:    "key containing a closing bracket",
+			address: `shard["a]b"].id`,
+			want:    "bracket-id",
+		},
+		{
+			name:    "comment holding a quote inside the brackets",
+			address: `shard[/*"*/0].id`,
+			want:    "zero-id",
+		},
+		{
+			name:    "block comment holding a closing bracket inside the brackets",
+			address: "shard[0 /*].x[*/].id",
+			want:    "zero-id",
+		},
+		{
+			name:    "line comment holding a closing bracket inside the brackets",
+			address: "shard[0 #].x[\n].id",
+			want:    "zero-id",
+		},
+		{
+			name:    "count index written with an exponent",
+			address: "shard[1.2345e4].id",
+			want:    "numeric-id",
 		},
 	}
 
@@ -129,6 +183,8 @@ func TestFilterOutputsAddressingNothing(t *testing.T) {
 		"vpc.nope",
 		`shard["nope"].id`,
 		"shard[99].id",
+		"shard[0].a&b",
+		"shard[0].it's",
 		// A leaf has no attributes to walk into.
 		"vpc.id.deeper",
 	} {
@@ -137,6 +193,30 @@ func TestFilterOutputsAddressingNothing(t *testing.T) {
 
 			filtered, err := stack.FilterOutputs(stackOutputs(), address)
 			require.NoError(t, err, "an address that names nothing is not an error")
+			assert.Equal(t, cty.NilVal, filtered)
+		})
+	}
+}
+
+func TestFilterOutputsAddressingIntoNull(t *testing.T) {
+	t.Parallel()
+
+	outputs := cty.ObjectVal(map[string]cty.Value{
+		"unit": cty.ObjectVal(map[string]cty.Value{
+			"object": cty.NullVal(cty.Object(map[string]cty.Type{"id": cty.String})),
+			"map":    cty.NullVal(cty.Map(cty.String)),
+		}),
+	})
+
+	for _, address := range []string{
+		"unit.object.id",
+		"unit.map.id",
+	} {
+		t.Run(address, func(t *testing.T) {
+			t.Parallel()
+
+			filtered, err := stack.FilterOutputs(outputs, address)
+			require.NoError(t, err)
 			assert.Equal(t, cty.NilVal, filtered)
 		})
 	}
@@ -151,6 +231,19 @@ func TestFilterOutputsRejectsUnreadableAddresses(t *testing.T) {
 		"[0]",
 		"shard.",
 		"shard[web]",
+		"shard[0]id",
+		"shard..id",
+		"1-vpc[",
+		`shard["a]"]]`,
+		".vpc",
+		"shard]",
+		`vpc.id"`,
+		`shard[0/*"*/]#"].id`,
+		`shard["web"/*"*/]//"].id`,
+		"shard[0.5].id",
+		"shard[1e99999999].id",
+		"shard[9223372036854775808].id",
+		"shard" + strings.Repeat("[0]", 2000),
 	} {
 		t.Run(address, func(t *testing.T) {
 			t.Parallel()

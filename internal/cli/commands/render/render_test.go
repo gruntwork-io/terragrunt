@@ -573,3 +573,129 @@ func TestRenderSensitiveMockValue(t *testing.T) {
 		})
 	}
 }
+
+const testLargeIntegerConfigFixture = `locals {
+  local_number = 111111111111111111
+}
+inputs = {
+  some_number = 111111111111111111
+  other       = 9007199254740993
+  nested = {
+    map_number  = 9007199254740993
+    list_number = [111111111111111111, 9007199254740993]
+  }
+}
+`
+
+func TestRenderJSONKeepsIntegersAboveFloat64Precision(t *testing.T) {
+	t.Parallel()
+
+	const expected = `"inputs":{"nested":{"list_number":[111111111111111111,9007199254740993],` +
+		`"map_number":9007199254740993},"other":9007199254740993,"some_number":111111111111111111}`
+
+	testCases := []struct {
+		render func(t *testing.T, opts *render.Options) string
+		name   string
+	}{
+		{
+			name: "stdout",
+			render: func(t *testing.T, opts *render.Options) string {
+				t.Helper()
+
+				var rendered bytes.Buffer
+
+				err := render.Run(
+					config.WithCaches(t.Context()),
+					logger.CreateLogger(),
+					venvtest.NewOSWithEmptyEnv().WithWriter(&rendered), new(rewrite.Store), opts,
+				)
+				require.NoError(t, err)
+
+				return rendered.String()
+			},
+		},
+		{
+			name: "write",
+			render: func(t *testing.T, opts *render.Options) string {
+				t.Helper()
+
+				opts.Write = true
+				opts.OutputPath = filepath.Join(helpers.TmpDirWOSymlinks(t), "output.json")
+
+				err := render.Run(
+					config.WithCaches(t.Context()),
+					logger.CreateLogger(),
+					venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard), new(rewrite.Store), opts,
+				)
+				require.NoError(t, err)
+
+				content, err := os.ReadFile(opts.OutputPath)
+				require.NoError(t, err)
+
+				return string(content)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			opts, _ := setupTest(t, testLargeIntegerConfigFixture)
+			opts.Format = render.FormatJSON
+
+			rendered := tc.render(t, opts)
+
+			assert.Contains(t, rendered, expected)
+			assert.Contains(t, rendered, `"locals":{"local_number":111111111111111111}`)
+		})
+	}
+}
+
+func TestRenderJSONNumbersMatchHCL(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		literal  string
+		expected string
+	}{
+		{name: "integer above 2^53", literal: "9007199254740993", expected: "9007199254740993"},
+		{name: "integer above 2^64", literal: "123456789012345678901234567890", expected: "123456789012345678901234567890"},
+		{name: "negative large integer", literal: "-111111111111111111", expected: "-111111111111111111"},
+		{name: "short fraction", literal: "1.5", expected: "1.5"},
+		{name: "tenth", literal: "0.1", expected: "0.1"},
+		{name: "large exponent", literal: "1e21", expected: "1000000000000000000000"},
+		{name: "small exponent", literal: "1e-7", expected: "0.0000001"},
+		{name: "long fraction", literal: "1.23456789012345678901", expected: "1.23456789012345678901"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			fixture := "inputs = {\n  value = " + tc.literal + "\n}\n"
+
+			assert.Contains(t, renderToString(t, fixture, render.FormatHCL), "value = "+tc.expected+"\n")
+			assert.Contains(t, renderToString(t, fixture, render.FormatJSON), `"inputs":{"value":`+tc.expected+"}")
+		})
+	}
+}
+
+func renderToString(t *testing.T, fixture, format string) string {
+	t.Helper()
+
+	opts, _ := setupTest(t, fixture)
+	opts.Format = format
+
+	var rendered bytes.Buffer
+
+	err := render.Run(
+		config.WithCaches(t.Context()),
+		logger.CreateLogger(),
+		venvtest.NewOSWithEmptyEnv().WithWriter(&rendered), new(rewrite.Store), opts,
+	)
+	require.NoError(t, err)
+
+	return rendered.String()
+}
