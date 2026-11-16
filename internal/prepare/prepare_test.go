@@ -62,7 +62,7 @@ inputs = {
 			v := venv.MemVenv().WithFS(fsys).WithEnv(tt.env)
 			store := new(rewrite.Store)
 
-			opts, err := options.NewTerragruntOptionsWithConfigPath(v.Exec, path)
+			opts, err := options.NewTerragruntOptionsWithConfigPath(path)
 			require.NoError(t, err)
 
 			prepared, err := prepare.PrepareConfig(config.WithCaches(t.Context()), logger.CreateLogger(), v, store, opts)
