@@ -15,7 +15,7 @@ var dependentUnitCounts = []int{10, 100, 1000}
 
 // BenchmarkDependentsFilter benchmarks a dependents query against a target that
 // every other unit in the fixture depends on. The dependents sit at four
-// different directory depths, so the upstream dependent walk climbs through
+// different directory depths, so the walk to the dependent boundary passes
 // directories that hold no config of their own before reaching the units that
 // name the target.
 func BenchmarkDependentsFilter(b *testing.B) {

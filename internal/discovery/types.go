@@ -1,56 +1,11 @@
 package discovery
 
 import (
-	"context"
-	"sync"
-
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
-
-// PhaseKind identifies the type of discovery phase.
-type PhaseKind int
-
-const (
-	// PhaseFilesystem walks directories to find terragrunt configurations.
-	PhaseFilesystem PhaseKind = iota
-	// PhaseWorktree discovers components in Git worktrees (concurrent with Filesystem).
-	PhaseWorktree
-	// PhaseParse parses HCL configurations for filter evaluation.
-	PhaseParse
-	// PhaseGraph traverses dependency/dependent relationships.
-	PhaseGraph
-	// PhaseRelationship builds dependency graph for orphan components.
-	PhaseRelationship
-	// PhaseFinal applies final filter evaluation and cycle checking.
-	PhaseFinal
-)
-
-// String returns a string representation of the PhaseKind.
-func (pk PhaseKind) String() string {
-	switch pk {
-	case PhaseFilesystem:
-		return "filesystem"
-	case PhaseWorktree:
-		return "worktree"
-	case PhaseParse:
-		return "parse"
-	case PhaseGraph:
-		return "graph"
-	case PhaseRelationship:
-		return "relationship"
-	case PhaseFinal:
-		return "final"
-	default:
-		return "unknown"
-	}
-}
 
 // DiscoveryResult represents a discovered or candidate component with metadata.
 type DiscoveryResult struct {
@@ -61,65 +16,9 @@ type DiscoveryResult struct {
 	Status filter.ClassificationStatus
 	// Reason explains why the component is a candidate (only meaningful when Status == filter.StatusCandidate).
 	Reason filter.CandidacyReason
-	// Phase indicates which phase produced this result.
-	Phase PhaseKind
 	// GraphExpressionIndex is the index of the graph expression that matched (for candidates).
-	// This is used during the graph phase to determine how to traverse.
+	// The graph traversal uses it to determine how to traverse.
 	GraphExpressionIndex int
-}
-
-// PhaseResults contains the results from running a discovery phase.
-// It provides thread-safe methods for collecting results during concurrent processing.
-type PhaseResults struct {
-	// Discovered contains components definitively included in results.
-	Discovered []DiscoveryResult
-	// Candidates contains components that might be included pending further evaluation.
-	Candidates []DiscoveryResult
-	// mu protects concurrent access to Discovered and Candidates.
-	mu sync.Mutex
-}
-
-// NewPhaseResults creates a new PhaseResults.
-func NewPhaseResults() *PhaseResults {
-	return &PhaseResults{}
-}
-
-// AddDiscovered adds a discovered result to the results in a thread-safe manner.
-func (pr *PhaseResults) AddDiscovered(result DiscoveryResult) {
-	pr.mu.Lock()
-	defer pr.mu.Unlock()
-
-	pr.Discovered = append(pr.Discovered, result)
-}
-
-// AddCandidate adds a candidate result to the results in a thread-safe manner.
-func (pr *PhaseResults) AddCandidate(result DiscoveryResult) {
-	pr.mu.Lock()
-	defer pr.mu.Unlock()
-
-	pr.Candidates = append(pr.Candidates, result)
-}
-
-// PhaseInput provides input data to a discovery phase.
-type PhaseInput struct {
-	Opts       *options.TerragruntOptions
-	Classifier *filter.Classifier
-	Discovery  *Discovery
-	Components component.Components
-	Candidates []DiscoveryResult
-}
-
-// Phase defines the interface for a discovery phase.
-type Phase interface {
-	Name() string
-	Kind() PhaseKind
-	Run(
-		ctx context.Context,
-		l log.Logger,
-		v *venv.Venv,
-		s *rewrite.Store,
-		input *PhaseInput,
-	) (*PhaseResults, error)
 }
 
 // Discovery is the main configuration for discovery.
@@ -133,19 +32,19 @@ type Discovery struct {
 	// workingDir is the logical working directory for filter evaluation and display paths.
 	workingDir string
 
-	// walkRoot overrides the filesystem walk root when set. The filesystem
-	// phase walks walkRoot instead of workingDir, while workingDir stays the
+	// walkRoot overrides the filesystem walk root when set. The pipeline
+	// walks walkRoot instead of workingDir, while workingDir stays the
 	// logical base for relative path filters and display paths. Empty means
 	// the walk starts at workingDir.
 	walkRoot string
 
 	// resolvedWorkingDir is workingDir with symlinks resolved, which is how
-	// boundaries and dependency paths name it. Discover fills it in before any
-	// phase runs.
+	// boundaries and dependency paths name it. Discover fills it in before the
+	// pipeline runs.
 	resolvedWorkingDir string
 
 	// paths memoizes symlink resolution for one Discover call. Discover fills
-	// it in before any phase runs.
+	// it in before the pipeline runs.
 	paths *vfs.PathResolver
 
 	// gitRoot is the detected git repository root: the default ceiling for the
@@ -181,8 +80,8 @@ type Discovery struct {
 	// gitExpressions contains Git filter expressions that require worktree discovery.
 	gitExpressions filter.GitExpressions
 
-	// parseReasons gates the parse phase: non-empty (or classifier
-	// parse-required filters at activation) runs it. Surfaced on telemetry.
+	// parseReasons gates parsing in the pipeline: non-empty (or classifier
+	// parse-required filters at activation) turns it on. Surfaced on telemetry.
 	parseReasons []parseReason
 
 	// inputsReads collects the file reads found in inputs attributes while trackReads is on,

@@ -6,7 +6,6 @@ import (
 	"io/fs"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -23,23 +22,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
-// EnvPipeline is a temporary, undocumented environment variable that switches discovery from its walk and parse
-// phases to the pipeline. Do NOT rely on it: it can be removed or have its name changed at any time without notice
-// and is not part of Terragrunt's user-facing configuration surface.
-const EnvPipeline = "TG_TMP_DISCOVERY_PIPELINE"
-
 // workQueuePerWorker is the number of components that can wait for each parse worker before the walk blocks.
 const workQueuePerWorker = 4
-
-// PipelineEnabled reports whether env asks for the pipeline through [EnvPipeline]. A value that is not a boolean
-// leaves it off.
-func PipelineEnabled(env map[string]string) bool {
-	venv.RequireEnvMap(env)
-
-	enabled, err := strconv.ParseBool(env[EnvPipeline])
-
-	return err == nil && enabled
-}
 
 // pipelineStage is the stage of the pipeline an event comes from.
 type pipelineStage int
@@ -47,7 +31,7 @@ type pipelineStage int
 const (
 	// stageWalked is the walk finding a component and classifying it without a parse.
 	stageWalked pipelineStage = iota
-	// stageInWorktree is the worktree phase finding a component a Git filter selects and classifying it without a
+	// stageInWorktree is the worktree finder finding a component a Git filter selects and classifying it without a
 	// parse.
 	stageInWorktree
 	// stageParsed is a worker finishing the parse of a component the walk sent it.
@@ -76,12 +60,12 @@ type pipelineEvent struct {
 // traversals can reach. A worker reads the dependencies of such a component once it is done with it.
 // One collector receives every event, so the results need no lock.
 //
-// A discovery with Git filters has a second finder beside the walk. It runs [PhaseWorktree], then reports and
-// queues the components that phase finds as the walk does its own.
+// A discovery with Git filters has a second finder beside the walk. It runs a discovery in each of their
+// worktrees, then reports and queues the components those find as the walk does its own.
 //
 // The pipeline ends because its channels form a chain with no way back:
 //
-//  1. The walk ends when the tree is exhausted, it fails, or ctx is done. The worktree phase ends when the
+//  1. The walk ends when the tree is exhausted, it fails, or ctx is done. The worktree finder ends when the
 //     discoveries it runs in its worktrees have ended.
 //  2. The finders are the only senders on work, which closes when every finder has ended.
 //  3. A worker ends when work is closed and empty, so the workers end once the finders have.
@@ -110,16 +94,15 @@ type pipeline struct {
 	findsDependents bool
 }
 
-// runPipeline walks the working directory and parses the components that need it, as the filesystem and parse
-// phases do one after the other. It also reads the dependencies of the targets of graph filters and, when a filter
-// selects dependents, of the components that filter can reach, and returns them unlinked. The relations are nil when
-// discovery neither relates components nor has a graph filter. A discovery with Git filters gets the components they
-// select in their worktrees as well.
+// runPipeline walks the working directory and parses the components that need it. It also reads the dependencies
+// of the targets of graph filters and, when a filter selects dependents, of the components that filter can reach,
+// and returns them unlinked. The relations are nil when discovery neither relates components nor has a graph
+// filter. A discovery with Git filters gets the components they select in their worktrees as well.
 //
 // Returns the first of these that occurred: the error of the walk, the parse errors of what it found, the error of
-// the worktree phase, and the parse errors of what that phase found. Each set of parse errors comes back joined.
-// suppressParseErrors drops them all, as it does for the phases. A [CoexistenceError], a
-// [config.AmbiguousConfigError], or the error of ctx once it is done is returned either way.
+// the worktree finder, and the parse errors of what that finder found. Each set of parse errors comes back joined.
+// suppressParseErrors drops them all. A [CoexistenceError], a [config.AmbiguousConfigError], or the error of ctx
+// once it is done is returned either way.
 func (d *Discovery) runPipeline(
 	ctx context.Context,
 	l log.Logger,
@@ -196,7 +179,7 @@ func (d *Discovery) runPipeline(
 		return walked{}, err
 	}
 
-	found := walked{discovered: results.Discovered, candidates: results.Candidates}
+	found := walked{discovered: results.discovered, candidates: results.candidates}
 
 	if p.relates || d.classifier.HasGraphFilters() {
 		found.relations = &pipelineRelations{discovery: d, opts: opts, store: s, declared: collected.declared}
@@ -229,8 +212,8 @@ func (d *Discovery) runPipeline(
 		return walked{}, errors.Join(parseErrs...)
 	}
 
-	found.discovered = deduplicateResults(append(found.discovered, inWorktrees.Discovered...))
-	found.candidates = deduplicateResults(append(found.candidates, inWorktrees.Candidates...))
+	found.discovered = deduplicateResults(append(found.discovered, inWorktrees.discovered...))
+	found.candidates = deduplicateResults(append(found.candidates, inWorktrees.candidates...))
 
 	return found, nil
 }
@@ -242,8 +225,6 @@ func (d *Discovery) runPipeline(
 // that validateNoCoexistence rejects beside it, before either is parsed.
 func (p *pipeline) walk(ctx context.Context, l log.Logger, v *venv.Venv) error {
 	d := p.discovery
-	phase := NewFilesystemPhase(d.numWorkers)
-	input := &PhaseInput{Opts: p.opts, Classifier: d.classifier, Discovery: d}
 
 	filenames := d.configFilenames
 	if len(filenames) == 0 {
@@ -260,10 +241,10 @@ func (p *pipeline) walk(ctx context.Context, l log.Logger, v *venv.Venv) error {
 		}
 
 		if entry.IsDir() {
-			return phase.skipDirIfIgnorable(d, entry.Name())
+			return d.skipDirIfIgnorable(entry.Name())
 		}
 
-		result := phase.processFile(input, path, filenames)
+		result := d.classifyFile(path, filenames)
 		if result == nil || result.Status == filter.StatusExcluded {
 			return nil
 		}
@@ -278,7 +259,7 @@ func (p *pipeline) walk(ctx context.Context, l log.Logger, v *venv.Venv) error {
 			return nil
 		}
 
-		if err := conflict(v.FS, phase, input, *result, path, filenames); err != nil {
+		if err := conflict(v.FS, d, *result, path, filenames); err != nil {
 			return err
 		}
 
@@ -311,7 +292,7 @@ func (p *pipeline) walk(ctx context.Context, l log.Logger, v *venv.Venv) error {
 		visit:       visit,
 		workingDir:  d.discoveryContext.WorkingDir,
 		walkRoot:    walkRoot,
-		numWorkers:  phase.numWorkers,
+		numWorkers:  max(d.numWorkers, defaultDiscoveryWorkers),
 		followLinks: p.opts.Experiments.Evaluate(experiment.Symlinks),
 	}
 
@@ -325,14 +306,7 @@ type conflictError struct {
 
 // conflict returns a conflictError when the directory of path, the config file of found, holds another config
 // file that validateNoCoexistence rejects beside it.
-func conflict(
-	fsys vfs.FS,
-	phase *FilesystemPhase,
-	input *PhaseInput,
-	found DiscoveryResult,
-	path string,
-	filenames []string,
-) error {
+func conflict(fsys vfs.FS, d *Discovery, found DiscoveryResult, path string, filenames []string) error {
 	dir, base := filepath.Split(path)
 
 	for _, filename := range filenames {
@@ -345,7 +319,7 @@ func conflict(
 			continue
 		}
 
-		other := phase.processFile(input, sibling, filenames)
+		other := d.classifyFile(sibling, filenames)
 		if other == nil || other.Status != found.Status {
 			continue
 		}
@@ -358,15 +332,15 @@ func conflict(
 	return nil
 }
 
-// findInWorktrees runs the worktree phase, reports each component it finds on events, and queues the ones that
-// need a parse on work.
+// findInWorktrees runs the discoveries in worktrees, reports each component they find on events, and queues the
+// ones that need a parse on work.
 func (p *pipeline) findInWorktrees(ctx context.Context, l log.Logger, v *venv.Venv) error {
 	results, err := p.discovery.runWorktreeWalk(ctx, l, v, p.store, p.opts)
 	if err != nil {
 		return err
 	}
 
-	for _, result := range slices.Concat(results.Discovered, results.Candidates) {
+	for _, result := range slices.Concat(results.discovered, results.candidates) {
 		if err := p.report(ctx, v.FS, result, stageInWorktree); err != nil {
 			return err
 		}
@@ -441,8 +415,6 @@ func (p *pipeline) readsDependencies(fsys vfs.FS, result DiscoveryResult) bool {
 // that needs it, then reads the dependencies of one discovery needs them from. Once ctx is done, it drains work
 // without reading anything.
 func (p *pipeline) parse(ctx context.Context, l log.Logger, v *venv.Venv) {
-	phase := NewParsePhase(p.discovery.numWorkers)
-
 	for candidate := range p.work {
 		if ctx.Err() != nil {
 			continue
@@ -453,7 +425,7 @@ func (p *pipeline) parse(ctx context.Context, l log.Logger, v *venv.Venv) {
 		if p.needsParse(candidate) {
 			event.stage = stageParsed
 
-			parsed, err := phase.parseAndReclassify(ctx, l, v, p.store, p.opts, p.discovery, candidate)
+			parsed, err := p.discovery.parseAndReclassify(ctx, l, v, p.store, p.opts, candidate)
 			if err != nil {
 				event.err = err
 			}
@@ -503,7 +475,7 @@ func (p *pipeline) collect() *collected {
 type foundResults struct {
 	// discovered is the components ready for filtering.
 	discovered []DiscoveryResult
-	// candidates is the components left for a parse or the graph phase.
+	// candidates is the components left for a parse or the graph traversal.
 	candidates []DiscoveryResult
 }
 
@@ -528,7 +500,7 @@ type collected struct {
 	declared map[component.Component]dependencyPaths
 	// walked is what the walk found.
 	walked foundResults
-	// inWorktrees is what the worktree phase found.
+	// inWorktrees is what the worktree finder found.
 	inWorktrees foundResults
 	// parseRequested reports whether an option or a filter asked for a parse.
 	parseRequested bool
@@ -557,13 +529,13 @@ func (c *collected) add(event *pipelineEvent) {
 	}
 }
 
-// results returns the discovered components and candidates the filesystem and parse phases would hand the graph
-// phase for what one finder found, and the parse failures among them. The parse of a component that lost to another
-// at its path is left out.
+// results returns the discovered components and the candidates left for the graph traversal among what one finder
+// found, each as it was classified after its parse when it had one, and the parse failures among them. The parse of
+// a component that lost to another at its path is left out.
 //
 // Returns a [CoexistenceError] when a directory holds both a unit and a stack, and a [config.AmbiguousConfigError]
 // when it holds both terragrunt.hcl and terragrunt.hcl.json.
-func (c *collected) results(d *Discovery, found foundResults) (*PhaseResults, []error, error) {
+func (c *collected) results(d *Discovery, found foundResults) (*foundResults, []error, error) {
 	if err := validateNoCoexistence(found.discovered); err != nil {
 		return nil, nil, err
 	}
@@ -576,10 +548,10 @@ func (c *collected) results(d *Discovery, found foundResults) (*PhaseResults, []
 	candidates := deduplicateResults(found.candidates)
 
 	if !c.parseRequested {
-		return &PhaseResults{Discovered: discovered, Candidates: candidates}, nil, nil
+		return &foundResults{discovered: discovered, candidates: candidates}, nil, nil
 	}
 
-	results := &PhaseResults{Discovered: slices.Clone(discovered)}
+	results := &foundResults{discovered: slices.Clone(discovered)}
 
 	var parseErrs []error
 
@@ -597,16 +569,16 @@ func (c *collected) results(d *Discovery, found foundResults) (*PhaseResults, []
 
 		switch parsed.Status {
 		case filter.StatusReadyForFilter:
-			results.Discovered = append(results.Discovered, parsed)
+			results.discovered = append(results.discovered, parsed)
 		case filter.StatusCandidate:
-			results.Candidates = append(results.Candidates, parsed)
+			results.candidates = append(results.candidates, parsed)
 		case filter.StatusExcluded:
 		}
 	}
 
 	for _, candidate := range candidates {
 		if candidate.Reason != filter.CandidacyReasonRequiresParse {
-			results.Candidates = append(results.Candidates, candidate)
+			results.candidates = append(results.candidates, candidate)
 
 			continue
 		}
@@ -620,7 +592,7 @@ func (c *collected) results(d *Discovery, found foundResults) (*PhaseResults, []
 		}
 	}
 
-	results.Discovered = deduplicateResults(results.Discovered)
+	results.discovered = deduplicateResults(results.discovered)
 
 	return results, parseErrs, nil
 }

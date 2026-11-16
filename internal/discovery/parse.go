@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"sync"
 
 	"errors"
 
@@ -23,7 +22,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
-	"golang.org/x/sync/errgroup"
 )
 
 // Phase tag values for parseComponent call-site identification in telemetry.
@@ -36,9 +34,9 @@ const (
 	parsePhaseTagUnknown           = "unknown"
 )
 
-// parseReason tags a contributing cause that the parse phase ran.
+// parseReason tags a contributing cause that discovery parsed components.
 // Multiple causes can apply to one discovery; values are surfaced on the
-// discovery_phase_parse telemetry span so the activation cause is auditable.
+// discovery_pipeline telemetry span so the activation cause is auditable.
 type parseReason string
 
 const (
@@ -79,13 +77,6 @@ func parsePhaseFromContext(ctx context.Context) string {
 	}
 
 	return parsePhaseTagUnknown
-}
-
-// contextWithIncrementedParseDepth returns ctx with the parse-recursion depth bumped by one.
-// Use this at every recursion site that ultimately calls ensureParsed (graph traversal,
-// dependents upstream walk, relationship traversal) so children observe a deeper depth.
-func contextWithIncrementedParseDepth(ctx context.Context) context.Context {
-	return contextWithParseDepth(ctx, parseDepthFromContext(ctx)+1)
 }
 
 // contextWithParseDepth returns ctx with the parse-recursion depth set to depth.
@@ -154,152 +145,35 @@ func parseConfig(
 	return s.ResolveUnitQueueConfig(ctx, l, v, rewrite.NewParseContext(v, pctx), cfgPath)
 }
 
-// ParsePhase parses HCL configurations for filter evaluation.
-type ParsePhase struct {
-	// numWorkers is the number of concurrent workers.
-	numWorkers int
-}
-
-// NewParsePhase creates a new ParsePhase.
-func NewParsePhase(numWorkers int) *ParsePhase {
-	numWorkers = max(numWorkers, defaultDiscoveryWorkers)
-
-	return &ParsePhase{
-		numWorkers: numWorkers,
-	}
-}
-
-// Name returns the human-readable name of the phase.
-func (p *ParsePhase) Name() string {
-	return "parse"
-}
-
-// Kind returns the PhaseKind identifier.
-func (p *ParsePhase) Kind() PhaseKind {
-	return PhaseParse
-}
-
-// Run executes the parse phase.
-func (p *ParsePhase) Run(
-	ctx context.Context,
-	l log.Logger,
-	v *venv.Venv,
-	s *rewrite.Store,
-	input *PhaseInput,
-) (*PhaseResults, error) {
-	results := NewPhaseResults()
-	discovery := input.Discovery
-
-	componentsToParse := make([]DiscoveryResult, 0, len(input.Candidates))
-	for _, candidate := range input.Candidates {
-		if candidate.Reason == filter.CandidacyReasonRequiresParse {
-			componentsToParse = append(componentsToParse, candidate)
-
-			continue
-		}
-
-		results.AddCandidate(candidate)
-	}
-
-	// When readFiles, parseExclude, or parseIncludes is enabled, also parse discovered components
-	// to populate the Reading field, Exclude configuration, or ProcessedIncludes even without filters
-	if discovery.parsesDiscovered() {
-		componentsToParse = slices.Grow(componentsToParse, len(input.Components))
-
-		for _, c := range input.Components {
-			componentsToParse = append(componentsToParse, DiscoveryResult{
-				Component: c,
-				Status:    filter.StatusReadyForFilter,
-				Reason:    filter.CandidacyReasonNone,
-				Phase:     PhaseParse,
-			})
-		}
-	}
-
-	if len(componentsToParse) == 0 {
-		return results, nil
-	}
-
-	var (
-		errs  []error
-		errMu sync.Mutex
-	)
-
-	g, ctx := errgroup.WithContext(ctx)
-	g.SetLimit(p.numWorkers)
-
-	for _, candidate := range componentsToParse {
-		g.Go(func() error {
-			result, err := p.parseAndReclassify(ctx, l, v, s, input.Opts, discovery, candidate)
-			if err != nil {
-				errMu.Lock()
-
-				errs = append(errs, err)
-
-				errMu.Unlock()
-				// Return nil to continue processing other components
-				return nil
-			}
-
-			if result == nil {
-				return nil
-			}
-
-			switch result.Status {
-			case filter.StatusReadyForFilter:
-				results.AddDiscovered(*result)
-			case filter.StatusCandidate:
-				results.AddCandidate(*result)
-			case filter.StatusExcluded:
-				// Excluded components are not added
-			}
-
-			return nil
-		})
-	}
-
-	if err := g.Wait(); err != nil {
-		errs = append(errs, err)
-	}
-
-	if len(errs) > 0 {
-		return results, errors.Join(errs...)
-	}
-
-	return results, nil
-}
-
 // parseAndReclassify parses a component and reclassifies it based on filter evaluation.
-func (p *ParsePhase) parseAndReclassify(
+func (d *Discovery) parseAndReclassify(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	s *rewrite.Store,
 	opts *options.TerragruntOptions,
-	discovery *Discovery,
 	candidate DiscoveryResult,
 ) (*DiscoveryResult, error) {
 	c := candidate.Component
 	ctx = contextWithParsePhase(ctx, parsePhaseTagParse)
 
-	if err := parseComponent(ctx, l, v, s, c, opts, discovery); err != nil {
-		if discovery.suppressParseErrors {
+	if err := parseComponent(ctx, l, v, s, c, opts, d); err != nil {
+		if d.suppressParseErrors {
 			l.Debugf("Suppressed parse error for %s: %v", c.Path(), err)
 
 			return &DiscoveryResult{
 				Component: c,
 				Status:    filter.StatusExcluded,
 				Reason:    filter.CandidacyReasonNone,
-				Phase:     PhaseParse,
 			}, nil
 		}
 
 		return nil, err
 	}
 
-	if discovery.classifier != nil {
-		for _, expr := range discovery.classifier.ParseExpressions() {
-			matched, err := filter.Evaluate(l, discovery.evaluationContext(), expr, component.Components{c})
+	if d.classifier != nil {
+		for _, expr := range d.classifier.ParseExpressions() {
+			matched, err := filter.Evaluate(l, d.evaluationContext(), expr, component.Components{c})
 			if err != nil {
 				l.Debugf("Error evaluating parse expression for %s: %v", c.Path(), err)
 				continue
@@ -310,19 +184,17 @@ func (p *ParsePhase) parseAndReclassify(
 					Component: c,
 					Status:    filter.StatusReadyForFilter,
 					Reason:    filter.CandidacyReasonNone,
-					Phase:     PhaseParse,
 				}, nil
 			}
 		}
 
 		classCtx := filter.ClassificationContext{ParseDataAvailable: true}
-		status, reason, graphIdx := discovery.classifier.Classify(c, classCtx)
+		status, reason, graphIdx := d.classifier.Classify(c, classCtx)
 
 		return &DiscoveryResult{
 			Component:            c,
 			Status:               status,
 			Reason:               reason,
-			Phase:                PhaseParse,
 			GraphExpressionIndex: graphIdx,
 		}, nil
 	}
@@ -331,7 +203,6 @@ func (p *ParsePhase) parseAndReclassify(
 		Component: c,
 		Status:    candidate.Status,
 		Reason:    candidate.Reason,
-		Phase:     PhaseParse,
 	}, nil
 }
 

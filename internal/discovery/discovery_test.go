@@ -408,30 +408,6 @@ func TestDiscovery_CombinedFilters(t *testing.T) {
 	}
 }
 
-func TestPhaseKind_String(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		expected string
-		kind     discovery.PhaseKind
-	}{
-		{expected: "filesystem", kind: discovery.PhaseFilesystem},
-		{expected: "worktree", kind: discovery.PhaseWorktree},
-		{expected: "parse", kind: discovery.PhaseParse},
-		{expected: "graph", kind: discovery.PhaseGraph},
-		{expected: "relationship", kind: discovery.PhaseRelationship},
-		{expected: "final", kind: discovery.PhaseFinal},
-		{expected: "unknown", kind: discovery.PhaseKind(999)},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.expected, func(t *testing.T) {
-			t.Parallel()
-			assert.Equal(t, tt.expected, tt.kind.String())
-		})
-	}
-}
-
 func TestDiscoveryStatus_String(t *testing.T) {
 	t.Parallel()
 

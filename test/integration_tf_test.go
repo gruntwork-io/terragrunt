@@ -3945,7 +3945,7 @@ func TestTFReadTerragruntAuthProviderCmd(t *testing.T) {
 
 // TestTFReadTerragruntAuthProviderCmdEnvInLocalsRunAll verifies that
 // auth-provider-cmd credentials are available during discovery queue
-// construction (run --all). Without the fix in phase_parse.go, get_env()
+// construction (run --all). Without the fix in internal/discovery/parse.go, get_env()
 // in locals cannot see env vars injected by --auth-provider-cmd because
 // ObtainCredsForParsing is never called during the discovery parse phase.
 func TestTFReadTerragruntAuthProviderCmdEnvInLocalsRunAll(t *testing.T) {

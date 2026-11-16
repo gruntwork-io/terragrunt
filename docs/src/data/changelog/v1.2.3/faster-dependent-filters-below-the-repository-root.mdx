@@ -1,0 +1,18 @@
+---
+version: "v1.2.3"
+category: "performance-improvements"
+---
+
+#### Faster dependent filters from below the repository root
+
+A dependent filter, such as `--filter '...vpc'`, is much faster when Terragrunt runs from a directory below the repository root. Terragrunt searched the rest of the repository once for the target and again for each dependent it found, so the time grew with the square of the number of dependents. It now searches once.
+
+In [benchmarks](https://github.com/gruntwork-io/terragrunt/blob/main/internal/discovery/benchmark_dependents_test.go) on an AMD Ryzen AI Max+ 395, finding every dependent of a unit from that unit's directory:
+
+| units | before | after |
+| --- | --- | --- |
+| 10 | 1.4ms | 0.58ms |
+| 100 | 51ms | 4.0ms |
+| 1,000 | 4.45s | 37ms |
+
+The same filter from the repository root is 16% to 28% faster, and `run --all`, `find`, and `list` with dependencies are 12% to 25% faster on repositories of 10 to 10,000 units.

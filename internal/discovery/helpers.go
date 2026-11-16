@@ -63,7 +63,7 @@ func ConfigFilenames(opts *options.TerragruntOptions) []string {
 	return []string{name, config.DefaultStackFile}
 }
 
-// walkDirFunc returns the tree walk the discovery phases use, bound to the
+// walkDirFunc returns the tree walk discovery uses, bound to the
 // venv filesystem so discovery only sees what the venv exposes. The symlinks
 // experiment swaps in the walk that descends into symlinked directories.
 func walkDirFunc(
@@ -424,7 +424,7 @@ func extractDependencyPaths(
 }
 
 // storeStackConfigs parses each discovered stack's config file and stores the
-// result on the stack component. The parse phase only stores unit configs, so
+// result on the stack component. The pipeline only stores unit configs, so
 // this runs as a separate pass over the final component set. Parsing is
 // best-effort: a stack that fails to parse is left without config and
 // consumers simply omit those details.
@@ -642,7 +642,7 @@ func outsideDependentBoundaries(fsys vfs.FS, boundaries []string, candidate Disc
 
 // evaluationContext hands filter evaluation the settings its graph traversal
 // has to honor. Discover resolves the boundary and the working directory before
-// any phase runs, so this carries absolute paths rather than raw user input.
+// the pipeline runs, so this carries absolute paths rather than raw user input.
 func (d *Discovery) evaluationContext() filter.EvaluationContext {
 	return filter.EvaluationContext{
 		WorkingDir:         d.workingDir,

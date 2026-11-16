@@ -1,7 +1,6 @@
 package discovery_test
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"path/filepath"
@@ -19,7 +18,6 @@ import (
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
-	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -27,7 +25,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
 
-// pipelineRun is one discovery over a fixture, through the pipeline or the phases.
+// pipelineRun is one discovery over a fixture.
 type pipelineRun struct {
 	// configure applies the options under test to the discovery.
 	configure func(d *discovery.Discovery) *discovery.Discovery
@@ -41,8 +39,6 @@ type pipelineRun struct {
 	workingDir string
 	// queries are the filter queries the discovery runs with.
 	queries []string
-	// usePipeline selects the pipeline through [discovery.EnvPipeline].
-	usePipeline bool
 }
 
 // discover runs the discovery with ctx and returns what it found.
@@ -58,10 +54,6 @@ func (r *pipelineRun) discover(ctx context.Context, t *testing.T) (component.Com
 
 	if r.exec != nil {
 		v = v.WithExec(r.exec)
-	}
-
-	if r.usePipeline {
-		v.Env[discovery.EnvPipeline] = "true"
 	}
 
 	workingDir := repoPath(r.workingDir)
@@ -87,172 +79,6 @@ func (r *pipelineRun) discover(ctx context.Context, t *testing.T) (component.Com
 	return d.Discover(config.WithCaches(ctx), l, v, new(rewrite.Store), opts)
 }
 
-func TestPipelineEnabled(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		env  map[string]string
-		name string
-		want bool
-	}{
-		{name: "unset", env: map[string]string{}, want: false},
-		{name: "true", env: map[string]string{discovery.EnvPipeline: "true"}, want: true},
-		{name: "false", env: map[string]string{discovery.EnvPipeline: "false"}, want: false},
-		{name: "not a boolean", env: map[string]string{discovery.EnvPipeline: "pipeline"}, want: false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			assert.Equal(t, tt.want, discovery.PipelineEnabled(tt.env))
-		})
-	}
-}
-
-func TestDiscoveryPipelineMatchesPhasesWithRacing(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		configure func(d *discovery.Discovery) *discovery.Discovery
-		name      string
-		queries   []string
-	}{
-		{name: "walk only"},
-		{name: "path filter", queries: []string{"./apps/**"}},
-		{name: "negated path filter", queries: []string{"!./apps/web"}},
-		{name: "kind filter", queries: []string{"type=stack"}},
-		{
-			name:    "filter that reads the config",
-			queries: []string{"reading=common.yaml"},
-			configure: func(d *discovery.Discovery) *discovery.Discovery {
-				return d.WithSuppressParseErrors()
-			},
-		},
-		{
-			name: "read files",
-			configure: func(d *discovery.Discovery) *discovery.Discovery {
-				return d.WithReadFiles().WithSuppressParseErrors()
-			},
-		},
-		{
-			name: "exclude blocks",
-			configure: func(d *discovery.Discovery) *discovery.Discovery {
-				return d.WithParseExclude().WithSuppressParseErrors()
-			},
-		},
-		{
-			name:    "relationships with every parse option",
-			queries: []string{"./apps/**", "./infra/**"},
-			configure: func(d *discovery.Discovery) *discovery.Discovery {
-				return d.
-					WithRequiresParse().
-					WithRelationships().
-					WithParseExclude().
-					WithParseIncludes().
-					WithTrackReads().
-					WithSuppressParseErrors()
-			},
-		},
-		{
-			name:    "dependents of a unit",
-			queries: []string{"...db"},
-			configure: func(d *discovery.Discovery) *discovery.Discovery {
-				return d.WithSuppressParseErrors()
-			},
-		},
-		{
-			name:    "dependencies of a unit",
-			queries: []string{"web..."},
-			configure: func(d *discovery.Discovery) *discovery.Discovery {
-				return d.WithSuppressParseErrors()
-			},
-		},
-		{
-			name:    "dependencies of a unit one deep",
-			queries: []string{"web...1"},
-			configure: func(d *discovery.Discovery) *discovery.Discovery {
-				return d.WithSuppressParseErrors()
-			},
-		},
-		{
-			name:    "dependencies of a unit without the unit",
-			queries: []string{"^web..."},
-			configure: func(d *discovery.Discovery) *discovery.Discovery {
-				return d.WithSuppressParseErrors()
-			},
-		},
-		{
-			name:    "dependencies of a unit within a boundary",
-			queries: []string{"web..."},
-			configure: func(d *discovery.Discovery) *discovery.Discovery {
-				return d.WithDiscoveryBoundary("apps").WithSuppressParseErrors()
-			},
-		},
-		{
-			name:    "dependents of the dependents of a unit",
-			queries: []string{"...vpc"},
-			configure: func(d *discovery.Discovery) *discovery.Discovery {
-				return d.WithSuppressParseErrors()
-			},
-		},
-		{
-			name:    "dependents and dependencies of a unit",
-			queries: []string{"...db..."},
-			configure: func(d *discovery.Discovery) *discovery.Discovery {
-				return d.WithSuppressParseErrors()
-			},
-		},
-		{
-			name:    "dependents of a unit within a boundary",
-			queries: []string{"...db"},
-			configure: func(d *discovery.Discovery) *discovery.Discovery {
-				return d.WithDiscoveryBoundary("apps").WithSuppressParseErrors()
-			},
-		},
-		{
-			name:    "relationships of the dependents of a unit",
-			queries: []string{"...db"},
-			configure: func(d *discovery.Discovery) *discovery.Discovery {
-				return d.WithRelationships().WithSuppressParseErrors()
-			},
-		},
-		{
-			name:    "relationships of the dependencies of a unit",
-			queries: []string{"web..."},
-			configure: func(d *discovery.Discovery) *discovery.Discovery {
-				return d.WithRelationships().WithSuppressParseErrors()
-			},
-		},
-		{
-			name:    "relationships of a path filter beside a graph filter",
-			queries: []string{"./infra/**", "worker..."},
-			configure: func(d *discovery.Discovery) *discovery.Discovery {
-				return d.WithRelationships().WithSuppressParseErrors()
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			run := pipelineRun{files: rewriteCorpus, queries: tt.queries, configure: tt.configure}
-
-			want, err := run.discover(t.Context(), t)
-			require.NoError(t, err)
-			require.NotEmpty(t, want)
-
-			run.usePipeline = true
-
-			got, err := run.discover(t.Context(), t)
-			require.NoError(t, err)
-
-			assert.Equal(t, componentViews(want), componentViews(got))
-		})
-	}
-}
-
 func TestDiscoveryPipelineRelatesDependenciesOutsideTheFiltersWithRacing(t *testing.T) {
 	t.Parallel()
 
@@ -270,15 +96,8 @@ func TestDiscoveryPipelineRelatesDependenciesOutsideTheFiltersWithRacing(t *test
 		},
 	}
 
-	want, err := run.discover(t.Context(), t)
-	require.NoError(t, err)
-
-	run.usePipeline = true
-
 	got, err := run.discover(t.Context(), t)
 	require.NoError(t, err)
-
-	assert.Equal(t, componentViews(want), componentViews(got))
 
 	byPath := make(map[string]component.Component, len(got))
 	for _, c := range got {
@@ -321,50 +140,47 @@ func TestDiscoveryPipelineRelatesUnitsJoinedOutsideTheFiltersWithRacing(t *testi
 	}
 
 	for _, middle := range middles {
-		for _, usePipeline := range []bool{false, true} {
-			t.Run(middle.name+"/pipeline="+strconv.FormatBool(usePipeline), func(t *testing.T) {
-				t.Parallel()
+		t.Run(middle.name, func(t *testing.T) {
+			t.Parallel()
 
-				run := pipelineRun{
-					files: map[string]string{
-						"live/a/terragrunt.hcl":     dependenciesOn("../b"),
-						"live/b/" + middle.filename: middle.contents,
-						"live/c/terragrunt.hcl":     "",
-					},
-					queries: []string{"./live/**", "!./live/b"},
-					configure: func(d *discovery.Discovery) *discovery.Discovery {
-						return d.WithRelationships()
-					},
-					usePipeline: usePipeline,
-				}
+			run := pipelineRun{
+				files: map[string]string{
+					"live/a/terragrunt.hcl":     dependenciesOn("../b"),
+					"live/b/" + middle.filename: middle.contents,
+					"live/c/terragrunt.hcl":     "",
+				},
+				queries: []string{"./live/**", "!./live/b"},
+				configure: func(d *discovery.Discovery) *discovery.Discovery {
+					return d.WithRelationships()
+				},
+			}
 
-				got, err := run.discover(t.Context(), t)
-				require.NoError(t, err)
+			got, err := run.discover(t.Context(), t)
+			require.NoError(t, err)
 
-				byPath := make(map[string]component.Component, len(got))
-				for _, c := range got {
-					byPath[c.Path()] = c
-				}
+			byPath := make(map[string]component.Component, len(got))
+			for _, c := range got {
+				byPath[c.Path()] = c
+			}
 
-				a := byPath[filepath.Join(corpusRepoRoot, "live", "a")]
-				c := byPath[filepath.Join(corpusRepoRoot, "live", "c")]
+			a := byPath[filepath.Join(corpusRepoRoot, "live", "a")]
+			c := byPath[filepath.Join(corpusRepoRoot, "live", "c")]
 
-				require.NotNil(t, a)
-				require.NotNil(t, c)
-				require.Len(t, got, 2)
+			require.NotNil(t, a)
+			require.NotNil(t, c)
+			require.Len(t, got, 2)
 
-				assert.Equal(
-					t,
-					[]string{
-						filepath.Join(corpusRepoRoot, "live", "a"),
-						filepath.Join(corpusRepoRoot, "live", "b"),
-						filepath.Join(corpusRepoRoot, "live", "c"),
-					},
-					dependencyChain(a),
-				)
-				assert.Same(t, c, a.Dependencies()[0].Dependencies()[0])
-			})
-		}
+			assert.Equal(
+				t,
+				[]string{
+					filepath.Join(corpusRepoRoot, "live", "a"),
+					filepath.Join(corpusRepoRoot, "live", "b"),
+					filepath.Join(corpusRepoRoot, "live", "c"),
+				},
+				dependencyChain(a),
+			)
+			assert.Same(t, c, a.Dependencies()[0].Dependencies()[0])
+		})
 	}
 }
 
@@ -390,143 +206,119 @@ func TestDiscoveryPipelineLeavesDependenciesOfALoneUnitUnreadWithRacing(t *testi
 	}
 
 	for _, tt := range tests {
-		for _, usePipeline := range []bool{false, true} {
-			t.Run(tt.name+"/pipeline="+strconv.FormatBool(usePipeline), func(t *testing.T) {
-				t.Parallel()
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-				marks := &markRecorder{}
+			marks := &markRecorder{}
 
-				run := pipelineRun{
-					files:       outsideTheFiltersFixture(),
-					queries:     []string{"./live/**"},
-					configure:   tt.configure,
-					exec:        marks.exec(),
-					usePipeline: usePipeline,
-				}
+			run := pipelineRun{
+				files:     outsideTheFiltersFixture(),
+				queries:   []string{"./live/**"},
+				configure: tt.configure,
+				exec:      marks.exec(),
+			}
 
-				got, err := run.discover(t.Context(), t)
-				require.NoError(t, err)
-				require.Len(t, got, 1)
+			got, err := run.discover(t.Context(), t)
+			require.NoError(t, err)
+			require.Len(t, got, 1)
 
-				a, ok := got[0].(*component.Unit)
-				require.True(t, ok)
-				require.NotNil(t, a.Config())
-				require.Len(t, a.Dependencies(), 1)
+			a, ok := got[0].(*component.Unit)
+			require.True(t, ok)
+			require.NotNil(t, a.Config())
+			require.Len(t, a.Dependencies(), 1)
 
-				e := a.Dependencies()[0]
+			e := a.Dependencies()[0]
 
-				assert.Equal(t, filepath.Join(corpusRepoRoot, "ext", "e"), e.Path())
-				assert.Empty(t, e.Dependencies())
-				assert.Empty(t, marks.marked())
-			})
-		}
+			assert.Equal(t, filepath.Join(corpusRepoRoot, "ext", "e"), e.Path())
+			assert.Empty(t, e.Dependencies())
+			assert.Empty(t, marks.marked())
+		})
 	}
 }
 
 func TestDiscoveryPipelineReadsDependenciesOutsideTheFiltersToRelateUnitsWithRacing(t *testing.T) {
 	t.Parallel()
 
-	for _, usePipeline := range []bool{false, true} {
-		t.Run("pipeline="+strconv.FormatBool(usePipeline), func(t *testing.T) {
-			t.Parallel()
+	marks := &markRecorder{}
 
-			marks := &markRecorder{}
+	files := outsideTheFiltersFixture()
+	files["live/b/terragrunt.hcl"] = ""
 
-			files := outsideTheFiltersFixture()
-			files["live/b/terragrunt.hcl"] = ""
-
-			run := pipelineRun{
-				files:   files,
-				queries: []string{"./live/**"},
-				configure: func(d *discovery.Discovery) *discovery.Discovery {
-					return d.WithRelationships()
-				},
-				exec:        marks.exec(),
-				usePipeline: usePipeline,
-			}
-
-			_, err := run.discover(t.Context(), t)
-			require.ErrorAs(t, err, new(hcl.Diagnostics))
-			assert.Equal(t, []string{"e"}, marks.marked())
-		})
+	run := pipelineRun{
+		files:   files,
+		queries: []string{"./live/**"},
+		configure: func(d *discovery.Discovery) *discovery.Discovery {
+			return d.WithRelationships()
+		},
+		exec: marks.exec(),
 	}
+
+	_, err := run.discover(t.Context(), t)
+	require.ErrorAs(t, err, new(hcl.Diagnostics))
+	assert.Equal(t, []string{"e"}, marks.marked())
 }
 
 func TestDiscoveryPipelineStopsWalkingOnceEveryUnitIsReachedWithRacing(t *testing.T) {
 	t.Parallel()
 
-	for _, usePipeline := range []bool{false, true} {
-		t.Run("pipeline="+strconv.FormatBool(usePipeline), func(t *testing.T) {
-			t.Parallel()
-
-			run := pipelineRun{
-				files: map[string]string{
-					"live/a/terragrunt.hcl": dependenciesOn("../../ext/x"),
-					"live/c/terragrunt.hcl": "",
-					"ext/x/terragrunt.hcl":  dependenciesOn("../../live/c", "../y"),
-					"ext/y/terragrunt.hcl":  "locals {\n",
-				},
-				queries: []string{"./live/**"},
-				configure: func(d *discovery.Discovery) *discovery.Discovery {
-					return d.WithRelationships()
-				},
-				usePipeline: usePipeline,
-			}
-
-			got, err := run.discover(t.Context(), t)
-			require.NoError(t, err)
-
-			a := got.FilterByPath(filepath.Join(corpusRepoRoot, "live", "a"))
-			require.Len(t, a, 1)
-			require.Len(t, a[0].Dependencies(), 1)
-
-			x := a[0].Dependencies()[0]
-
-			assert.ElementsMatch(
-				t,
-				[]string{filepath.Join(corpusRepoRoot, "live", "c"), filepath.Join(corpusRepoRoot, "ext", "y")},
-				x.Dependencies().Paths(),
-			)
-		})
+	run := pipelineRun{
+		files: map[string]string{
+			"live/a/terragrunt.hcl": dependenciesOn("../../ext/x"),
+			"live/c/terragrunt.hcl": "",
+			"ext/x/terragrunt.hcl":  dependenciesOn("../../live/c", "../y"),
+			"ext/y/terragrunt.hcl":  "locals {\n",
+		},
+		queries: []string{"./live/**"},
+		configure: func(d *discovery.Discovery) *discovery.Discovery {
+			return d.WithRelationships()
+		},
 	}
+
+	got, err := run.discover(t.Context(), t)
+	require.NoError(t, err)
+
+	a := got.FilterByPath(filepath.Join(corpusRepoRoot, "live", "a"))
+	require.Len(t, a, 1)
+	require.Len(t, a[0].Dependencies(), 1)
+
+	x := a[0].Dependencies()[0]
+
+	assert.ElementsMatch(
+		t,
+		[]string{filepath.Join(corpusRepoRoot, "live", "c"), filepath.Join(corpusRepoRoot, "ext", "y")},
+		x.Dependencies().Paths(),
+	)
 }
 
 func TestDiscoveryPipelineWalksPastADiscoveredStackWithRacing(t *testing.T) {
 	t.Parallel()
 
-	for _, usePipeline := range []bool{false, true} {
-		t.Run("pipeline="+strconv.FormatBool(usePipeline), func(t *testing.T) {
-			t.Parallel()
-
-			run := pipelineRun{
-				files: map[string]string{
-					"live/a/terragrunt.hcl":       dependenciesOn("../s", "../../ext/x"),
-					"live/c/terragrunt.hcl":       "",
-					"live/s/terragrunt.stack.hcl": "",
-					"ext/x/terragrunt.hcl":        dependenciesOn("../../live/c"),
-				},
-				queries: []string{"./live/**"},
-				configure: func(d *discovery.Discovery) *discovery.Discovery {
-					return d.WithRelationships()
-				},
-				usePipeline: usePipeline,
-			}
-
-			got, err := run.discover(t.Context(), t)
-			require.NoError(t, err)
-
-			a := got.FilterByPath(repoPath("live", "a"))
-			require.Len(t, a, 1)
-
-			c := got.FilterByPath(repoPath("live", "c"))
-			require.Len(t, c, 1)
-
-			x := a[0].Dependencies().FilterByPath(repoPath("ext", "x"))
-			require.Len(t, x, 1)
-
-			assert.Equal(t, component.Components{c[0]}, x[0].Dependencies())
-		})
+	run := pipelineRun{
+		files: map[string]string{
+			"live/a/terragrunt.hcl":       dependenciesOn("../s", "../../ext/x"),
+			"live/c/terragrunt.hcl":       "",
+			"live/s/terragrunt.stack.hcl": "",
+			"ext/x/terragrunt.hcl":        dependenciesOn("../../live/c"),
+		},
+		queries: []string{"./live/**"},
+		configure: func(d *discovery.Discovery) *discovery.Discovery {
+			return d.WithRelationships()
+		},
 	}
+
+	got, err := run.discover(t.Context(), t)
+	require.NoError(t, err)
+
+	a := got.FilterByPath(repoPath("live", "a"))
+	require.Len(t, a, 1)
+
+	c := got.FilterByPath(repoPath("live", "c"))
+	require.Len(t, c, 1)
+
+	x := a[0].Dependencies().FilterByPath(repoPath("ext", "x"))
+	require.Len(t, x, 1)
+
+	assert.Equal(t, component.Components{c[0]}, x[0].Dependencies())
 }
 
 func TestDiscoveryPipelineRelatesUnitsUnderASymlinkWithRacing(t *testing.T) {
@@ -542,7 +334,6 @@ func TestDiscoveryPipelineRelatesUnitsUnderASymlinkWithRacing(t *testing.T) {
 		configure: func(d *discovery.Discovery) *discovery.Discovery {
 			return d.WithRelationships()
 		},
-		usePipeline: true,
 	}
 
 	got, err := run.discover(t.Context(), t)
@@ -571,7 +362,6 @@ func TestDiscoveryPipelineRelatesDependencyCyclesOutsideTheFiltersWithRacing(t *
 		configure: func(d *discovery.Discovery) *discovery.Discovery {
 			return d.WithRelationships()
 		},
-		usePipeline: true,
 	}
 
 	got, err := run.discover(t.Context(), t)
@@ -600,7 +390,6 @@ func TestDiscoveryPipelineReportsDependenciesWithoutAConfigWithRacing(t *testing
 		configure: func(d *discovery.Discovery) *discovery.Discovery {
 			return d.WithRelationships()
 		},
-		usePipeline: true,
 	}
 
 	_, err := run.discover(t.Context(), t)
@@ -638,8 +427,7 @@ func TestDiscoveryPipelineReadsDependenciesAGraphFilterTraversesWithRacing(t *te
 		configure: func(d *discovery.Discovery) *discovery.Discovery {
 			return d.WithRelationships()
 		},
-		exec:        marks.exec(),
-		usePipeline: true,
+		exec: marks.exec(),
 	}
 
 	_, err := run.discover(t.Context(), t)
@@ -713,7 +501,6 @@ func TestDiscoveryPipelineSkipsUnitsOutsideTheDependentBoundaryWithRacing(t *tes
 		configure: func(d *discovery.Discovery) *discovery.Discovery {
 			return d.WithDiscoveryBoundary("live")
 		},
-		usePipeline: true,
 	}
 
 	got, err := run.discover(t.Context(), t)
@@ -744,7 +531,6 @@ func TestDiscoveryPipelineTraversesASharedDependencyToTheGreatestDepthWithRacing
 			"apps/db/terragrunt.hcl":     dependenciesOn("../../infra/vpc"),
 			"infra/vpc/terragrunt.hcl":   "",
 		},
-		usePipeline: true,
 	}
 
 	want := []string{
@@ -774,7 +560,6 @@ func TestDiscoveryPipelineTraversesEveryGraphExpressionOfAFilterWithRacing(t *te
 			"infra/db/terragrunt.hcl":    dependenciesOn("../vpc"),
 			"infra/vpc/terragrunt.hcl":   "",
 		},
-		usePipeline: true,
 	}
 
 	want := []string{
@@ -835,26 +620,23 @@ func TestDiscoveryTraversesDependentsOfAUnitAnotherFilterReachedWithRacing(t *te
 	}
 
 	for _, tt := range tests {
-		for _, usePipeline := range []bool{false, true} {
-			t.Run(tt.name+" pipeline "+strconv.FormatBool(usePipeline), func(t *testing.T) {
-				t.Parallel()
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-				run := pipelineRun{
-					files:       tt.files,
-					workingDir:  "infra",
-					usePipeline: usePipeline,
-				}
+			run := pipelineRun{
+				files:      tt.files,
+				workingDir: "infra",
+			}
 
-				for _, queries := range [][]string{tt.queries, {tt.queries[1], tt.queries[0]}} {
-					run.queries = queries
+			for _, queries := range [][]string{tt.queries, {tt.queries[1], tt.queries[0]}} {
+				run.queries = queries
 
-					got, err := run.discover(t.Context(), t)
-					require.NoError(t, err)
+				got, err := run.discover(t.Context(), t)
+				require.NoError(t, err)
 
-					assert.ElementsMatch(t, tt.want, got.Paths(), "queries %q", queries)
-				}
-			})
-		}
+				assert.ElementsMatch(t, tt.want, got.Paths(), "queries %q", queries)
+			}
+		})
 	}
 }
 
@@ -868,7 +650,6 @@ func TestDiscoveryPipelineFindsDependentsBehindAnotherTarget(t *testing.T) {
 			"apps/web/terragrunt.hcl":  dependenciesOn("../app"),
 			"apps/edge/terragrunt.hcl": dependenciesOn("../web"),
 		},
-		usePipeline: true,
 	}
 
 	want := []string{
@@ -930,8 +711,6 @@ func TestDiscoveryPipelineFindsDependentsAboveTheWorkingDirectory(t *testing.T) 
 			v := memRepoRootVenv(t, corpusRepoRoot)
 			writeFixture(t, v, prefixPaths(files))
 
-			v.Env[discovery.EnvPipeline] = "true"
-
 			opts := options.NewTerragruntOptions()
 			opts.WorkingDir = workingDir
 			opts.RootWorkingDir = workingDir
@@ -969,8 +748,6 @@ func TestDiscoveryPipelineLinksADependencyAboveTheWorkingDirectoryOnce(t *testin
 		"live/prod/app/terragrunt.hcl":   dependenciesOn("../vpc"),
 		"live/shared/net/terragrunt.hcl": "",
 	}))
-
-	v.Env[discovery.EnvPipeline] = "true"
 
 	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = workingDir
@@ -1036,13 +813,8 @@ func TestDiscoveryPipelineReportsParseErrorsWithRacing(t *testing.T) {
 		},
 	}
 
-	_, phasesErr := run.discover(t.Context(), t)
-	require.Error(t, phasesErr)
-
-	run.usePipeline = true
-
-	_, pipelineErr := run.discover(t.Context(), t)
-	require.Error(t, pipelineErr)
+	_, err := run.discover(t.Context(), t)
+	require.ErrorAs(t, err, new(hcl.Diagnostics))
 }
 
 func TestDiscoveryPipelineReportsCoexistenceWithRacing(t *testing.T) {
@@ -1070,8 +842,7 @@ func TestDiscoveryPipelineReportsCoexistenceWithRacing(t *testing.T) {
 					"both/terragrunt.hcl":       "",
 					"both/terragrunt.stack.hcl": "",
 				},
-				configure:   tt.configure,
-				usePipeline: true,
+				configure: tt.configure,
 			}
 
 			_, err := run.discover(t.Context(), t)
@@ -1115,35 +886,20 @@ func TestDiscoveryReportsConfigConflictsBeforeParsingWithRacing(t *testing.T) {
 	}
 
 	flows := []struct {
-		configure   func(d *discovery.Discovery) *discovery.Discovery
-		name        string
-		usePipeline bool
+		configure func(d *discovery.Discovery) *discovery.Discovery
+		name      string
 	}{
 		{
-			name: "phases",
+			name: "parse errors reported",
 			configure: func(d *discovery.Discovery) *discovery.Discovery {
 				return d.WithParseExclude()
 			},
 		},
 		{
-			name: "phases with parse errors suppressed",
+			name: "parse errors suppressed",
 			configure: func(d *discovery.Discovery) *discovery.Discovery {
 				return d.WithParseExclude().WithSuppressParseErrors()
 			},
-		},
-		{
-			name: "pipeline",
-			configure: func(d *discovery.Discovery) *discovery.Discovery {
-				return d.WithParseExclude()
-			},
-			usePipeline: true,
-		},
-		{
-			name: "pipeline with parse errors suppressed",
-			configure: func(d *discovery.Discovery) *discovery.Discovery {
-				return d.WithParseExclude().WithSuppressParseErrors()
-			},
-			usePipeline: true,
 		},
 	}
 
@@ -1168,7 +924,6 @@ func TestDiscoveryReportsConfigConflictsBeforeParsingWithRacing(t *testing.T) {
 
 						return vexec.Result{}
 					}),
-					usePipeline: flow.usePipeline,
 				}
 
 				_, err := run.discover(t.Context(), t)
@@ -1183,35 +938,20 @@ func TestDiscoveryReportsConfigConflictsBeforeParsingWithRacing(t *testing.T) {
 func TestDiscoveryFindsJSONUnitsWithRacing(t *testing.T) {
 	t.Parallel()
 
-	flows := []struct {
-		name        string
-		usePipeline bool
-	}{
-		{name: "phases"},
-		{name: "pipeline", usePipeline: true},
+	run := pipelineRun{
+		files: map[string]string{
+			"hcl-unit/terragrunt.hcl":       "",
+			"json-unit/terragrunt.hcl.json": "{}",
+		},
+		configure: func(d *discovery.Discovery) *discovery.Discovery {
+			return d.WithParseExclude()
+		},
 	}
 
-	for _, flow := range flows {
-		t.Run(flow.name, func(t *testing.T) {
-			t.Parallel()
+	got, err := run.discover(t.Context(), t)
+	require.NoError(t, err)
 
-			run := pipelineRun{
-				files: map[string]string{
-					"hcl-unit/terragrunt.hcl":       "",
-					"json-unit/terragrunt.hcl.json": "{}",
-				},
-				configure: func(d *discovery.Discovery) *discovery.Discovery {
-					return d.WithParseExclude()
-				},
-				usePipeline: flow.usePipeline,
-			}
-
-			got, err := run.discover(t.Context(), t)
-			require.NoError(t, err)
-
-			assert.ElementsMatch(t, []string{repoPath("hcl-unit"), repoPath("json-unit")}, got.Paths())
-		})
-	}
+	assert.ElementsMatch(t, []string{repoPath("hcl-unit"), repoPath("json-unit")}, got.Paths())
 }
 
 func TestDiscoveryPipelineStopsOnCancellationWithRacing(t *testing.T) {
@@ -1227,7 +967,6 @@ func TestDiscoveryPipelineStopsOnCancellationWithRacing(t *testing.T) {
 		configure: func(d *discovery.Discovery) *discovery.Discovery {
 			return d.WithParseExclude()
 		},
-		usePipeline: true,
 	}
 
 	ctx, cancel := context.WithCancel(t.Context())
@@ -1236,7 +975,6 @@ func TestDiscoveryPipelineStopsOnCancellationWithRacing(t *testing.T) {
 	_, err := run.discover(ctx, t)
 	require.ErrorIs(t, err, context.Canceled)
 }
-
 func TestDiscoveryPipelineReportsCancellationDuringParsingWithRacing(t *testing.T) {
 	t.Parallel()
 
@@ -1253,7 +991,6 @@ func TestDiscoveryPipelineReportsCancellationDuringParsingWithRacing(t *testing.
 
 			return vexec.Result{}
 		}),
-		usePipeline: true,
 	}
 
 	_, err := run.discover(ctx, t)
@@ -1263,75 +1000,21 @@ func TestDiscoveryPipelineReportsCancellationDuringParsingWithRacing(t *testing.
 func TestDiscoveryReportsConfigConflictsBeforeReadingDependenciesWithRacing(t *testing.T) {
 	t.Parallel()
 
-	for _, usePipeline := range []bool{false, true} {
-		t.Run("pipeline="+strconv.FormatBool(usePipeline), func(t *testing.T) {
-			t.Parallel()
+	marks := &markRecorder{}
 
-			marks := &markRecorder{}
-
-			run := pipelineRun{
-				files: map[string]string{
-					"a/terragrunt.hcl":       `locals { mark = run_cmd("mark", "a") }`,
-					"z/terragrunt.hcl":       "",
-					"z/terragrunt.stack.hcl": "",
-				},
-				configure: func(d *discovery.Discovery) *discovery.Discovery {
-					return d.WithRelationships()
-				},
-				exec:        marks.exec(),
-				usePipeline: usePipeline,
-			}
-
-			_, err := run.discover(t.Context(), t)
-			require.ErrorAs(t, err, new(discovery.CoexistenceError))
-			assert.Empty(t, marks.marked())
-		})
-	}
-}
-
-func TestDiscoveryPipelineRunsOnlyWhenSelectedWithRacing(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name        string
-		wantSpan    string
-		usePipeline bool
-	}{
-		{name: "selected", usePipeline: true, wantSpan: "discovery_pipeline"},
-		{name: "not selected", usePipeline: false, wantSpan: "discovery_phase_filesystem"},
+	run := pipelineRun{
+		files: map[string]string{
+			"a/terragrunt.hcl":       `locals { mark = run_cmd("mark", "a") }`,
+			"z/terragrunt.hcl":       "",
+			"z/terragrunt.stack.hcl": "",
+		},
+		configure: func(d *discovery.Discovery) *discovery.Discovery {
+			return d.WithRelationships()
+		},
+		exec: marks.exec(),
 	}
 
-	spans := []string{"discovery_pipeline", "discovery_phase_filesystem"}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			out := new(bytes.Buffer)
-
-			tlm, err := telemetry.NewTelemeter(
-				t.Context(),
-				logger.CreateLogger(),
-				"terragrunt",
-				"v0.0.0-test",
-				out,
-				&telemetry.Options{TraceExporter: "console"},
-				false,
-			)
-			require.NoError(t, err)
-
-			run := pipelineRun{
-				files:       map[string]string{"unit/terragrunt.hcl": ""},
-				usePipeline: tt.usePipeline,
-			}
-
-			_, err = run.discover(telemetry.ContextWithTelemeter(t.Context(), tlm), t)
-			require.NoError(t, err)
-			require.NoError(t, tlm.Shutdown(t.Context()))
-
-			for _, span := range spans {
-				assert.Equal(t, span == tt.wantSpan, bytes.Contains(out.Bytes(), []byte(`"`+span+`"`)), span)
-			}
-		})
-	}
+	_, err := run.discover(t.Context(), t)
+	require.ErrorAs(t, err, new(discovery.CoexistenceError))
+	assert.Empty(t, marks.marked())
 }
