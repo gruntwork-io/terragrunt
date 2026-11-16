@@ -6,10 +6,6 @@ import (
 	"strings"
 )
 
-const (
-	minDiffPartsLength = 2
-)
-
 // Diffs represents the diffs between two Git references.
 type Diffs struct {
 	Added   []string
@@ -32,17 +28,18 @@ func ParseDiff(output []byte) (*Diffs, error) {
 			continue
 		}
 
-		parts := strings.Fields(line)
-		if len(parts) < minDiffPartsLength {
+		// `git diff --name-status --no-renames` separates the status from the
+		// path with a single tab, and the path is emitted literally. Splitting
+		// on the tab preserves a path that contains spaces, including leading,
+		// trailing, or consecutive ones, which strings.Fields would collapse.
+		status, path, found := strings.Cut(line, "\t")
+		if !found || path == "" {
 			return nil, &WrappedError{
 				Op:      "parse_diff",
 				Context: "invalid diff line",
 				Err:     ErrParseDiff,
 			}
 		}
-
-		status := parts[0]
-		path := strings.Join(parts[1:], " ") // Handle paths with spaces
 
 		switch status {
 		case "A":
