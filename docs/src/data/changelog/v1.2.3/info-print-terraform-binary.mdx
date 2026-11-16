@@ -1,0 +1,14 @@
+---
+version: "v1.2.3"
+category: "bug-fixes"
+---
+
+#### `info print` reports the unit's `terraform_binary`
+
+[`info print`](/reference/cli/commands/info/print) ignored the [`terraform_binary`](/reference/hcl/attributes/terraform_binary/) attribute. For a unit that set `terraform_binary = "/usr/local/bin/tofu"`, with or without `--all`, it printed the binary found on `PATH`:
+
+```json
+"terraform_binary": "tofu"
+```
+
+`info print` now reports the binary a run of the unit calls, including one set in an included file.

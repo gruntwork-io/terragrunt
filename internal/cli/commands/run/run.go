@@ -154,6 +154,31 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v *
 	return runErr
 }
 
+// ParseVersionCheckConfig partially parses the config at opts.TerragruntConfigPath, decoding only what a run reads
+// before its version checks: the version constraints, `terraform_binary`, the feature flags, and the engine block.
+func ParseVersionCheckConfig(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	opts *options.TerragruntOptions,
+) (*config.TerragruntConfig, error) {
+	configCtx := configbridge.NewParsingContext(opts)
+	configCtx = configCtx.WithDecodeList(
+		config.TerragruntVersionConstraints,
+		config.FeatureFlagsBlock,
+		config.EngineBlock,
+	)
+
+	return config.PartialParseConfigFile(
+		ctx,
+		l,
+		v,
+		configCtx,
+		opts.TerragruntConfigPath,
+		nil,
+	)
+}
+
 // runVersionCommand runs the version command. We do this instead of going through the normal run flow because
 // we can resolve `version` a lot more cheaply.
 func runVersionCommand(
@@ -163,11 +188,12 @@ func runVersionCommand(
 	v *venv.Venv,
 ) error {
 	if !opts.TFPathExplicitlySet {
-		if tfPath, err := getTFPathFromConfig(ctx, l, v, opts); err != nil {
+		tfPath, err := getTFPathFromConfig(ctx, l, v, opts)
+		if err != nil {
 			return err
-		} else if tfPath != "" {
-			opts.TFPath = tfPath
 		}
+
+		opts.SetTFPathFromConfig(tfPath)
 	}
 
 	return tf.RunCommand(
@@ -190,7 +216,7 @@ func getTFPathFromConfig(
 		return "", nil
 	}
 
-	cfg, err := getTerragruntConfig(ctx, l, v, opts)
+	cfg, err := ParseVersionCheckConfig(ctx, l, v, opts)
 	if err != nil {
 		return "", err
 	}
@@ -210,15 +236,12 @@ func checkVersionConstraints(
 	opts *options.TerragruntOptions,
 	v *venv.Venv,
 ) (log.Logger, tfimpl.Probe, error) {
-	partialTerragruntConfig, err := getTerragruntConfig(ctx, l, v, opts)
+	partialTerragruntConfig, err := ParseVersionCheckConfig(ctx, l, v, opts)
 	if err != nil {
 		return l, tfimpl.Unprobed(), err
 	}
 
-	// If the TFPath is not explicitly set, use the TFPath from the config if it is set.
-	if !opts.TFPathExplicitlySet && partialTerragruntConfig.TerraformBinary != "" {
-		opts.TFPath = partialTerragruntConfig.TerraformBinary
-	}
+	opts.SetTFPathFromConfig(partialTerragruntConfig.TerraformBinary)
 
 	engineConfig, err := partialTerragruntConfig.EngineOptions()
 	if err != nil {
@@ -251,29 +274,6 @@ func checkVersionConstraints(
 	}
 
 	return l, probe, nil
-}
-
-func getTerragruntConfig(
-	ctx context.Context,
-	l log.Logger,
-	v *venv.Venv,
-	opts *options.TerragruntOptions,
-) (*config.TerragruntConfig, error) {
-	configCtx := configbridge.NewParsingContext(opts)
-	configCtx = configCtx.WithDecodeList(
-		config.TerragruntVersionConstraints,
-		config.FeatureFlagsBlock,
-		config.EngineBlock,
-	)
-
-	return config.PartialParseConfigFile(
-		ctx,
-		l,
-		v,
-		configCtx,
-		opts.TerragruntConfigPath,
-		nil,
-	)
 }
 
 // confirmActionWithDependentUnits - Show warning with list of dependent modules from current module before destroy

@@ -69,6 +69,37 @@ func TestInsertTerraformCliArgsSubcommandReplacement(t *testing.T) {
 	}
 }
 
+func TestSetTFPathFromConfig(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name            string
+		terraformBinary string
+		want            string
+		explicitlySet   bool
+	}{
+		{name: "config names a binary", terraformBinary: "/fake/bin/tofu-unit", want: "/fake/bin/tofu-unit"},
+		{name: "config names no binary", want: "/fake/bin/tofu"},
+		{
+			name:            "explicitly set path wins",
+			terraformBinary: "/fake/bin/tofu-unit",
+			explicitlySet:   true,
+			want:            "/fake/bin/tofu",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			opts := &options.TerragruntOptions{TFPath: "/fake/bin/tofu", TFPathExplicitlySet: tc.explicitlySet}
+			opts.SetTFPathFromConfig(tc.terraformBinary)
+
+			assert.Equal(t, tc.want, opts.TFPath)
+		})
+	}
+}
+
 func TestInsertTerraformCliArgsNilGuard(t *testing.T) {
 	t.Parallel()
 

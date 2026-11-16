@@ -434,6 +434,16 @@ func (opts *TerragruntOptions) OptionsFromContext(ctx context.Context) *Terragru
 	return opts
 }
 
+// SetTFPathFromConfig sets TFPath to terraformBinary, the value of a config's `terraform_binary` attribute.
+// It leaves TFPath alone when terraformBinary is empty or TFPathExplicitlySet is true.
+func (opts *TerragruntOptions) SetTFPathFromConfig(terraformBinary string) {
+	if opts.TFPathExplicitlySet || terraformBinary == "" {
+		return
+	}
+
+	opts.TFPath = terraformBinary
+}
+
 // Clone performs a deep copy of `opts` with shadow copies of: interfaces, and funcs.
 // Fields with "clone" tags can override this behavior.
 func (opts *TerragruntOptions) Clone() *TerragruntOptions {

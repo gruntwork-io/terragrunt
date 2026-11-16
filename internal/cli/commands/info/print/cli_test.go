@@ -34,6 +34,19 @@ terraform {
 }
 `
 
+const includeRootHCL = `
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+`
+
+// undefinedInputsHCL fails the full config parse on a reference nothing defines.
+const undefinedInputsHCL = `
+inputs = {
+  name = undefined.reference
+}
+`
+
 var (
 	memRoot = venvtest.Root("/print")
 
@@ -128,6 +141,126 @@ func TestNewCommandAllPrintsOneLinePerUnit(t *testing.T) {
 		"a prepared into its cache: %s", workingDirs[0],
 	)
 	assert.Equal(t, filepath.Join(memRoot, "b"), workingDirs[1], "b failed to parse and keeps its own directory")
+}
+
+// TestNewCommandPrintsTheBinaryAUnitRuns pins which tofu binary is reported when the config names one.
+func TestNewCommandPrintsTheBinaryAUnitRuns(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		files map[string]string
+		name  string
+		want  string
+		args  []string
+	}{
+		{
+			name:  "unit sets terraform_binary",
+			files: map[string]string{"unit/terragrunt.hcl": `terraform_binary = "/fake/bin/tofu-unit"`},
+			want:  "/fake/bin/tofu-unit",
+		},
+		{
+			name: "included file sets terraform_binary",
+			files: map[string]string{
+				"root.hcl":            `terraform_binary = "/fake/bin/tofu-root"`,
+				"unit/terragrunt.hcl": includeRootHCL,
+			},
+			want: "/fake/bin/tofu-root",
+		},
+		{
+			name: "unit overrides the included file",
+			files: map[string]string{
+				"root.hcl":            `terraform_binary = "/fake/bin/tofu-root"`,
+				"unit/terragrunt.hcl": includeRootHCL + `terraform_binary = "/fake/bin/tofu-unit"`,
+			},
+			want: "/fake/bin/tofu-unit",
+		},
+		{
+			name: "source that fails to download",
+			files: map[string]string{
+				"unit/terragrunt.hcl": missingSourceHCL + `terraform_binary = "/fake/bin/tofu-unit"`,
+			},
+			want: "/fake/bin/tofu-unit",
+		},
+		{
+			name: "inputs that fail to evaluate",
+			files: map[string]string{
+				"unit/terragrunt.hcl": undefinedInputsHCL + `terraform_binary = "/fake/bin/tofu-unit"`,
+			},
+			want: "/fake/bin/tofu-unit",
+		},
+		{
+			name: "included file sets terraform_binary and inputs fail to evaluate",
+			files: map[string]string{
+				"root.hcl":            `terraform_binary = "/fake/bin/tofu-root"`,
+				"unit/terragrunt.hcl": includeRootHCL + undefinedInputsHCL,
+			},
+			want: "/fake/bin/tofu-root",
+		},
+		{
+			name:  "invalid config",
+			files: map[string]string{"unit/terragrunt.hcl": invalidHCL},
+			want:  "tofu",
+		},
+		{
+			name:  "--tf-path wins over the unit",
+			files: map[string]string{"unit/terragrunt.hcl": `terraform_binary = "/fake/bin/tofu-unit"`},
+			args:  []string{"--tf-path", "/fake/bin/tofu-flag"},
+			want:  "/fake/bin/tofu-flag",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			out := new(bytes.Buffer)
+			v := venv.MemVenv().WithWriter(out).WithFS(venvtest.NewFS(t, memRoot, tc.files))
+			opts := newOpts(t, v, filepath.Join(memRoot, "unit", "terragrunt.hcl"))
+			opts.TFPath = "tofu"
+
+			require.NoError(
+				t,
+				runCommand(t, print.NewCommand(logger.CreateLogger(), opts, v, new(rewrite.Store)), tc.args...),
+			)
+
+			var got print.InfoOutput
+
+			require.NoError(t, json.Unmarshal(out.Bytes(), &got))
+			assert.Equal(t, tc.want, got.TerraformBinary)
+		})
+	}
+}
+
+// TestNewCommandAllPrintsTheBinaryEachUnitRuns pins that --all reports each unit's own terraform_binary.
+func TestNewCommandAllPrintsTheBinaryEachUnitRuns(t *testing.T) {
+	t.Parallel()
+
+	out := new(bytes.Buffer)
+	v := venv.MemVenv().WithWriter(out).WithFS(venvtest.NewFS(t, memRoot, map[string]string{
+		"a/terragrunt.hcl": `terraform_binary = "/fake/bin/tofu-a"`,
+		"b/terragrunt.hcl": `terraform_binary = "/fake/bin/tofu-b"`,
+		"c/terragrunt.hcl": "",
+		"d/terragrunt.hcl": undefinedInputsHCL + `terraform_binary = "/fake/bin/tofu-d"`,
+	}))
+
+	opts := newOpts(t, v, "")
+	opts.TFPath = "tofu"
+
+	require.NoError(t, runCommand(t, print.NewCommand(logger.CreateLogger(), opts, v, new(rewrite.Store)), "--all"))
+
+	var binaries []string
+
+	scanner := bufio.NewScanner(out)
+	for scanner.Scan() {
+		var got print.InfoOutput
+
+		require.NoError(t, json.Unmarshal(scanner.Bytes(), &got))
+
+		binaries = append(binaries, got.TerraformBinary)
+	}
+
+	require.NoError(t, scanner.Err())
+	assert.Equal(t, []string{"/fake/bin/tofu-a", "/fake/bin/tofu-b", "tofu", "/fake/bin/tofu-d"}, binaries)
 }
 
 // TestNewCommandPrintsOnlyFilteredUnits pins that --filter selects the units printed, with or without --all.
