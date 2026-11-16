@@ -91,7 +91,7 @@ func findMatchingUnitsInPath(
 
 	configPath := filepath.Join(dir, filepath.Base(opts.TerragruntConfigPath))
 
-	cfgOpts, err := options.NewTerragruntOptionsWithConfigPath(v.Exec, configPath)
+	cfgOpts, err := options.NewTerragruntOptionsWithConfigPath(configPath)
 	if err != nil {
 		l.Debugf("Failed to build terragrunt options from %s %v", configPath, err)
 		return matchedUnitsMap

@@ -12,7 +12,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -84,7 +83,7 @@ func (f *graphBoundaryFixture) discover(
 ) component.Components {
 	t.Helper()
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = f.stagingDir
 	opts.RootWorkingDir = f.stagingDir
 
@@ -171,7 +170,7 @@ func TestDiscoveryGraphBoundary_ValidatesBoundary(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts := options.NewTerragruntOptions()
 			opts.WorkingDir = f.stagingDir
 			opts.RootWorkingDir = f.stagingDir
 
@@ -213,7 +212,7 @@ dependency "vpc" {
 	discover := func(query string) component.Components {
 		t.Helper()
 
-		opts := options.NewTerragruntOptions(vexec.NewOSExec())
+		opts := options.NewTerragruntOptions()
 		opts.WorkingDir = repoRoot
 		opts.RootWorkingDir = repoRoot
 
@@ -355,7 +354,7 @@ locals {
 			})
 			require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(elsewhereDir, ".keep"), nil, 0o644))
 
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts := options.NewTerragruntOptions()
 			opts.WorkingDir = repoRoot
 			opts.RootWorkingDir = repoRoot
 

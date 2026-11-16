@@ -9,7 +9,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -100,7 +99,7 @@ func TestExecAcceptsSourceAndAutoInitFlags(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts := options.NewTerragruntOptions()
 
 			require.NoError(t, runExecAppTest(t, opts, tc.env, tc.args))
 			assert.Equal(t, tc.expectedSource, opts.Source)

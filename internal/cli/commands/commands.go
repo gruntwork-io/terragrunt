@@ -455,7 +455,7 @@ const minTofuVersionForAutoProviderCacheDir = "1.10.0"
 //
 // Only works with OpenTofu version >= 1.10. Returns error if conditions aren't met.
 //
-// The returned probe is the one it ran on the binary at opts.TFPath, and
+// The returned probe is the one it ran on the binary opts selects, and
 // [tfimpl.Unprobed] when TF_PLUGIN_CACHE_DIR was already set or the probe failed.
 //
 // Panics if v.Env is nil, as it mutates it.

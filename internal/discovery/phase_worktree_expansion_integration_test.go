@@ -13,7 +13,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -98,7 +97,7 @@ func discoverExpansionChanges(
 
 	filters = append(filters, extraFilters...)
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 	opts.Filters = filters

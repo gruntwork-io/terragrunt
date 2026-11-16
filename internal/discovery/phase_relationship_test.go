@@ -8,7 +8,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -51,7 +50,7 @@ dependencies {
 `,
 	})
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 
@@ -133,7 +132,7 @@ include "root" {
 %s`, strategy, tt.unitBlock),
 				})
 
-				opts := options.NewTerragruntOptions(vexec.NewOSExec())
+				opts := options.NewTerragruntOptions()
 				opts.WorkingDir = tmpDir
 				opts.RootWorkingDir = tmpDir
 

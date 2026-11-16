@@ -136,8 +136,8 @@ func (runner *UnitRunner) runTerragrunt(
 }
 
 // Run executes the unit and, when the unit has a JSON output file configured,
-// writes its plan out as JSON. impl is the implementation of the binary at
-// opts.TFPath.
+// writes its plan out as JSON. impl is the implementation of the binary opts
+// selects.
 func (runner *UnitRunner) Run(
 	ctx context.Context,
 	l log.Logger,

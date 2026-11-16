@@ -93,7 +93,7 @@ func testCommandOutput(
 		t.Context(),
 		l,
 		v,
-		configbridge.ShellRunOptsFromOpts(map[string]string{}, terragruntOptions),
+		configbridge.ShellRunOptsFromOpts(vexec.NewOSExec(), map[string]string{}, terragruntOptions),
 		"",
 		!allocateStdout,
 		false,

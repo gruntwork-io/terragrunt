@@ -10,7 +10,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -100,7 +99,7 @@ func TestCASProbeFlagsRequireExperiment(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts := options.NewTerragruntOptions()
 			casFlags := shared.NewCASFlags(opts, flags.Prefix{})
 
 			require.NoError(t, casFlags.Parse(tt.args, tt.env))
@@ -120,7 +119,7 @@ func TestCASProbeFlagsRequireExperiment(t *testing.T) {
 func TestCASProbeFlagsAllowedWithoutExperimentWhenUnset(t *testing.T) {
 	t.Parallel()
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	casFlags := shared.NewCASFlags(opts, flags.Prefix{})
 
 	require.NoError(t, casFlags.Parse(clihelper.Args{"--no-cas", "--cas-clone-depth", "3"}, map[string]string{}))
@@ -143,7 +142,7 @@ func TestCASOfflineAndRefreshFlagsConflict(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts := options.NewTerragruntOptions()
 			require.NoError(t, opts.Experiments.EnableExperiment(experiment.OfflineCAS))
 
 			casFlags := shared.NewCASFlags(opts, flags.Prefix{})
@@ -172,7 +171,7 @@ func TestCASOfflineAndRefreshFlagsConflict(t *testing.T) {
 func TestCASProbeFlagsSetFalseSkipExperimentGate(t *testing.T) {
 	t.Parallel()
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	casFlags := shared.NewCASFlags(opts, flags.Prefix{})
 
 	require.NoError(t, casFlags.Parse(clihelper.Args{"--cas-offline=false", "--cas-refresh=false"}, map[string]string{}))

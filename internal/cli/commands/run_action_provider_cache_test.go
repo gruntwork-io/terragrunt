@@ -39,7 +39,7 @@ func TestRunActionDetectsImplementationForProviderCache(t *testing.T) {
 	t.Parallel()
 
 	newOpts := func() *options.TerragruntOptions {
-		opts := options.NewTerragruntOptions(vexec.NewOSExec())
+		opts := options.NewTerragruntOptions()
 		opts.NoAutoProviderCacheDir = true
 		opts.TFPath = "terraform"
 		opts.ProviderCacheOptions.Enabled = true
@@ -131,7 +131,7 @@ provider_installation {
 `), 0o600))
 	require.NoError(t, vfs.WriteFile(v.FS, home+"/.terraformrc", []byte("\n"), 0o600))
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.NoAutoProviderCacheDir = true
 	opts.TFPath = "terraform"
 	opts.ProviderCacheOptions.Enabled = true

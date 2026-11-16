@@ -12,7 +12,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -164,7 +163,7 @@ func discoverForRunAll(t *testing.T, workingDir string, filterQueries ...string)
 	filters, err := filter.ParseFilterQueries(l, filterQueries)
 	require.NoError(t, err)
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = workingDir
 	opts.RootWorkingDir = workingDir
 	opts.Filters = filters

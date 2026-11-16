@@ -380,7 +380,12 @@ func unitTFImpl(
 
 	_, probe, err := configbridge.ProbeTF(ctx, l, v, probeOpts)
 	if err != nil {
-		l.Debugf("Reading every module file of %s, the probe of %s failed: %v", opts.WorkingDir, probeOpts.TFPath, err)
+		l.Debugf(
+			"Reading every module file of %s, the probe of %s failed: %v",
+			opts.WorkingDir,
+			tfimpl.BinaryOrDefault(v.Exec, probeOpts.TFPath),
+			err,
+		)
 
 		return tfimpl.Unknown
 	}
@@ -657,7 +662,7 @@ func downloadModule(
 	v = v.WithEnvCloned()
 	getter := creds.NewGetter()
 
-	provider := externalcmd.NewProvider(l, opts.AuthProviderCmd, configbridge.ShellRunOptsFromOpts(v.Env, opts))
+	provider := externalcmd.NewProvider(l, opts.AuthProviderCmd, configbridge.ShellRunOptsFromOpts(v.Exec, v.Env, opts))
 	if err := getter.ObtainAndUpdateEnvIfNecessary(ctx, l, v, provider); err != nil {
 		return "", err
 	}

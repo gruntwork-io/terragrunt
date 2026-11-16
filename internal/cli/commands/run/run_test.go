@@ -726,7 +726,7 @@ func newCtx(t *testing.T) context.Context {
 func newOpts(t *testing.T, v *venv.Venv, unit, command string) *options.TerragruntOptions {
 	t.Helper()
 
-	opts, err := options.NewTerragruntOptionsWithConfigPath(v.Exec, filepath.Join(memRoot, unit, "terragrunt.hcl"))
+	opts, err := options.NewTerragruntOptionsWithConfigPath(filepath.Join(memRoot, unit, "terragrunt.hcl"))
 	require.NoError(t, err)
 
 	opts.TFPath = "tofu"

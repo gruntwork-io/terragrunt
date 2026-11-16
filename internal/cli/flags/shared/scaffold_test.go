@@ -6,7 +6,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -55,7 +54,7 @@ func TestRootFileNameFlag(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts := options.NewTerragruntOptions()
 
 			ctrl, ok := opts.StrictControls.Find(controls.RootTerragruntHCL).(*controls.Control)
 			require.True(t, ok, "control %s should be a *controls.Control", controls.RootTerragruntHCL)

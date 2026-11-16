@@ -2741,7 +2741,11 @@ func runTerragruntOutputJSON(
 		VersionFiles: pctx.VersionManagerFileName,
 	})
 	if err != nil {
-		l.Debugf("Failed to detect the OpenTofu/Terraform implementation of %s: %v", pctx.TFPath, err)
+		l.Debugf(
+			"Failed to detect the OpenTofu/Terraform implementation of %s: %v",
+			tfimpl.BinaryOrDefault(v.Exec, pctx.TFPath),
+			err,
+		)
 	}
 
 	// A `--source` override carries the module subdir of whichever unit the run started from, not the dependency being
@@ -2786,7 +2790,7 @@ func runTerragruntOutputJSON(
 // the TerragruntOptions-sourced constructor in internal/configbridge: the
 // dependency run is a full run of the target unit, so a flag missing here
 // is a flag that stops applying as soon as a unit is reached through a
-// `dependency` block. impl is the implementation of the binary at pctx.TFPath.
+// `dependency` block. impl is the implementation of the binary pctx selects.
 func RunOptionsFromParsingContext(pctx *ParsingContext, impl tfimpl.Type) *run.Options {
 	runOpts := run.NewOptions()
 	runOpts.LogShowAbsPaths = pctx.LogShowAbsPaths
@@ -2832,7 +2836,7 @@ func shellRunOptsFromPctx(v *venv.Venv, pctx *ParsingContext) *shell.ShellOption
 		WithWorkingDir(pctx.WorkingDir).
 		WithTelemetry(pctx.Telemetry).
 		WithEngine(pctx.EngineConfig, pctx.EngineOptions).
-		WithTFPath(pctx.TFPath).
+		WithTFPath(tfimpl.BinaryOrDefault(v.Exec, pctx.TFPath)).
 		WithRootWorkingDir(pctx.RootWorkingDir).
 		WithExperiments(pctx.Experiments).
 		WithHeadless(pctx.Headless).

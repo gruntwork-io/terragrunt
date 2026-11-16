@@ -30,7 +30,7 @@ func TestNewCommandShowsHelpWithItsSubcommands(t *testing.T) {
 	t.Parallel()
 
 	v := venv.MemVenv()
-	cmd := backend.NewCommand(logger.CreateLogger(), options.NewTerragruntOptions(v.Exec), v, new(rewrite.Store))
+	cmd := backend.NewCommand(logger.CreateLogger(), options.NewTerragruntOptions(), v, new(rewrite.Store))
 	cmd.CustomHelpTemplate = subcommandsTemplate
 
 	out, err := runCommand(t, cmd)
@@ -52,7 +52,7 @@ func TestNewCommandRunsTheNamedSubcommand(t *testing.T) {
 		"terragrunt.hcl": "this is ) not ( valid hcl",
 	}))
 
-	opts, err := options.NewTerragruntOptionsWithConfigPath(v.Exec, filepath.Join(root, "terragrunt.hcl"))
+	opts, err := options.NewTerragruntOptionsWithConfigPath(filepath.Join(root, "terragrunt.hcl"))
 	require.NoError(t, err)
 
 	_, err = runCommand(t, backend.NewCommand(logger.CreateLogger(), opts, v, new(rewrite.Store)), bootstrap.CommandName)

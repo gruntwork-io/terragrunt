@@ -8,7 +8,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -20,7 +19,7 @@ func TestNewCommandIsNamedLogin(t *testing.T) {
 
 	cmd := login.NewCommand(
 		logger.CreateLogger(),
-		options.NewTerragruntOptions(vexec.NewOSExec()),
+		options.NewTerragruntOptions(),
 		venv.MemVenv(),
 	)
 
@@ -37,7 +36,7 @@ func TestLoginIsReachableFromTheCommandLine(t *testing.T) {
 
 	v := venv.MemVenv()
 	l := logger.CreateLogger()
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 
 	err := cli.NewApp(l, opts, v).Run(l, v, []string{"terragrunt", login.CommandName})
 
@@ -70,7 +69,7 @@ func TestExperimentGateRefusesTheRun(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts := options.NewTerragruntOptions()
 
 			if tt.withExperiment {
 				require.NoError(t, opts.Experiments.EnableExperiment(experiment.TGLogin))
@@ -103,7 +102,7 @@ func TestNewCommandStaysVisibleWithoutTheExperiment(t *testing.T) {
 
 	cmd := login.NewCommand(
 		logger.CreateLogger(),
-		options.NewTerragruntOptions(vexec.NewOSExec()),
+		options.NewTerragruntOptions(),
 		venv.MemVenv(),
 	)
 

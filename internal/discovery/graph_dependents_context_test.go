@@ -11,7 +11,6 @@ import (
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -46,7 +45,7 @@ func TestGraphPhase_UpstreamCandidateContextOwnership(t *testing.T) {
 		repoPath("above", "terragrunt.hcl"):        unitHCL("../svc/vpc"),
 	})
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = workingDir
 	opts.RootWorkingDir = workingDir
 
@@ -105,7 +104,7 @@ func TestGraphPhase_UpstreamCandidateKeepsDestroyFlag(t *testing.T) {
 				repoPath("above", "terragrunt.hcl"):      unitHCL("../svc/vpc"),
 			})
 
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts := options.NewTerragruntOptions()
 			opts.WorkingDir = workingDir
 			opts.RootWorkingDir = workingDir
 
@@ -175,7 +174,7 @@ func TestGraphPhase_UpstreamCandidateBailKeepsExternalMark(t *testing.T) {
 		),
 	})
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = workingDir
 	opts.RootWorkingDir = workingDir
 

@@ -12,7 +12,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -48,7 +47,7 @@ dependency "db" {
 `,
 	})
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 
@@ -99,7 +98,7 @@ dependency "db" {
 `,
 	})
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 
@@ -152,7 +151,7 @@ func TestDiscoveryWithGraphTarget_NoDependents(t *testing.T) {
 		appDir: ``,
 	})
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 
@@ -195,7 +194,7 @@ dependency "vpc" {
 `,
 	})
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 

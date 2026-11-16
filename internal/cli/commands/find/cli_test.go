@@ -9,7 +9,6 @@ import (
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -38,7 +37,7 @@ func TestNewCommandExposesTheFindFlags(t *testing.T) {
 	t.Parallel()
 
 	cmd := find.NewCommand(
-		logger.CreateLogger(), options.NewTerragruntOptions(vexec.NewOSExec()), venv.MemVenv(), new(rewrite.Store),
+		logger.CreateLogger(), options.NewTerragruntOptions(), venv.MemVenv(), new(rewrite.Store),
 	)
 
 	assert.Equal(t, find.CommandName, cmd.Name)
@@ -133,7 +132,7 @@ func TestNewCommandBeforeResolvesFormatAndMode(t *testing.T) {
 			root := "/find-cli"
 			v := venv.MemVenv().WithFS(venvtest.NewFS(t, root, findCLIUnits)).WithWriter(&buf)
 
-			tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+			tgOpts := options.NewTerragruntOptions()
 			tgOpts.WorkingDir = root
 			tgOpts.RootWorkingDir = root
 
@@ -187,7 +186,7 @@ func TestNewFlagsHiddenFlagRunsTheStrictControl(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+			tgOpts := options.NewTerragruntOptions()
 			if tc.strictMode {
 				require.NoError(
 					t,
@@ -235,7 +234,7 @@ func TestNewFlagsExternalFlagAddsAGraphFilter(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			opts := find.NewOptions(options.NewTerragruntOptions(vexec.NewOSExec()))
+			opts := find.NewOptions(options.NewTerragruntOptions())
 
 			flags := find.NewFlags(newTestLogger(t), opts, venv.MemVenv(), nil)
 			require.NoError(t, flags.Parse(clihelper.Args(tc.args), map[string]string{}))

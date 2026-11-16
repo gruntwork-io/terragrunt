@@ -27,7 +27,7 @@ func runCLI(t *testing.T, v *venv.Venv, args ...string) (string, error) {
 	l := logger.CreateLogger()
 	l.Formatter().SetDisabledColors(true)
 
-	err := cli.NewApp(l, options.NewTerragruntOptions(v.Exec), v).
+	err := cli.NewApp(l, options.NewTerragruntOptions(), v).
 		Run(l, v, append([]string{"terragrunt"}, args...))
 
 	return out.String(), err

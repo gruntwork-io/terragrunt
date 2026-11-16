@@ -55,7 +55,7 @@ func PrepareConfig(
 	provider := externalcmd.NewProvider(
 		l,
 		opts.AuthProviderCmd,
-		configbridge.ShellRunOptsFromOpts(v.Env, opts),
+		configbridge.ShellRunOptsFromOpts(v.Exec, v.Env, opts),
 	)
 
 	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, v, provider); err != nil {
@@ -78,7 +78,7 @@ func PrepareConfig(
 // PrepareSource downloads terraform source if specified in the configuration.
 // It requires PrepareConfig to have been called first.
 //
-// It also returns which implementation the binary at opts.TFPath is, for the
+// It also returns which implementation the binary opts selects is, for the
 // later stages, through [configbridge.TFImplementation].
 func PrepareSource(
 	ctx context.Context,

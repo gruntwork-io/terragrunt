@@ -11,7 +11,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -93,7 +92,7 @@ func TestNewCommandExposesTheQueueFlags(t *testing.T) {
 	t.Parallel()
 
 	cmd := graph.NewCommand(
-		logger.CreateLogger(), options.NewTerragruntOptions(vexec.NewOSExec()), venv.MemVenv(), new(rewrite.Store),
+		logger.CreateLogger(), options.NewTerragruntOptions(), venv.MemVenv(), new(rewrite.Store),
 	)
 
 	assert.Equal(t, graph.CommandName, cmd.Name)
@@ -119,7 +118,7 @@ func TestNewCommandRendersTheDependencyGraph(t *testing.T) {
 		"vpc/terragrunt.hcl": "",
 	}))
 
-	opts := options.NewTerragruntOptions(v.Exec)
+	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = root
 	opts.RootWorkingDir = root
 

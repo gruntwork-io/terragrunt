@@ -174,7 +174,7 @@ func FuzzFullCLI(f *testing.F) {
 			log.WithLevel(options.DefaultLogLevel),
 		)
 
-		opts := options.NewTerragruntOptions(v.Exec)
+		opts := options.NewTerragruntOptions()
 		app := cli.NewApp(l, opts, v)
 		em := tf.NewDetailedExitCodeMap()
 
@@ -631,7 +631,7 @@ func newFuzzVocab(f *testing.F) *fuzzVocab {
 
 	app := cli.NewApp(
 		logger.CreateLogger(),
-		options.NewTerragruntOptions(vexec.NewNoSpawnExec()),
+		options.NewTerragruntOptions(),
 		venv.MemVenv(),
 	)
 
