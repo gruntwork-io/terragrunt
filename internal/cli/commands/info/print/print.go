@@ -47,17 +47,18 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, opts
 		return runAll(ctx, l, v, s, opts)
 	}
 
-	return runPrint(ctx, l, v, opts, prettyJSON)
+	return runPrint(ctx, l, v, s, opts, prettyJSON)
 }
 
 func runPrint(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	opts *options.TerragruntOptions,
 	layout jsonLayout,
 ) error {
-	prepared, err := prepare.PrepareConfig(ctx, l, v, opts)
+	prepared, err := prepare.PrepareConfig(ctx, l, v, s, opts)
 	if err != nil {
 		// Even on error, try to print what info we have
 		l.Debugf("Fetching info with error: %v", err)
@@ -126,7 +127,7 @@ func runAll(
 		// Preparation writes obtained credentials into the env, so each
 		// unit gets its own clone to keep them from leaking to siblings.
 		unitV := v.WithEnvCloned()
-		if err := runPrint(ctx, unitLogger, unitV, unitOpts, lineJSON); err != nil {
+		if err := runPrint(ctx, unitLogger, unitV, s, unitOpts, lineJSON); err != nil {
 			if opts.FailFast {
 				return err
 			}
