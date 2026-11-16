@@ -80,6 +80,7 @@ export default defineConfig({
       components: {
         Header: "./src/components/Header.astro",
         PageSidebar: "./src/components/PageSidebar.astro",
+        Sidebar: "./src/components/vendored/starlight/Sidebar.astro",
         SiteTitle: "./src/components/SiteTitle.astro",
         SkipLink: "./src/components/SkipLink.astro",
       },
@@ -95,6 +96,7 @@ export default defineConfig({
         },
       ],
       sidebar: sidebar,
+      routeMiddleware: "./src/route-middleware.ts",
       plugins: [
         starlightLinksValidator({
           exclude: await excludeLinks(fileURLToPath(new URL("./src", import.meta.url)), [
@@ -103,16 +105,6 @@ export default defineConfig({
             "http://localhost:9090/",
             "http://localhost:7280/ui",
 
-            // Command pages are assembled by `src/pages/reference/cli/commands/[...slug].astro`
-            // from the `commands` and `flags` collections, so the validator never sees the
-            // headings these anchors point at. Page paths themselves are still validated.
-            "/reference/cli/commands/**/*#*",
-
-            // HCL block, attribute, and function pages are assembled by
-            // `src/pages/reference/hcl/[kind]/[name].astro` from the `hclBlocks`,
-            // `hclAttributes`, and `hclFunctions` collections, for the same reason.
-            "/reference/hcl/{blocks,attributes,functions}/*#*",
-
             // Custom .astro pages — can't be validated statically
             "/reference/experiments/active",
             "/reference/experiments/active#*",
@@ -120,8 +112,11 @@ export default defineConfig({
             "/reference/experiments/completed#*",
             "/reference/strict-controls/active#*",
             "/reference/strict-controls/completed#*",
+            "/process/changelog",
             "/process/changelog#*",
             "/process/changelog/*#*",
+            "/process/faq",
+            "/guides/patterns",
 
             // Used as redirects to the Terragrunt Discord server
             "/community/invite",

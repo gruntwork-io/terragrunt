@@ -1,6 +1,14 @@
 import { describe, expect, test } from 'bun:test';
 import type { CollectionEntry } from 'astro:content';
-import { anchorRedirects, functionSignature, hclItemPath, itemAnchors, itemHeadings, referenceMarkdown } from '.';
+import {
+	anchorRedirects,
+	compareHclItems,
+	functionSignature,
+	hclItemPath,
+	itemAnchors,
+	itemHeadings,
+	referenceMarkdown,
+} from '.';
 
 type FunctionData = CollectionEntry<'hclFunctions'>['data'];
 type BlockData = CollectionEntry<'hclBlocks'>['data'];
@@ -46,6 +54,23 @@ describe('hclItemPath', () => {
 	});
 });
 
+describe('compareHclItems', () => {
+	test('sorts experimental items after the rest, each by name', () => {
+		const items = [
+			{ name: 'deep_merge', experimental: true },
+			{ name: 'get_env', experimental: false },
+			{ name: 'base64gzip_compat', experimental: true },
+			{ name: 'find_in_parent_folders', experimental: false },
+		];
+		expect(items.sort(compareHclItems).map((item) => item.name)).toEqual([
+			'find_in_parent_folders',
+			'get_env',
+			'base64gzip_compat',
+			'deep_merge',
+		]);
+	});
+});
+
 describe('functionSignature', () => {
 	test('renders a function with no parameters', () => {
 		expect(functionSignature(functionEntry({ name: 'get_platform' }).data)).toBe('get_platform() --> string');
@@ -60,6 +85,14 @@ describe('functionSignature', () => {
 			],
 		}).data;
 		expect(functionSignature(data)).toBe('get_env(name: string, [default: string]) --> string');
+	});
+
+	test('prefixes variadic parameters with an ellipsis', () => {
+		const data = functionEntry({
+			name: 'run_cmd',
+			params: [{ name: 'args', type: 'string', optional: false, variadic: true, description: '' }],
+		}).data;
+		expect(functionSignature(data)).toBe('run_cmd(...args: string) --> string');
 	});
 });
 

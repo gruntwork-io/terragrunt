@@ -1,0 +1,28 @@
+---
+name: get_terraform_commands_that_need_parallelism
+description: Returns the OpenTofu/Terraform commands that accept `-parallelism`.
+configs: [unit, stack]
+params: []
+returns: list(string)
+examples:
+  - code: |
+      # terragrunt.hcl
+
+      locals {
+        commands = get_terraform_commands_that_need_parallelism()
+        # ["apply", "plan", "destroy"]
+      }
+---
+
+`get_terraform_commands_that_need_parallelism` returns `apply`, `plan`, and `destroy`. Use it as the `commands` of an [`extra_arguments`](/reference/hcl/blocks/terraform#extra_arguments) block that passes `-parallelism`:
+
+```hcl
+# terragrunt.hcl
+
+terraform {
+  extra_arguments "parallelism" {
+    commands  = get_terraform_commands_that_need_parallelism()
+    arguments = ["-parallelism=5"]
+  }
+}
+```

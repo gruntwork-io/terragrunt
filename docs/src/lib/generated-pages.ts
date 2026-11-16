@@ -8,7 +8,6 @@ import ExperimentEntries from '@components/ExperimentEntries.astro';
 import StrictControlEntries from '@components/StrictControlEntries.astro';
 import { getPublishedCommands } from '@lib/commands/published';
 import { sortFaqEntries, type FaqEntry } from '@lib/faq';
-import { hasRenderableBody } from '@lib/docs-collection';
 import { HCL_KINDS, referenceMarkdown, type HclEntry } from '@lib/hcl';
 import { getPublishedHclItems } from '@lib/hcl/published';
 import { markdownDocument, type MarkdownDetail, type MarkdownPage } from '@lib/markdown-document';
@@ -57,9 +56,9 @@ export function markdownResponse({ title, description, body }: MarkdownPage): Re
 	});
 }
 
-/** Returns the published `docs` entries, leaving out placeholders. */
+/** Returns the published `docs` entries, leaving out drafts. */
 export async function getRenderableDocs(): Promise<CollectionEntry<'docs'>[]> {
-	return getCollection('docs', (doc) => !doc.data.draft && hasRenderableBody(doc.body));
+	return getCollection('docs', (doc) => !doc.data.draft);
 }
 
 /** Builds a page from a `docs` entry. */

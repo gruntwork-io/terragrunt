@@ -1,0 +1,31 @@
+---
+name: get_default_retryable_errors
+description: Returns Terragrunt's built-in patterns for transient OpenTofu/Terraform errors.
+configs: [unit, stack]
+params: []
+returns: list(string)
+examples:
+  - code: |
+      # terragrunt.hcl
+
+      locals {
+        patterns = get_default_retryable_errors()
+      }
+---
+
+`get_default_retryable_errors` returns regular expressions that match transient failures, such as network timeouts, rate limits, and provider registry errors. Pass them to a `retry` block in [`errors`](/reference/hcl/blocks/errors), alone or next to patterns of your own:
+
+```hcl
+# terragrunt.hcl
+
+errors {
+  retry "transient_errors" {
+    retryable_errors = concat(
+      get_default_retryable_errors(),
+      [".*my custom error.*"],
+    )
+    max_attempts       = 3
+    sleep_interval_sec = 5
+  }
+}
+```

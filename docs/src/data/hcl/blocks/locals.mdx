@@ -84,7 +84,7 @@ locals {
 
 ### Computed locals
 
-A local can run a command with [`run_cmd`](/reference/hcl/functions#run_cmd), or read another file with [`read_terragrunt_config`](/reference/hcl/functions#read_terragrunt_config), which evaluates that file's own locals:
+A local can run a command with [`run_cmd`](/reference/hcl/functions/run_cmd), or read another file with [`read_terragrunt_config`](/reference/hcl/functions/read_terragrunt_config), which evaluates that file's own locals:
 
 ```hcl
 # computed.hcl
@@ -103,4 +103,4 @@ locals {
 }
 ```
 
-Units that read the same file share one parse of it, unless the file's result [depends on the unit reading it](/reference/hcl/functions#read_terragrunt_config). Then Terragrunt parses the file, and runs its commands, for every unit.
+Units that read the same file share one parse of it, unless the file's result [depends on the unit reading it](/reference/hcl/functions/read_terragrunt_config). Then Terragrunt parses the file, and runs its commands, for every unit.

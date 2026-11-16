@@ -148,7 +148,7 @@ Commands that operate on multiple units, like `run --all`, parse the configurati
 
 ### External Commands During Parsing
 
-The [`run_cmd`](/reference/hcl/functions/#run_cmd) HCL function executes during parsing, and its results are cached per directory. A `run_cmd` call in a root configuration included by a hundred units runs a hundred times, once per unit, even when it produces the same output every time.
+The [`run_cmd`](/reference/hcl/functions/run_cmd) HCL function executes during parsing, and its results are cached per directory. A `run_cmd` call in a root configuration included by a hundred units runs a hundred times, once per unit, even when it produces the same output every time.
 
 When the output doesn't depend on the directory it runs in (resolving the current git commit for tagging resources, say), pass `--terragrunt-global-cache` so the command runs once per invocation and every other unit reuses the result:
 
@@ -160,7 +160,7 @@ locals {
 
 ### Static Configuration as JSON or YAML
 
-The [`read_terragrunt_config`](/reference/hcl/functions/#read_terragrunt_config) HCL function evaluates the target file as HCL, including any function calls the file makes. Terragrunt does this once, no matter how many units read the file, and once more in `run --all` when the run starts after discovery. A file whose result depends on the unit reading it, like one that calls `get_original_terragrunt_dir()`, is still evaluated for every unit.
+The [`read_terragrunt_config`](/reference/hcl/functions/read_terragrunt_config) HCL function evaluates the target file as HCL, including any function calls the file makes. Terragrunt does this once, no matter how many units read the file, and once more in `run --all` when the run starts after discovery. A file whose result depends on the unit reading it, like one that calls `get_original_terragrunt_dir()`, is still evaluated for every unit.
 
 That cost buys you dynamic behavior, and shared configuration often doesn't need any: region names, tag maps, account IDs, and similar values are just static data. Storing static data as JSON or YAML and decoding it is cheaper than evaluating it as HCL:
 
@@ -203,7 +203,7 @@ If your runs happen on shared infrastructure, like CI runners used by other jobs
 
 OpenTofu/Terraform has its own `-parallelism` flag, which limits how many resource operations a single run performs concurrently (10 by default). Terragrunt's `--parallelism` flag doesn't touch this setting. The two multiply: total concurrent operations against your cloud provider scale with both the number of units in flight and the parallelism within each of them.
 
-If you need to adjust within-run parallelism across units, use an [`extra_arguments`](/features/units/extra-arguments) block with the [`get_terraform_commands_that_need_parallelism`](/reference/hcl/functions/#get_terraform_commands_that_need_parallelism) function:
+If you need to adjust within-run parallelism across units, use an [`extra_arguments`](/features/units/extra-arguments) block with the [`get_terraform_commands_that_need_parallelism`](/reference/hcl/functions/get_terraform_commands_that_need_parallelism) function:
 
 ```hcl
 terraform {
