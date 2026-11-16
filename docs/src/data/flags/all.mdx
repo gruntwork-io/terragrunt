@@ -7,6 +7,7 @@ env:
 ---
 
 import { Aside } from '@astrojs/starlight/components';
+import Since from '@components/Since.astro';
 
 When this flag is set, Terragrunt will run the specified OpenTofu/Terraform command against all units in the current stack. This is useful when you want to apply changes across multiple units at once.
 
@@ -59,4 +60,11 @@ The algorithm for determining the aggregate exit code is as follows:
 - If any unit throws a 1, Terragrunt will throw a 1.
 - If any unit throws a 2, but nothing throws a 1, Terragrunt will throw a 2.
 - If nothing throws a non-zero, Terragrunt will throw a 0.
+
+<Since version="v1.2.3">
+
+A unit whose error an `ignore` block of the [`errors` block](/reference/hcl/blocks/errors) ignores counts as a 0.
+
+</Since>
+
 </Aside>

@@ -112,9 +112,10 @@ func RunCommandWithOutput(
 		code := 0
 
 		if err != nil {
-			code = 1
+			code = DetailedExitCodeError
 
-			if exitCode, codeErr := util.GetExitCode(err); codeErr == nil {
+			// A process killed by a signal has no exit code and reports -1.
+			if exitCode, codeErr := util.GetExitCode(err); codeErr == nil && exitCode >= 0 {
 				code = exitCode
 			}
 		}
