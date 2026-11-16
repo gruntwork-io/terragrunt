@@ -575,6 +575,8 @@ func getTerraformInputNamesFromVarFiles(
 //
 // The arguments of the extra_arguments blocks are read as one list with the CLI flags after them, the order a run
 // passes them in, so a flag can take its value from the next block or from the CLI.
+//
+// A relative -var-file path resolves against opts.WorkingDir, the directory tofu runs in.
 func getTerraformInputNamesFromCLIArgs(
 	l log.Logger,
 	fsys vfs.FS,
@@ -597,6 +599,12 @@ func getTerraformInputNamesFromCLIArgs(
 	inputNames, varFiles, err := GetVarFlagsFromArgList(args)
 	if err != nil {
 		return inputNames, err
+	}
+
+	for i, varFile := range varFiles {
+		if !filepath.IsAbs(varFile) {
+			varFiles[i] = filepath.Join(opts.WorkingDir, varFile)
+		}
 	}
 
 	fileVars, err := getVarNamesFromVarFiles(l, fsys, varFiles)

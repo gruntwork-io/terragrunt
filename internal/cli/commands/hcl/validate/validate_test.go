@@ -189,6 +189,41 @@ variable "team" {}
 	require.NoError(t, result.err)
 }
 
+func TestRunValidateInputsReadsRelativeVarFileFromUnitDir(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name      string
+		arguments string
+	}{
+		{name: "ValueInNextArgument", arguments: `["-var-file", "common.tfvars"]`},
+		{name: "ValueAfterEqualsSign", arguments: `["-var-file=common.tfvars"]`},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := runValidate(t, &validateRun{
+				files: map[string]string{
+					"live/unit/main.tf":       `variable "env" {}` + "\n",
+					"live/unit/common.tfvars": `env = "prod"` + "\n",
+					"live/unit/terragrunt.hcl": `terraform {
+  extra_arguments "vars" {
+    commands  = ["apply", "plan"]
+    arguments = ` + tc.arguments + `
+  }
+}
+`,
+				},
+				inputs: true,
+			})
+
+			require.NoError(t, result.err)
+		})
+	}
+}
+
 func TestRunValidateInputsCountsVarFlagWithValueInNextExtraArgumentsBlock(t *testing.T) {
 	t.Parallel()
 
