@@ -19,8 +19,8 @@ var ErrorCleanPattern = regexp.MustCompile(`[^a-zA-Z0-9./'"():=\- ]+`)
 
 // Config is the extracted errors handling configuration.
 type Config struct {
-	Retry  map[string]*RetryConfig
-	Ignore map[string]*IgnoreConfig
+	Retry  []*RetryConfig
+	Ignore []*IgnoreConfig
 }
 
 // RetryConfig represents the configuration for retrying specific errors.
@@ -67,7 +67,8 @@ func (e *MaxAttemptsReachedError) Error() string {
 	return fmt.Sprintf("max retry attempts (%d) reached for error: %s", e.MaxRetries, errfmt.Format(e.Err))
 }
 
-// AttemptErrorRecovery attempts to recover from an error by checking the ignore and retry rules.
+// AttemptErrorRecovery attempts to recover from an error by checking the ignore blocks, then the retry blocks. The
+// first block that matches decides the action.
 func (c *Config) AttemptErrorRecovery(
 	l log.Logger,
 	err error,

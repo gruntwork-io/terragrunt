@@ -102,6 +102,8 @@ blocks:
       }
 ---
 
+import Since from '@components/Since.astro';
+
 A configuration file can have one `errors` block, holding any number of `retry` and `ignore` blocks. This one retries two common network errors:
 
 ```hcl
@@ -129,6 +131,12 @@ Attempt 1 of 3. Waiting 5 second(s) before retrying...
 ### Matching errors
 
 Terragrunt checks an error against the `ignore` blocks first, then the `retry` blocks, and the first block that matches handles the error. An error that matches both an `ignore` and a `retry` block is ignored, not retried.
+
+<Since version="v1.2.3">
+
+Terragrunt checks the blocks of each kind in the order they are declared. When an [`include`](/reference/hcl/blocks#include) uses `merge_strategy = "deep"`, the included file's blocks come first. A block with the same label as an included block is merged into that block, at that block's position, and the rest of the including file's blocks follow.
+
+</Since>
 
 A block matches when the error matches at least one of its patterns and none of its `!` patterns, wherever the `!` pattern sits in the list. Patterns match anywhere in the error, so they need no leading or trailing `.*`.
 

@@ -2425,7 +2425,7 @@ func ConvertToTerragruntConfig(
 	}
 
 	if cfgFromFile.Errors != nil {
-		cfg.Errors = cfgFromFile.Errors
+		cfg.Errors = cfgFromFile.Errors.lastPerLabel()
 		cfg.SetFieldMetadata(MetadataErrors, defaultMetadata)
 	}
 
@@ -2865,10 +2865,7 @@ func (cfg *TerragruntConfig) ErrorsConfig() (*errorconfig.Config, error) {
 		return nil, nil
 	}
 
-	result := &errorconfig.Config{
-		Retry:  make(map[string]*errorconfig.RetryConfig),
-		Ignore: make(map[string]*errorconfig.IgnoreConfig),
-	}
+	result := &errorconfig.Config{}
 
 	for _, retryBlock := range cfg.Errors.Retry {
 		if retryBlock == nil {
@@ -2904,12 +2901,12 @@ func (cfg *TerragruntConfig) ErrorsConfig() (*errorconfig.Config, error) {
 			compiledPatterns = append(compiledPatterns, value)
 		}
 
-		result.Retry[retryBlock.Label] = &errorconfig.RetryConfig{
+		result.Retry = append(result.Retry, &errorconfig.RetryConfig{
 			Name:             retryBlock.Label,
 			RetryableErrors:  compiledPatterns,
 			MaxAttempts:      retryBlock.MaxAttempts,
 			SleepIntervalSec: retryBlock.SleepIntervalSec,
-		}
+		})
 	}
 
 	for _, ignoreBlock := range cfg.Errors.Ignore {
@@ -2943,12 +2940,12 @@ func (cfg *TerragruntConfig) ErrorsConfig() (*errorconfig.Config, error) {
 			compiledPatterns = append(compiledPatterns, value)
 		}
 
-		result.Ignore[ignoreBlock.Label] = &errorconfig.IgnoreConfig{
+		result.Ignore = append(result.Ignore, &errorconfig.IgnoreConfig{
 			Name:            ignoreBlock.Label,
 			IgnorableErrors: compiledPatterns,
 			Message:         ignoreBlock.Message,
 			Signals:         signals,
-		}
+		})
 	}
 
 	return result, nil

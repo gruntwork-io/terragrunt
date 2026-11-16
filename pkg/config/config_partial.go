@@ -935,10 +935,12 @@ func PartialParseConfig(
 				return nil, err
 			}
 
+			errorsConfig := decoded.Errors.lastPerLabel()
+
 			if output.Errors != nil {
-				output.Errors.Merge(decoded.Errors)
+				output.Errors.Merge(errorsConfig)
 			} else {
-				output.Errors = decoded.Errors
+				output.Errors = errorsConfig
 			}
 
 		case OutputsBlock:
