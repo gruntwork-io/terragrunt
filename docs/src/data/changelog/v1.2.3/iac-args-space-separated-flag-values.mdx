@@ -1,0 +1,10 @@
+---
+version: "v1.2.3"
+category: "bug-fixes"
+---
+
+#### Space-separated flag values stay next to their flag
+
+Terragrunt moved the value of some OpenTofu and Terraform flags to the end of the command when the value was a separate argument. `terragrunt plan -generate-config-out generated.tf -out plan.tfplan` ran `tofu plan -generate-config-out -out plan.tfplan generated.tf`, which fails.
+
+Terragrunt now keeps the value next to `-backend-config`, `-replace`, `-generate-config-out` and other flags that take a value. The same applies to flags set in `extra_arguments`.
