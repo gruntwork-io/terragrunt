@@ -3,19 +3,23 @@
 package test_test
 
 import (
+	"io"
+	"net/http"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 const (
-	azureLiveExampleRepo = "https://github.com/gruntwork-io/terragrunt-infrastructure-live-azure-example.git"
-	azureLiveExampleRef  = "main"
+	liveExampleStartTimeout = 3 * time.Minute
+	liveExamplePollInterval = 5 * time.Second
 )
 
 func TestAzureExampleLiveStacks(t *testing.T) {
@@ -30,7 +34,22 @@ func TestAzureExampleLiveStacks(t *testing.T) {
 		"EX_NON_PROD_SUBSCRIPTION_ID=" + subscriptionID,
 	}
 
-	repoDir := cloneLiveExample(t, azureLiveExampleRepo, azureLiveExampleRef)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+	repoDir := filepath.Join(tmpDir, "live-azure-example")
+
+	helpers.ExecWithTestLogger(
+		t,
+		tmpDir,
+		"git",
+		"clone",
+		"https://github.com/gruntwork-io/terragrunt-infrastructure-live-azure-example.git",
+		repoDir,
+	)
+	helpers.ExecWithTestLogger(t, repoDir, "git", "checkout", "main")
+
+	helpers.ExecWithTestLogger(t, repoDir, "mise", "trust")
+	helpers.ExecWithTestLogger(t, repoDir, "mise", "install")
+
 	stackDir := filepath.Join(repoDir, "non-prod", "eastus", "hello-world")
 
 	defer deleteAzureResourceGroup(t, stateAccount, prefix+"-tfstate")
@@ -71,4 +90,32 @@ func applyAzureLiveExample(t *testing.T, dir string, envArgs []string) {
 	}
 
 	require.FailNow(t, "the blob data role did not propagate", "gave up after %d applies", attempts)
+}
+
+// liveExampleTerragrunt returns the arguments of an `env` command that runs the example's pinned terragrunt.
+func liveExampleTerragrunt(env []string, args ...string) []string {
+	return slices.Concat(env, []string{"mise", "x", "terragrunt", "--", "terragrunt"}, args)
+}
+
+// requireHelloWorld polls the HTTPS url until it answers 200 with a body that contains want.
+func requireHelloWorld(t *testing.T, url, want string) {
+	t.Helper()
+
+	require.True(t, strings.HasPrefix(url, "https://"), "expected an HTTPS URL, got %q", url)
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, url, nil)
+		require.NoError(c, err)
+
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(c, err)
+
+		defer resp.Body.Close()
+
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(c, err)
+
+		assert.Equal(c, http.StatusOK, resp.StatusCode)
+		assert.Contains(c, string(body), want)
+	}, liveExampleStartTimeout, liveExamplePollInterval)
 }
