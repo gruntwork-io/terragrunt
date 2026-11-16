@@ -29,6 +29,8 @@ import (
 	"context"
 	"errors"
 
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/providercaching"
+
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
@@ -126,7 +128,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *cl
 
 			return nil
 		},
-		Action: func(ctx context.Context, _ *clihelper.Context) error {
+		Action: providercaching.Wrap(l, opts, v, func(ctx context.Context, _ *clihelper.Context) error {
 			granted, err := venv.ParseCapabilities(cmdOpts.Allow, allCapabilities)
 			if err != nil {
 				return clihelper.NewExitError(err, clihelper.ExitCodeGeneralError)
@@ -138,6 +140,6 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *cl
 			}
 
 			return errors.Join(Run(ctx, l, v, cmdOpts), cleanup())
-		},
+		}),
 	}
 }

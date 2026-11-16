@@ -1,11 +1,10 @@
-package commands_test
+package providercaching_test
 
 import (
 	"context"
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/cli/commands"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -25,8 +24,11 @@ const (
 	tf115Version   = "Terraform v1.15.3\non linux_amd64\n"
 )
 
-// TestRunActionAutoProviderCacheDir pins when RunAction points TF_PLUGIN_CACHE_DIR at a provider cache dir it creates.
-func TestRunActionAutoProviderCacheDir(t *testing.T) {
+// testWorkDir is the working dir the tests run in, absolute on the host OS.
+var testWorkDir = venvtest.Root("/work")
+
+// TestRunAutoProviderCacheDir pins when Run points TF_PLUGIN_CACHE_DIR at a provider cache dir it creates.
+func TestRunAutoProviderCacheDir(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -80,7 +82,7 @@ func TestRunActionAutoProviderCacheDir(t *testing.T) {
 			versionOut: tofu110Version,
 			cacheDir:   venvtest.Root("/providers"),
 			venv: func(v *venv.Venv) *venv.Venv {
-				return v.WithFS(newFaultFS(v.FS, atPath("mkdirall", venvtest.Root("/providers"))))
+				return v.WithFS(&faultFS{FS: v.FS, op: "mkdirall", basePrefix: "providers"})
 			},
 		},
 	}
@@ -114,7 +116,7 @@ func TestRunActionAutoProviderCacheDir(t *testing.T) {
 
 			require.NoError(
 				t,
-				commands.RunAction(config.WithCaches(t.Context()), nil, logger.CreateLogger(), opts, v, noopAction),
+				runWithProviderCaching(config.WithCaches(t.Context()), logger.CreateLogger(), opts, v, noopAction),
 			)
 
 			if wantCacheDir == "" {
@@ -134,8 +136,8 @@ func TestRunActionAutoProviderCacheDir(t *testing.T) {
 	}
 }
 
-// TestRunActionAutoProviderCacheDirKeepsUserValue pins that a TF_PLUGIN_CACHE_DIR the user set is kept without probing the binary.
-func TestRunActionAutoProviderCacheDirKeepsUserValue(t *testing.T) {
+// TestRunAutoProviderCacheDirKeepsUserValue pins that a TF_PLUGIN_CACHE_DIR the user set is kept without probing the binary.
+func TestRunAutoProviderCacheDirKeepsUserValue(t *testing.T) {
 	t.Parallel()
 
 	probes := 0
@@ -151,7 +153,7 @@ func TestRunActionAutoProviderCacheDirKeepsUserValue(t *testing.T) {
 	opts.TFPath = "tofu"
 	opts.ProviderCacheOptions.Dir = venvtest.Root("/providers")
 
-	require.NoError(t, commands.RunAction(config.WithCaches(t.Context()), nil, logger.CreateLogger(), opts, v, noopAction))
+	require.NoError(t, runWithProviderCaching(config.WithCaches(t.Context()), logger.CreateLogger(), opts, v, noopAction))
 	assert.Equal(t, "/user/plugins", v.Env[tf.EnvNameTFPluginCacheDir], "user value should win")
 	assert.Zero(t, probes, "the binary should not be probed")
 	assert.False(t, vfs.IsDir(v.FS, opts.ProviderCacheOptions.Dir), "no provider cache dir should be created")
