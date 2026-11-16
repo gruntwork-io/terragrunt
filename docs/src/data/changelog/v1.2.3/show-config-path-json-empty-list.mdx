@@ -1,0 +1,10 @@
+---
+version: "v1.2.3"
+category: "bug-fixes"
+---
+
+#### `hcl validate --show-config-path --json` prints `[]` when no configuration is invalid
+
+`terragrunt hcl validate --show-config-path --json` printed `null` when every configuration was valid, so scripts that read the output as an array failed.
+
+It now prints an empty JSON array.
