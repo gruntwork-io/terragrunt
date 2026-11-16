@@ -1,4 +1,4 @@
-//go:build azure || gcp
+//go:build azure
 
 package test_test
 
@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -40,9 +41,11 @@ func liveExampleTerragrunt(env []string, args ...string) []string {
 	return slices.Concat(env, []string{"mise", "x", "terragrunt", "--", "terragrunt"}, args)
 }
 
-// requireHelloWorld polls url until it answers 200 with a body that contains want.
+// requireHelloWorld polls the HTTPS url until it answers 200 with a body that contains want.
 func requireHelloWorld(t *testing.T, url, want string) {
 	t.Helper()
+
+	require.True(t, strings.HasPrefix(url, "https://"), "expected an HTTPS URL, got %q", url)
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, url, nil)

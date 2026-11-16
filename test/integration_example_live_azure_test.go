@@ -15,7 +15,7 @@ import (
 
 const (
 	azureLiveExampleRepo = "https://github.com/gruntwork-io/terragrunt-infrastructure-live-azure-example.git"
-	azureLiveExampleRef  = "4a1ca91dd49d2bf3252652a64da3900d220e06be"
+	azureLiveExampleRef  = "main"
 )
 
 func TestAzureExampleLiveStacks(t *testing.T) {
@@ -43,9 +43,9 @@ func TestAzureExampleLiveStacks(t *testing.T) {
 		liveExampleTerragrunt(env, "run", "--all", "--non-interactive", "--backend-bootstrap", "apply"))
 
 	url, _ := helpers.ExecAndCaptureOutput(t, stackDir, "env",
-		liveExampleTerragrunt(env, "stack", "output", "--raw", "service.url")...)
+		liveExampleTerragrunt(env, "stack", "output", "--raw", "website.url")...)
 
-	requireHelloWorld(t, strings.TrimSpace(url), "Welcome to Azure Container Instances!")
+	requireHelloWorld(t, strings.TrimSpace(url), "Hello, world!")
 }
 
 // applyAzureLiveExample retries the apply while the blob data role from bootstrap propagates.
