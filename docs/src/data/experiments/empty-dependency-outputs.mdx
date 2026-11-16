@@ -9,7 +9,7 @@ This experiment is ongoing and disabled by default. Without it, a `dependency` b
 
 ### `empty-dependency-outputs` - What it does
 
-A [`dependency`](/reference/hcl/blocks#dependency) block reads the outputs of the unit it points at. With this experiment enabled, `dependency.<name>.outputs` is an empty object when that unit has no outputs or has not been applied, so a `dependency` block can order a unit after another without reading anything from it.
+A [`dependency`](/reference/hcl/blocks/dependency/) block reads the outputs of the unit it points at. With this experiment enabled, `dependency.<name>.outputs` is an empty object when that unit has no outputs or has not been applied, so a `dependency` block can order a unit after another without reading anything from it.
 
 ```hcl
 dependency "vpc" {
@@ -21,7 +21,7 @@ dependency "vpc" {
 terragrunt run --experiment empty-dependency-outputs -- plan
 ```
 
-Together with an [`expansion`](/reference/hcl/blocks/expansion/) block, this orders a unit after a computed set of paths, which otherwise takes a [`dependencies`](/reference/hcl/blocks#dependencies) block.
+Together with an [`expansion`](/reference/hcl/blocks/expansion/) block, this orders a unit after a computed set of paths, which otherwise takes a [`dependencies`](/reference/hcl/blocks/dependencies/) block.
 
 ```hcl
 dependency "upstream" {
