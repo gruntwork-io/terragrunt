@@ -6,7 +6,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -53,7 +52,7 @@ func TestQueueFlagsTranslateToFilters(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts := options.NewTerragruntOptions()
 
 			env := tc.env
 			if env == nil {
@@ -119,7 +118,7 @@ func TestQueueFlagsWithoutFilters(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts := options.NewTerragruntOptions()
 
 			env := tc.env
 			if env == nil {
@@ -149,7 +148,7 @@ func TestQueueFlagsRejectInvalidGlobs(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts := options.NewTerragruntOptions()
 
 			require.Error(t, parseAndRunActions(t, shared.NewQueueFlags(opts, nil), tc.args, map[string]string{}))
 			assert.Empty(t, opts.Filters, "a rejected glob must not add a filter")
@@ -178,7 +177,7 @@ func TestQueueDeprecatedFlagsEvaluateStrictControls(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts := options.NewTerragruntOptions()
 			queueFlags := shared.NewQueueFlags(opts, nil)
 
 			require.NoError(t, parseAndRunActions(t, queueFlags, tc.args, map[string]string{}),

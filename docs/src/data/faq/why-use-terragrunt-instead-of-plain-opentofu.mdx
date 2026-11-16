@@ -24,7 +24,7 @@ A unit points at one module through its [`terraform` block](/reference/hcl/block
 
 ## Dependencies between units
 
-The [`dependency` block](/reference/hcl/blocks#dependency) passes outputs from one unit into another and places both in a DAG, so `run --all apply` visits them in the right order and destroys them in reverse. `mock_outputs` lets you plan a unit whose dependencies have not been applied yet. Wiring the same thing together in plain OpenTofu/Terraform means either a single large state file or manual coordination.
+The [`dependency` block](/reference/hcl/blocks/dependency) passes outputs from one unit into another and places both in a DAG, so `run --all apply` visits them in the right order and destroys them in reverse. `mock_outputs` lets you plan a unit whose dependencies have not been applied yet. Wiring the same thing together in plain OpenTofu/Terraform means either a single large state file or manual coordination.
 
 ## Running commands across many units
 

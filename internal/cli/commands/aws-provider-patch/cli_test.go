@@ -363,7 +363,7 @@ func TestRunAllReadsTheConfiguredConfigFilename(t *testing.T) {
 		"a/main.tf":        "",
 	})
 
-	opts, err := options.NewTerragruntOptionsWithConfigPath(v.Exec, filepath.Join(memRoot, "custom.hcl"))
+	opts, err := options.NewTerragruntOptionsWithConfigPath(filepath.Join(memRoot, "custom.hcl"))
 	require.NoError(t, err)
 
 	opts.NonInteractive = true
@@ -500,7 +500,7 @@ func newOpts(t *testing.T, v *venv.Venv, unit string) *options.TerragruntOptions
 		configPath = filepath.Join(memRoot, unit, "terragrunt.hcl")
 	}
 
-	opts, err := options.NewTerragruntOptionsWithConfigPath(v.Exec, configPath)
+	opts, err := options.NewTerragruntOptionsWithConfigPath(configPath)
 	require.NoError(t, err)
 
 	if unit == "" {

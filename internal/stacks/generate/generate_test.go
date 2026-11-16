@@ -11,7 +11,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -52,7 +51,7 @@ func TestGenerateStacksCyclicSource_FailsAtMaxLevel(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = liveDir
 	opts.RootWorkingDir = liveDir
 	opts.Parallelism = 1
@@ -123,7 +122,7 @@ func TestGenerateStacksNestedNoDotStack(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = liveDir
 	opts.RootWorkingDir = liveDir
 	opts.Parallelism = 1
@@ -194,7 +193,7 @@ func TestGenerateStacksSkipsExcludedStackUnderGeneratedStack(t *testing.T) {
 			filters, err := filter.ParseFilterQueries(l, []string{"!./land-mine | type=stack"})
 			require.NoError(t, err)
 
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts := options.NewTerragruntOptions()
 			opts.WorkingDir = workingDir
 			opts.RootWorkingDir = workingDir
 			opts.Parallelism = 1
@@ -325,7 +324,7 @@ func TestGenerateStacksDropsRegeneratedUnitsFromTheParseStore(t *testing.T) {
 	ctx := config.WithCaches(t.Context())
 	s := new(rewrite.Store)
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = liveDir
 	opts.RootWorkingDir = liveDir
 	opts.Parallelism = 1

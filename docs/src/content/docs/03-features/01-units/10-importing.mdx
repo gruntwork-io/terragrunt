@@ -142,7 +142,7 @@ If the plan still wants to create the resource, the address you imported to does
 
 ## Importing when the unit has dependencies
 
-A unit that reads outputs from a [`dependency`](/reference/hcl/blocks#dependency) needs those outputs to resolve before any command runs, including `import`. When the dependency has already been applied this is automatic. When it has not, add `import` to the commands that are allowed to use mocks:
+A unit that reads outputs from a [`dependency`](/reference/hcl/blocks/dependency) needs those outputs to resolve before any command runs, including `import`. When the dependency has already been applied this is automatic. When it has not, add `import` to the commands that are allowed to use mocks:
 
 <StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure', 'GCP']}>
 <Fragment slot="aws">

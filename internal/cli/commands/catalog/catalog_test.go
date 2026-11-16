@@ -326,7 +326,7 @@ func TestRunRejectsAnUnknownFormat(t *testing.T) {
 func newOptions(t *testing.T, workDir, outputFormat string) *catalog.Options {
 	t.Helper()
 
-	tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+	tgOpts := options.NewTerragruntOptions()
 	tgOpts.WorkingDir = workDir
 	tgOpts.RootWorkingDir = workDir
 	tgOpts.TerragruntConfigPath = filepath.Join(workDir, "terragrunt.hcl")

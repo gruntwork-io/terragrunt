@@ -160,7 +160,7 @@ func RunValidate(
 			continue
 		}
 
-		if err := parser.Unit(ctx, l, componentV, opts, c.Path()); err != nil {
+		if err := parser.Unit(ctx, l, componentV, s, opts, c.Path()); err != nil {
 			parseErrs = append(parseErrs, err)
 			unitErrs[c.Path()] = err
 		}
@@ -325,14 +325,14 @@ func RunValidateInputs(
 		// missing inputs in the next.
 		unitV := v.WithEnvCloned()
 
-		prepared, err := prepare.PrepareConfig(ctx, l, unitV, unitOpts)
+		prepared, err := prepare.PrepareConfig(ctx, l, unitV, s, unitOpts)
 		if err != nil {
 			errs = append(errs, err)
 			continue
 		}
 
 		// Download source
-		updatedOpts, err := prepare.PrepareSource(ctx, l, unitV, prepared.Opts, prepared.Cfg, r)
+		updatedOpts, impl, err := prepare.PrepareSource(ctx, l, unitV, prepared.Opts, prepared.Cfg, r)
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -344,6 +344,7 @@ func RunValidateInputs(
 			l,
 			unitV,
 			updatedOpts,
+			impl,
 			prepared.Cfg.ToRunConfig(l, unitV.FS),
 		); err != nil {
 			errs = append(errs, err)

@@ -9,7 +9,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/browse"
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -88,7 +87,7 @@ func TestNewCommandIsNamedBrowse(t *testing.T) {
 
 	cmd := browse.NewCommand(
 		logger.CreateLogger(),
-		options.NewTerragruntOptions(vexec.NewOSExec()),
+		options.NewTerragruntOptions(),
 		venvtest.NewOSWithEmptyEnv(), new(rewrite.Store),
 	)
 

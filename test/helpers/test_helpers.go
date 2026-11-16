@@ -17,7 +17,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/stretchr/testify/require"
 )
@@ -218,7 +217,7 @@ func MakeDiscoveryContext(
 
 // MakeOpts creates terragrunt options for a given directory.
 func MakeOpts(dir string) *options.TerragruntOptions {
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = dir
 	opts.RootWorkingDir = dir
 

@@ -12,7 +12,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/tips"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
@@ -24,7 +23,7 @@ import (
 func TestProfileFlagsRegistration(t *testing.T) {
 	t.Parallel()
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	profileFlags := global.NewProfileFlags(opts, nil)
 
 	testCases := []struct {
@@ -47,7 +46,7 @@ func TestProfileFlagsRegistration(t *testing.T) {
 func TestProfileFlagsParse(t *testing.T) {
 	t.Parallel()
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 
 	err := global.NewProfileFlags(opts, nil).Parse([]string{
 		"--profile-cpu=cpu.prof",
@@ -66,7 +65,7 @@ func TestProfileFlagsParse(t *testing.T) {
 func TestProfileFlagsParseSpaceForm(t *testing.T) {
 	t.Parallel()
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 
 	err := global.NewProfileFlags(opts, nil).Parse([]string{"--profile-cpu", "cpu.prof"}, map[string]string{})
 	require.NoError(t, err)
@@ -220,7 +219,7 @@ func TestGlobalFlagsSetOptions(t *testing.T) {
 			t.Parallel()
 
 			l := newInfoLogger()
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts := options.NewTerragruntOptions()
 
 			env := tc.env
 			if env == nil {
@@ -253,7 +252,7 @@ func TestGlobalFlagsRejectInvalidValues(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts := options.NewTerragruntOptions()
 
 			require.Error(t, parseAndRunActions(t, global.NewFlags(newInfoLogger(), opts, nil), tc.args, map[string]string{}))
 		})
@@ -264,7 +263,7 @@ func TestGlobalFlagsRejectInvalidValues(t *testing.T) {
 func TestExperimentModeFlagEnablesOngoingExperiments(t *testing.T) {
 	t.Parallel()
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	ongoing := opts.Experiments.FilterByStatus(experiment.StatusOngoing)
 	require.NotEmpty(t, ongoing, "at least one experiment should be ongoing")
 
@@ -290,7 +289,7 @@ func TestStrictFlagsEnableControls(t *testing.T) {
 	t.Run("strict mode", func(t *testing.T) {
 		t.Parallel()
 
-		opts := options.NewTerragruntOptions(vexec.NewOSExec())
+		opts := options.NewTerragruntOptions()
 		active := opts.StrictControls.FilterByStatus(strict.ActiveStatus)
 		require.NotEmpty(t, active, "at least one strict control should be active")
 
@@ -312,7 +311,7 @@ func TestStrictFlagsEnableControls(t *testing.T) {
 	t.Run("strict control", func(t *testing.T) {
 		t.Parallel()
 
-		opts := options.NewTerragruntOptions(vexec.NewOSExec())
+		opts := options.NewTerragruntOptions()
 
 		require.NoError(t, parseAndRunActions(
 			t,
@@ -360,7 +359,7 @@ func TestTipFlagsDisableTips(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts := options.NewTerragruntOptions()
 
 			require.NoError(t, parseAndRunActions(t, global.NewFlags(newInfoLogger(), opts, nil), tc.args, map[string]string{}))
 
@@ -403,7 +402,7 @@ func TestHelpVersionFlagsRenderOutput(t *testing.T) {
 			app.CustomAppHelpTemplate = "help for {{ .Name }}"
 			app.CustomAppVersionTemplate = "{{ .Version }}"
 
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts := options.NewTerragruntOptions()
 			helpVersionFlags := global.NewHelpVersionFlags(newInfoLogger(), opts)
 
 			flagSet, err := helpVersionFlags.NewFlagSet(app.Name, map[string]string{}, returnErr)
@@ -425,7 +424,7 @@ func TestLogLevelFlagUsesPrefixedEnvVar(t *testing.T) {
 	t.Parallel()
 
 	l := newInfoLogger()
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	logLevelFlag := global.NewLogLevelFlag(l, opts, flags.Prefix{"run"})
 
 	require.NoError(

@@ -155,6 +155,7 @@ func startProviderCacheRun(t *testing.T, upstreamURL string) *providerCacheRun {
 	token := fmt.Sprintf("%s:%s", providercache.APIKeyAuth, uuid.New().String())
 
 	server := cache.NewServer(
+		cache.WithHostname("127.0.0.1"),
 		cache.WithToken(token),
 		cache.WithProviderService(service),
 		cache.WithProviderHandlers(directHandler),

@@ -25,6 +25,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
@@ -2727,6 +2728,26 @@ func runTerragruntOutputJSON(
 		pctx.TFPath = cfg.TerraformBinary
 	}
 
+	engineConfig, err := cfg.EngineOptions()
+	if err != nil {
+		return nil, err
+	}
+
+	pctx.EngineConfig = engineConfig
+
+	l, probe, err := run.PopulateTFVersion(ctx, l, v, run.PopulateTFVersionInput{
+		TFOpts:       tfRunOptsFromPctx(v, pctx),
+		WorkingDir:   pctx.WorkingDir,
+		VersionFiles: pctx.VersionManagerFileName,
+	})
+	if err != nil {
+		l.Debugf(
+			"Failed to detect the OpenTofu/Terraform implementation of %s: %v",
+			tfimpl.BinaryOrDefault(v.Exec, pctx.TFPath),
+			err,
+		)
+	}
+
 	// A `--source` override carries the module subdir of whichever unit the run started from, not the dependency being
 	// resolved here, so retarget it to this module's own subdir before running. The full parse above resolves the
 	// target's real source even when it references a dependency output (which the lightweight parse in resolveOutputJSON
@@ -2742,7 +2763,7 @@ func runTerragruntOutputJSON(
 		ctx,
 		l,
 		v,
-		RunOptionsFromParsingContext(pctx),
+		RunOptionsFromParsingContext(pctx, probe.Type),
 		report.NewReport(),
 		runCfg,
 		credentialGetter,
@@ -2769,8 +2790,8 @@ func runTerragruntOutputJSON(
 // the TerragruntOptions-sourced constructor in internal/configbridge: the
 // dependency run is a full run of the target unit, so a flag missing here
 // is a flag that stops applying as soon as a unit is reached through a
-// `dependency` block.
-func RunOptionsFromParsingContext(pctx *ParsingContext) *run.Options {
+// `dependency` block. impl is the implementation of the binary pctx selects.
+func RunOptionsFromParsingContext(pctx *ParsingContext, impl tfimpl.Type) *run.Options {
 	runOpts := run.NewOptions()
 	runOpts.LogShowAbsPaths = pctx.LogShowAbsPaths
 	runOpts.LogDisableErrorSummary = pctx.LogDisableErrorSummary
@@ -2793,7 +2814,7 @@ func RunOptionsFromParsingContext(pctx *ParsingContext) *run.Options {
 	runOpts.EngineConfig = pctx.EngineConfig
 	runOpts.EngineOptions = pctx.EngineOptions
 	runOpts.TFPath = pctx.TFPath
-	runOpts.TofuImplementation = pctx.TofuImplementation
+	runOpts.TofuImplementation = impl
 	runOpts.Headless = pctx.Headless
 	runOpts.Debug = pctx.Debug
 	runOpts.AutoInit = pctx.AutoInit
@@ -2815,7 +2836,7 @@ func shellRunOptsFromPctx(v *venv.Venv, pctx *ParsingContext) *shell.ShellOption
 		WithWorkingDir(pctx.WorkingDir).
 		WithTelemetry(pctx.Telemetry).
 		WithEngine(pctx.EngineConfig, pctx.EngineOptions).
-		WithTFPath(pctx.TFPath).
+		WithTFPath(tfimpl.BinaryOrDefault(v.Exec, pctx.TFPath)).
 		WithRootWorkingDir(pctx.RootWorkingDir).
 		WithExperiments(pctx.Experiments).
 		WithHeadless(pctx.Headless).

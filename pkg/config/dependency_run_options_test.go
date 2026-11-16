@@ -25,7 +25,7 @@ func TestRunOptionsFromParsingContextCopiesEveryOption(t *testing.T) {
 
 	pctx := parsingContextWithDistinctValues(t)
 
-	runOpts := config.RunOptionsFromParsingContext(pctx)
+	runOpts := config.RunOptionsFromParsingContext(pctx, tfimpl.OpenTofu)
 	require.NotNil(t, runOpts)
 
 	assert.True(t, runOpts.LogShowAbsPaths)
@@ -49,7 +49,7 @@ func TestRunOptionsFromParsingContextCopiesEveryOption(t *testing.T) {
 	assert.Same(t, pctx.EngineConfig, runOpts.EngineConfig)
 	assert.Same(t, pctx.EngineOptions, runOpts.EngineOptions)
 	assert.Equal(t, pctx.TFPath, runOpts.TFPath)
-	assert.Equal(t, pctx.TofuImplementation, runOpts.TofuImplementation)
+	assert.Equal(t, tfimpl.OpenTofu, runOpts.TofuImplementation)
 	assert.True(t, runOpts.Headless)
 	assert.True(t, runOpts.Debug)
 	assert.True(t, runOpts.AutoInit)
@@ -90,7 +90,6 @@ func parsingContextWithDistinctValues(t *testing.T) *config.ParsingContext {
 	pctx.EngineConfig = &engine.EngineConfig{Source: "engine-source"}
 	pctx.EngineOptions = &engine.EngineOptions{}
 	pctx.TFPath = "/usr/local/bin/tofu"
-	pctx.TofuImplementation = tfimpl.OpenTofu
 	pctx.Headless = true
 	pctx.Debug = true
 	pctx.AutoInit = true

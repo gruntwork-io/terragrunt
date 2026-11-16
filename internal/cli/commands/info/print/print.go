@@ -17,6 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
@@ -47,17 +48,18 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, opts
 		return runAll(ctx, l, v, s, opts)
 	}
 
-	return runPrint(ctx, l, v, opts, prettyJSON)
+	return runPrint(ctx, l, v, s, opts, prettyJSON)
 }
 
 func runPrint(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	opts *options.TerragruntOptions,
 	layout jsonLayout,
 ) error {
-	prepared, err := prepare.PrepareConfig(ctx, l, v, opts)
+	prepared, err := prepare.PrepareConfig(ctx, l, v, s, opts)
 	if err != nil {
 		// Even on error, try to print what info we have
 		l.Debugf("Fetching info with error: %v", err)
@@ -70,7 +72,7 @@ func runPrint(
 	}
 
 	// Download source
-	updatedOpts, err := prepare.PrepareSource(
+	updatedOpts, _, err := prepare.PrepareSource(
 		ctx,
 		l,
 		v,
@@ -126,7 +128,7 @@ func runAll(
 		// Preparation writes obtained credentials into the env, so each
 		// unit gets its own clone to keep them from leaking to siblings.
 		unitV := v.WithEnvCloned()
-		if err := runPrint(ctx, unitLogger, unitV, unitOpts, lineJSON); err != nil {
+		if err := runPrint(ctx, unitLogger, unitV, s, unitOpts, lineJSON); err != nil {
 			if opts.FailFast {
 				return err
 			}
@@ -164,7 +166,7 @@ func printTerragruntContext(
 		ConfigPath:       opts.TerragruntConfigPath,
 		DownloadDir:      opts.DownloadDir,
 		IAMRole:          opts.IAMRoleOptions.RoleARN,
-		TerraformBinary:  opts.TFPath,
+		TerraformBinary:  tfimpl.BinaryOrDefault(v.Exec, opts.TFPath),
 		TerraformCommand: opts.TofuCommand,
 		WorkingDir:       opts.WorkingDir,
 	}

@@ -36,34 +36,35 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, opts
 		return runAll(ctx, l, v, s, opts)
 	}
 
-	return runSingle(ctx, l, v, opts)
+	return runSingle(ctx, l, v, s, opts)
 }
 
 func runSingle(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	opts *options.TerragruntOptions,
 ) error {
-	prepared, err := prepare.PrepareConfig(ctx, l, v, opts)
+	prepared, err := prepare.PrepareConfig(ctx, l, v, s, opts)
 	if err != nil {
 		return err
 	}
 
 	r := report.NewReport()
 
-	updatedOpts, err := prepare.PrepareSource(ctx, l, v, prepared.Opts, prepared.Cfg, r)
+	updatedOpts, impl, err := prepare.PrepareSource(ctx, l, v, prepared.Opts, prepared.Cfg, r)
 	if err != nil {
 		return err
 	}
 
 	runCfg := prepared.Cfg.ToRunConfig(l, v.FS)
 
-	if err := prepare.PrepareGenerate(ctx, l, v, updatedOpts, runCfg); err != nil {
+	if err := prepare.PrepareGenerate(ctx, l, v, updatedOpts, impl, runCfg); err != nil {
 		return err
 	}
 
-	if err := prepare.PrepareInit(ctx, l, v, opts, updatedOpts, runCfg, r); err != nil {
+	if err := prepare.PrepareInit(ctx, l, v, opts, updatedOpts, impl, runCfg, r); err != nil {
 		return err
 	}
 
@@ -101,7 +102,7 @@ func runAll(
 		// Preparation writes obtained credentials into the env, so each
 		// unit gets its own clone to keep them from leaking to siblings.
 		unitV := v.WithEnvCloned()
-		if err := runSingle(ctx, l, unitV, unitOpts); err != nil {
+		if err := runSingle(ctx, l, unitV, s, unitOpts); err != nil {
 			if opts.FailFast {
 				return err
 			}

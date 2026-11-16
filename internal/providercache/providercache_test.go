@@ -74,6 +74,7 @@ func testProviderCache(t *testing.T, c vhttp.Client) {
 	opts := make([]cache.Option, 0, 3)
 	opts = append(
 		opts,
+		cache.WithHostname("127.0.0.1"),
 		cache.WithToken(token),
 		cache.WithCacheProviderHTTPStatusCode(providercache.CacheProviderHTTPStatusCode),
 	)

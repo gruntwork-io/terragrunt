@@ -43,7 +43,7 @@ Units typically represent a minimal useful piece of infrastructure that should b
 
 e.g. A unit might represent a single VPC, a single database, or a single server.
 
-While not a requirement, a general tendency experienced when working with Terragrunt is that units tend to decrease in size. This is because Terragrunt makes it easy to segment pieces of infrastructure into their own state, and to have them interact with each other through the use of [dependency blocks](/reference/hcl/blocks#dependency). Smaller units are quicker to update, easier to reason about and safer to work with.
+While not a requirement, a general tendency experienced when working with Terragrunt is that units tend to decrease in size. This is because Terragrunt makes it easy to segment pieces of infrastructure into their own state, and to have them interact with each other through the use of [dependency blocks](/reference/hcl/blocks/dependency). Smaller units are quicker to update, easier to reason about and safer to work with.
 
 A common pattern used in the repository structure for Terragrunt projects is to have a single `root.hcl` file located at the root of the repository, and multiple subdirectories each containing their own `terragrunt.hcl` file. This is typically done to promote code-reuse, as it allows for any configuration common to all units to be defined in the `root.hcl` file, and for unit-specific configuration to be defined in child directories. In this pattern, the `root.hcl` file is not considered a unit, while all the child directories containing `terragrunt.hcl` files are.
 
@@ -189,7 +189,7 @@ Units are only considered "running" when they are in the Runner Pool.
 
 A dependency is a relationship between two units in a stack that results in data being passed from the dependency to the dependent unit. A unit can also depend on a whole stack, in which case it receives the outputs of every unit in that stack. See [Depending on a stack](/features/stacks/stack-operations#depending-on-a-stack).
 
-Dependencies are defined in Terragrunt configuration files using the [dependency block](/reference/hcl/blocks#dependency).
+Dependencies are defined in Terragrunt configuration files using the [dependency block](/reference/hcl/blocks/dependency).
 
 Dependencies are important for resolving the DAG, and the DAG is one of the most important properties to understand with Terragrunt. In an effort to avoid confusing users, Terragrunt maintainers attempt to overload the term "dependency" as little as possible. Other relationships may be described as "reading" or "including" to avoid any ambiguity as to what is relevant to the DAG.
 
@@ -197,7 +197,7 @@ Dependencies are important for resolving the DAG, and the DAG is one of the most
 
 The term "include" is used in two different contexts in Terragrunt.
 
-1. **Include in configuration**: This is when one configuration file is included as partial configuration in another configuration file. This is done using the [include block](/reference/hcl/blocks#include) in Terragrunt configuration files.
+1. **Include in configuration**: This is when one configuration file is included as partial configuration in another configuration file. This is done using the [include block](/reference/hcl/blocks/include) in Terragrunt configuration files.
 2. **Include in the Run Queue**: This is when a unit is included in the Run Queue. There are multiple ways for a unit to be included in the Run Queue.
 
 ### Exclude
@@ -220,7 +220,7 @@ Inputs are defined in Terragrunt configuration files using the [inputs attribute
 
 An output is a value that is returned by OpenTofu/Terraform after a run is completed.
 
-By default, Terragrunt will interact with OpenTofu/Terraform in order to retrieve these outputs via [dependency blocks](/reference/hcl/blocks#dependency).
+By default, Terragrunt will interact with OpenTofu/Terraform in order to retrieve these outputs via [dependency blocks](/reference/hcl/blocks/dependency).
 
 Terragrunt does have the ability to mock outputs, which is useful when dependencies do not yet have outputs to be consumed (e.g. during the run of a unit with a dependency that has not been applied).
 

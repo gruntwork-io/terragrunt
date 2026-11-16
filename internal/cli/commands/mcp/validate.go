@@ -247,7 +247,9 @@ func validateDiscoveredTree(
 		disc = disc.WithWorktrees(w)
 	}
 
-	components, discErr := disc.Discover(ctx, l, v, new(rewrite.Store), opts)
+	s := new(rewrite.Store)
+
+	components, discErr := disc.Discover(ctx, l, v, s, opts)
 	if discErr != nil && len(components) == 0 {
 		return nil, nil, discErr
 	}
@@ -272,7 +274,7 @@ func validateDiscoveredTree(
 			continue
 		}
 
-		if unitErr := parser.Unit(ctx, l, v, opts, c.Path()); unitErr != nil {
+		if unitErr := parser.Unit(ctx, l, v, s, opts, c.Path()); unitErr != nil {
 			parseErrs = append(parseErrs, unitErr)
 		}
 	}
@@ -334,7 +336,7 @@ func validateSingleTarget(
 	var parseErrs []error
 
 	if hasUnit {
-		if unitErr := parser.Unit(ctx, l, v, opts, targetDir); unitErr != nil {
+		if unitErr := parser.Unit(ctx, l, v, new(rewrite.Store), opts, targetDir); unitErr != nil {
 			parseErrs = append(parseErrs, unitErr)
 		}
 	}

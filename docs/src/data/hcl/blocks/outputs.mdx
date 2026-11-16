@@ -44,7 +44,7 @@ blocks:
     attributes:
       - name: allowed_commands
         type: list(string)
-        description: The OpenTofu/Terraform commands that may use the mock values, e.g. `validate` and `plan`. When it is unset or empty, every command may use them. It works like `mock_outputs_allowed_terraform_commands` on a [`dependency`](/reference/hcl/blocks#dependency) block.
+        description: The OpenTofu/Terraform commands that may use the mock values, e.g. `validate` and `plan`. When it is unset or empty, every command may use them. It works like `mock_outputs_allowed_terraform_commands` on a [`dependency`](/reference/hcl/blocks/dependency) block.
       - name: merge_with_state
         type: string
         default: no_merge
@@ -94,7 +94,7 @@ import SideBySide from '@components/SideBySide.astro';
 
 The `outputs` block lists the outputs of a unit. Each output can have a mock value. Units that depend on this unit read the mock values until it has real outputs, e.g. before its first apply.
 
-You declare the mock values once, in the unit that produces the outputs. Its dependents need no `mock_outputs` in their [`dependency`](/reference/hcl/blocks#dependency) blocks.
+You declare the mock values once, in the unit that produces the outputs. Its dependents need no `mock_outputs` in their [`dependency`](/reference/hcl/blocks/dependency) blocks.
 
 Dependents read the mock values while the unit has no state yet or its state has no outputs. The rules are the same as for `mock_outputs`. Any other error while reading the state fails the run.
 

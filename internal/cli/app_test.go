@@ -16,7 +16,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl"
 	hclformat "github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl/format"
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
@@ -450,7 +449,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts := options.NewTerragruntOptions()
 
 			l := log.New(
 				log.WithOutput(os.Stderr),
@@ -753,7 +752,7 @@ func TestFilterTerragruntArgs(t *testing.T) {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts := options.NewTerragruntOptions()
 			l := log.New(
 				log.WithOutput(os.Stderr),
 				log.WithLevel(defaultLogLevel),
@@ -830,7 +829,7 @@ func TestParseMultiStringArg(t *testing.T) {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts := options.NewTerragruntOptions()
 			l := log.New(
 				log.WithOutput(os.Stderr),
 				log.WithLevel(defaultLogLevel),
@@ -907,7 +906,7 @@ func TestParseMutliStringKeyValueArg(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		opts := options.NewTerragruntOptions(vexec.NewOSExec())
+		opts := options.NewTerragruntOptions()
 		opts.AwsProviderPatchOverrides = tc.defaultValue
 		l := log.New(
 			log.WithOutput(os.Stderr),
@@ -946,7 +945,7 @@ func TestTerragruntVersion(t *testing.T) {
 
 	for _, tc := range testCases {
 		output := &bytes.Buffer{}
-		opts := options.NewTerragruntOptions(vexec.NewOSExec())
+		opts := options.NewTerragruntOptions()
 
 		testV := venv.MemVenv()
 
@@ -969,7 +968,7 @@ func TestTerragruntHelp(t *testing.T) {
 
 	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	app := cli.NewApp(logger.CreateLogger(), opts, venv.MemVenv())
 
 	testCases := []struct {
@@ -1008,7 +1007,7 @@ func TestTerragruntHelp(t *testing.T) {
 			t.Parallel()
 
 			output := &bytes.Buffer{}
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts := options.NewTerragruntOptions()
 
 			testV := venv.MemVenv()
 
@@ -1034,7 +1033,7 @@ func TestTerraformHelp_wrongHelpFlag(t *testing.T) {
 
 	output := &bytes.Buffer{}
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 
 	testV := venv.MemVenv()
 
@@ -1134,7 +1133,7 @@ func TestAutocomplete(t *testing.T) {
 
 	for _, tc := range testCases {
 		output := &bytes.Buffer{}
-		opts := options.NewTerragruntOptions(vexec.NewOSExec())
+		opts := options.NewTerragruntOptions()
 
 		// Autocomplete reads COMP_LINE from the venv's environment, so the
 		// completion request is handed over rather than exported to the process.

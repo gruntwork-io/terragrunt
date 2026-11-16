@@ -14,7 +14,6 @@ import (
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/view/dag"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -61,7 +60,7 @@ func TestBasicDiscovery(t *testing.T) {
 
 	expectedPaths := []string{"unit1", "unit2", filepath.Join("nested", "unit4"), "stack1"}
 
-	tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+	tgOpts := options.NewTerragruntOptions()
 	tgOpts.WorkingDir = tmpDir
 
 	// Create options
@@ -150,7 +149,7 @@ func TestHiddenDiscovery(t *testing.T) {
 		"stack1", filepath.Join(".hidden", "unit3"),
 	}
 
-	tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+	tgOpts := options.NewTerragruntOptions()
 	tgOpts.WorkingDir = tmpDir
 
 	l := logger.CreateLogger()
@@ -223,7 +222,7 @@ dependency "unit2" {
 
 	expectedPaths := []string{"unit1", "unit2", "unit3"}
 
-	tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+	tgOpts := options.NewTerragruntOptions()
 	tgOpts.WorkingDir = tmpDir
 
 	l := logger.CreateLogger()
@@ -297,7 +296,7 @@ dependency "unit3" {
 
 	expectedPaths := []string{"unit3", "unit2", "unit1"}
 
-	tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+	tgOpts := options.NewTerragruntOptions()
 	tgOpts.WorkingDir = tmpDir
 
 	l := logger.CreateLogger()
@@ -410,7 +409,7 @@ dependency "C" {
 
 	expectedPaths := []string{"A", "B", "C", "D", "E", "F"}
 
-	tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+	tgOpts := options.NewTerragruntOptions()
 	tgOpts.WorkingDir = tmpDir
 
 	l := logger.CreateLogger()
@@ -1058,7 +1057,7 @@ dependency "zulu" {
 				"zulu/terragrunt.hcl": "",
 			})
 
-			tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+			tgOpts := options.NewTerragruntOptions()
 			tgOpts.WorkingDir = root
 			tgOpts.RootWorkingDir = root
 
@@ -1117,7 +1116,7 @@ dependency "zulu" {
 				"nested/zulu/terragrunt.hcl": "",
 			})
 
-			tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+			tgOpts := options.NewTerragruntOptions()
 			tgOpts.WorkingDir = root
 			tgOpts.RootWorkingDir = root
 
@@ -1146,7 +1145,7 @@ func TestTextFormatGivesAWidePathItsOwnLine(t *testing.T) {
 		filepath.Join(widePathPrefix, "two", "terragrunt.hcl"): "",
 	})
 
-	tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+	tgOpts := options.NewTerragruntOptions()
 	tgOpts.WorkingDir = root
 	tgOpts.RootWorkingDir = root
 
@@ -1195,7 +1194,7 @@ func TestRunRejectsUnsupportedOptions(t *testing.T) {
 			root := "/list-invalid"
 			fsys := venvtest.NewFS(t, root, map[string]string{"unit1/terragrunt.hcl": ""})
 
-			tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+			tgOpts := options.NewTerragruntOptions()
 			tgOpts.WorkingDir = root
 			tgOpts.RootWorkingDir = root
 
@@ -1235,7 +1234,7 @@ func TestRunFailsWhenTheWriterFails(t *testing.T) {
 			root := "/list-writer"
 			fsys := venvtest.NewFS(t, root, map[string]string{"unit1/terragrunt.hcl": ""})
 
-			tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+			tgOpts := options.NewTerragruntOptions()
 			tgOpts.WorkingDir = root
 			tgOpts.RootWorkingDir = root
 
@@ -1274,7 +1273,7 @@ func TestRunDiscoveryProgress(t *testing.T) {
 				"zulu/terragrunt.hcl":  "",
 			})
 
-			tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+			tgOpts := options.NewTerragruntOptions()
 			tgOpts.WorkingDir = root
 			tgOpts.RootWorkingDir = root
 
@@ -1372,7 +1371,7 @@ exclude {
 		"plain/terragrunt.hcl": "",
 	})
 
-	tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+	tgOpts := options.NewTerragruntOptions()
 	tgOpts.WorkingDir = root
 	tgOpts.RootWorkingDir = root
 
@@ -1418,7 +1417,7 @@ exclude {
 `,
 	})
 
-	tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+	tgOpts := options.NewTerragruntOptions()
 	tgOpts.WorkingDir = root
 	tgOpts.RootWorkingDir = root
 

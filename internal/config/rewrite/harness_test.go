@@ -23,7 +23,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
-	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
@@ -600,7 +599,6 @@ func newTestParsingContext(
 	pctx.SourceMap = map[string]string{}
 	pctx.TerraformCliArgs = iacargs.New()
 	pctx.MaxFoldersToCheck = 100
-	pctx.TofuImplementation = tfimpl.Unknown
 	pctx.Experiments = experiment.NewExperiments()
 	pctx.Telemetry = new(telemetry.Options)
 	pctx.EngineOptions = new(engine.EngineOptions)

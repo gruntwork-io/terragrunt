@@ -18,7 +18,7 @@ import (
 func TestDiscoveryBoundaryFlagSetsBoundary(t *testing.T) {
 	t.Parallel()
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	flags := shared.NewFilterFlags(logger.CreateLogger(), opts, venv.MemVenv())
 
 	require.NoError(t, flags.Parse(clihelper.Args{"--discovery-boundary", "."}, map[string]string{}))
@@ -74,7 +74,7 @@ func TestFilterFlagsSetOptions(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts := options.NewTerragruntOptions()
 			filterFlags := shared.NewFilterFlags(logger.CreateLogger(), opts, venv.MemVenv())
 
 			require.NoError(t, parseAndRunActions(t, filterFlags, tc.args, map[string]string{}))
@@ -87,7 +87,7 @@ func TestFilterFlagsSetOptions(t *testing.T) {
 func TestFilterFlagRejectsInvalidQuery(t *testing.T) {
 	t.Parallel()
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	filterFlags := shared.NewFilterFlags(logger.CreateLogger(), opts, venv.MemVenv())
 
 	require.Error(t, parseAndRunActions(t, filterFlags, clihelper.Args{"--filter", "[main..."}, map[string]string{}))
@@ -135,7 +135,7 @@ func TestFilterAffectedFlag(t *testing.T) {
 				return vexec.Result{ExitCode: 1}
 			})
 
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts := options.NewTerragruntOptions()
 			opts.WorkingDir = tc.workingDir
 			opts.RootWorkingDir = tc.rootWorkingDir
 
@@ -158,7 +158,7 @@ func TestFilterAffectedFlagWithoutGit(t *testing.T) {
 
 	v := venv.MemVenv().WithExec(&vexec.NoLookPathExec{Exec: vexec.NewNoSpawnExec()})
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	filterFlags := shared.NewFilterFlags(logger.CreateLogger(), opts, v)
 
 	err := parseAndRunActions(t, filterFlags, clihelper.Args{"--filter-affected"}, map[string]string{})

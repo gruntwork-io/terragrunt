@@ -15,7 +15,6 @@ import (
 	pcoptions "github.com/gruntwork-io/terragrunt/internal/providercache/options"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
-	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
@@ -67,7 +66,6 @@ type ParsingContext struct {
 	TFPath                       string
 	ScaffoldRootFileName         string
 	TerragruntStackConfigPath    string
-	TofuImplementation           tfimpl.Type
 
 	IAMRoleOptions         iam.RoleOptions
 	OriginalIAMRoleOptions iam.RoleOptions
@@ -75,6 +73,7 @@ type ParsingContext struct {
 	Experiments            experiment.Experiments
 	StrictControls         strict.Controls
 	PartialParseDecodeList []PartialDecodeSectionType
+	VersionManagerFileName []string
 
 	// Parser configures the HCL parsers this context builds.
 	Parser ParserSettings

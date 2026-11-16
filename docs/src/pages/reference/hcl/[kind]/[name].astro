@@ -29,6 +29,7 @@ const { headings } = await render(entry);
 	frontmatter={{
 		title: entry.data.name,
 		description: entry.data.description,
+		tableOfContents: { maxHeadingLevel: 4 },
 	}}
 	headings={itemHeadings(entry, headings)}
 >

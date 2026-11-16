@@ -15,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/tflint"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -183,7 +184,7 @@ func ProcessErrorHooks(
 					actionToExecute := curHook.Execute[0]
 					actionParams := curHook.Execute[1:]
 
-					env, hookEnvErr := hookEnv(v.Env, opts, cfg, curHook.Name, HookTypeError)
+					env, hookEnvErr := hookEnv(v, opts, cfg, curHook.Name, HookTypeError)
 					if hookEnvErr != nil {
 						return hookEnvErr
 					}
@@ -194,7 +195,7 @@ func ProcessErrorHooks(
 						ctx,
 						l,
 						hookV,
-						opts.shellRunOptions(env),
+						opts.shellRunOptions(v.Exec, env),
 						curHook.WorkingDir,
 						curHook.SuppressStdout,
 						false,
@@ -291,7 +292,7 @@ func runHook(
 		return executeTFLint(ctx, l, v, opts, cfg, curHook, workingDir)
 	}
 
-	env, err := hookEnv(v.Env, opts, cfg, curHook.Name, hookType)
+	env, err := hookEnv(v, opts, cfg, curHook.Name, hookType)
 	if err != nil {
 		return err
 	}
@@ -302,7 +303,7 @@ func runHook(
 		ctx,
 		l,
 		hookV,
-		opts.shellRunOptions(env),
+		opts.shellRunOptions(v.Exec, env),
 		workingDir,
 		suppressStdout,
 		false,
@@ -331,7 +332,7 @@ func executeTFLint(
 	actualLock.Lock()
 	defer actualLock.Unlock()
 
-	err := tflint.RunTflintWithOpts(ctx, l, v, opts.tflintRunOptions(v.Env), cfg, curHook)
+	err := tflint.RunTflintWithOpts(ctx, l, v, opts.tflintRunOptions(v.Exec, v.Env), cfg, curHook)
 	if err != nil {
 		l.Errorf("%s", hookErrorMessage(curHook.Name, err))
 		return err
@@ -340,20 +341,20 @@ func executeTFLint(
 	return nil
 }
 
-// hookEnv clones env and adds the hook context variables (TFPath,
-// TerraformCommand, hookName). The returned map is independent of env so
+// hookEnv clones v.Env and adds the hook context variables (TFPath,
+// TerraformCommand, hookName). The returned map is independent of v.Env so
 // mutations during hook execution don't leak back to the run-wide
 // environment. When the hook-context-env experiment is enabled it also injects
 // the TG_CTX_* variables for the hook type, source, and Terragrunt directory.
 func hookEnv(
-	env map[string]string,
+	v *venv.Venv,
 	opts *Options,
 	cfg *runcfg.RunConfig,
 	hookName string,
 	hookType HookType,
 ) (map[string]string, error) {
-	cloned := cloner.Clone(env)
-	cloned[HookCtxTFPathEnvName] = opts.TFPath
+	cloned := cloner.Clone(v.Env)
+	cloned[HookCtxTFPathEnvName] = tfimpl.BinaryOrDefault(v.Exec, opts.TFPath)
 	cloned[HookCtxCommandEnvName] = opts.TerraformCliArgs.CommandName(opts.TerraformCommand)
 	cloned[HookCtxHookNameEnvName] = hookName
 

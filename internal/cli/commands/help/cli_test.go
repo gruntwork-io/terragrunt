@@ -70,7 +70,7 @@ func runHelp(t *testing.T, l log.Logger, args ...string) (string, error) {
 
 	out := new(bytes.Buffer)
 
-	cmd := help.NewCommand(l, options.NewTerragruntOptions(venv.MemVenv().Exec))
+	cmd := help.NewCommand(l, options.NewTerragruntOptions())
 
 	app := clihelper.NewApp(map[string]string{})
 	app.Writer = out

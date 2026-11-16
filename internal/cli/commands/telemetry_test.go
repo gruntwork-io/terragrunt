@@ -16,7 +16,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -536,7 +535,7 @@ func TestWrapWithTelemetryRecordsTofuSpanAttributes(t *testing.T) {
 
 // newWrapTestOptions returns options that skip the auto provider cache probe, which has its own tests.
 func newWrapTestOptions() *options.TerragruntOptions {
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.NoAutoProviderCacheDir = true
 
 	return opts

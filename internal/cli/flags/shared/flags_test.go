@@ -6,7 +6,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -258,7 +257,7 @@ func TestSharedFlagsSetOptions(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts := options.NewTerragruntOptions()
 
 			env := tc.env
 			if env == nil {
@@ -297,7 +296,7 @@ func TestAllAndGraphFlagsConflict(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts := options.NewTerragruntOptions()
 
 			err := parseAndRunActions(t, tc.newFlags(opts), clihelper.Args{"--all", "--graph"}, map[string]string{})
 
@@ -313,7 +312,7 @@ func TestAllAndGraphFlagsConflict(t *testing.T) {
 func TestSharedFlagsUsePrefixedEnvVars(t *testing.T) {
 	t.Parallel()
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	allFlag := shared.NewAllFlag(opts, flags.Prefix{"stack"})
 
 	require.NoError(t, parseAndRunActions(t, clihelper.Flags{allFlag}, nil, map[string]string{"TG_STACK_ALL": "true"}))

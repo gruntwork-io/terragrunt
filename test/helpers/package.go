@@ -1076,7 +1076,7 @@ func runTerragruntCommandWithVenv(
 	syncWriter := util.NewSyncWriter(v.Writers.Writer)
 	syncErrWriter := util.NewSyncWriter(v.Writers.ErrWriter)
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 
 	v = v.WithWriter(syncWriter).WithErrWriter(syncErrWriter)
 

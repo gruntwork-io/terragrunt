@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"slices"
 
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/report"
@@ -17,6 +18,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/venv"
@@ -159,7 +161,7 @@ func outputsFetchViaRun(
 		externalcmd.NewProvider(
 			l,
 			opts.AuthProviderCmd,
-			configbridge.ShellRunOptsFromOpts(cv.Env, opts),
+			configbridge.ShellRunOptsFromOpts(cv.Exec, cv.Env, opts),
 		),
 	); err != nil {
 		return getOutputsOutput{}, err
@@ -167,7 +169,7 @@ func outputsFetchViaRun(
 
 	pctx := configbridge.NewParsingContext(opts)
 
-	cfg, err := config.ReadTerragruntConfig(ctx, l, cv, pctx)
+	cfg, err := new(rewrite.Store).ReadTerragruntConfig(ctx, l, cv, pctx)
 	if err != nil {
 		return getOutputsOutput{}, err
 	}
@@ -178,7 +180,7 @@ func outputsFetchViaRun(
 		ctx,
 		l,
 		cv,
-		configbridge.NewRunOptions(opts),
+		configbridge.NewRunOptions(opts, tfimpl.Unknown),
 		report.NewReport(),
 		runCfg,
 		credsGetter,

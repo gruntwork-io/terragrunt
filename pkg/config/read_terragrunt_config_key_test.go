@@ -106,7 +106,7 @@ var parsingContextFieldsOutsideKey = map[string]string{
 	"Telemetry":                        dependencyRunsOnly,
 	"AuthProviderCmd":                  dependencyRunsOnly,
 	"TFPath":                           dependencyRunsOnly,
-	"TofuImplementation":               dependencyRunsOnly,
+	"VersionManagerFileName":           dependencyRunsOnly,
 	"ForwardTFStdout":                  dependencyRunsOnly,
 	"JSONLogFormat":                    dependencyRunsOnly,
 	"Debug":                            dependencyRunsOnly,
