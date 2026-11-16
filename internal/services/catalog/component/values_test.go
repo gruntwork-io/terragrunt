@@ -7,6 +7,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
@@ -319,4 +321,32 @@ func TestWriteValuesFile_EmptyValuesIsEquivalentToStub(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, string(stubBytes), string(fileBytes))
+}
+
+func TestWriteValuesFile_DefaultWithForKeyParsesBack(t *testing.T) {
+	t.Parallel()
+
+	fsys := vfs.NewMemMapFS()
+	require.NoError(t, fsys.MkdirAll(unitDir, 0o755))
+
+	tags := cty.ObjectVal(map[string]cty.Value{"for": cty.StringVal("x"), "zone": cty.StringVal("y")})
+
+	_, err := component.WriteValuesFile(fsys, unitDir, component.ValuesReferences{
+		Optional: []component.OptionalValue{{Name: "tags", Default: tags}},
+	}, nil)
+	require.NoError(t, err)
+
+	content, err := vfs.ReadFile(fsys, filepath.Join(unitDir, "terragrunt.values.hcl"))
+	require.NoError(t, err)
+
+	file, diags := hclsyntax.ParseConfig(content, "terragrunt.values.hcl", hcl.InitialPos)
+	require.False(t, diags.HasErrors(), "%s\n%s", diags, content)
+
+	attrs, diags := file.Body.JustAttributes()
+	require.False(t, diags.HasErrors(), "%s", diags)
+	require.Contains(t, attrs, "tags")
+
+	value, diags := attrs["tags"].Expr.Value(nil)
+	require.False(t, diags.HasErrors(), "%s", diags)
+	assert.True(t, tags.RawEquals(value), "%s", content)
 }

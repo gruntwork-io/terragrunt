@@ -20,6 +20,7 @@ import (
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/hclhelper"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -520,7 +521,7 @@ func RemoteStateConfigToTerraformCode(
 				return nil, err
 			}
 
-			backendBlockBody.SetAttributeValue(key, ctyVal.Value)
+			backendBlockBody.SetAttributeRaw(key, hclhelper.TokensForValue(ctyVal.Value))
 
 			continue
 		}
@@ -606,7 +607,7 @@ func RemoteStateConfigToTerraformCode(
 			return nil, err
 		}
 
-		backendBlockBody.SetAttributeValue(key, ctyVal.Value)
+		backendBlockBody.SetAttributeRaw(key, hclhelper.TokensForValue(ctyVal.Value))
 	}
 
 	// encryption can be empty
@@ -698,7 +699,7 @@ func RemoteStateConfigToTerraformCode(
 		}
 
 		if keyProviderBlockBody != nil {
-			keyProviderBlockBody.SetAttributeValue(key, ctyVal.Value)
+			keyProviderBlockBody.SetAttributeRaw(key, hclhelper.TokensForValue(ctyVal.Value))
 		}
 	}
 

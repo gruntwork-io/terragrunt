@@ -27,6 +27,7 @@ import (
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/zclconf/go-cty/cty"
 
+	"github.com/gruntwork-io/terragrunt/internal/hclhelper"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
 	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -563,7 +564,7 @@ func decodeStringDefault(raw string) string {
 // back to "" when serialization yields nothing useful.
 func CtyValueAsHCL(v cty.Value) string {
 	file := hclwrite.NewEmptyFile()
-	file.Body().SetAttributeValue("v", v)
+	file.Body().SetAttributeRaw("v", hclhelper.TokensForValue(v))
 
 	src := string(file.Bytes())
 

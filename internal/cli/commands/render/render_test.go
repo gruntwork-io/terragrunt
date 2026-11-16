@@ -699,3 +699,100 @@ func renderToString(t *testing.T, fixture, format string) string {
 
 	return rendered.String()
 }
+
+const testKeywordKeysConfigFixture = `locals {
+  m = { "for" = "x", zone = "y" }
+}
+
+terraform {
+  extra_arguments "env" {
+    commands = ["plan"]
+    env_vars = { "for" = "x" }
+  }
+}
+
+remote_state {
+  backend = "local"
+  config  = { "for" = "x" }
+}
+
+dependency "dep" {
+  config_path  = "./dep"
+  skip_outputs = true
+  mock_outputs = { "for" = "x" }
+}
+
+feature "flag" {
+  default = { "for" = "x" }
+}
+
+engine {
+  source = "./engine"
+  meta   = { "for" = "x" }
+}
+
+errors {
+  ignore "known" {
+    ignorable_errors = [".*"]
+    signals          = { "for" = "x" }
+  }
+}
+
+outputs {
+  output "o" {
+    mock_value = { "for" = "x" }
+  }
+}
+
+variables {
+  kind   = "tfvar"
+  inputs = { v = { "for" = "x" } }
+}
+
+inputs = {
+  m    = local.m
+  list = [{ "for" = "x" }, [{ "for" = { "for" = "y" } }]]
+  keys = { "a b" = "space", "a-b" = "dash", "if" = "keyword" }
+}
+`
+
+func TestRenderHCLWithKeywordKeysRendersBack(t *testing.T) {
+	t.Parallel()
+
+	rendered := renderConfig(t, testKeywordKeysConfigFixture, render.FormatHCL)
+
+	assert.JSONEq(
+		t,
+		renderConfig(t, testKeywordKeysConfigFixture, render.FormatJSON),
+		renderConfig(t, rendered, render.FormatJSON),
+	)
+}
+
+// renderConfig returns cfg rendered in format, with the outputs-block and variables-block experiments on and a
+// ./dep unit beside it.
+func renderConfig(t *testing.T, cfg, format string) string {
+	t.Helper()
+
+	opts, configPath := setupTest(t, cfg)
+	require.NoError(t, opts.Experiments.EnableExperiment(experiment.OutputsBlock))
+	require.NoError(t, opts.Experiments.EnableExperiment(experiment.VariablesBlock))
+
+	depDir := filepath.Join(filepath.Dir(configPath), "dep")
+	require.NoError(t, os.MkdirAll(depDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(depDir, "terragrunt.hcl"), []byte("inputs = {}\n"), 0644))
+
+	opts.Format = format
+	opts.Write = false
+
+	var rendered bytes.Buffer
+
+	require.NoError(t, render.Run(
+		config.WithCaches(t.Context()),
+		logger.CreateLogger(),
+		venvtest.NewOSWithEmptyEnv().WithWriter(&rendered),
+		new(rewrite.Store),
+		opts,
+	))
+
+	return rendered.String()
+}
