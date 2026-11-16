@@ -5,8 +5,10 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/zclconf/go-cty/cty"
@@ -14,6 +16,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/glob"
 	"github.com/gruntwork-io/terragrunt/internal/vendored/opentofu/patch"
+	"github.com/gruntwork-io/terragrunt/internal/vendored/opentofu/upstream/lang/marks"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -132,6 +135,26 @@ func TestFileExistsFailsOnADirectory(t *testing.T) {
 	_, err := patch.FileExistsFunc(v, baseDir, noRead).
 		Call([]cty.Value{cty.StringVal("modules")})
 	require.Error(t, err)
+}
+
+func TestFileExistsFailsWhenStatIsDenied(t *testing.T) {
+	t.Parallel()
+
+	const name = "locked/secret.txt"
+
+	v := memVenv(t, map[string]string{name: "here"})
+	v.FS = &statFailFS{FS: v.FS, err: fs.ErrPermission}
+
+	fn := patch.FileExistsFunc(v, baseDir, noRead)
+	quoted := strconv.Quote(filepath.Join(baseDir, name))
+
+	_, err := fn.Call([]cty.Value{cty.StringVal(name)})
+	require.ErrorIs(t, err, patch.ErrStat)
+	require.ErrorContains(t, err, quoted)
+
+	_, err = fn.Call([]cty.Value{cty.StringVal(name).Mark(marks.Sensitive)})
+	require.ErrorIs(t, err, patch.ErrStat)
+	assert.NotContains(t, err.Error(), quoted)
 }
 
 func TestFileSetMatchesRelativePaths(t *testing.T) {
@@ -890,6 +913,16 @@ func stringSet(paths []string) cty.Value {
 	}
 
 	return cty.SetVal(vals)
+}
+
+// statFailFS fails every Stat with err.
+type statFailFS struct {
+	vfs.FS
+	err error
+}
+
+func (fsys *statFailFS) Stat(string) (fs.FileInfo, error) {
+	return nil, fsys.err
 }
 
 var errOpenInjected = errors.New("injected open failure")

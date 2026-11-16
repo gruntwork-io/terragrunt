@@ -57,10 +57,14 @@ const (
 // a user name, such as ~alice/main.tf, which upstream refuses to expand.
 var ErrUserSpecificHomeDir = errors.New("cannot expand user-specific home dir")
 
+// ErrStat is returned by fileexists when a stat fails and the file is not
+// missing.
+var ErrStat = errors.New("failed to stat")
+
 // FuncNameTemplateFile is the name templatefile is registered under in [Functions].
 const FuncNameTemplateFile = "templatefile"
 
-// Functions returns the replacements for the upstream functions commented out
+// Functions returns the replacements for the upstream functions vend leaves out
 // of the vendored function table, each going through the Terragrunt venv or
 // logger. funcsCb returns the table templatefile renders a template with,
 // which is the table these functions are registered in.
@@ -190,9 +194,7 @@ func FileExistsFunc(v *venv.Venv, baseDir string, onRead func(path string)) func
 					return cty.False.WithMarks(pathMarks), nil
 				}
 
-				statErr := fmt.Errorf("failed to stat %s", redact(path, pathMarks))
-
-				return cty.UnknownVal(cty.Bool), statErr
+				return cty.UnknownVal(cty.Bool), fmt.Errorf("%w %s", ErrStat, redact(path, pathMarks))
 			}
 
 			if fi.Mode().IsRegular() {

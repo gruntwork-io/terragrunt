@@ -1,5 +1,6 @@
 // Command vend regenerates the OpenTofu code vendored in ../upstream.
-// [copies] and [extractions] list what is copied from upstream.
+// [copies] and [extractions] list what is copied from upstream, and
+// [replaced] lists the code that is left out.
 //
 // Run it from the repository root:
 //
@@ -18,8 +19,11 @@ import (
 	"fmt"
 	"go/ast"
 	"go/format"
+	"go/importer"
 	"go/parser"
 	"go/token"
+	"go/types"
+	"io"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -74,7 +78,7 @@ var extractions = []extraction{
 		decls: []string{"makeBaseFunctionTable"},
 		// The patch package registers replacements for these. The upstream ones
 		// bypass the Terragrunt venv or logger.
-		commentOut: []string{
+		inPatch: []string{
 			"abspath",
 			"base64decode",
 			"file",
@@ -104,12 +108,7 @@ var extractions = []extraction{
 		return ret
 	})
 `,
-				with: `	// The patch package registers a vfs-backed replacement for this:
-	//
-	// ret["templatefile"] = funcs.MakeTemplateFileFunc(baseDir, func() map[string]function.Function {
-	// 	return ret
-	// })
-`,
+				with: "\t// \"templatefile\" is registered by patch.Functions.\n",
 			},
 		},
 	},
@@ -148,6 +147,66 @@ var patches = []patch{
 	},
 }
 
+// replaced names the declarations of upstream package funcs that only the
+// function table entries in the patch package reach, so nothing in Terragrunt
+// runs them. vend leaves them out, along with the unexported declarations
+// only they use and the tests of both.
+var replaced = deadCode{
+	dir: "internal/lang/funcs",
+	decls: []string{
+		"AbsPathFunc",
+		"Base64Decode",
+		"Base64DecodeFunc",
+		"File",
+		"FileBase64",
+		"FileExists",
+		"FileSet",
+		"MakeFileBase64Sha256Func",
+		"MakeFileBase64Sha512Func",
+		"MakeFileExistsFunc",
+		"MakeFileFunc",
+		"MakeFileMd5Func",
+		"MakeFileSetFunc",
+		"MakeFileSha1Func",
+		"MakeFileSha256Func",
+		"MakeFileSha512Func",
+		"MakeTemplateFileFunc",
+		"PathExpandFunc",
+		"Pathexpand",
+	},
+	fixtures: "internal/lang/funcs/testdata",
+}
+
+// deadCode names declarations of one copied upstream package that vend
+// drops, along with the fixtures only their tests read.
+type deadCode struct {
+	dir      string
+	fixtures string
+	decls    []string
+}
+
+// unit is one top-level declaration of a package, with the methods of the
+// types it declares.
+type unit struct {
+	uses  map[*unit]struct{}
+	names []string
+	spans []span
+	test  bool
+}
+
+// span is the part of a file that one declaration and its doc comment take up.
+type span struct {
+	file       *sourceFile
+	start, end int
+}
+
+type sourceFile struct {
+	syntax *ast.File
+	name   string
+	data   []byte
+	units  []*unit
+}
+
 // patch replaces every occurrence of one piece of text in a copied upstream
 // file, or in the Go files of a copied upstream directory.
 type patch struct {
@@ -161,7 +220,7 @@ type extraction struct {
 	from         string
 	decls        []string
 	replacements []replacement
-	commentOut   []string
+	inPatch      []string
 }
 
 // replacement replaces every occurrence of one exact piece of text.
@@ -359,6 +418,10 @@ func regenerate(
 		return release{}, err
 	}
 
+	if err := dropDeadCode(ctx, dst, &replaced); err != nil {
+		return release{}, err
+	}
+
 	if err := verify(ctx, dst); err != nil {
 		return release{}, err
 	}
@@ -440,6 +503,468 @@ func copyUpstream(src fs.FS, dst string) error {
 	return nil
 }
 
+// dropDeadCode removes from the package d names, vendored under dst, each of
+// d.decls, every unexported declaration that only removed code uses, every
+// test declaration that uses removed code, the imports and files that leaves
+// empty, and d.fixtures.
+//
+// It fails when the package does not declare one of d.decls, or when code
+// that stays uses one.
+func dropDeadCode(ctx context.Context, dst string, d *deadCode) error {
+	dir := filepath.Join(dst, filepath.FromSlash(vendoredRel(d.dir)))
+
+	files, scope, owners, err := loadUnits(ctx, dir)
+	if err != nil {
+		return err
+	}
+
+	dead, err := deadUnits(files, scope, owners, d)
+	if err != nil {
+		return err
+	}
+
+	for _, file := range files {
+		if err := file.drop(dead); err != nil {
+			return err
+		}
+	}
+
+	fixtures := filepath.Join(dst, filepath.FromSlash(vendoredRel(d.fixtures)))
+	if _, err := os.Stat(fixtures); err != nil {
+		return err
+	}
+
+	return os.RemoveAll(fixtures)
+}
+
+// loadUnits type-checks the Go package in dir, tests included, and returns
+// its files split into units, its scope, and the unit that declares each
+// package-level object. Each unit records the units it refers to.
+func loadUnits(
+	ctx context.Context,
+	dir string,
+) ([]*sourceFile, *types.Scope, map[types.Object]*unit, error) {
+	// go list resolves what the package imports through go.mod.
+	if err := stream(command(ctx, dir, "go", "mod", "tidy")); err != nil {
+		return nil, nil, nil, err
+	}
+
+	exports, err := exportFiles(ctx, dir)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	fset := token.NewFileSet()
+
+	files, err := parseDir(fset, dir)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	syntax := make([]*ast.File, 0, len(files))
+	for _, file := range files {
+		syntax = append(syntax, file.syntax)
+	}
+
+	conf := types.Config{
+		Importer: importer.ForCompiler(fset, "gc", func(path string) (io.ReadCloser, error) {
+			return os.Open(exports[path])
+		}),
+	}
+	info := types.Info{
+		Defs: map[*ast.Ident]types.Object{},
+		Uses: map[*ast.Ident]types.Object{},
+	}
+
+	pkg, err := conf.Check(dir, fset, syntax, &info)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	owners := map[types.Object]*unit{}
+	units := map[ast.Decl]*unit{}
+
+	for _, file := range files {
+		file.declare(fset, info.Defs, owners, units)
+	}
+
+	for _, file := range files {
+		if err := file.attachMethods(fset, pkg.Scope(), owners, units); err != nil {
+			return nil, nil, nil, err
+		}
+	}
+
+	for id, obj := range info.Uses {
+		to, ok := owners[obj]
+		if !ok {
+			continue
+		}
+
+		for _, file := range files {
+			if from := file.unitAt(id.Pos(), units); from != nil && from != to {
+				from.uses[to] = struct{}{}
+			}
+		}
+	}
+
+	return files, pkg.Scope(), owners, nil
+}
+
+// exportFiles returns the compiler's export data file for each package that
+// the package in dir and its tests import, by import path.
+func exportFiles(ctx context.Context, dir string) (map[string]string, error) {
+	list := command(
+		ctx,
+		dir,
+		"go",
+		"list",
+		"-deps",
+		"-test",
+		"-export",
+		"-f",
+		"{{.ImportPath}}\t{{.Export}}",
+		".",
+	)
+
+	out, err := output(list)
+	if err != nil {
+		return nil, err
+	}
+
+	exports := map[string]string{}
+
+	for line := range strings.Lines(out) {
+		importPath, file, _ := strings.Cut(strings.TrimSpace(line), "\t")
+		if file != "" {
+			exports[importPath] = file
+		}
+	}
+
+	return exports, nil
+}
+
+// parseDir parses every Go file in dir, in name order.
+func parseDir(fset *token.FileSet, dir string) ([]*sourceFile, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+
+	var files []*sourceFile
+
+	for _, entry := range entries {
+		name := filepath.Join(dir, entry.Name())
+		if entry.IsDir() || filepath.Ext(name) != ".go" {
+			continue
+		}
+
+		data, err := os.ReadFile(name)
+		if err != nil {
+			return nil, err
+		}
+
+		syntax, err := parser.ParseFile(fset, name, data, parser.ParseComments|parser.SkipObjectResolution)
+		if err != nil {
+			return nil, err
+		}
+
+		files = append(files, &sourceFile{name: name, data: data, syntax: syntax})
+	}
+
+	return files, nil
+}
+
+// declare makes a unit of each declaration in f other than a method or an
+// import, recording it in units and as the owner of the objects it declares.
+func (f *sourceFile) declare(
+	fset *token.FileSet,
+	defs map[*ast.Ident]types.Object,
+	owners map[types.Object]*unit,
+	units map[ast.Decl]*unit,
+) {
+	for _, decl := range f.syntax.Decls {
+		var ids []*ast.Ident
+
+		switch d := decl.(type) {
+		case *ast.FuncDecl:
+			if d.Recv != nil {
+				continue
+			}
+
+			ids = []*ast.Ident{d.Name}
+		case *ast.GenDecl:
+			if d.Tok == token.IMPORT {
+				continue
+			}
+
+			for _, spec := range d.Specs {
+				switch s := spec.(type) {
+				case *ast.TypeSpec:
+					ids = append(ids, s.Name)
+				case *ast.ValueSpec:
+					ids = append(ids, s.Names...)
+				}
+			}
+		}
+
+		u := &unit{
+			uses: map[*unit]struct{}{},
+			test: strings.HasSuffix(f.name, "_test.go"),
+		}
+
+		for _, id := range ids {
+			u.names = append(u.names, id.Name)
+
+			// init and _ declare no object.
+			if obj := defs[id]; obj != nil {
+				owners[obj] = u
+			}
+		}
+
+		f.add(fset, decl, u, units)
+	}
+}
+
+// attachMethods adds each method declared in f to the unit of its receiver's
+// type.
+func (f *sourceFile) attachMethods(
+	fset *token.FileSet,
+	scope *types.Scope,
+	owners map[types.Object]*unit,
+	units map[ast.Decl]*unit,
+) error {
+	for _, decl := range f.syntax.Decls {
+		name, _ := declInfo(decl)
+
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Recv == nil {
+			continue
+		}
+
+		u, ok := owners[scope.Lookup(name)]
+		if !ok {
+			return fmt.Errorf("%s: no type for the receiver of %s", f.name, fn.Name.Name)
+		}
+
+		f.add(fset, decl, u, units)
+	}
+
+	return nil
+}
+
+// add records that decl, in f, belongs to u.
+func (f *sourceFile) add(fset *token.FileSet, decl ast.Decl, u *unit, units map[ast.Decl]*unit) {
+	_, doc := declInfo(decl)
+
+	start := decl.Pos()
+	if doc != nil {
+		start = doc.Pos()
+	}
+
+	u.spans = append(u.spans, span{
+		file:  f,
+		start: fset.Position(start).Offset,
+		end:   fset.Position(decl.End()).Offset,
+	})
+	f.units = append(f.units, u)
+	units[decl] = u
+}
+
+// unitAt returns the unit of the declaration in f that pos is in, or nil
+// when pos is in another file or outside every unit.
+func (f *sourceFile) unitAt(pos token.Pos, units map[ast.Decl]*unit) *unit {
+	if pos < f.syntax.FileStart || pos >= f.syntax.FileEnd {
+		return nil
+	}
+
+	for _, decl := range f.syntax.Decls {
+		if decl.Pos() <= pos && pos < decl.End() {
+			return units[decl]
+		}
+	}
+
+	return nil
+}
+
+// deadUnits returns the units of d.decls and every unit [unit.diesWith]
+// them.
+func deadUnits(
+	files []*sourceFile,
+	scope *types.Scope,
+	owners map[types.Object]*unit,
+	d *deadCode,
+) (map[*unit]struct{}, error) {
+	var all []*unit
+	for _, file := range files {
+		all = append(all, file.units...)
+	}
+
+	dead := map[*unit]struct{}{}
+
+	for _, name := range d.decls {
+		u, ok := owners[scope.Lookup(name)]
+		if !ok || u.test {
+			return nil, fmt.Errorf("%s: dead declaration %s not found", d.dir, name)
+		}
+
+		// Dropping u would take a declaration grouped with name along.
+		for _, other := range u.names {
+			if !slices.Contains(d.decls, other) {
+				return nil, fmt.Errorf("%s: %s is declared together with %s", d.dir, name, other)
+			}
+		}
+
+		dead[u] = struct{}{}
+	}
+
+	for grew := true; grew; {
+		grew = false
+
+		for _, u := range all {
+			if _, ok := dead[u]; ok || !u.diesWith(dead, all) {
+				continue
+			}
+
+			dead[u] = struct{}{}
+			grew = true
+		}
+	}
+
+	for _, u := range all {
+		if _, ok := dead[u]; ok {
+			continue
+		}
+
+		for used := range u.uses {
+			if _, ok := dead[used]; ok {
+				return nil, fmt.Errorf(
+					"%s: %s is still used by %s",
+					d.dir,
+					strings.Join(used.names, ", "),
+					strings.Join(u.names, ", "),
+				)
+			}
+		}
+	}
+
+	return dead, nil
+}
+
+// diesWith reports whether dropping the dead units makes u dead as well. A
+// test unit is dead once it uses a dead unit. Any other unit is dead when it
+// is unexported, some unit outside the tests uses it, and each of those is
+// dead.
+func (u *unit) diesWith(dead map[*unit]struct{}, all []*unit) bool {
+	if u.test {
+		for used := range u.uses {
+			if _, ok := dead[used]; ok {
+				return true
+			}
+		}
+
+		return false
+	}
+
+	if slices.ContainsFunc(u.names, token.IsExported) {
+		return false
+	}
+
+	users := 0
+
+	for _, user := range all {
+		if _, ok := user.uses[u]; !ok || user.test {
+			continue
+		}
+
+		if _, ok := dead[user]; !ok {
+			return false
+		}
+
+		users++
+	}
+
+	return users > 0
+}
+
+// drop rewrites f without the spans of the dead units and the imports that
+// leaves unused, or removes f when every unit in it is dead.
+func (f *sourceFile) drop(dead map[*unit]struct{}) error {
+	var cuts []span
+
+	for u := range dead {
+		for _, s := range u.spans {
+			if s.file == f {
+				cuts = append(cuts, s)
+			}
+		}
+	}
+
+	switch len(cuts) {
+	case 0:
+		return nil
+	case len(f.units):
+		return os.Remove(f.name)
+	}
+
+	slices.SortFunc(cuts, func(a, b span) int { return b.start - a.start })
+
+	out := f.data
+	for _, s := range cuts {
+		out = slices.Concat(out[:s.start], out[s.end:])
+	}
+
+	out, err := dropUnusedImports(out)
+	if err != nil {
+		return fmt.Errorf("%s: %w", f.name, err)
+	}
+
+	return os.WriteFile(f.name, out, filePerms)
+}
+
+// dropUnusedImports returns the Go source data without the named imports
+// that nothing in it refers to.
+func dropUnusedImports(data []byte) ([]byte, error) {
+	fset := token.NewFileSet()
+
+	file, err := parser.ParseFile(fset, "", data, parser.SkipObjectResolution)
+	if err != nil {
+		return nil, err
+	}
+
+	used := map[string]struct{}{}
+
+	ast.Inspect(file, func(n ast.Node) bool {
+		if sel, ok := n.(*ast.SelectorExpr); ok {
+			if id, ok := sel.X.(*ast.Ident); ok {
+				used[id.Name] = struct{}{}
+			}
+		}
+
+		return true
+	})
+
+	out := data
+
+	for _, spec := range slices.Backward(file.Imports) {
+		name, err := importName(spec)
+		if err != nil {
+			return nil, err
+		}
+
+		if _, ok := used[name]; ok || name == "_" || name == "." {
+			continue
+		}
+
+		// Cutting the whole line keeps gofmt from reading the gap as a group break.
+		pos := fset.Position(spec.Pos())
+		start := pos.Offset - (pos.Column - 1)
+		end := start + bytes.IndexByte(out[start:], '\n') + 1
+		out = slices.Concat(out[:start], out[end:])
+	}
+
+	return out, nil
+}
+
 // writeExtraction writes the file described by e into dst.
 func writeExtraction(src fs.FS, dst string, e *extraction) error {
 	data, err := fs.ReadFile(src, e.from)
@@ -506,7 +1031,7 @@ func extract(e *extraction, data []byte) ([]byte, error) {
 		decls = strings.ReplaceAll(decls, r.old, r.with)
 	}
 
-	decls, err = commentOutEntries(decls, e.commentOut)
+	decls, err = replaceEntries(decls, e.inPatch)
 	if err != nil {
 		return nil, err
 	}
@@ -565,19 +1090,19 @@ func declInfo(decl ast.Decl) (string, *ast.CommentGroup) {
 	return "", nil
 }
 
-// commentOutEntries comments out the function table entry of each of keys,
-// found by its name so that the padding gofmt gives the table does not matter.
-// Each commented-out entry ends with a note naming its replacement in
-// patch.Functions.
-func commentOutEntries(decls string, keys []string) (string, error) {
+// replaceEntries replaces the function table entry of each of keys with a
+// note that patch.Functions registers it. It finds an entry by its name, so
+// the padding gofmt gives the table does not matter.
+func replaceEntries(decls string, keys []string) (string, error) {
 	for _, key := range keys {
-		row := regexp.MustCompile(`(?m)^(\t\t)("` + regexp.QuoteMeta(key) + `":.*)$`)
+		row := regexp.MustCompile(`(?m)^\t\t"` + regexp.QuoteMeta(key) + `":.*$`)
 
 		if n := len(row.FindAllStringIndex(decls, -1)); n != 1 {
-			return "", fmt.Errorf("%d entries named %q to comment out, want 1", n, key)
+			return "", fmt.Errorf("%d entries named %q to replace, want 1", n, key)
 		}
 
-		decls = row.ReplaceAllString(decls, "${1}// ${2} // Replaced by patch.Functions")
+		note := fmt.Sprintf("\t\t// %q is registered by patch.Functions.", key)
+		decls = row.ReplaceAllLiteralString(decls, note)
 	}
 
 	return decls, nil
