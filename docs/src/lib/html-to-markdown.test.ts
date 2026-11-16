@@ -4,9 +4,9 @@ import { htmlToMarkdown } from './html-to-markdown';
 const line = (code: string) =>
 	`<div class="ec-line"><div class="code"><span>${code}</span></div></div>`;
 
-const codeBlock = (language: string, lines: string) =>
+const codeBlock = (language: string, lines: string, title = '') =>
 	`<div class="expressive-code"><link rel="stylesheet" href="/ec.css"><figure class="frame is-terminal">` +
-	`<figcaption class="header"><span class="title"></span><span class="sr-only">Terminal window</span></figcaption>` +
+	`<figcaption class="header"><span class="title">${title}</span><span class="sr-only">Terminal window</span></figcaption>` +
 	`<pre data-language="${language}"><code>${lines}</code></pre>` +
 	`<div class="copy"><div aria-live="polite"></div><button title="Copy" data-copied="Copied!" data-code="x"><div></div></button></div>` +
 	`</figure></div>`;
@@ -19,6 +19,12 @@ describe('htmlToMarkdown', () => {
 	it('keeps code fenced with its language and drops the window chrome', async () => {
 		const html = codeBlock('bash', line('terragrunt run') + line('\n') + line('  plan'));
 		expect(await htmlToMarkdown(html)).toBe('```bash\nterragrunt run\n\n  plan\n```');
+	});
+
+	it('writes the title of a code block into its fence', async () => {
+		const html = `<p>Set the inputs:</p>${codeBlock('hcl', line('inputs = {}'), 'terragrunt.hcl')}`;
+		expect(await htmlToMarkdown(html)).toBe('Set the inputs:\n\n```hcl title="terragrunt.hcl"\ninputs = {}\n```');
+		expect(await htmlToMarkdown(html, 'small')).toBe('Set the inputs:\n```hcl title="terragrunt.hcl"\ninputs = {}\n```');
 	});
 
 	it('drops heading anchors and HTML comments', async () => {
