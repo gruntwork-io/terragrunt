@@ -10,9 +10,8 @@ import {
   entriesForVersion,
   groupByCategory,
   parsePullRequests,
-  prepareForGitHub,
   pullRequestsFromCommits,
-  pullRequestsToMarkdown,
+  releaseNotesMarkdown,
   uniqueVersions,
   type PullRequestGroup,
 } from '@lib/changelog';
@@ -74,17 +73,7 @@ if (isReleased(version, latestVersion)) {
 const siteUrl = Astro.site?.origin ?? 'https://docs.terragrunt.com';
 const isSemver = version.startsWith('v');
 
-const releaseEntriesMd = prepareForGitHub(
-  groups
-    .map((group) => {
-      const bodies = group.entries.map((e) => (e.body ?? '').trim()).join('\n\n');
-      return `### ${group.category.label}\n\n---\n\n${bodies}`;
-    })
-    .join('\n\n'),
-  siteUrl,
-);
-const pullRequestsMd = pullRequestsToMarkdown(pullRequestGroups);
-const githubMarkdown = [releaseEntriesMd, pullRequestsMd].filter(Boolean).join('\n\n');
+const githubMarkdown = releaseNotesMarkdown(entries, pullRequestGroups, siteUrl);
 
 const headings = [
   ...groups.map((group) => ({

@@ -19,6 +19,7 @@ All inline bash and PowerShell code from GitHub Actions workflows has been extra
 ### General Release Scripts
 - **`get-version.sh`** - Extracts and validates version from git tag or workflow input
 - **`check-release-exists.sh`** - Checks if GitHub release exists for a version
+- **`create-draft-release.sh`** - Creates a draft GitHub release for a version that has none, marked as a pre-release when the version has a pre-release suffix
 - **`verify-binaries-downloaded.sh`** - Verifies expected binaries were downloaded from artifacts
 - **`set-permissions.sh`** - Sets executable permissions (+x) on all binaries
 - **`create-archives.sh`** - Creates ZIP and TAR.GZ archives for each binary

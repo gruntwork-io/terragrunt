@@ -1,9 +1,18 @@
+import { z } from "astro/zod";
+
 /**
  * Matches a Terragrunt release tag, e.g. `v1.2.0`. Every version the docs gate
  * content on uses this form: `since`, `completedSince`, and changelog
  * `version` frontmatter, and the `version` prop of `<Before>` and `<Since>`.
  */
 export const RELEASE_VERSION = /^v\d+\.\d+\.\d+$/;
+
+/**
+ * Validates a frontmatter field that holds a {@link RELEASE_VERSION}.
+ */
+export const releaseVersionSchema = z
+  .string()
+  .regex(RELEASE_VERSION, "must have the form vX.Y.Z, e.g. v1.2.0");
 
 /**
  * Throws unless `version` has the `vX.Y.Z` form of {@link RELEASE_VERSION}.
