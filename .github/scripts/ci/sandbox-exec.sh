@@ -50,8 +50,14 @@ run_sandboxed() {
 		# handing over to the real command. See network_namespaces(7) for what
 		# the namespace covers and user_namespaces(7) for what --map-root-user
 		# buys an unprivileged caller.
-		exec unshare --map-root-user --net -- \
-			sh -c 'ip link set lo up && exec "$@"' sh "$@"
+		#
+		# Host root is unmapped inside the namespace, so ssh sees root-owned
+		# files under ssh_config.d as owned by nobody and refuses to run. An
+		# empty tmpfs hides them from every ssh the tests start.
+		exec unshare --map-root-user --net --mount -- \
+			sh -c 'ip link set lo up &&
+				if [ -d /etc/ssh/ssh_config.d ]; then mount -t tmpfs tmpfs /etc/ssh/ssh_config.d; fi &&
+				exec "$@"' sh "$@"
 		;;
 	*)
 		echo "sandbox-exec.sh: no sandbox mechanism for $(uname -s)" >&2
