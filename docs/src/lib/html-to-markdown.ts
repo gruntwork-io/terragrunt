@@ -1,5 +1,5 @@
 import type { Element, ElementContent, Root } from 'hast';
-import { matches, selectAll } from 'hast-util-select';
+import { matches, select, selectAll } from 'hast-util-select';
 import rehypeParse from 'rehype-parse';
 import rehypeRemark, { type Options as RehypeRemarkOptions } from 'rehype-remark';
 import remarkGfm, { type Options as RemarkGfmOptions } from 'remark-gfm';
@@ -20,15 +20,18 @@ const SELF_DELIMITING_BLOCKS = new Set(['heading', 'code']);
 const handlers: NonNullable<RehypeRemarkOptions['handlers']> = {
 	pre: (_state, pre: Element) => {
 		const lang = pre.properties.dataLanguage as string | undefined;
+		const title = pre.properties.dataTitle as string | undefined;
+		const meta = title ? `title=${JSON.stringify(title)}` : undefined;
 		const lines = selectAll('.ec-line', pre);
 		if (lines.length === 0) {
-			return { type: 'code', lang, value: textOf(pre).replace(/\n$/, '') };
+			return { type: 'code', lang, meta, value: textOf(pre).replace(/\n$/, '') };
 		}
 		const markers = lang === 'diff' ? [] : lines.map(diffMarker);
 		const isDiff = markers.some((marker) => marker !== '');
 		return {
 			type: 'code',
 			lang: isDiff ? 'diff' : lang,
+			meta,
 			value: lines
 				.map((line, index) => (markers[index] ?? '') + textOf(line).replace(/\n$/, ''))
 				.join('\n'),
@@ -92,6 +95,7 @@ function createProcessor(
 	return unified()
 		.use(rehypeParse, { fragment: true })
 		.use(() => (tree: Root) => {
+			moveCodeTitles(tree);
 			for (const element of selectAll(ignoredElements, tree)) {
 				// `rehype-remark` skips elements that carry this marker.
 				element.properties.dataMdast = 'ignore';
@@ -100,6 +104,22 @@ function createProcessor(
 		.use(rehypeRemark, { handlers, nodeHandlers })
 		.use(remarkGfm, gfmOptions)
 		.use(remarkStringify, stringifyOptions);
+}
+
+/**
+ * Moves the title that Expressive Code shows above a code block, e.g. a file
+ * name, from the block's caption to its `pre`, so that the `pre` handler writes
+ * it into the fence as `title="…"` rather than a paragraph above the code.
+ */
+function moveCodeTitles(tree: Root): void {
+	for (const figure of selectAll('figure', tree)) {
+		const pre = select('pre', figure);
+		const caption = select('figcaption', figure);
+		if (!pre || !caption) continue;
+		const title = select('.title', caption);
+		if (title) pre.properties.dataTitle = textOf(title).trim();
+		caption.properties.dataMdast = 'ignore';
+	}
 }
 
 /** The diff prefix for an Expressive Code line marked as inserted or deleted. */
