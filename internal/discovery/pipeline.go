@@ -19,7 +19,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -90,7 +89,7 @@ type pipeline struct {
 // phases do one after the other.
 //
 // Returns the error of the walk when it fails, and otherwise the parse errors joined. suppressParseErrors drops
-// both, as it does for the phases. A [CoexistenceError] is returned either way.
+// both, as it does for the phases. A [CoexistenceError] or an [AmbiguousConfigError] is returned either way.
 func (d *Discovery) runPipeline(
 	ctx context.Context,
 	l log.Logger,
@@ -136,8 +135,8 @@ func (d *Discovery) runPipeline(
 
 	collected := <-drained
 
-	if errors.As(walkErr, new(CoexistenceError)) {
-		return nil, walkErr
+	if found, ok := errors.AsType[conflictError](walkErr); ok {
+		return nil, found.error
 	}
 
 	if span := trace.SpanFromContext(ctx); span.IsRecording() {
@@ -170,8 +169,8 @@ func (d *Discovery) runPipeline(
 // walk walks the working directory, reports each component it finds on events, and queues the ones that need a
 // parse on work.
 //
-// Returns a [CoexistenceError] when a component that needs a parse shares its directory with one of the other
-// kind, before either is parsed.
+// Returns a [conflictError] when a component that needs a parse shares its directory with a config file that
+// validateNoCoexistence rejects beside it, before either is parsed.
 func (p *pipeline) walk(ctx context.Context, l log.Logger, v *venv.Venv) error {
 	d := p.discovery
 	phase := NewFilesystemPhase(d.numWorkers)
@@ -210,7 +209,7 @@ func (p *pipeline) walk(ctx context.Context, l log.Logger, v *venv.Venv) error {
 			return nil
 		}
 
-		if err := coexistence(v.FS, phase, input, *result, path, filenames); err != nil {
+		if err := conflict(v.FS, phase, input, *result, path, filenames); err != nil {
 			return err
 		}
 
@@ -250,9 +249,14 @@ func (p *pipeline) walk(ctx context.Context, l log.Logger, v *venv.Venv) error {
 	return walk.run(ctx, v.FS, roots)
 }
 
-// coexistence returns a [CoexistenceError] when the directory of path, the config file of found, also holds the
-// config file of a component of the other kind that the walk classifies as it did found.
-func coexistence(
+// conflictError is what validateNoCoexistence reports for two config files the walk found in one directory.
+type conflictError struct {
+	error
+}
+
+// conflict returns a [conflictError] when the directory of path, the config file of found, holds another config
+// file that validateNoCoexistence rejects beside it.
+func conflict(
 	fsys vfs.FS,
 	phase *FilesystemPhase,
 	input *PhaseInput,
@@ -260,14 +264,14 @@ func coexistence(
 	path string,
 	filenames []string,
 ) error {
-	foundIsStack := found.Component.Kind() == component.StackKind
+	dir, base := filepath.Split(path)
 
 	for _, filename := range filenames {
-		if (filename == config.DefaultStackFile) == foundIsStack {
+		if filename == base {
 			continue
 		}
 
-		sibling := filepath.Join(filepath.Dir(path), filename)
+		sibling := filepath.Join(dir, filename)
 		if !vfs.IsFile(fsys, sibling) {
 			continue
 		}
@@ -277,7 +281,9 @@ func coexistence(
 			continue
 		}
 
-		return NewCoexistenceError(found.Component, other.Component)
+		if err := validateNoCoexistence([]DiscoveryResult{found, *other}); err != nil {
+			return conflictError{err}
+		}
 	}
 
 	return nil
@@ -371,7 +377,8 @@ func (c *collected) add(event pipelineEvent) {
 // results returns the discovered components and candidates the filesystem and parse phases would hand the graph
 // phase, and the parse failures. The parse of a component that lost to another at its path is left out.
 //
-// Returns a [CoexistenceError] when a directory holds both a unit and a stack.
+// Returns a [CoexistenceError] when a directory holds both a unit and a stack, and an [AmbiguousConfigError] when it
+// holds both terragrunt.hcl and terragrunt.hcl.json.
 func (c *collected) results(d *Discovery) (*PhaseResults, []error, error) {
 	if err := validateNoCoexistence(c.walkedDiscovered); err != nil {
 		return nil, nil, err
