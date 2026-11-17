@@ -1,0 +1,32 @@
+---
+import { render, type CollectionEntry } from 'astro:content';
+import { Aside } from '@astrojs/starlight/components';
+import DefaultValue from '@components/DefaultValue.astro';
+import HclConfigs from '@components/HclConfigs.astro';
+import HclExamples from '@components/HclExamples.astro';
+import TypeBadge from '@components/TypeBadge.astro';
+import { renderMarkdownField } from '@lib/hcl/markdown';
+
+interface Props {
+	entry: CollectionEntry<'hclAttributes'>;
+}
+
+const { entry } = Astro.props;
+const { type, default: defaultVal, note } = entry.data;
+const { Content } = await render(entry);
+const noteHtml = note === undefined ? undefined : await renderMarkdownField(note.body);
+---
+
+<HclConfigs configs={entry.data.configs}>
+	<TypeBadge type={type} optional defaultVal={defaultVal} />
+</HclConfigs>
+
+<h2 id="usage">Usage</h2>
+
+<Content />
+
+<DefaultValue type={type} value={defaultVal} />
+
+<HclExamples examples={entry.data.examples} />
+
+{noteHtml && <Aside type="note" title={note?.title}><Fragment set:html={noteHtml} /></Aside>}

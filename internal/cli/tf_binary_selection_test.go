@@ -13,6 +13,8 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -25,8 +27,8 @@ import (
 )
 
 const (
-	tofuBinary      = options.TofuDefaultPath
-	terraformBinary = options.TerraformDefaultPath
+	tofuBinary      = tfimpl.TofuDefaultPath
+	terraformBinary = tfimpl.TerraformDefaultPath
 
 	tfPathEnvVar           = "TG_TF_PATH"
 	deprecatedTFPathEnvVar = "TERRAGRUNT_TFPATH"
@@ -635,7 +637,7 @@ func runTFBinaryCase(t *testing.T, tc *tfBinaryCase) (string, []tfCommand, error
 	env := map[string]string{}
 	maps.Copy(env, tc.sel.env)
 
-	v := venvtest.New().WithExec(memExec).WithEnv(env)
+	v := venv.MemVenv().WithExec(memExec).WithEnv(env)
 
 	root := writeTFBinaryFixture(t, v.FS, tc)
 
@@ -651,7 +653,7 @@ func runTFBinaryCase(t *testing.T, tc *tfBinaryCase) (string, []tfCommand, error
 	l := logger.CreateLogger()
 	l.SetOptions(log.WithOutput(io.Discard))
 
-	err := cli.NewApp(l, options.NewTerragruntOptions(v.Exec), v).RunContext(t.Context(), l, v, args)
+	err := cli.NewApp(l, options.NewTerragruntOptions(), v).RunContext(t.Context(), l, v, args)
 
 	mu.Lock()
 	defer mu.Unlock()

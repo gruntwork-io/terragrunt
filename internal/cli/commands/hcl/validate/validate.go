@@ -1,6 +1,6 @@
-// Package validate-inputs collects all the terraform variables defined in the target module, and the terragrunt
-// inputs that are configured, and compare the two to determine if there are any unused inputs or undefined required
-// inputs.
+// Package validate implements the `hcl validate` command, which finds Terragrunt HCL files and validates them.
+// With `--inputs`, it also collects the variables defined in the target module and the inputs configured in
+// Terragrunt, and compares the two to report unused inputs and undefined required inputs.
 package validate
 
 import (
@@ -14,7 +14,9 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
@@ -35,7 +37,16 @@ import (
 
 const splitCount = 2
 
-func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
+// Run runs [RunValidateInputs] when opts.HCLValidateInputs is set, and
+// [RunValidate] otherwise.
+//
+// Returns an error when --inputs is combined with --show-config-path or
+// --json, or when --strict is set without --inputs.
+func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, opts *options.TerragruntOptions) error {
+	if opts.HCLValidateOutputs && !opts.Experiments.Evaluate(experiment.OutputsBlock) {
+		return ErrOutputsExperimentRequired
+	}
+
 	if opts.HCLValidateInputs {
 		if opts.HCLValidateShowConfigPath {
 			return fmt.Errorf(
@@ -53,37 +64,32 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.Terragru
 			)
 		}
 
-		return RunValidateInputs(ctx, l, v, opts)
+		return RunValidateInputs(ctx, l, v, s, opts)
 	}
 
 	if opts.HCLValidateStrict {
 		return fmt.Errorf("specifying -%s without -%s is invalid", StrictFlagName, InputsFlagName)
 	}
 
-	return RunValidate(ctx, l, v, opts)
+	return RunValidate(ctx, l, v, s, opts)
 }
 
+// RunValidate parses every unit and stack discovered from opts.WorkingDir and
+// writes the HCL diagnostics it collects in the format opts selects.
+//
+// Returns an error counting the diagnostics when there are any.
 func RunValidate(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	opts *options.TerragruntOptions,
 ) error {
 	collector := &DiagnosticsCollector{}
-	parser := ComponentParser{Collector: collector, Options: CollectorOnly}
+	parser := ComponentParser{Collector: collector, Store: s, Options: CollectorOnly}
 
 	opts.SkipOutput = true
 	opts.NonInteractive = true
-
-	// Create discovery with filter support if experiment enabled
-	d, err := discovery.NewForHCLCommand(l, v.FS, discovery.HCLCommandOptions{
-		WorkingDir:        opts.WorkingDir,
-		DiscoveryBoundary: opts.DiscoveryBoundary,
-		Filters:           opts.Filters,
-	})
-	if err != nil {
-		return processDiagnostics(l, v, opts, collector.Diagnostics(), err)
-	}
 
 	// We do worktree generation here instead of in the discovery constructor
 	// so that we can defer cleanup in the same context.
@@ -110,14 +116,19 @@ func RunValidate(
 		}
 	}()
 
-	d = d.WithWorktrees(worktrees)
-
-	components, err := d.Discover(ctx, l, v, opts)
+	components, discoveryErr, err := discoverComponents(ctx, l, v, s, opts, worktrees)
 	if err != nil {
-		return processDiagnostics(l, v, opts, collector.Diagnostics(), err)
+		return err
 	}
 
-	parseErrs := []error{}
+	var (
+		parseErrs        []error
+		missing          []*MissingDependencyError
+		fileDependencies []string
+		unitErrs         = make(map[string]error)
+	)
+
+	configFile := unitConfigFilename(opts)
 
 	for _, c := range components {
 		// Parsing can write obtained credentials into the env, so each
@@ -130,26 +141,49 @@ func RunValidate(
 			continue
 		}
 
-		if err := parser.Unit(ctx, l, componentV, opts, c.Path()); err != nil {
+		missingErr, err := asMissingDependency(v.FS, c, configFile)
+		if err != nil {
 			parseErrs = append(parseErrs, err)
+
+			continue
+		}
+
+		if missingErr != nil {
+			missing = append(missing, missingErr)
+
+			continue
+		}
+
+		if isFileDependency(v.FS, c) {
+			fileDependencies = append(fileDependencies, c.Path())
+
+			continue
+		}
+
+		if err := parser.Unit(ctx, l, componentV, s, opts, c.Path()); err != nil {
+			parseErrs = append(parseErrs, err)
+			unitErrs[c.Path()] = err
 		}
 	}
 
-	var combinedErr error
-	if len(parseErrs) > 0 {
-		combinedErr = errors.Join(parseErrs...)
+	parseErrs = append(parseErrs, reportMissingDependencies(v.FS, collector, missing, unitErrs)...)
+
+	if len(parseErrs) > 0 || len(collector.Diagnostics()) > 0 {
+		return processDiagnostics(l, v, opts, collector, components, errors.Join(parseErrs...))
 	}
 
-	return processDiagnostics(l, v, opts, collector.Diagnostics(), combinedErr)
+	return withoutDecidedDependencies(discoveryErr, missing, fileDependencies, configFile)
 }
 
 func processDiagnostics(
 	l log.Logger,
 	v *venv.Venv,
 	opts *options.TerragruntOptions,
-	diags diagnostic.Diagnostics,
+	collector *DiagnosticsCollector,
+	components component.Components,
 	callErr error,
 ) error {
+	diags := collector.Diagnostics()
 	if len(diags) == 0 {
 		return callErr
 	}
@@ -168,7 +202,7 @@ func processDiagnostics(
 		return a < b
 	})
 
-	if err := writeDiagnostics(l, v, opts, diags); err != nil {
+	if err := writeDiagnostics(l, v, opts, collector, components, diags); err != nil {
 		return err
 	}
 
@@ -184,10 +218,14 @@ func processDiagnostics(
 	return errors.Join(callErr, diagError)
 }
 
+// writeDiagnostics writes diags in the format the options select. Only the human rendering of the
+// diagnostics shows filenames relative to where discovery found them.
 func writeDiagnostics(
 	l log.Logger,
 	v *venv.Venv,
 	opts *options.TerragruntOptions,
+	collector *DiagnosticsCollector,
+	components component.Components,
 	diags diagnostic.Diagnostics,
 ) error {
 	render := view.NewHumanRender(v, l.Formatter().DisabledColors())
@@ -201,28 +239,30 @@ func writeDiagnostics(
 		return writer.ShowConfigPath(diags)
 	}
 
+	if !opts.HCLValidateJSONOutput {
+		diags = relativeToDiscovery(l, collector, components, diags, opts.WorkingDir)
+	}
+
 	return writer.Diagnostics(diags)
 }
 
+// RunValidateInputs prepares each unit discovered from opts.WorkingDir and
+// compares its inputs with the variables its module declares, logging unused
+// inputs and missing required inputs.
+//
+// Returns an error when a unit is missing a required input, or has an unused
+// input while opts.HCLValidateStrict is set.
 func RunValidateInputs(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	opts *options.TerragruntOptions,
 ) error {
 	opts = opts.Clone()
 
 	opts.SkipOutput = true
 	opts.NonInteractive = true
-
-	d, err := discovery.NewForHCLCommand(l, v.FS, discovery.HCLCommandOptions{
-		WorkingDir:        opts.WorkingDir,
-		DiscoveryBoundary: opts.DiscoveryBoundary,
-		Filters:           opts.Filters,
-	})
-	if err != nil {
-		return err
-	}
 
 	// We do worktree generation here instead of in the discovery constructor
 	// so that we can defer cleanup in the same context.
@@ -249,9 +289,12 @@ func RunValidateInputs(
 		}
 	}()
 
-	d = d.WithWorktrees(worktrees)
+	d, err := newDiscovery(l, v, opts, worktrees)
+	if err != nil {
+		return err
+	}
 
-	components, err := d.Discover(ctx, l, v, opts)
+	components, err := d.Discover(ctx, l, v, s, opts)
 	if err != nil {
 		return err
 	}
@@ -282,14 +325,14 @@ func RunValidateInputs(
 		// missing inputs in the next.
 		unitV := v.WithEnvCloned()
 
-		prepared, err := prepare.PrepareConfig(ctx, l, unitV, unitOpts)
+		prepared, err := prepare.PrepareConfig(ctx, l, unitV, s, unitOpts)
 		if err != nil {
 			errs = append(errs, err)
 			continue
 		}
 
 		// Download source
-		updatedOpts, err := prepare.PrepareSource(ctx, l, unitV, prepared.Opts, prepared.Cfg, r)
+		updatedOpts, impl, err := prepare.PrepareSource(ctx, l, unitV, prepared.Opts, prepared.Cfg, r)
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -301,6 +344,7 @@ func RunValidateInputs(
 			l,
 			unitV,
 			updatedOpts,
+			impl,
 			prepared.Cfg.ToRunConfig(l, unitV.FS),
 		); err != nil {
 			errs = append(errs, err)
@@ -308,6 +352,18 @@ func RunValidateInputs(
 		}
 
 		if err := runValidateInputs(l, unitV, updatedOpts, prepared.Cfg); err != nil {
+			errs = append(errs, err)
+		}
+
+		if err := validateOutputsContractsPrepared(
+			ctx,
+			l,
+			unitV,
+			s,
+			prepared.Opts,
+			prepared.Cfg,
+			updatedOpts.WorkingDir,
+		); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -402,7 +458,7 @@ func runValidateInputs(
 // - -var and -var-file args passed in on extra_arguments CLI args.
 // - env vars defined on terraform.extra_arguments blocks.
 // - env vars from the external runtime calling terragrunt.
-// - inputs blocks.
+// - the inputs attribute and variables blocks.
 // - automatically injected terraform vars (terraform.tfvars, terraform.tfvars.json, *.auto.tfvars, *.auto.tfvars.json)
 func getDefinedTerragruntInputs(
 	l log.Logger,
@@ -450,7 +506,7 @@ func getDefinedTerragruntInputs(
 		tmpOut[varName] = true
 	}
 
-	out := []string{}
+	out := make([]string, 0, len(tmpOut))
 	for varName := range tmpOut {
 		out = append(out, varName)
 	}
@@ -495,15 +551,10 @@ func getTerraformInputNamesFromEnvVar(
 	return out
 }
 
-// getTerraformInputNamesFromConfig will return the list of names of variables configured by the inputs block in the
-// terragrunt config.
+// getTerraformInputNamesFromConfig will return the list of names of variables configured by the inputs attribute and
+// the variables blocks in the terragrunt config.
 func getTerraformInputNamesFromConfig(terragruntConfig *config.TerragruntConfig) []string {
-	out := make([]string, 0, len(terragruntConfig.Inputs))
-	for inputName := range terragruntConfig.Inputs {
-		out = append(out, inputName)
-	}
-
-	return out
+	return slices.Collect(maps.Keys(terragruntConfig.ResolveInputs()))
 }
 
 // getTerraformInputNamesFromVarFiles will return the list of names of variables configured by var files set in the
@@ -586,7 +637,8 @@ func getTerraformInputNamesFromAutomaticVarFiles(
 		name := entry.Name()
 
 		named := name == "terraform.tfvars" || name == "terraform.tfvars.json"
-		automatic := strings.HasSuffix(name, ".auto.tfvars") || strings.HasSuffix(name, ".auto.tfvars.json")
+		automatic := strings.HasSuffix(name, ".auto.tfvars") ||
+			strings.HasSuffix(name, ".auto.tfvars.json")
 
 		if named || automatic {
 			automaticVarFiles = append(automaticVarFiles, filepath.Join(base, name))
@@ -632,7 +684,7 @@ func getVarNamesFromVarFile(l log.Logger, fsys vfs.FS, varFile string) ([]string
 		}
 	}
 
-	out := []string{}
+	out := make([]string, 0, len(variables))
 	for varName := range variables {
 		out = append(out, varName)
 	}
@@ -648,7 +700,7 @@ func GetVarFlagsFromArgList(argList []string) ([]string, []string, error) {
 
 	for _, arg := range argList {
 		if strings.HasPrefix(arg, "-var=") {
-			// -var is passed in in the format -var=VARNAME=VALUE, so we split on '=' and take the middle value.
+			// -var is passed in the format -var=VARNAME=VALUE, so we split on '=' and take the middle value.
 			splitArg := strings.Split(arg, "=")
 			if len(splitArg) < splitCount {
 				return vars, varFiles, fmt.Errorf(
@@ -666,4 +718,121 @@ func GetVarFlagsFromArgList(argList []string) ([]string, []string, error) {
 	}
 
 	return vars, varFiles, nil
+}
+
+// newDiscovery returns the discovery that hcl commands run over the working directory, the filters and
+// the worktrees of the Git filters in opts.
+func newDiscovery(
+	l log.Logger,
+	v *venv.Venv,
+	opts *options.TerragruntOptions,
+	wts *worktrees.Worktrees,
+) (*discovery.Discovery, error) {
+	d, err := discovery.NewFiltered(l, v.FS, discovery.FilteredOptions{
+		WorkingDir:        opts.WorkingDir,
+		DiscoveryBoundary: opts.DiscoveryBoundary,
+		Filters:           opts.Filters,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return d.WithWorktrees(wts), nil
+}
+
+// discoverComponents returns the components hcl validate checks. It returns err when discovery cannot
+// produce them at all.
+//
+// When discovery fails, discoverComponents repeats it with parse errors suppressed, so validation can
+// still point at what it finds in the components discovery reaches, and returns the failure of the first
+// run as discoveryErr. A unit that discovery cannot parse is left out of a filtered set, and a failed
+// filesystem walk leaves units out of any set, so discoveryErr is all that reports them.
+func discoverComponents(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	s *rewrite.Store,
+	opts *options.TerragruntOptions,
+	wts *worktrees.Worktrees,
+) (components component.Components, discoveryErr, err error) {
+	d, err := newDiscovery(l, v, opts, wts)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	components, discoveryErr = d.Discover(ctx, l, v, s, opts)
+	if discoveryErr == nil {
+		return components, nil, nil
+	}
+
+	d, err = newDiscovery(l, v, opts, wts)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	components, err = d.WithSuppressParseErrors().Discover(ctx, l, v, s, opts)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return components, discoveryErr, nil
+}
+
+// relativeToDiscovery returns diags with each filename relative to the discovery working directory of the
+// component whose validation collected it, as find and list print component paths. A component matched
+// by a Git filter is discovered in a worktree, so its files read against that worktree. A component with
+// no discovery working directory reads against workingDir.
+//
+// Every diagnostic in collector belongs to one of components or to a dependent of one, because
+// [ComponentParser] and the missing dependency diagnostics attribute each diagnostic they collect.
+func relativeToDiscovery(
+	l log.Logger,
+	collector *DiagnosticsCollector,
+	components component.Components,
+	diags diagnostic.Diagnostics,
+	workingDir string,
+) diagnostic.Diagnostics {
+	byPath := componentsByPath(components)
+	shown := make(diagnostic.Diagnostics, 0, len(diags))
+
+	for _, diag := range diags {
+		if diag.Range == nil {
+			shown = append(shown, diag)
+
+			continue
+		}
+
+		relative := *diag
+		rng := *diag.Range
+		rng.Filename = discovery.RelPathForComponent(
+			l,
+			byPath[collector.owner(diag)],
+			workingDir,
+			rng.Filename,
+			"diagnostic",
+		)
+		relative.Range = &rng
+
+		shown = append(shown, &relative)
+	}
+
+	return shown
+}
+
+// componentsByPath indexes components and their dependents by path. A dependent that a filter left out
+// of components still owns the diagnostics for its missing dependencies.
+func componentsByPath(components component.Components) map[string]component.Component {
+	byPath := make(map[string]component.Component, len(components))
+
+	for _, c := range components {
+		for _, dependent := range c.Dependents() {
+			byPath[dependent.Path()] = dependent
+		}
+	}
+
+	for _, c := range components {
+		byPath[c.Path()] = c
+	}
+
+	return byPath
 }

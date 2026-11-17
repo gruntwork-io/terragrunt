@@ -10,8 +10,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/venv"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -114,9 +114,9 @@ func runDiscover(
 		return discoverOutput{}, err
 	}
 
-	// Exclude-block evaluation matches actions against TerraformCommand, where
+	// Exclude-block evaluation matches actions against TofuCommand, where
 	// an empty command never matches.
-	opts.TerraformCommand = as
+	opts.TofuCommand = as
 
 	cv := d.callVenv(rootVenv, env, io.Discard)
 

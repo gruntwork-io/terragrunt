@@ -20,8 +20,22 @@ const SITE = "https://terragrunt.gruntwork.io";
 
 describe("categorySlugSort", () => {
   test("uses the canonical category order", () => {
-    const slugs = ["bug-fixes", "breaking-changes", "new-features"].sort(categorySlugSort);
-    expect(slugs).toEqual(["breaking-changes", "new-features", "bug-fixes"]);
+    const slugs = [
+      "bug-fixes",
+      "experiments-added",
+      "process-updates",
+      "breaking-changes",
+      "strict-controls-added",
+      "new-features",
+    ].sort(categorySlugSort);
+    expect(slugs).toEqual([
+      "breaking-changes",
+      "new-features",
+      "strict-controls-added",
+      "experiments-added",
+      "process-updates",
+      "bug-fixes",
+    ]);
   });
 });
 

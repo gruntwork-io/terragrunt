@@ -12,7 +12,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -39,7 +38,7 @@ func TestPromptApprovalOpensPrefilledURL(t *testing.T) {
 		opened string
 	)
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	v.Writers = &writer.Writers{Writer: &out, ErrWriter: &out}
 	v = v.WithBrowser(vbrowser.NewMemOpener(func(_ context.Context, rawURL string) error {
 		opened = rawURL
@@ -64,7 +63,7 @@ func TestPromptApprovalPrintsBeforeOpening(t *testing.T) {
 		printedAtOpen string
 	)
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	v.Writers = &writer.Writers{Writer: &out, ErrWriter: &out}
 	v = v.WithBrowser(vbrowser.NewMemOpener(func(context.Context, string) error {
 		printedAtOpen = out.String()
@@ -91,7 +90,7 @@ func TestPromptApprovalFallsBackToPlainURL(t *testing.T) {
 	auth := newAuthorization()
 	auth.VerificationURIComplete = ""
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	v.Writers = &writer.Writers{Writer: &out, ErrWriter: &out}
 	v = v.WithBrowser(vbrowser.NewMemOpener(func(_ context.Context, rawURL string) error {
 		opened = rawURL
@@ -113,7 +112,7 @@ func TestPromptApprovalSurvivesNoBrowser(t *testing.T) {
 
 	var out bytes.Buffer
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	v.Writers = &writer.Writers{Writer: &out, ErrWriter: &out}
 
 	require.NoError(t, portal.PromptApproval(t.Context(), logger.CreateLogger(), v, newAuthorization()))
@@ -130,7 +129,7 @@ func TestPromptApprovalDoesNotPrintDeviceCode(t *testing.T) {
 
 	var out bytes.Buffer
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	v.Writers = &writer.Writers{Writer: &out, ErrWriter: &out}
 	v = v.WithBrowser(vbrowser.NewMemOpener(func(context.Context, string) error { return nil }))
 
@@ -145,7 +144,7 @@ func TestPromptApprovalReportsWriteFailure(t *testing.T) {
 
 	sentinel := errors.New("broken pipe")
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	v.Writers = &writer.Writers{Writer: failingWriter{err: sentinel}, ErrWriter: &bytes.Buffer{}}
 	v = v.WithBrowser(vbrowser.NewMemOpener(func(context.Context, string) error { return nil }))
 
@@ -164,7 +163,7 @@ func TestPromptApprovalRejectsUnbrowsableURL(t *testing.T) {
 	auth := newAuthorization()
 	auth.VerificationURIComplete = "file:///fake/path"
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	v.Writers = &writer.Writers{Writer: &out, ErrWriter: &out}
 	v = v.WithBrowser(vbrowser.NewMemOpener(func(context.Context, string) error {
 		assert.Fail(t, "the handler must not be reached for an unbrowsable URL")
@@ -183,7 +182,7 @@ func TestPromptApprovalStylesNothingWithoutATerminal(t *testing.T) {
 
 	var out bytes.Buffer
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	v.Writers = &writer.Writers{Writer: &out, ErrWriter: &out}
 	v = v.WithBrowser(vbrowser.NewMemOpener(func(context.Context, string) error { return nil }))
 
@@ -201,7 +200,7 @@ func TestPromptApprovalDrawsTheEyeToTheCode(t *testing.T) {
 
 	var out bytes.Buffer
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	v.Writers = &writer.Writers{Writer: &out, ErrWriter: &out}
 	v.Terminal = &venv.Terminal{
 		StdinIsTTY:  func() bool { return false },

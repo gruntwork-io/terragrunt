@@ -167,7 +167,7 @@ terragrunt run -- plan -no-color
 <Aside type="caution">
 When using `run --all plan` with units that have dependencies (e.g. via `dependency` or `dependencies` blocks), the command will fail if those dependencies have never been deployed. This is because Terragrunt cannot resolve dependency outputs without existing state.
 
-To work around this issue, use [mock outputs in dependency blocks](/reference/hcl/blocks/#dependency).
+To work around this issue, use [mock outputs in dependency blocks](/reference/hcl/blocks/dependency).
 </Aside>
 
 <Aside type="caution">

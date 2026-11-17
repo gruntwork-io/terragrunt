@@ -23,7 +23,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
+	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
@@ -48,6 +50,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/amazonsts"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -72,14 +75,17 @@ const (
 	downloadDirPerms = 0o700
 )
 
+// Dependencies lists a config's `dependency` blocks.
 type Dependencies []Dependency
 
 // Struct to hold the decoded dependency blocks.
 type dependencyOutputCache struct {
 	Enabled *bool
+	Outputs *OutputsConfig
 	Inputs  cty.Value
 }
 
+// Dependency is a `dependency` block: another unit whose outputs this config reads.
 type Dependency struct {
 	Expansion *hclparse.ExpansionBlock `hcl:"expansion,block"`
 
@@ -211,7 +217,7 @@ func (dep *Dependency) isEnabled() bool {
 
 // configPathString returns config_path when it evaluated to a known string. hcl validate
 // decodes configs that failed to parse and discovery decodes before every value resolves,
-// so config_path can arrive unknown or null.
+// so config_path can arrive unknown, and a disabled block can set it to null.
 func (dep *Dependency) configPathString() (string, bool) {
 	if dep.ConfigPath.IsNull() || !dep.ConfigPath.IsWhollyKnown() ||
 		!dep.ConfigPath.Type().Equals(cty.String) {
@@ -237,10 +243,8 @@ func (dep *Dependency) instanceKey() (string, bool) {
 	return dep.Expansion.Key(), dep.Expansion.Expanded()
 }
 
-// mergeKey identifies a dependency when include merging matches blocks up. Every instance
-// of an expanded block carries the same label, so matching on the label alone would fold a
-// whole set into whichever instance came last.
-func (dep *Dependency) mergeKey() string {
+// Address identifies a dependency among the blocks of a config: the label, or label[key] for an expanded instance.
+func (dep *Dependency) Address() string {
 	key, expanded := dep.instanceKey()
 	if !expanded {
 		return dep.Name
@@ -254,7 +258,7 @@ func (dep *Dependency) shouldMergeMockOutputsWithState(ctx *ParsingContext) bool
 	allowedCommand :=
 		dep.MockOutputsAllowedTerraformCommands == nil ||
 			len(*dep.MockOutputsAllowedTerraformCommands) == 0 ||
-			slices.Contains(*dep.MockOutputsAllowedTerraformCommands, ctx.OriginalTerraformCommand)
+			slices.Contains(*dep.MockOutputsAllowedTerraformCommands, ctx.OriginalTofuCommand)
 
 	return allowedCommand && dep.getMockOutputsMergeStrategy() != NoMerge
 }
@@ -269,8 +273,20 @@ func (dep *Dependency) setRenderedOutputs(
 		return nil
 	}
 
-	if dep.shouldGetOutputs(pctx) || dep.shouldReturnMockOutputs(pctx) {
-		outputVal, err := getTerragruntOutputIfAppliedElseConfiguredDefault(ctx, l, v, pctx, dep)
+	declared, err := dep.withDeclaredOutputs(ctx, l, v, pctx)
+	if err != nil {
+		return err
+	}
+
+	if declared.dep.shouldGetOutputs(pctx) || declared.dep.shouldReturnMockOutputs(pctx) {
+		outputVal, err := getTerragruntOutputIfAppliedElseConfiguredDefault(
+			ctx,
+			l,
+			v,
+			pctx,
+			declared.dep,
+			declared.outputs,
+		)
 		if err != nil {
 			return err
 		}
@@ -279,6 +295,17 @@ func (dep *Dependency) setRenderedOutputs(
 	}
 
 	return nil
+}
+
+// LockDependencyOutputs waits for any fetch of the outputs of the unit at configPath to finish, and holds new fetches
+// back until the returned unlock is called. A runner holds it while it runs that unit, because a fetch runs OpenTofu in
+// the unit's cache directory too.
+func LockDependencyOutputs(ctx context.Context, configPath string) (unlock func()) {
+	key := filepath.Clean(configPath)
+	locks := outputLocksFromContext(ctx)
+	locks.Lock(key)
+
+	return func() { locks.Unlock(key) }
 }
 
 // outputLocksFromContext retrieves the KeyLocks from the context for synchronizing output retrieval.
@@ -297,6 +324,7 @@ func decodeDependencyBlocks(
 	ctx context.Context,
 	pctx *ParsingContext,
 	l log.Logger,
+	fsys vfs.FS,
 	file *hclparse.File,
 	evalContext *hcl.EvalContext,
 	opts ...hclparse.ExpandOption,
@@ -327,11 +355,82 @@ func decodeDependencyBlocks(
 		dependencies = append(dependencies, *dep)
 	}
 
+	if err := validateConfigPathsNotNull(file.ConfigPath, dependencies); err != nil {
+		return nil, err
+	}
+
 	if err := validateUniqueDependencies(ctx, pctx, l, file.ConfigPath, dependencies); err != nil {
 		return nil, err
 	}
 
+	if err := validateDependencyConfigPathDirs(
+		ctx,
+		pctx,
+		l,
+		fsys,
+		file.ConfigPath,
+		dependencies,
+	); err != nil {
+		return nil, err
+	}
+
 	return dependencies, nil
+}
+
+// validateConfigPathsNotNull reports the first enabled dependency block whose config_path is null.
+func validateConfigPathsNotNull(cfgPath string, deps Dependencies) error {
+	for i := range deps {
+		dep := &deps[i]
+
+		if dep.isEnabled() && dep.ConfigPath.IsNull() {
+			return DependencyNullConfigPathError{ConfigPath: cfgPath, Address: dep.Address()}
+		}
+	}
+
+	return nil
+}
+
+// validateDependencyConfigPathDirs reports the first enabled dependency block whose config_path
+// names an existing file. A config_path that does not exist is not reported here.
+//
+// A relative config_path is resolved against the unit being parsed, as it is when the dependency
+// is read, and not against cfgPath, which is an included file when that is where the block is.
+//
+// Whether that is an error or a warning is left to the dependency-config-path-file strict
+// control.
+func validateDependencyConfigPathDirs(
+	ctx context.Context,
+	pctx *ParsingContext,
+	l log.Logger,
+	fsys vfs.FS,
+	cfgPath string,
+	deps Dependencies,
+) error {
+	for i := range deps {
+		dep := &deps[i]
+
+		path, ok := dep.configPathFrom(pctx.TerragruntConfigPath)
+		if !ok {
+			continue
+		}
+
+		info, err := fsys.Stat(path)
+		if err != nil || info.IsDir() {
+			continue
+		}
+
+		return evaluateDetailControl(
+			ctx, l, pctx.StrictControls,
+			controls.DependencyConfigPathFile,
+			DependencyConfigPathFileError{
+				ConfigPath:     cfgPath,
+				Address:        dep.Address(),
+				DependencyPath: dep.ConfigPath.AsString(),
+			},
+		)
+	}
+
+	return nil
 }
 
 // validateUniqueDependencies reports two dependency blocks in one config that address the
@@ -351,42 +450,62 @@ func validateUniqueDependencies(
 	deps Dependencies,
 ) error {
 	if address, found := duplicateDependencyAddress(deps); found {
-		return evaluateDuplicateDependency(ctx, pctx, l, DuplicateDependencyError{
-			ConfigPath: cfgPath,
-			Address:    address,
-		})
+		return evaluateDetailControl(
+			ctx,
+			l,
+			pctx.StrictControls,
+			controls.DuplicateDependencyLabels,
+			DuplicateDependencyError{
+				ConfigPath: cfgPath,
+				Address:    address,
+			},
+		)
 	}
 
 	if dup, found := duplicateDependencyConfigPath(cfgPath, deps); found {
-		return evaluateDuplicateDependency(ctx, pctx, l, DuplicateDependencyConfigPathError{
-			ConfigPath:     cfgPath,
-			DependencyPath: dup.path,
-			FirstAddress:   dup.first,
-			SecondAddress:  dup.second,
-		})
+		return evaluateDetailControl(
+			ctx,
+			l,
+			pctx.StrictControls,
+			controls.DuplicateDependencyLabels,
+			DuplicateDependencyConfigPathError{
+				ConfigPath:     cfgPath,
+				DependencyPath: dup.path,
+				FirstAddress:   dup.first,
+				SecondAddress:  dup.second,
+			},
+		)
 	}
 
 	return nil
 }
 
-// evaluateDuplicateDependency returns strictErr when the duplicate-dependency-labels control
-// is enabled, and otherwise lets the control log its warning.
-func evaluateDuplicateDependency(
+// evaluateDetailControl returns strictErr when the strict control called name is enabled.
+// Otherwise it logs the control's warning and the message of strictErr, each once per command,
+// so every config the control would reject is named.
+func evaluateDetailControl(
 	ctx context.Context,
-	pctx *ParsingContext,
 	l log.Logger,
+	strictControls strict.Controls,
+	name string,
 	strictErr error,
 ) error {
-	control := pctx.StrictControls.Find(controls.DuplicateDependencyLabels)
+	control := strictControls.Find(name)
 	if control == nil {
-		return errors.New("failed to find control " + controls.DuplicateDependencyLabels)
+		return errors.New("failed to find control " + name)
 	}
 
 	if control.GetEnabled() {
 		return strictErr
 	}
 
-	return control.Evaluate(log.ContextWithLogger(ctx, l))
+	if err := control.Evaluate(log.ContextWithLogger(ctx, l)); err != nil {
+		return err
+	}
+
+	control.WarnDetail(l, strictErr.Error())
+
+	return nil
 }
 
 // duplicateDependencyAddress returns the first address that two dependency blocks both
@@ -396,7 +515,7 @@ func duplicateDependencyAddress(deps Dependencies) (string, bool) {
 	seen := make(map[string]struct{}, len(deps))
 
 	for i := range deps {
-		address := deps[i].mergeKey()
+		address := deps[i].Address()
 
 		if _, duplicate := seen[address]; duplicate {
 			return address, true
@@ -426,30 +545,40 @@ func duplicateDependencyConfigPath(cfgPath string, deps Dependencies) (sharedDep
 	for i := range deps {
 		dep := &deps[i]
 
-		if !dep.isEnabled() || !dep.ConfigPath.IsWhollyKnown() || dep.ConfigPath.IsNull() ||
-			!dep.ConfigPath.Type().Equals(cty.String) {
+		path, ok := dep.configPathFrom(cfgPath)
+		if !ok {
 			continue
 		}
-
-		path := dep.ConfigPath.AsString()
-		if !filepath.IsAbs(path) {
-			path = filepath.Join(filepath.Dir(cfgPath), path)
-		}
-
-		path = filepath.Clean(path)
 
 		if first, duplicate := seen[path]; duplicate {
 			return sharedDependencyPath{
 				path:   dep.ConfigPath.AsString(),
 				first:  first,
-				second: dep.mergeKey(),
+				second: dep.Address(),
 			}, true
 		}
 
-		seen[path] = dep.mergeKey()
+		seen[path] = dep.Address()
 	}
 
 	return sharedDependencyPath{}, false
+}
+
+// configPathFrom returns the config_path of an enabled dependency, resolved against the directory
+// of cfgPath. It returns false for a disabled dependency, which reads nothing, and for a
+// config_path that is not yet a known string.
+func (dep *Dependency) configPathFrom(cfgPath string) (string, bool) {
+	if !dep.isEnabled() || !dep.ConfigPath.IsWhollyKnown() || dep.ConfigPath.IsNull() ||
+		!dep.ConfigPath.Type().Equals(cty.String) {
+		return "", false
+	}
+
+	path := dep.ConfigPath.AsString()
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(filepath.Dir(cfgPath), path)
+	}
+
+	return filepath.Clean(path), true
 }
 
 // DecodeTerragruntDependencies decodes the dependency blocks of file, folds in sibling autoinclude dependencies,
@@ -484,9 +613,6 @@ func DecodeTerragruntDependencies(
 
 	decodedDependency := TerragruntDependency{Dependencies: dependencies}
 
-	// In normal operation, if a dependency block does not have a `config_path` attribute, decoding returns an error since this attribute is required, but the `hclvalidate` command suppresses decoding errors and this causes a cycle between modules, so we need to filter out dependencies without a defined `config_path`.
-	decodedDependency.Dependencies = decodedDependency.Dependencies.FilteredWithoutConfigPath()
-
 	// Fold sibling autoinclude dependency blocks in before output retrieval so the unit body can reference them, like a regular include.
 	decodedDependency.Dependencies, err = foldSiblingAutoIncludeDeps(
 		ctx,
@@ -500,7 +626,7 @@ func DecodeTerragruntDependencies(
 	}
 
 	// Validate that dependency config_path is not an empty string.
-	// Skip null/unknown values and non-strings (which can appear during partial decode or hclvalidate).
+	// Skip unknown values and non-strings (which can appear during partial decode or hclvalidate).
 	for _, dep := range decodedDependency.Dependencies {
 		if dep.isDisabled() {
 			continue
@@ -538,7 +664,13 @@ func DecodeTerragruntDependencies(
 
 	// Merge in included dependencies
 	if pctx.TrackInclude != nil {
-		mergedDecodedDependency, err := handleIncludeForDependency(ctx, l, v, pctx, decodedDependency)
+		mergedDecodedDependency, err := handleIncludeForDependency(
+			ctx,
+			l,
+			v,
+			pctx,
+			decodedDependency,
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -664,6 +796,9 @@ func decodeDependencies(
 		}
 
 		depCtx = depCtx.WithDecodeList(TerragruntFlags).WithDiagnosticsSuppressed()
+		if pctx.Experiments.Evaluate(experiment.OutputsBlock) {
+			depCtx = depCtx.WithDecodeList(TerragruntFlags, OutputsBlock).WithSkipOutputsResolution()
+		}
 
 		depConfig, err := PartialParseConfigFile(ctx, l, v, depCtx, depPath, nil)
 		if err != nil {
@@ -685,6 +820,7 @@ func decodeDependencies(
 
 		cachedValue := dependencyOutputCache{
 			Enabled: dep.Enabled,
+			Outputs: depConfig.Outputs,
 			Inputs:  inputsCty,
 		}
 		depCache.Put(ctx, cacheKey, &cachedValue)
@@ -695,42 +831,6 @@ func decodeDependencies(
 	}
 
 	return &updatedDependencies, nil
-}
-
-// Convert the list of parsed Dependency blocks into a list of module dependencies. Each output block should
-// become a dependency of the current config, since that module has to be applied before we can read the output.
-func dependencyBlocksToModuleDependencies(
-	l log.Logger,
-	decodedDependencyBlocks []Dependency,
-) *ModuleDependencies {
-	if len(decodedDependencyBlocks) == 0 {
-		return nil
-	}
-
-	paths := []string{}
-
-	for _, decodedDependencyBlock := range decodedDependencyBlocks {
-		// skip dependency if is not enabled
-		if !decodedDependencyBlock.isEnabled() {
-			continue
-		}
-
-		// Skip if ConfigPath is not a known string value (can happen during discovery phase)
-		if decodedDependencyBlock.ConfigPath.IsNull() ||
-			!decodedDependencyBlock.ConfigPath.IsWhollyKnown() ||
-			!decodedDependencyBlock.ConfigPath.Type().Equals(cty.String) {
-			l.Debugf(
-				"Skipping dependency %q: ConfigPath is not a valid known string value",
-				decodedDependencyBlock.Name,
-			)
-
-			continue
-		}
-
-		paths = append(paths, decodedDependencyBlock.ConfigPath.AsString())
-	}
-
-	return &ModuleDependencies{Paths: paths}
 }
 
 // Check for cyclic dependency blocks to avoid infinite `terragrunt output` loops. To avoid reparsing the config, we
@@ -862,10 +962,6 @@ func getDependencyBlockConfigPathsByFilepath(
 	pctx *ParsingContext,
 	cfgPath string,
 ) ([]string, error) {
-	// This will automatically parse everything needed to parse the dependency block configs, and load them as
-	// TerragruntConfig.Dependencies. Note that since we aren't passing in `DependenciesBlock` to the
-	// PartialDecodeSectionType list, the Dependencies attribute will not include any dependencies specified via the
-	// dependencies block.
 	tgConfig, err := PartialParseConfigFile(
 		ctx,
 		l,
@@ -878,11 +974,12 @@ func getDependencyBlockConfigPathsByFilepath(
 		return nil, err
 	}
 
-	if tgConfig.Dependencies == nil {
-		return []string{}, nil
+	paths, unresolved := tgConfig.DependencyPaths()
+	for _, name := range unresolved {
+		l.Debugf("Skipping dependency %q of %s in cycle check: config_path is not a known string", name, cfgPath)
 	}
 
-	return tgConfig.Dependencies.Paths, nil
+	return paths, nil
 }
 
 // DependencyBlocksToCtyValue encodes the list of dependency blocks into a single cty.Value object that maps the
@@ -923,6 +1020,18 @@ func DependencyBlocksToCtyValue(
 
 			// Encode the outputs and nest under `outputs` attribute if we should get the outputs or the `mock_outputs`
 			if err := dependencyConfig.setRenderedOutputs(ctx, l, v, pctx); err != nil {
+				if errors.As(err, new(DependencyBlockError)) {
+					return err
+				}
+
+				if experimentErr, ok := errors.AsType[OutputsBlockRequiresExperimentError](err); ok {
+					return DependencyBlockError{
+						Name:       dependencyConfig.Name,
+						ConfigPath: pctx.TerragruntConfigPath,
+						Err:        experimentErr,
+					}
+				}
+
 				return fmt.Errorf("resolving dependency %q outputs: %w", dependencyConfig.Name, err)
 			}
 
@@ -1033,6 +1142,7 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(
 	v *venv.Venv,
 	pctx *ParsingContext,
 	dependencyConfig *Dependency,
+	declared *OutputsConfig,
 ) (*cty.Value, error) {
 	if dependencyConfig.isDisabled() {
 		l.Debugf("Skipping outputs reading for disabled dependency %s", dependencyConfig.Name)
@@ -1040,28 +1150,24 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(
 	}
 
 	if dependencyConfig.shouldGetOutputs(pctx) {
-		outputVal, isEmpty, err := getTerragruntOutput(ctx, l, v, pctx, dependencyConfig)
+		outputVal, isEmpty, err := getTerragruntOutput(ctx, l, v, pctx, dependencyConfig, declared)
 		if err != nil {
 			return nil, err
 		}
 
 		if !isEmpty && dependencyConfig.shouldMergeMockOutputsWithState(pctx) &&
 			dependencyConfig.MockOutputs != nil {
-			mockMergeStrategy := dependencyConfig.getMockOutputsMergeStrategy()
+			state, mocks := *outputVal, *dependencyConfig.MockOutputs
+			strategy := dependencyConfig.getMockOutputsMergeStrategy()
 
-			switch mockMergeStrategy {
-			case NoMerge:
-				return outputVal, nil
-			case ShallowMerge:
-				return shallowMergeCtyMaps(*outputVal, *dependencyConfig.MockOutputs)
-			case DeepMergeMapOnly:
-				return deepMergeCtyMapsMapOnly(*dependencyConfig.MockOutputs, *outputVal)
-			case DeepMerge:
-				// Mock outputs merge maps only, so a full deep merge has no meaning here.
-				return nil, InvalidMergeStrategyTypeError(mockMergeStrategy)
-			default:
-				return nil, InvalidMergeStrategyTypeError(mockMergeStrategy)
+			merged, err := mergeMockOutputsWithState(strategy, state, mocks)
+			if err != nil || declared == nil {
+				return merged, err
 			}
+
+			marked := withDeclaredMockMarks(strategy, *merged, mocks, state)
+
+			return &marked, nil
 		} else if !isEmpty {
 			return outputVal, err
 		}
@@ -1086,11 +1192,7 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(
 	)
 
 	if dependencyConfig.shouldReturnMockOutputs(pctx) {
-		l.Warnf(
-			"Config %s is a dependency of %s that has no outputs, but mock outputs provided and returning those in dependency output.",
-			targetConfig,
-			pctx.TerragruntConfigPath,
-		)
+		logMockOutputsFallback(l, pctx, targetConfig, declared)
 
 		return dependencyConfig.MockOutputs, nil
 	}
@@ -1120,7 +1222,7 @@ func (dep *Dependency) shouldReturnMockOutputs(pctx *ParsingContext) bool {
 	allowedCommand :=
 		dep.MockOutputsAllowedTerraformCommands == nil ||
 			len(*dep.MockOutputsAllowedTerraformCommands) == 0 ||
-			slices.Contains(*dep.MockOutputsAllowedTerraformCommands, pctx.OriginalTerraformCommand)
+			slices.Contains(*dep.MockOutputsAllowedTerraformCommands, pctx.OriginalTofuCommand)
 
 	return defaultOutputsSet && allowedCommand || isRenderJSONCommand(pctx) || isRenderCommand(pctx)
 }
@@ -1134,6 +1236,7 @@ func getTerragruntOutput(
 	v *venv.Venv,
 	pctx *ParsingContext,
 	dependencyConfig *Dependency,
+	declared *OutputsConfig,
 ) (*cty.Value, bool, error) {
 	// target config check: make sure the target config exists
 	targetConfigPath := getCleanedTargetConfigPath(
@@ -1144,7 +1247,14 @@ func getTerragruntOutput(
 
 	// Check if config_path points to a directory containing a stack file. If so,
 	// resolve outputs from all units in the stack as a nested map.
-	stackOutput, handled, err := tryGetStackOutput(ctx, l, v, pctx, targetConfigPath, dependencyConfig)
+	stackOutput, handled, err := tryGetStackOutput(
+		ctx,
+		l,
+		v,
+		pctx,
+		targetConfigPath,
+		dependencyConfig,
+	)
 	if handled {
 		return stackOutput, stackOutput == nil, err
 	}
@@ -1154,6 +1264,8 @@ func getTerragruntOutput(
 	}
 
 	jsonBytes, err := getOutputJSONWithCaching(ctx, l, v, pctx, targetConfigPath)
+	fromState := err == nil
+
 	if err != nil {
 		if !shouldFallBackToMockOutputs(pctx, err) {
 			return nil, true, err
@@ -1182,6 +1294,16 @@ func getTerragruntOutput(
 	outputMap, err := TerraformOutputJSONToCtyValueMap(targetConfigPath, jsonBytes)
 	if err != nil {
 		return nil, isEmpty, err
+	}
+
+	if fromState && !isEmpty {
+		if err := checkDeclaredOutputs(pctx, dependencyConfig, declared, targetConfigPath, outputMap); err != nil {
+			return nil, isEmpty, DependencyBlockError{
+				Name:       dependencyConfig.Name,
+				ConfigPath: pctx.TerragruntConfigPath,
+				Err:        err,
+			}
+		}
 	}
 
 	// We need to convert the value map to a single cty.Value at the end for use in the terragrunt config.
@@ -1214,7 +1336,17 @@ func CollectStackOutputs(
 	dependencyConfig *Dependency,
 	maxDepth int,
 ) (map[string]cty.Value, error) {
-	return collectStackOutputs(ctx, l, v, pctx, dependencyConfig, maxDepth, stackDir, stackConfig, nil)
+	return collectStackOutputs(
+		ctx,
+		l,
+		v,
+		pctx,
+		dependencyConfig,
+		maxDepth,
+		stackDir,
+		stackConfig,
+		nil,
+	)
 }
 
 // collectStackOutputs collects one stack level for [CollectStackOutputs] and recurses into the
@@ -1590,7 +1722,7 @@ func resolveStackFilePath(rawConfigPath, targetConfigPath string) (string, bool)
 // containing bucket/container does not exist yet.
 func isRemoteStateMissing(err error) bool {
 	// A client-construction failure is not an absent state, so it must not yield mock outputs.
-	if _, ok := errors.AsType[*azurermbackend.StateClientSetupError](err); ok {
+	if errors.As(err, new(*azurermbackend.StateClientSetupError)) {
 		return false
 	}
 
@@ -1686,7 +1818,33 @@ func getOutputJSONWithCaching(
 				return nil
 			}
 
-			fetched, strategy, fetchErr := resolveOutputJSON(fetchCtx, l, v, pctx, targetConfig)
+			var (
+				fetched  []byte
+				strategy string
+			)
+
+			target := util.RelPathForLog(pctx.RootWorkingDir, targetConfig, pctx.LogShowAbsPaths)
+
+			fetchErr := spinner.ShowAfter(fetchCtx, l, spinner.Messages{
+				Working: "Fetching outputs of dependency " + target + "...",
+				Done:    "Fetched outputs of dependency " + target,
+			}, func() error {
+				var err error
+
+				fetched, strategy, err = resolveOutputJSON(fetchCtx, l, v, pctx, targetConfig)
+				if err != nil {
+					return err
+				}
+
+				trimmed, trimErr := tf.ExtractFirstJSONObject(fetched)
+				if trimErr != nil {
+					return TerragruntOutputParsingError{Path: targetConfig, Err: trimErr}
+				}
+
+				fetched = trimmed
+
+				return nil
+			})
 
 			if span := trace.SpanFromContext(fetchCtx); span.IsRecording() {
 				span.SetAttributes(attribute.Bool("cache_hit", false))
@@ -1700,22 +1858,7 @@ func getOutputJSONWithCaching(
 				return fetchErr
 			}
 
-			// `tofu/terraform output -json` stdout can be polluted with non-JSON text on either side of the JSON object:
-			//   - Leading: AWS Client Side Monitoring (CSM) logs (e.g., "2023/05/04 20:22:43 Enabling CSM"),
-			//     ANSI color escape sequences from warning blocks.
-			//     Refs: https://github.com/aws/aws-sdk-go/blob/81d1cbbc6a2028023aff7bcab0fe1be320cd39f7/aws/session/session.go#L444
-			//           https://github.com/gruntwork-io/terragrunt/issues/2233
-			//   - Trailing: Terraform 1.15+ emits backend deprecation warnings (e.g., for the S3
-			//     `dynamodb_table` parameter) on stdout after the JSON has already been printed.
-			//     Refs: https://github.com/gruntwork-io/terragrunt/issues/6001
-			//
-			// To make parsing robust to either, isolate the first JSON object in the buffer.
-			trimmed, trimErr := tf.ExtractFirstJSONObject(fetched)
-			if trimErr != nil {
-				return TerragruntOutputParsingError{Path: targetConfig, Err: trimErr}
-			}
-
-			newJSONBytes = trimmed
+			newJSONBytes = fetched
 			jsonCache.Put(fetchCtx, targetConfig, newJSONBytes)
 
 			return nil
@@ -2244,7 +2387,11 @@ func dependencyInitDataDir(v *venv.Venv, workingDir string) string {
 }
 
 // applyExtraArgsEnvVarsForOutput merges extra_arguments env_vars whose commands include output into v.Env.
-func applyExtraArgsEnvVarsForOutput(v *venv.Venv, pctx *ParsingContext, terraformConfig *TerraformConfig) {
+func applyExtraArgsEnvVarsForOutput(
+	v *venv.Venv,
+	pctx *ParsingContext,
+	terraformConfig *TerraformConfig,
+) {
 	if terraformConfig == nil {
 		return
 	}
@@ -2534,7 +2681,11 @@ func getTerragruntOutputJSONFromRemoteState(
 // going through the full RunTerragrunt operation. Callers must obtain credentials
 // (auth-provider-cmd and any TG_IAM_ROLE assumption) before invoking, so those steps
 // run from the unit's directory rather than the bare-terraform working directory.
-func setupTFRunOptsForBareTerraform(v *venv.Venv, pctx *ParsingContext, workingDir string) *tf.TFOptions {
+func setupTFRunOptsForBareTerraform(
+	v *venv.Venv,
+	pctx *ParsingContext,
+	workingDir string,
+) *tf.TFOptions {
 	shellOpts := shellRunOptsFromPctx(v, pctx)
 	shellOpts.WorkingDir = workingDir
 
@@ -2577,6 +2728,26 @@ func runTerragruntOutputJSON(
 		pctx.TFPath = cfg.TerraformBinary
 	}
 
+	engineConfig, err := cfg.EngineOptions()
+	if err != nil {
+		return nil, err
+	}
+
+	pctx.EngineConfig = engineConfig
+
+	l, probe, err := run.PopulateTFVersion(ctx, l, v, run.PopulateTFVersionInput{
+		TFOpts:       tfRunOptsFromPctx(v, pctx),
+		WorkingDir:   pctx.WorkingDir,
+		VersionFiles: pctx.VersionManagerFileName,
+	})
+	if err != nil {
+		l.Debugf(
+			"Failed to detect the OpenTofu/Terraform implementation of %s: %v",
+			tfimpl.BinaryOrDefault(v.Exec, pctx.TFPath),
+			err,
+		)
+	}
+
 	// A `--source` override carries the module subdir of whichever unit the run started from, not the dependency being
 	// resolved here, so retarget it to this module's own subdir before running. The full parse above resolves the
 	// target's real source even when it references a dependency output (which the lightweight parse in resolveOutputJSON
@@ -2592,7 +2763,7 @@ func runTerragruntOutputJSON(
 		ctx,
 		l,
 		v,
-		RunOptionsFromParsingContext(pctx),
+		RunOptionsFromParsingContext(pctx, probe.Type),
 		report.NewReport(),
 		runCfg,
 		credentialGetter,
@@ -2619,8 +2790,8 @@ func runTerragruntOutputJSON(
 // the TerragruntOptions-sourced constructor in internal/configbridge: the
 // dependency run is a full run of the target unit, so a flag missing here
 // is a flag that stops applying as soon as a unit is reached through a
-// `dependency` block.
-func RunOptionsFromParsingContext(pctx *ParsingContext) *run.Options {
+// `dependency` block. impl is the implementation of the binary pctx selects.
+func RunOptionsFromParsingContext(pctx *ParsingContext, impl tfimpl.Type) *run.Options {
 	runOpts := run.NewOptions()
 	runOpts.LogShowAbsPaths = pctx.LogShowAbsPaths
 	runOpts.LogDisableErrorSummary = pctx.LogDisableErrorSummary
@@ -2633,7 +2804,7 @@ func RunOptionsFromParsingContext(pctx *ParsingContext) *run.Options {
 	runOpts.Source = pctx.Source
 	runOpts.SourceMap = pctx.SourceMap
 	runOpts.TerraformCommand = pctx.TerraformCommand
-	runOpts.OriginalTerraformCommand = pctx.OriginalTerraformCommand
+	runOpts.OriginalTofuCommand = pctx.OriginalTofuCommand
 	runOpts.TerraformCliArgs = pctx.TerraformCliArgs
 	runOpts.IAMRoleOptions = pctx.IAMRoleOptions
 	runOpts.OriginalIAMRoleOptions = pctx.OriginalIAMRoleOptions
@@ -2643,7 +2814,7 @@ func RunOptionsFromParsingContext(pctx *ParsingContext) *run.Options {
 	runOpts.EngineConfig = pctx.EngineConfig
 	runOpts.EngineOptions = pctx.EngineOptions
 	runOpts.TFPath = pctx.TFPath
-	runOpts.TofuImplementation = pctx.TofuImplementation
+	runOpts.TofuImplementation = impl
 	runOpts.Headless = pctx.Headless
 	runOpts.Debug = pctx.Debug
 	runOpts.AutoInit = pctx.AutoInit
@@ -2665,7 +2836,7 @@ func shellRunOptsFromPctx(v *venv.Venv, pctx *ParsingContext) *shell.ShellOption
 		WithWorkingDir(pctx.WorkingDir).
 		WithTelemetry(pctx.Telemetry).
 		WithEngine(pctx.EngineConfig, pctx.EngineOptions).
-		WithTFPath(pctx.TFPath).
+		WithTFPath(tfimpl.BinaryOrDefault(v.Exec, pctx.TFPath)).
 		WithRootWorkingDir(pctx.RootWorkingDir).
 		WithExperiments(pctx.Experiments).
 		WithHeadless(pctx.Headless).
@@ -2761,18 +2932,6 @@ func runTerraformInitForDependencyOutput(
 	}
 }
 
-func (deps Dependencies) FilteredWithoutConfigPath() Dependencies {
-	var filteredDeps Dependencies
-
-	for _, dep := range deps {
-		if !dep.ConfigPath.IsNull() {
-			filteredDeps = append(filteredDeps, dep)
-		}
-	}
-
-	return filteredDeps
-}
-
 // foldSiblingAutoIncludeDeps merges the registered sibling autoinclude dependency blocks over the unit's own same-name blocks (shallow, by name, with the autoinclude winning), mirroring a regular include's default merge strategy.
 func foldSiblingAutoIncludeDeps(
 	ctx context.Context,
@@ -2797,7 +2956,7 @@ func foldSiblingAutoIncludeDeps(
 	// Files the autoinclude pulls in through its own includes must not re-merge a sibling autoinclude.
 	autoPctx.SkipAutoIncludeMerge = true
 
-	baseBlocks, err := DecodeBaseBlocks(ctx, l, v, autoPctx, autoFile, nil)
+	baseBlocks, err := DecodeBaseBlocks(ctx, l, v, autoPctx, autoFile, nil, IncludeParseFeatureFlags)
 	if err != nil {
 		return nil, err
 	}
@@ -2813,7 +2972,7 @@ func foldSiblingAutoIncludeDeps(
 		return nil, err
 	}
 
-	autoDependencies, err := decodeDependencyBlocks(ctx, autoPctx, l, autoFile, evalCtx)
+	autoDependencies, err := decodeDependencyBlocks(ctx, autoPctx, l, v.FS, autoFile, evalCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -2830,12 +2989,11 @@ func foldSiblingAutoIncludeDeps(
 		decoded = *merged
 	}
 
-	autoDeps := decoded.Dependencies.FilteredWithoutConfigPath()
-	if len(autoDeps) == 0 {
+	if len(decoded.Dependencies) == 0 {
 		return deps, nil
 	}
 
-	return mergeDependencyBlocks(deps, autoDeps), nil
+	return mergeDependencyBlocks(deps, decoded.Dependencies), nil
 }
 
 // parseAutoIncludeFileCached parses the sibling autoinclude through the run-scoped HCL file cache so repeated dependency-output decodes reuse one parse, rebinding the shared AST to a fresh parser per call.
@@ -2851,23 +3009,18 @@ func parseAutoIncludeFileCached(
 		return nil, err
 	}
 
-	hclCache := cache.ContextCache[*hclparse.File](ctx, HclCacheContextKey)
+	hclCache := cache.ContextCache[*CachedHCLFile](ctx, HclCacheContextKey)
 	// Prefix the key so it cannot collide with the unit-config keys ParseConfigFile stores.
-	cacheKey := fmt.Sprintf("autoinclude-%v-%v", autoIncludePath, fileInfo.ModTime().UnixMicro())
+	cacheKey := fmt.Sprintf(
+		"autoinclude-%v-%v-%v",
+		autoIncludePath,
+		fileInfo.ModTime().UnixMicro(),
+		fileInfo.Size(),
+	)
 
-	if cached, found := hclCache.Get(ctx, cacheKey); found {
-		return cached.Rebind(pctx.NewParser(l, v)), nil
-	}
+	cached := cachedHCLFile(ctx, v.FS, hclCache, cacheKey, autoIncludePath)
 
-	file, err := pctx.NewParser(l, v).
-		ParseFromFile(v.FS, autoIncludePath)
-	if err != nil {
-		return nil, err
-	}
-
-	hclCache.Put(ctx, cacheKey, file)
-
-	return file, nil
+	return rebindOrParseHCLFile(ctx, l, v, pctx, hclCache, cached, cacheKey, autoIncludePath, fileInfo.ModTime())
 }
 
 // decodeDependencyBlocksWithAutoIncludeOverrides decodes the file's dependency blocks, leaving
@@ -2893,6 +3046,7 @@ func decodeDependencyBlocksWithAutoIncludeOverrides(
 		ctx,
 		pctx,
 		l,
+		v.FS,
 		file,
 		evalContext,
 		hclparse.WithSkipLabels(overrides),
@@ -2958,7 +3112,11 @@ func ValidateDependencyConfigPaths(fsys vfs.FS, cfg *TerragruntConfig, configPat
 		rawPath := dep.ConfigPath.AsString()
 		targetConfigPath := getCleanedTargetConfigPath(fsys, rawPath, configPath)
 
-		if stackFilePath, ok := resolveStackFilePath(rawPath, targetConfigPath); ok && vfs.Exists(fsys, stackFilePath) {
+		if stackFilePath, ok := resolveStackFilePath(
+			rawPath,
+			targetConfigPath,
+		); ok &&
+			vfs.Exists(fsys, stackFilePath) {
 			continue
 		}
 
@@ -2968,9 +3126,88 @@ func ValidateDependencyConfigPaths(fsys vfs.FS, cfg *TerragruntConfig, configPat
 		}
 
 		if err != nil {
-			errs = append(errs, fmt.Errorf("dependency %q in %s: %w", dep.Name, configPath, err))
+			errs = append(
+				errs,
+				DependencyBlockError{Name: dep.Name, ConfigPath: configPath, Err: err},
+			)
 		}
 	}
 
 	return errors.Join(errs...)
+}
+
+// logMockOutputsFallback logs the fall back to mock outputs, at debug level for the mocks an outputs block declares.
+func logMockOutputsFallback(l log.Logger, pctx *ParsingContext, targetConfig string, declared *OutputsConfig) {
+	if declared != nil {
+		logf := l.Infof
+		if pctx.SkipOutput || isRenderCommand(pctx) || isRenderJSONCommand(pctx) {
+			logf = l.Debugf
+		}
+
+		logf("%s reads the mock values the outputs block of %s declares.", pctx.TerragruntConfigPath, targetConfig)
+
+		return
+	}
+
+	l.Warnf(
+		"Config %s is a dependency of %s that has no outputs, but mock outputs provided and returning those in dependency output.",
+		targetConfig,
+		pctx.TerragruntConfigPath,
+	)
+}
+
+// mergeMockOutputsWithState merges mocks into state as strategy says, or returns state whole for no merge.
+func mergeMockOutputsWithState(strategy MergeStrategyType, state, mocks cty.Value) (*cty.Value, error) {
+	switch strategy {
+	case NoMerge:
+		return &state, nil
+	case ShallowMerge:
+		return shallowMergeCtyMaps(state, mocks)
+	case DeepMergeMapOnly:
+		return deepMergeCtyMapsMapOnly(mocks, state)
+	case DeepMerge:
+		return nil, InvalidMergeStrategyTypeError(strategy)
+	default:
+		return nil, InvalidMergeStrategyTypeError(strategy)
+	}
+}
+
+// withDeclaredMockMarks fills merged with the mock values state lacks, marks included, nested too for a deep merge.
+func withDeclaredMockMarks(strategy MergeStrategyType, merged, mocks, state cty.Value) cty.Value {
+	mockValues, ok := mockValueMap(&mocks)
+	if !ok {
+		return merged
+	}
+
+	stateValues, ok := mockValueMap(&state)
+	if !ok {
+		return merged
+	}
+
+	values, ok := mockValueMap(&merged)
+	if !ok {
+		return merged
+	}
+
+	if values == nil {
+		values = map[string]cty.Value{}
+	}
+
+	for key, mock := range mockValues {
+		stateValue, inState := stateValues[key]
+		if !inState {
+			values[key] = mock
+
+			continue
+		}
+
+		mergedValue, inMerged := values[key]
+		if !inMerged || strategy != DeepMergeMapOnly {
+			continue
+		}
+
+		values[key] = withDeclaredMockMarks(strategy, mergedValue, mock, stateValue)
+	}
+
+	return cty.ObjectVal(values)
 }

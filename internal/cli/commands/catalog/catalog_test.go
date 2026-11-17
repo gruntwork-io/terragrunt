@@ -18,6 +18,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -32,13 +33,13 @@ func TestRunOnEmptyWorkspaceWritesNothing(t *testing.T) {
 
 	var buf strings.Builder
 
-	v := venvtest.New().WithWriter(&buf)
+	v := venv.MemVenv().WithWriter(&buf)
 	workDir := "/catalog-empty"
 
 	require.NoError(t, v.FS.MkdirAll(workDir, 0o755))
 
 	err := catalog.Run(
-		t.Context(), logger.CreateLogger(), v, newOptions(t, workDir, catalog.FormatJSONL), "",
+		config.WithCaches(t.Context()), logger.CreateLogger(), v, newOptions(t, workDir, catalog.FormatJSONL), "",
 	)
 
 	require.NoError(t, err)
@@ -84,7 +85,7 @@ func TestRunReportsEveryUnreachableSource(t *testing.T) {
 
 			var buf strings.Builder
 
-			v := venvtest.New().WithWriter(&buf)
+			v := venv.MemVenv().WithWriter(&buf)
 			workDir := "/catalog-sources"
 
 			for unit, source := range tc.sources {
@@ -92,7 +93,7 @@ func TestRunReportsEveryUnreachableSource(t *testing.T) {
 			}
 
 			err := catalog.Run(
-				t.Context(), logger.CreateLogger(), v, newOptions(t, workDir, catalog.FormatJSONL), "",
+				config.WithCaches(t.Context()), logger.CreateLogger(), v, newOptions(t, workDir, catalog.FormatJSONL), "",
 			)
 
 			var loadErr *tui.SourceLoadError
@@ -130,7 +131,7 @@ func TestRunLoadsARepoNamedTwiceOnce(t *testing.T) {
 	))
 
 	err := catalog.Run(
-		t.Context(), logger.CreateLogger(), v, newOptions(t, rootDir, catalog.FormatJSONL), "",
+		config.WithCaches(t.Context()), logger.CreateLogger(), v, newOptions(t, rootDir, catalog.FormatJSONL), "",
 	)
 
 	var loadErr *tui.SourceLoadError
@@ -181,7 +182,7 @@ func TestRunReportsASourceWhoseGitCommandsFail(t *testing.T) {
 	))
 
 	err := catalog.Run(
-		t.Context(), logger.CreateLogger(), v, newOptions(t, rootDir, catalog.FormatJSONL), "",
+		config.WithCaches(t.Context()), logger.CreateLogger(), v, newOptions(t, rootDir, catalog.FormatJSONL), "",
 	)
 
 	var loadErr *tui.SourceLoadError
@@ -228,7 +229,7 @@ func TestRunWritesComponentsFromTheCatalogBlock(t *testing.T) {
 	))
 
 	err := catalog.Run(
-		t.Context(), logger.CreateLogger(), v, newOptions(t, rootDir, catalog.FormatJSONL), "",
+		config.WithCaches(t.Context()), logger.CreateLogger(), v, newOptions(t, rootDir, catalog.FormatJSONL), "",
 	)
 
 	require.NoError(t, err)
@@ -253,11 +254,37 @@ func TestRunToleratesAnUnparseableCatalogConfig(t *testing.T) {
 	))
 
 	err := catalog.Run(
-		t.Context(), logger.CreateLogger(), v, newOptions(t, rootDir, catalog.FormatJSONL), "",
+		config.WithCaches(t.Context()), logger.CreateLogger(), v, newOptions(t, rootDir, catalog.FormatJSONL), "",
 	)
 
 	require.NoError(t, err)
 	assert.Empty(t, buf.String())
+}
+
+// TestRunReportsAnUnparseableCatalogConfigWhenAsked pins that
+// [catalog.ReportUnreadableConfig] counts a broken block as a failed source, so
+// a run with nothing else to load reads as every source having failed.
+func TestRunReportsAnUnparseableCatalogConfigWhenAsked(t *testing.T) {
+	t.Parallel()
+
+	rootDir := t.TempDir()
+
+	v := venvtest.NewWithOSFS()
+
+	require.NoError(t, vfs.WriteFile(
+		v.FS, filepath.Join(rootDir, "root.hcl"), []byte("catalog {\n  urls = [\n}\n"), 0o644,
+	))
+
+	opts := newOptions(t, rootDir, catalog.FormatJSONL)
+	opts.UnreadableConfig = catalog.ReportUnreadableConfig
+
+	err := catalog.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, opts, "")
+
+	var loadErr *tui.SourceLoadError
+
+	require.ErrorAs(t, err, &loadErr)
+	assert.Equal(t, []string{"root.hcl"}, failedURLs(loadErr))
+	assert.True(t, loadErr.AllFailed())
 }
 
 // TestRunWithAnExplicitRepoURLSkipsDiscovery pins that a URL given on the
@@ -266,13 +293,13 @@ func TestRunToleratesAnUnparseableCatalogConfig(t *testing.T) {
 func TestRunWithAnExplicitRepoURLSkipsDiscovery(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	workDir := "/catalog-explicit"
 
 	writeUnit(t, v, filepath.Join(workDir, "vpc"), "github.com/acme/discovered//modules/x")
 
 	err := catalog.Run(
-		t.Context(), logger.CreateLogger(), v,
+		config.WithCaches(t.Context()), logger.CreateLogger(), v,
 		newOptions(t, workDir, catalog.FormatJSONL), "github.com/acme/explicit",
 	)
 
@@ -287,7 +314,7 @@ func TestRunRejectsAnUnknownFormat(t *testing.T) {
 	t.Parallel()
 
 	err := catalog.Run(
-		t.Context(), logger.CreateLogger(), venvtest.New(),
+		config.WithCaches(t.Context()), logger.CreateLogger(), venv.MemVenv(),
 		newOptions(t, "/catalog-unknown-format", "yaml"), "github.com/acme/vpc",
 	)
 
@@ -299,7 +326,7 @@ func TestRunRejectsAnUnknownFormat(t *testing.T) {
 func newOptions(t *testing.T, workDir, outputFormat string) *catalog.Options {
 	t.Helper()
 
-	tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+	tgOpts := options.NewTerragruntOptions()
 	tgOpts.WorkingDir = workDir
 	tgOpts.RootWorkingDir = workDir
 	tgOpts.TerragruntConfigPath = filepath.Join(workDir, "terragrunt.hcl")

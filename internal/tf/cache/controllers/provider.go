@@ -18,6 +18,8 @@ const (
 	providerPath = "/providers"
 )
 
+// ProviderController serves the provider registry protocol. A request whose path has a cache
+// request ID starts caching the provider. A request without one is proxied to the registry.
 type ProviderController struct {
 	Logger               log.Logger
 	DownloaderController router.Controller

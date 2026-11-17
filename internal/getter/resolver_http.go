@@ -57,10 +57,7 @@ func (r *HTTPResolver) Scheme() string {
 	return r.scheme
 }
 
-// Pinned always reports false. A ?checksum= pin looks like it should
-// qualify, but the parameter is stripped before probing, so two URLs
-// pinning different checksums share one recorded answer keyed on the
-// ETag the endpoint currently serves.
+// Pinned always reports false; a validator names what the endpoint currently serves, which can change.
 func (r *HTTPResolver) Pinned(_ redact.URL) bool { return false }
 
 // Probe HEADs source and returns a URL-scoped opaque cache key derived
@@ -71,9 +68,6 @@ func (r *HTTPResolver) Pinned(_ redact.URL) bool { return false }
 // from server-assigned tokens. Network errors and non-2xx responses
 // surface as [cas.ErrNoVersionMetadata].
 func (r *HTTPResolver) Probe(ctx context.Context, source redact.URL) (string, error) {
-	// The outer client strips these before invoking the HTTP getter,
-	// so probing with them attached would split cache entries that
-	// resolve to the same fetched bytes.
 	probeURL := stripHTTPMagicParams(source.Reveal())
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodHead, probeURL, http.NoBody)
@@ -86,7 +80,7 @@ func (r *HTTPResolver) Probe(ctx context.Context, source redact.URL) (string, er
 		return "", cas.ErrNoVersionMetadata
 	}
 
-	key, probeErr := r.pickHTTPCacheKey(probeURL, resp)
+	key, probeErr := r.pickHTTPCacheKey(withoutChecksum(source.Reveal()), resp)
 
 	// Body close errors only surface on the success path; on a
 	// probe failure the primary error already explains the outcome

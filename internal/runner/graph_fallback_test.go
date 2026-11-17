@@ -10,9 +10,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	thlogger "github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -24,7 +25,7 @@ import (
 func TestTFGraphFallbackMatchesFilterExperiment(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 	l := thlogger.CreateLogger()
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
@@ -62,7 +63,7 @@ dependency "db" {
 	expected := []string{vpcDir, dbDir, appDir}
 
 	// Path 1: experiment ON, use discovery filter
-	optsOn := options.NewTerragruntOptions(vexec.NewOSExec())
+	optsOn := options.NewTerragruntOptions()
 	optsOn.WorkingDir = vpcDir
 	optsOn.RootWorkingDir = tmpDir
 	// Enable the filter-flag experiment
@@ -72,7 +73,7 @@ dependency "db" {
 	require.NoError(t, parseErr)
 
 	optsOn.Filters = parsedFilters
-	runnerOn, err := runner.New(ctx, l, venvtest.NewOSWithEmptyEnv(), optsOn)
+	runnerOn, err := runner.New(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), optsOn)
 	require.NoError(t, err)
 	// Collect unit paths
 	onPaths := make([]string, 0, len(runnerOn.GetStack().Units))
@@ -81,7 +82,7 @@ dependency "db" {
 	}
 
 	// Path 2: experiment OFF, use fallback option
-	optsOff := options.NewTerragruntOptions(vexec.NewOSExec())
+	optsOff := options.NewTerragruntOptions()
 	optsOff.WorkingDir = vpcDir
 	optsOff.RootWorkingDir = tmpDir
 	// No filter queries; rely on fallback graph target option
@@ -89,6 +90,7 @@ dependency "db" {
 		ctx,
 		l,
 		venvtest.NewOSWithEmptyEnv(),
+		new(rewrite.Store),
 		optsOff,
 		runner.WithGraphTarget(vpcDir),
 	)

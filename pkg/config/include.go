@@ -108,7 +108,7 @@ func parseIncludedConfig(
 
 	config, err := ParseConfigFile(ctx, l, v, parseCtx, includePath, includedConfig)
 	if err != nil {
-		if _, ok := errors.AsType[TerragruntConfigNotFoundError](err); ok {
+		if errors.As(err, new(TerragruntConfigNotFoundError)) {
 			return nil, IncludeConfigNotFoundError{
 				IncludePath: includePath,
 				SourcePath:  pctx.TerragruntConfigPath,
@@ -123,6 +123,9 @@ func parseIncludedConfig(
 
 // handleInclude merges the included config into the current config depending on the merge strategy specified by the
 // user.
+//
+// A partial merge uses an include's config from pctx.TrackInclude when [DecodeBaseBlocks] already parsed it, instead of
+// parsing that include again. An include with the no_merge strategy is not parsed at all.
 func handleInclude(
 	ctx context.Context,
 	l log.Logger,
@@ -148,23 +151,13 @@ func handleInclude(
 			return config, err
 		}
 
-		var (
-			parsedIncludeConfig *TerragruntConfig
-			logPrefix           string
-		)
-
-		pctx.FilesRead.Add(includeConfig.Path)
+		var logPrefix string
 
 		if isPartial {
-			parsedIncludeConfig, err = partialParseIncludedConfig(ctx, l, v, pctx, &includeConfig)
 			logPrefix = "[Partial] "
-		} else {
-			parsedIncludeConfig, err = parseIncludedConfig(ctx, l, v, pctx, &includeConfig)
 		}
 
-		if err != nil {
-			return baseConfig, err
-		}
+		pctx.FilesRead.Add(includeConfig.Path)
 
 		switch mergeStrategy {
 		case NoMerge:
@@ -173,30 +166,20 @@ func handleInclude(
 				logPrefix,
 				includeConfig.Path,
 			)
+
+			continue
 		case ShallowMerge:
 			l.Debugf(
 				"%sIncluded config %s has strategy shallow merge: merging config in (shallow).",
 				logPrefix,
 				includeConfig.Path,
 			)
-
-			if err := parsedIncludeConfig.Merge(l, baseConfig); err != nil {
-				return nil, err
-			}
-
-			baseConfig = parsedIncludeConfig
 		case DeepMerge:
 			l.Debugf(
 				"%sIncluded config %s has strategy deep merge: merging config in (deep).",
 				logPrefix,
 				includeConfig.Path,
 			)
-
-			if err := parsedIncludeConfig.DeepMerge(l, baseConfig); err != nil {
-				return nil, err
-			}
-
-			baseConfig = parsedIncludeConfig
 		case DeepMergeMapOnly:
 			return nil, IncludeMergeStrategyNotSupportedError(mergeStrategy)
 		default:
@@ -205,9 +188,41 @@ func handleInclude(
 				mergeStrategy,
 			)
 		}
+
+		var parsedIncludeConfig *TerragruntConfig
+
+		if isPartial {
+			var parsed bool
+
+			parsedIncludeConfig, parsed = pctx.TrackInclude.parsedForMerge[includeConfig.Name]
+			if !parsed {
+				parsedIncludeConfig, err = partialParseIncludedConfig(ctx, l, v, pctx, &includeConfig)
+			}
+		} else {
+			parsedIncludeConfig, err = parseIncludedConfig(ctx, l, v, pctx, &includeConfig)
+		}
+
+		if err != nil {
+			return baseConfig, err
+		}
+
+		if err := mergeIncludedConfig(l, mergeStrategy, parsedIncludeConfig, baseConfig); err != nil {
+			return nil, err
+		}
+
+		baseConfig = parsedIncludeConfig
 	}
 
 	return baseConfig, nil
+}
+
+// mergeIncludedConfig merges base into included with mergeStrategy, which is ShallowMerge or DeepMerge.
+func mergeIncludedConfig(l log.Logger, mergeStrategy MergeStrategyType, included, base *TerragruntConfig) error {
+	if mergeStrategy == ShallowMerge {
+		return included.Merge(l, base)
+	}
+
+	return included.DeepMerge(l, base)
 }
 
 // handleIncludeForDependency is a partial merge of the included config to handle dependencies. This only merges the
@@ -237,6 +252,34 @@ func handleIncludeForDependency(
 			return nil, err
 		}
 
+		includePath := util.RelPathForLog(pctx.RootWorkingDir, includeConfig.Path, pctx.LogShowAbsPaths)
+
+		switch mergeStrategy {
+		case NoMerge:
+			l.Debugf("Included config %s has strategy no merge: not merging config in for dependency.", includePath)
+
+			continue
+		case ShallowMerge:
+			l.Debugf(
+				"Included config %s has strategy shallow merge: merging config in (shallow) for dependency.",
+				includePath,
+			)
+		case DeepMerge:
+			l.Debugf(
+				"Included config %s has strategy deep merge: merging config in (deep) for dependency.",
+				includePath,
+			)
+		case DeepMergeMapOnly:
+			return nil, IncludeMergeStrategyNotSupportedError(mergeStrategy)
+		default:
+			return nil, fmt.Errorf(
+				"you reached an impossible condition. This is most likely a bug in terragrunt. "+
+					"Please open an issue at github.com/gruntwork-io/terragrunt with this error message. "+
+					"Code: UNKNOWN_MERGE_STRATEGY_%s_DEPENDENCY",
+				mergeStrategy,
+			)
+		}
+
 		includedPartialParse, err := partialParseIncludedConfig(
 			ctx,
 			l,
@@ -248,60 +291,21 @@ func handleIncludeForDependency(
 			return nil, err
 		}
 
-		switch mergeStrategy {
-		case NoMerge:
-			l.Debugf(
-				"Included config %s has strategy no merge: not merging config in for dependency.",
-				util.RelPathForLog(
-					pctx.RootWorkingDir,
-					includeConfig.Path,
-					pctx.LogShowAbsPaths,
-				),
-			)
-		case ShallowMerge:
-			l.Debugf(
-				"Included config %s has strategy shallow merge: merging config in (shallow) for dependency.",
-				util.RelPathForLog(
-					pctx.RootWorkingDir,
-					includeConfig.Path,
-					pctx.LogShowAbsPaths,
-				),
-			)
+		if mergeStrategy == ShallowMerge {
+			baseDependencyBlock = mergeDependencyBlocks(includedPartialParse.TerragruntDependencies, baseDependencyBlock)
 
-			mergedDependencyBlock := mergeDependencyBlocks(
-				includedPartialParse.TerragruntDependencies,
-				baseDependencyBlock,
-			)
-			baseDependencyBlock = mergedDependencyBlock
-		case DeepMerge:
-			l.Debugf(
-				"Included config %s has strategy deep merge: merging config in (deep) for dependency.",
-				util.RelPathForLog(
-					pctx.RootWorkingDir,
-					includeConfig.Path,
-					pctx.LogShowAbsPaths,
-				),
-			)
-
-			mergedDependencyBlock, err := deepMergeDependencyBlocks(
-				includedPartialParse.TerragruntDependencies,
-				baseDependencyBlock,
-			)
-			if err != nil {
-				return nil, err
-			}
-
-			baseDependencyBlock = mergedDependencyBlock
-		case DeepMergeMapOnly:
-			return nil, IncludeMergeStrategyNotSupportedError(mergeStrategy)
-		default:
-			return nil, fmt.Errorf(
-				"you reached an impossible condition. This is most likely a bug in terragrunt. "+
-					"Please open an issue at github.com/gruntwork-io/terragrunt with this error message. "+
-					"Code: UNKNOWN_MERGE_STRATEGY_%s_DEPENDENCY",
-				mergeStrategy,
-			)
+			continue
 		}
+
+		mergedDependencyBlock, err := deepMergeDependencyBlocks(
+			includedPartialParse.TerragruntDependencies,
+			baseDependencyBlock,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		baseDependencyBlock = mergedDependencyBlock
 	}
 
 	return &TerragruntDependency{Dependencies: baseDependencyBlock}, nil
@@ -366,6 +370,10 @@ func (cfg *TerragruntConfig) Merge(l log.Logger, sourceConfig *TerragruntConfig)
 		cfg.Errors = sourceConfig.Errors.Clone()
 	}
 
+	if sourceConfig.Outputs != nil {
+		cfg.Outputs = sourceConfig.Outputs.Clone()
+	}
+
 	if sourceConfig.RemoteState != nil {
 		cfg.RemoteState = sourceConfig.RemoteState
 	}
@@ -374,17 +382,7 @@ func (cfg *TerragruntConfig) Merge(l log.Logger, sourceConfig *TerragruntConfig)
 		if cfg.Terraform == nil {
 			cfg.Terraform = sourceConfig.Terraform
 		} else {
-			if sourceConfig.Terraform.Source != nil {
-				cfg.Terraform.Source = sourceConfig.Terraform.Source
-			}
-
-			if sourceConfig.Terraform.Version != nil {
-				cfg.Terraform.Version = sourceConfig.Terraform.Version
-			}
-
-			if sourceConfig.Terraform.CopyTerraformLockFile != nil {
-				cfg.Terraform.CopyTerraformLockFile = sourceConfig.Terraform.CopyTerraformLockFile
-			}
+			MergeTerraformAttributes(cfg.Terraform, sourceConfig.Terraform)
 
 			mergeExtraArgs(l, sourceConfig.Terraform.ExtraArgs, &cfg.Terraform.ExtraArgs)
 
@@ -400,17 +398,9 @@ func (cfg *TerragruntConfig) Merge(l log.Logger, sourceConfig *TerragruntConfig)
 		sourceConfig.TerragruntDependencies,
 	)
 
-	cfg.FeatureFlags = mergeFeatureFlags(cfg.FeatureFlags, sourceConfig.FeatureFlags)
+	cfg.Dependencies = mergeModuleDependencies(cfg.Dependencies, sourceConfig.Dependencies)
 
-	// Deep merge the dependencies list. This is different from dependency blocks, and refers to the deprecated
-	// dependencies block!
-	if sourceConfig.Dependencies != nil {
-		if cfg.Dependencies == nil {
-			cfg.Dependencies = sourceConfig.Dependencies
-		} else {
-			cfg.Dependencies.Merge(sourceConfig.Dependencies)
-		}
-	}
+	cfg.FeatureFlags = mergeFeatureFlags(cfg.FeatureFlags, sourceConfig.FeatureFlags)
 
 	// Merge the generate configs. This is a shallow merge. Meaning, if the child has the same name generate block, then the
 	// child's generate block will override the parent's block.
@@ -425,6 +415,8 @@ func (cfg *TerragruntConfig) Merge(l log.Logger, sourceConfig *TerragruntConfig)
 	if sourceConfig.Inputs != nil {
 		cfg.Inputs = mergeInputs(sourceConfig.Inputs, cfg.Inputs)
 	}
+
+	cfg.mergeVariables(sourceConfig.Inputs, sourceConfig.Variables)
 
 	CopyFieldsMetadata(sourceConfig, cfg)
 
@@ -507,48 +499,15 @@ func (cfg *TerragruntConfig) DeepMerge(l log.Logger, sourceConfig *TerragruntCon
 		cfg.Errors.Merge(sourceConfig.Errors)
 	}
 
-	// Copy only dependencies which doesn't exist in source
-	if sourceConfig.Dependencies != nil {
-		resultModuleDependencies := &ModuleDependencies{}
-
-		if cfg.Dependencies != nil {
-			// take in result dependencies only paths which aren't defined in source
-			// Fix for issue: https://github.com/gruntwork-io/terragrunt/issues/1900
-			targetPathMap := fetchDependencyPaths(cfg)
-			sourcePathMap := fetchDependencyPaths(sourceConfig)
-
-			for key, value := range targetPathMap {
-				_, found := sourcePathMap[key]
-				if !found {
-					resultModuleDependencies.Paths = append(resultModuleDependencies.Paths, value)
-				}
-			}
-			// copy target paths which are defined only in Dependencies and not in TerragruntDependencies
-			// if TerragruntDependencies will be empty, all targetConfig.Dependencies.Paths will be copied to resultModuleDependencies.Paths
-			for _, dependencyPath := range cfg.Dependencies.Paths {
-				var addPath = true
-
-				for _, targetPath := range targetPathMap {
-					if dependencyPath == targetPath { // path already defined in TerragruntDependencies, skip adding
-						addPath = false
-						break
-					}
-				}
-
-				if addPath {
-					resultModuleDependencies.Paths = append(
-						resultModuleDependencies.Paths,
-						dependencyPath,
-					)
-				}
-			}
+	if sourceConfig.Outputs != nil {
+		if cfg.Outputs == nil {
+			cfg.Outputs = &OutputsConfig{}
 		}
 
-		resultModuleDependencies.Paths = append(
-			resultModuleDependencies.Paths,
-			sourceConfig.Dependencies.Paths...)
-		cfg.Dependencies = resultModuleDependencies
+		cfg.Outputs.Merge(sourceConfig.Outputs)
 	}
+
+	cfg.Dependencies = mergeModuleDependencies(cfg.Dependencies, sourceConfig.Dependencies)
 
 	// Dependency blocks are deep merged by name
 	mergedDeps, err := deepMergeDependencyBlocks(
@@ -573,17 +532,7 @@ func (cfg *TerragruntConfig) DeepMerge(l log.Logger, sourceConfig *TerragruntCon
 		if cfg.Terraform == nil {
 			cfg.Terraform = sourceConfig.Terraform
 		} else {
-			if sourceConfig.Terraform.Source != nil {
-				cfg.Terraform.Source = sourceConfig.Terraform.Source
-			}
-
-			if sourceConfig.Terraform.Version != nil {
-				cfg.Terraform.Version = sourceConfig.Terraform.Version
-			}
-
-			if sourceConfig.Terraform.CopyTerraformLockFile != nil {
-				cfg.Terraform.CopyTerraformLockFile = sourceConfig.Terraform.CopyTerraformLockFile
-			}
+			MergeTerraformAttributes(cfg.Terraform, sourceConfig.Terraform)
 
 			if sourceConfig.Terraform.IncludeInCopy != nil {
 				srcList := *sourceConfig.Terraform.IncludeInCopy
@@ -617,14 +566,16 @@ func (cfg *TerragruntConfig) DeepMerge(l log.Logger, sourceConfig *TerragruntCon
 		}
 	}
 
-	if sourceConfig.Inputs != nil {
-		mergedInputs, err := deepMergeInputs(sourceConfig.Inputs, cfg.Inputs)
-		if err != nil {
-			return err
-		}
-
-		cfg.Inputs = mergedInputs
+	inputs, variables, err := cfg.deepMergedDefinitions(sourceConfig)
+	if err != nil {
+		return err
 	}
+
+	if sourceConfig.Inputs != nil {
+		cfg.Inputs = mergeInputs(inputs, cfg.Inputs)
+	}
+
+	cfg.mergeVariables(inputs, variables)
 
 	// MAINTAINER'S NOTE: The following structs cannot be deep merged due to an implementation detail (they do not
 	// support nil attributes, so we can't determine if an attribute was intentionally set, or was defaulted from
@@ -640,22 +591,20 @@ func (cfg *TerragruntConfig) DeepMerge(l log.Logger, sourceConfig *TerragruntCon
 	return nil
 }
 
-// fetchDependencyPaths returns each dependency's config path, keyed the way include
-// merging matches dependencies up. A dependency whose config_path is not a known string
-// has no path to carry over, so it is left out, as [Dependency.DeepMerge] ignores it too.
-func fetchDependencyPaths(config *TerragruntConfig) map[string]string {
-	var m = make(map[string]string)
-	if config == nil {
-		return m
+// mergeModuleDependencies appends the paths of source that target lacks to target and returns it. The result never
+// shares a slice with source.
+func mergeModuleDependencies(target, source *ModuleDependencies) *ModuleDependencies {
+	if source == nil {
+		return target
 	}
 
-	for _, dependency := range config.TerragruntDependencies {
-		if configPath, ok := dependency.configPathString(); ok {
-			m[dependency.mergeKey()] = configPath
-		}
+	if target == nil {
+		return &ModuleDependencies{Paths: slices.Clone(source.Paths)}
 	}
 
-	return m
+	target.Merge(source)
+
+	return target
 }
 
 // merge feature flags by name.
@@ -699,21 +648,21 @@ func mergeDependencyBlocks(
 	// We track the keys so that the dependencies are added in order, with those in target prepending those in
 	// source. This is not strictly necessary, but it makes testing easier by making the output list more
 	// predictable.
-	keys := []string{}
+	keys := make([]string, 0, len(targetDependencies)+len(sourceDependencies))
 
 	dependencyBlocks := make(map[string]Dependency)
 	for _, dep := range targetDependencies {
-		dependencyBlocks[dep.mergeKey()] = dep
-		keys = append(keys, dep.mergeKey())
+		dependencyBlocks[dep.Address()] = dep
+		keys = append(keys, dep.Address())
 	}
 
 	for _, dep := range sourceDependencies {
-		_, hasSameKey := dependencyBlocks[dep.mergeKey()]
+		_, hasSameKey := dependencyBlocks[dep.Address()]
 		if !hasSameKey {
-			keys = append(keys, dep.mergeKey())
+			keys = append(keys, dep.Address())
 		}
 		// Regardless of what is in dependencyBlocks, we will always override the key with source
-		dependencyBlocks[dep.mergeKey()] = dep
+		dependencyBlocks[dep.Address()] = dep
 	}
 	// Now convert the map to list and set target
 	combinedDeps := make([]Dependency, 0, len(keys))
@@ -733,26 +682,26 @@ func deepMergeDependencyBlocks(
 	// We track the keys so that the dependencies are added in order, with those in target prepending those in
 	// source. This is not strictly necessary, but it makes testing easier by making the output list more
 	// predictable.
-	keys := []string{}
+	keys := make([]string, 0, len(targetDependencies)+len(sourceDependencies))
 
 	dependencyBlocks := make(map[string]Dependency)
 	for _, dep := range targetDependencies {
-		dependencyBlocks[dep.mergeKey()] = dep
-		keys = append(keys, dep.mergeKey())
+		dependencyBlocks[dep.Address()] = dep
+		keys = append(keys, dep.Address())
 	}
 
 	for _, dep := range sourceDependencies {
-		sameKeyDep, hasSameKey := dependencyBlocks[dep.mergeKey()]
+		sameKeyDep, hasSameKey := dependencyBlocks[dep.Address()]
 		if hasSameKey {
 			sameKeyDepPtr := &sameKeyDep
 			if err := sameKeyDepPtr.DeepMerge(&dep); err != nil {
 				return nil, err
 			}
 
-			dependencyBlocks[dep.mergeKey()] = *sameKeyDepPtr
+			dependencyBlocks[dep.Address()] = *sameKeyDepPtr
 		} else {
-			dependencyBlocks[dep.mergeKey()] = dep
-			keys = append(keys, dep.mergeKey())
+			dependencyBlocks[dep.Address()] = dep
+			keys = append(keys, dep.Address())
 		}
 	}
 
@@ -797,6 +746,26 @@ func mergeExtraArgs(
 	}
 
 	*parentExtraArgs = result
+}
+
+// MergeTerraformAttributes copies the scalar terraform block attributes that are set on sourceConfig onto cfg.
+// Attributes that sourceConfig leaves unset keep their value in cfg.
+func MergeTerraformAttributes(cfg, sourceConfig *TerraformConfig) {
+	if sourceConfig.Source != nil {
+		cfg.Source = sourceConfig.Source
+	}
+
+	if sourceConfig.Version != nil {
+		cfg.Version = sourceConfig.Version
+	}
+
+	if sourceConfig.CopyTerraformLockFile != nil {
+		cfg.CopyTerraformLockFile = sourceConfig.CopyTerraformLockFile
+	}
+
+	if sourceConfig.NoDotTerragruntCache != nil {
+		cfg.NoDotTerragruntCache = sourceConfig.NoDotTerragruntCache
+	}
 }
 
 func mergeInputs(childInputs map[string]any, parentInputs map[string]any) map[string]any {
@@ -1133,12 +1102,15 @@ func validateGenerateConfigs(
 
 // Custom error types
 
+// MultipleBareIncludeBlocksErr reports a config with more than one `include` block without a label. In HCL JSON,
+// it also reports an `include` array of more than one block; the object encoding avoids it.
 type MultipleBareIncludeBlocksErr struct{}
 
 func (err MultipleBareIncludeBlocksErr) Error() string {
 	return "Multiple bare include blocks (include blocks without label) is not supported."
 }
 
+// IncludeIsNotABlockErr reports an HCL JSON config whose `include` key is neither an array nor an object.
 type IncludeIsNotABlockErr struct {
 	parsed any
 }

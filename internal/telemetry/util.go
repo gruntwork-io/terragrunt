@@ -23,6 +23,8 @@ func mapToAttributes(data map[string]any) []attribute.KeyValue {
 			attrs = append(attrs, attribute.Float64(k, val))
 		case bool:
 			attrs = append(attrs, attribute.Bool(k, val))
+		case []string:
+			attrs = append(attrs, attribute.StringSlice(k, val))
 		default:
 			attrs = append(attrs, attribute.String(k, fmt.Sprintf("%v", val)))
 		}

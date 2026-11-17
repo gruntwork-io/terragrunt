@@ -1,6 +1,7 @@
 package list_test
 
 import (
+	"bytes"
 	"errors"
 	"io"
 	"os"
@@ -10,9 +11,12 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/list"
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/view/dag"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -57,7 +61,7 @@ func TestBasicDiscovery(t *testing.T) {
 
 	expectedPaths := []string{"unit1", "unit2", filepath.Join("nested", "unit4"), "stack1"}
 
-	tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+	tgOpts := options.NewTerragruntOptions()
 	tgOpts.WorkingDir = tmpDir
 
 	// Create options
@@ -77,7 +81,13 @@ func TestBasicDiscovery(t *testing.T) {
 
 	l.Formatter().SetDisabledColors(true)
 
-	err = list.Run(t.Context(), l, venvtest.NewOSWithEmptyEnv().WithWriter(writer), opts)
+	err = list.Run(
+		config.WithCaches(t.Context()),
+		l,
+		venvtest.NewOSWithEmptyEnv().WithWriter(writer),
+		new(rewrite.Store),
+		opts,
+	)
 	require.NoError(t, err)
 
 	// Close the write end of the pipe
@@ -115,12 +125,12 @@ func TestRunPropagatesAmbiguousConfigError(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(unitDir, "terragrunt.hcl"), []byte(""), 0644))
 	require.NoError(t, os.WriteFile(filepath.Join(unitDir, "terragrunt.hcl.json"), []byte("{}"), 0644))
 
-	tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+	tgOpts := options.NewTerragruntOptions()
 	tgOpts.WorkingDir = tmpDir
 
 	opts := list.NewOptions(tgOpts)
 
-	err := list.Run(t.Context(), logger.CreateLogger(), venvtest.NewOSWithEmptyEnv(), opts)
+	err := list.Run(t.Context(), logger.CreateLogger(), venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
 	require.Error(t, err)
 
 	var ambiguousErr discovery.AmbiguousConfigError
@@ -166,7 +176,7 @@ func TestHiddenDiscovery(t *testing.T) {
 		"stack1", filepath.Join(".hidden", "unit3"),
 	}
 
-	tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+	tgOpts := options.NewTerragruntOptions()
 	tgOpts.WorkingDir = tmpDir
 
 	l := logger.CreateLogger()
@@ -180,7 +190,7 @@ func TestHiddenDiscovery(t *testing.T) {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	err = list.Run(t.Context(), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), opts)
+	err = list.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), new(rewrite.Store), opts)
 	require.NoError(t, err)
 
 	// Close the write end of the pipe
@@ -239,7 +249,7 @@ dependency "unit2" {
 
 	expectedPaths := []string{"unit1", "unit2", "unit3"}
 
-	tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+	tgOpts := options.NewTerragruntOptions()
 	tgOpts.WorkingDir = tmpDir
 
 	l := logger.CreateLogger()
@@ -255,7 +265,7 @@ dependency "unit2" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	err = list.Run(t.Context(), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), opts)
+	err = list.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), new(rewrite.Store), opts)
 	require.NoError(t, err)
 
 	// Close the write end of the pipe
@@ -280,9 +290,8 @@ func TestDAGSortingReversedDependencies(t *testing.T) {
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
-	// Create test directory structure with dependencies:
-	// unit3 -> unit2
-	// unit2 -> unit1
+	// Create test directory structure where unit3 depends on unit2,
+	// which depends on unit1.
 	testDirs := []string{
 		"unit1",
 		"unit2",
@@ -314,7 +323,7 @@ dependency "unit3" {
 
 	expectedPaths := []string{"unit3", "unit2", "unit1"}
 
-	tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+	tgOpts := options.NewTerragruntOptions()
 	tgOpts.WorkingDir = tmpDir
 
 	l := logger.CreateLogger()
@@ -330,7 +339,7 @@ dependency "unit3" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	err = list.Run(t.Context(), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), opts)
+	err = list.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), new(rewrite.Store), opts)
 	require.NoError(t, err)
 
 	// Close the write end of the pipe
@@ -427,7 +436,7 @@ dependency "C" {
 
 	expectedPaths := []string{"A", "B", "C", "D", "E", "F"}
 
-	tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+	tgOpts := options.NewTerragruntOptions()
 	tgOpts.WorkingDir = tmpDir
 
 	l := logger.CreateLogger()
@@ -444,7 +453,7 @@ dependency "C" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	err = list.Run(t.Context(), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), opts)
+	err = list.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), new(rewrite.Store), opts)
 	require.NoError(t, err)
 
 	// Close the write end of the pipe
@@ -584,7 +593,7 @@ dependency "unit1" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	err = list.Run(t.Context(), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), opts)
+	err = list.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), new(rewrite.Store), opts)
 	require.NoError(t, err)
 
 	w.Close()
@@ -644,7 +653,7 @@ func TestDotFormatWithoutDependencies(t *testing.T) {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	err = list.Run(t.Context(), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), opts)
+	err = list.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), new(rewrite.Store), opts)
 	require.NoError(t, err)
 
 	w.Close()
@@ -717,7 +726,7 @@ dependency "unit2" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	err = list.Run(t.Context(), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), opts)
+	err = list.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), new(rewrite.Store), opts)
 	require.NoError(t, err)
 
 	w.Close()
@@ -795,7 +804,7 @@ dependency "unit2" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	err = list.Run(t.Context(), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), opts)
+	err = list.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), new(rewrite.Store), opts)
 	require.NoError(t, err)
 
 	w.Close()
@@ -866,7 +875,7 @@ dependency "unit1" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	err = list.Run(t.Context(), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), opts)
+	err = list.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), new(rewrite.Store), opts)
 	require.NoError(t, err)
 
 	w.Close()
@@ -933,7 +942,7 @@ exclude {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	err = list.Run(t.Context(), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), opts)
+	err = list.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), new(rewrite.Store), opts)
 	require.NoError(t, err)
 
 	w.Close()
@@ -1015,7 +1024,7 @@ dependency "unit3" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	err = list.Run(t.Context(), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), opts)
+	err = list.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), new(rewrite.Store), opts)
 	require.NoError(t, err)
 
 	w.Close()
@@ -1075,7 +1084,7 @@ dependency "zulu" {
 				"zulu/terragrunt.hcl": "",
 			})
 
-			tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+			tgOpts := options.NewTerragruntOptions()
 			tgOpts.WorkingDir = root
 			tgOpts.RootWorkingDir = root
 
@@ -1085,9 +1094,9 @@ dependency "zulu" {
 
 			var buf strings.Builder
 
-			v := venvtest.New().WithFS(fsys).WithWriter(&buf)
+			v := venv.MemVenv().WithFS(fsys).WithWriter(&buf)
 
-			require.NoError(t, list.Run(t.Context(), newTestLogger(t), v, opts))
+			require.NoError(t, list.Run(config.WithCaches(t.Context()), newTestLogger(t), v, new(rewrite.Store), opts))
 			assert.Equal(t, tc.wantOutput, buf.String())
 		})
 	}
@@ -1134,7 +1143,7 @@ dependency "zulu" {
 				"nested/zulu/terragrunt.hcl": "",
 			})
 
-			tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+			tgOpts := options.NewTerragruntOptions()
 			tgOpts.WorkingDir = root
 			tgOpts.RootWorkingDir = root
 
@@ -1145,9 +1154,9 @@ dependency "zulu" {
 
 			var buf strings.Builder
 
-			v := venvtest.New().WithFS(fsys).WithWriter(&buf)
+			v := venv.MemVenv().WithFS(fsys).WithWriter(&buf)
 
-			require.NoError(t, list.Run(t.Context(), newTestLogger(t), v, opts))
+			require.NoError(t, list.Run(config.WithCaches(t.Context()), newTestLogger(t), v, new(rewrite.Store), opts))
 			assert.Equal(t, tc.wantLabels, treeLabels(buf.String()))
 		})
 	}
@@ -1163,7 +1172,7 @@ func TestTextFormatGivesAWidePathItsOwnLine(t *testing.T) {
 		filepath.Join(widePathPrefix, "two", "terragrunt.hcl"): "",
 	})
 
-	tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+	tgOpts := options.NewTerragruntOptions()
 	tgOpts.WorkingDir = root
 	tgOpts.RootWorkingDir = root
 
@@ -1172,9 +1181,9 @@ func TestTextFormatGivesAWidePathItsOwnLine(t *testing.T) {
 
 	var buf strings.Builder
 
-	v := venvtest.New().WithFS(fsys).WithWriter(&buf)
+	v := venv.MemVenv().WithFS(fsys).WithWriter(&buf)
 
-	require.NoError(t, list.Run(t.Context(), newTestLogger(t), v, opts))
+	require.NoError(t, list.Run(config.WithCaches(t.Context()), newTestLogger(t), v, new(rewrite.Store), opts))
 
 	wantPaths := []string{
 		filepath.Join(widePathPrefix, "one"),
@@ -1212,7 +1221,7 @@ func TestRunRejectsUnsupportedOptions(t *testing.T) {
 			root := "/list-invalid"
 			fsys := venvtest.NewFS(t, root, map[string]string{"unit1/terragrunt.hcl": ""})
 
-			tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+			tgOpts := options.NewTerragruntOptions()
 			tgOpts.WorkingDir = root
 			tgOpts.RootWorkingDir = root
 
@@ -1223,9 +1232,9 @@ func TestRunRejectsUnsupportedOptions(t *testing.T) {
 
 			var buf strings.Builder
 
-			v := venvtest.New().WithFS(fsys).WithWriter(&buf)
+			v := venv.MemVenv().WithFS(fsys).WithWriter(&buf)
 
-			require.Error(t, list.Run(t.Context(), newTestLogger(t), v, opts))
+			require.Error(t, list.Run(config.WithCaches(t.Context()), newTestLogger(t), v, new(rewrite.Store), opts))
 			assert.Empty(t, buf.String())
 		})
 	}
@@ -1252,15 +1261,75 @@ func TestRunFailsWhenTheWriterFails(t *testing.T) {
 			root := "/list-writer"
 			fsys := venvtest.NewFS(t, root, map[string]string{"unit1/terragrunt.hcl": ""})
 
-			tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+			tgOpts := options.NewTerragruntOptions()
 			tgOpts.WorkingDir = root
 			tgOpts.RootWorkingDir = root
 
 			opts := list.NewOptions(tgOpts)
 			opts.Format = tc.format
 
-			v := venvtest.New().WithFS(fsys).WithWriter(failingWriter{})
-			require.ErrorIs(t, list.Run(t.Context(), newTestLogger(t), v, opts), errWriteFailed)
+			v := venv.MemVenv().WithFS(fsys).WithWriter(failingWriter{})
+			require.ErrorIs(
+				t,
+				list.Run(config.WithCaches(t.Context()), newTestLogger(t), v, new(rewrite.Store), opts),
+				errWriteFailed,
+			)
+		})
+	}
+}
+
+// TestRunDiscoveryProgress checks that unit discovery is drawn with a reporter and prints the same units without one.
+func TestRunDiscoveryProgress(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		reported bool
+	}{
+		{name: "reporter on the context", reported: true},
+		{name: "plain context"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := "/list-progress"
+			fsys := venvtest.NewFS(t, root, map[string]string{
+				"alpha/terragrunt.hcl": "",
+				"zulu/terragrunt.hcl":  "",
+			})
+
+			tgOpts := options.NewTerragruntOptions()
+			tgOpts.WorkingDir = root
+			tgOpts.RootWorkingDir = root
+
+			opts := list.NewOptions(tgOpts)
+			opts.Format = list.FormatLong
+
+			l := newTestLogger(t)
+			term := new(bytes.Buffer)
+
+			ctx := t.Context()
+			if tc.reported {
+				ctx = spinner.ContextWithReporter(ctx, drawingReporter(term))
+			}
+
+			var buf strings.Builder
+
+			v := venv.MemVenv().WithFS(fsys).WithWriter(&buf)
+			require.NoError(t, list.Run(ctx, l, v, new(rewrite.Store), opts))
+
+			assert.Equal(
+				t,
+				"Type  Path\nunit  alpha\nunit  zulu\n",
+				buf.String(),
+				"stdout is the same with and without a reporter",
+			)
+
+			if tc.reported {
+				assert.NotEmpty(t, term.String())
+			}
 		})
 	}
 }
@@ -1329,7 +1398,7 @@ exclude {
 		"plain/terragrunt.hcl": "",
 	})
 
-	tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+	tgOpts := options.NewTerragruntOptions()
 	tgOpts.WorkingDir = root
 	tgOpts.RootWorkingDir = root
 
@@ -1339,8 +1408,8 @@ exclude {
 
 	var buf strings.Builder
 
-	v := venvtest.New().WithFS(fsys).WithWriter(&buf)
-	require.NoError(t, list.Run(t.Context(), newTestLogger(t), v, opts))
+	v := venv.MemVenv().WithFS(fsys).WithWriter(&buf)
+	require.NoError(t, list.Run(config.WithCaches(t.Context()), newTestLogger(t), v, new(rewrite.Store), opts))
 
 	assert.Equal(t, []string{"kept", "plain"}, strings.Fields(buf.String()))
 }
@@ -1375,7 +1444,7 @@ exclude {
 `,
 	})
 
-	tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+	tgOpts := options.NewTerragruntOptions()
 	tgOpts.WorkingDir = root
 	tgOpts.RootWorkingDir = root
 
@@ -1387,8 +1456,8 @@ exclude {
 
 	var buf strings.Builder
 
-	v := venvtest.New().WithFS(fsys).WithWriter(&buf)
-	require.NoError(t, list.Run(t.Context(), newTestLogger(t), v, opts))
+	v := venv.MemVenv().WithFS(fsys).WithWriter(&buf)
+	require.NoError(t, list.Run(config.WithCaches(t.Context()), newTestLogger(t), v, new(rewrite.Store), opts))
 
 	assert.Equal(
 		t,
@@ -1402,4 +1471,14 @@ exclude {
 `,
 		buf.String(),
 	)
+}
+
+// drawingReporter returns a reporter that draws its progress line on term from the start.
+func drawingReporter(term io.Writer) *spinner.Reporter {
+	v := venv.MemVenv().WithErrWriter(term).WithEnv(map[string]string{"TERM": "xterm"}).WithGOOS("linux")
+	v.Terminal.StderrIsTTY = func() bool { return true }
+	v.Terminal.StderrHandlesEscapes = func() bool { return true }
+	v.Terminal.ErrWidth = func() int { return 120 }
+
+	return spinner.New(v, spinner.Options{LogsForHumans: true})
 }

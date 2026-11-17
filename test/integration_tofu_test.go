@@ -26,6 +26,8 @@ const (
 	testFixtureAutoProviderCacheDir = "fixtures/auto-provider-cache-dir"
 	testFixtureTfPathDependency     = "fixtures/tf-path/dependency"
 	testFixtureTofuHTTPEncryption   = "fixtures/tofu-http-encryption"
+
+	testFixtureTofuStateEncryptionMigration = "fixtures/tofu-state-encryption-migration"
 )
 
 func TestTofuAutoProviderCacheDirExperimentBasic(t *testing.T) {
@@ -111,6 +113,50 @@ func TestTofuTfPathRespectedForDependencies(t *testing.T) {
 	// Accept relative (./app, ./dep) or absolute paths; PWD in the script is set by the runner.
 	assert.Regexp(t, `Custom TF script used in .*[/\\]app.*!`, stderr)
 	assert.Regexp(t, `Custom TF script used in .*[/\\]dep.*!`, stderr)
+}
+
+// TestTofuStateEncryptionMigrateFromUnencrypted walks OpenTofu's pre-existing project migration:
+// apply with plaintext state, apply with an unencrypted fallback, then apply with encryption alone.
+func TestTofuStateEncryptionMigrateFromUnencrypted(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureTofuStateEncryptionMigration)
+	helpers.CleanupTerraformFolder(t, tmpEnvPath)
+	testPath := filepath.Join(tmpEnvPath, testFixtureTofuStateEncryptionMigration)
+	statePath := filepath.Join(testPath, "tofu.tfstate")
+
+	applyWith := func(t *testing.T, configFile string) {
+		t.Helper()
+
+		cmd := "terragrunt apply -auto-approve --non-interactive --working-dir " + testPath +
+			" --config " + filepath.Join(testPath, configFile)
+		_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+		require.NoError(t, err, "apply with %s failed:\n%s", configFile, stderr)
+	}
+
+	hasEncryptedData := func(t *testing.T) bool {
+		t.Helper()
+
+		content, err := os.ReadFile(statePath)
+		require.NoError(t, err)
+
+		var state map[string]any
+
+		require.NoError(t, json.Unmarshal(content, &state))
+
+		_, ok := state["encrypted_data"]
+
+		return ok
+	}
+
+	applyWith(t, "unencrypted.hcl")
+	require.False(t, hasEncryptedData(t), "state must start as plaintext")
+
+	applyWith(t, "migrate.hcl")
+	assert.True(t, hasEncryptedData(t), "the fallback apply must rewrite the state encrypted")
+
+	applyWith(t, "encrypted.hcl")
+	assert.True(t, hasEncryptedData(t))
 }
 
 // TestTofuHTTPBackendEncryptionDependencyFails tests that OpenTofu state encryption

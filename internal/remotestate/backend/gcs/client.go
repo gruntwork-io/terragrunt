@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/gcphelper"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -26,6 +27,7 @@ const (
 	gcpSleepBetweenRetries = 10 * time.Second
 )
 
+// Client is a GCS storage client paired with the remote state config it acts on.
 type Client struct {
 	*ExtendedRemoteStateConfigGCS
 	*storage.Client
@@ -150,7 +152,13 @@ func (client *Client) CreateGCSBucketWithVersioning(
 		return err
 	}
 
-	if err := client.WaitUntilGCSBucketExists(ctx, l, bucketName); err != nil {
+	err := spinner.ShowAfter(ctx, l, spinner.Messages{
+		Working: "Creating GCS bucket " + bucketName + "...",
+		Done:    "GCS bucket " + bucketName + " created",
+	}, func() error {
+		return client.WaitUntilGCSBucketExists(ctx, l, bucketName)
+	})
+	if err != nil {
 		return err
 	}
 
@@ -314,6 +322,7 @@ func (client *Client) DeleteGCSBucketIfNecessary(
 	)
 }
 
+// DeleteGCSBucket deletes the bucket and waits until GCS no longer reports it. The bucket must already be empty.
 func (client *Client) DeleteGCSBucket(ctx context.Context, l log.Logger, bucketName string) error {
 	bucket := client.Bucket(bucketName)
 
@@ -492,6 +501,8 @@ func (client *Client) DoesGCSObjectExist(
 	return true, nil
 }
 
+// DoesGCSObjectExistWithLogging returns the result of [Client.DoesGCSObjectExist] and logs a debug message when
+// the object is missing or inaccessible.
 func (client *Client) DoesGCSObjectExistWithLogging(
 	ctx context.Context,
 	l log.Logger,

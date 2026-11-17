@@ -7,6 +7,7 @@ import (
 	"os"
 )
 
+// RootFolder is the root of the drive holding the working directory.
 var RootFolder = retrieveRootFolder()
 
 func retrieveRootFolder() string {

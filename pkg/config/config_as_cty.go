@@ -63,6 +63,10 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 		output[MetadataErrors] = errorsConfigCty
 	}
 
+	if outputsConfigCty := outputsConfigAsCty(config.Outputs); outputsConfigCty != cty.NilVal {
+		output[MetadataOutputs] = outputsConfigCty
+	}
+
 	terraformConfigCty, err := terraformConfigAsCty(config.Terraform)
 	if err != nil {
 		return cty.NilVal, err
@@ -130,6 +134,15 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 		output[MetadataInputs] = inputsCty
 	}
 
+	variablesCty, err := variablesBlocksAsCty(config.Variables)
+	if err != nil {
+		return cty.NilVal, fieldError(MetadataVariables, err)
+	}
+
+	if variablesCty != cty.NilVal {
+		output[MetadataVariables] = variablesCty
+	}
+
 	localsCty, err := convertToCtyWithJSON(config.Locals)
 	if err != nil {
 		return cty.NilVal, fieldError(MetadataLocals, err)
@@ -151,6 +164,8 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 	return ConvertValuesMapToCtyVal(output)
 }
 
+// TerragruntConfigAsCtyWithMetadata converts config to the cty object `terragrunt render --with-metadata` prints. Each
+// field becomes an object of its value and the field metadata recording which file set it.
 func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, error) {
 	output := map[string]cty.Value{}
 
@@ -261,8 +276,23 @@ func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, err
 		return cty.NilVal, err
 	}
 
+	variablesCty, err := variablesBlocksAsCtyWithMetadata(config.Variables)
+	if err != nil {
+		return cty.NilVal, err
+	}
+
+	if variablesCty != cty.NilVal {
+		output[MetadataVariables] = variablesCty
+	}
+
 	if err := wrapCtyMapWithMetadata(config, &config.Locals, MetadataLocals, &output); err != nil {
 		return cty.NilVal, err
+	}
+
+	if outputsConfigCty := outputsConfigAsCty(config.Outputs); outputsConfigCty != cty.NilVal {
+		if err := wrapWithMetadata(config, outputsConfigCty, MetadataOutputs, &output); err != nil {
+			return cty.NilVal, err
+		}
 	}
 
 	// remder dependencies as list of maps with "value" and "metadata"
@@ -651,6 +681,16 @@ func terraformConfigAsCty(config *TerraformConfig) (cty.Value, error) {
 		val = ctyObjectAddField(val, "version", gostringToCty(*config.Version))
 	}
 
+	// Only include no_dot_terragrunt_cache when explicitly set, so rendered output for configs that do not use it
+	// stays unchanged.
+	if config.NoDotTerragruntCache != nil {
+		val = ctyObjectAddField(
+			val,
+			"no_dot_terragrunt_cache",
+			goboolToCty(*config.NoDotTerragruntCache),
+		)
+	}
+
 	return val, nil
 }
 
@@ -779,6 +819,44 @@ func errorsConfigAsCty(config *ErrorsConfig) (cty.Value, error) {
 	}
 
 	return ConvertValuesMapToCtyVal(output)
+}
+
+// outputsConfigAsCty returns the outputs block as an object with mock_strategy and the output blocks keyed by name.
+func outputsConfigAsCty(config *OutputsConfig) cty.Value {
+	if config == nil {
+		return cty.NilVal
+	}
+
+	output := map[string]cty.Value{}
+
+	if strategy := config.MockStrategy; strategy != nil {
+		strategyValues := map[string]cty.Value{}
+
+		if strategy.AllowedCommands != nil {
+			strategyValues["allowed_commands"] = stringListVal(*strategy.AllowedCommands)
+		}
+
+		if strategy.MergeWithState != nil {
+			strategyValues["merge_with_state"] = cty.StringVal(string(*strategy.MergeWithState))
+		}
+
+		output[MetadataMockStrategy] = cty.ObjectVal(strategyValues)
+	}
+
+	declarations := make(map[string]cty.Value, len(config.Outputs))
+
+	for _, declared := range config.Outputs {
+		values := map[string]cty.Value{}
+		if declared.MockValue != nil {
+			values["mock_value"] = *declared.MockValue
+		}
+
+		declarations[declared.Name] = cty.ObjectVal(values)
+	}
+
+	output[MetadataOutput] = cty.ObjectVal(declarations)
+
+	return cty.ObjectVal(output)
 }
 
 // ignoreBlocksAsCty returns the blocks as cty.TupleVal. gocty infers each

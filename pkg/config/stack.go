@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io/fs"
+	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
@@ -13,8 +14,12 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
+	"github.com/gruntwork-io/terragrunt/internal/hclhelper"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -236,6 +241,7 @@ func GenerateStackFile(
 		autoIncludes:    autoIncludes,
 		stackSrcBytes:   stackSrcBytes,
 		casEnabled:      cs.Enabled,
+		casOffline:      pctx.CASOffline,
 		casInstance:     cs.Instance,
 		strictControls:  pctx.StrictControls,
 		// One getter per stack, so every component shares its credential resolution.
@@ -259,12 +265,13 @@ func hasEnabledComponents(stackFile *StackConfig) bool {
 		slices.ContainsFunc(stackFile.Stacks, (*Stack).IsEnabled)
 }
 
-// ValidateStackAutoIncludes runs the strict autoinclude parse over the stack file at
-// stackFilePath without generating anything, so tooling such as `hcl validate` reports
-// the same autoinclude errors [GenerateStackFile] would raise. stackFile is the config
-// already parsed from stackFilePath via [ParseStackConfig]. It is a no-op when no unit
-// or stack declares autoinclude.
-func ValidateStackAutoIncludes(
+// StackAutoIncludes runs the strict autoinclude parse over the stack file at stackFilePath
+// without generating anything and returns the resolved autoincludes keyed by
+// [inthclparse.AutoIncludeKey], so tooling such as `hcl validate` reports the same
+// autoinclude errors [GenerateStackFile] would raise. stackFile is the config already
+// parsed from stackFilePath via [ParseStackConfig]. The result is nil when no unit or
+// stack declares autoinclude.
+func StackAutoIncludes(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
@@ -272,10 +279,10 @@ func ValidateStackAutoIncludes(
 	stackFilePath string,
 	stackFile *StackConfig,
 	values *cty.Value,
-) error {
-	_, _, err := resolveStackAutoIncludes(ctx, l, v, pctx, stackFilePath, stackFile, values)
+) (map[string]*inthclparse.AutoIncludeResolved, error) {
+	autoIncludes, _, err := resolveStackAutoIncludes(ctx, l, v, pctx, stackFilePath, stackFile, values)
 
-	return err
+	return autoIncludes, err
 }
 
 // resolveStackAutoIncludes runs the strict phased autoinclude parse over the stack file at
@@ -541,6 +548,7 @@ type generateOpts struct {
 	logShowAbsPaths bool
 	noStackValidate bool
 	casEnabled      bool
+	casOffline      bool
 }
 
 // generateUnits iterates through a slice of Unit objects, generating each one by copying
@@ -589,7 +597,9 @@ func generateUnits(
 					"unit_source": unit.Source,
 					"unit_path":   unit.Path,
 				}, func(ctx context.Context, l log.Logger) error {
-					return generateComponent(ctx, l, v, opts, &item)
+					return spinner.ShowAfter(ctx, l, generateMessages(opts, &item), func() error {
+						return generateComponent(ctx, l, v, opts, &item)
+					})
 				})
 		})
 	}
@@ -642,7 +652,9 @@ func generateStacks(
 					"stack_source": stack.Source,
 					"stack_path":   stack.Path,
 				}, func(ctx context.Context, l log.Logger) error {
-					return generateComponent(ctx, l, v, opts, &item)
+					return spinner.ShowAfter(ctx, l, generateMessages(opts, &item), func() error {
+						return generateComponent(ctx, l, v, opts, &item)
+					})
 				})
 		})
 	}
@@ -672,6 +684,25 @@ type componentToGenerate struct {
 	noValidation bool
 	mutable      bool
 	kind         componentKind
+}
+
+// generateMessages returns the progress messages for generating one unit or stack.
+func generateMessages(opts *generateOpts, cmp *componentToGenerate) spinner.Messages {
+	kindStr := "unit"
+	if cmp.kind == stackKind {
+		kindStr = "stack"
+	}
+
+	return spinner.Messages{
+		Working: fmt.Sprintf(
+			"Generating %s %s from %s...",
+			kindStr,
+			cmp.address,
+			util.RelPathForLog(opts.rootWorkingDir, opts.sourceFile, opts.logShowAbsPaths),
+		),
+		Done:    fmt.Sprintf("Generated %s %s", kindStr, cmp.address),
+		Started: true,
+	}
 }
 
 // resolveDestPath builds and validates the destination path for a generated component.
@@ -851,27 +882,13 @@ func generateComponent(
 	}
 
 	if err := writeValues(l, v.FS, cmp.values, dest); err != nil {
-		return fmt.Errorf("failed to write values %v %w", cmp.name, err)
+		return fmt.Errorf("failed to write values for %s %s: %w", kindStr, cmp.address, err)
 	}
 
 	return generateAutoInclude(l, v, opts, cmp, dest)
 }
 
-// fetchComponentSource handles the paths for fetching a component's source:
-//  1. cas:: protocol source: materialize the CAS tree directly. Must run before the CAS-backed
-//     branch so nested components already rewritten to cas:: are not re-fetched.
-//  2. Source with CAS enabled: attempt a CAS-backed fetch (remote clone or local copy into a
-//     temp overlay) and copy from its content dir. This fires automatically whenever the cas
-//     experiment is on, so catalog authors don't need consumers to opt in per-block. On most CAS
-//     failures (for example, CAS can't handle a go-getter query param like depth=1), we fall
-//     through to the standard getter. Configuration errors that can never succeed via CAS, such
-//     as an interpolated source on a block with update_source_with_cas = true, fail generation
-//     instead of falling through.
-//  3. Standard: local copy or remote getter.
-//
-// The update_source_with_cas attribute on a consumer block is a no-op under path 2. It only
-// matters inside catalog files, where the CAS walk uses it to decide which nested sources to
-// rewrite to cas:: references.
+// fetchComponentSource copies a component from its cas:: tree, the CAS when enabled, or the standard getter.
 func fetchComponentSource(
 	ctx context.Context,
 	l log.Logger,
@@ -881,8 +898,6 @@ func fetchComponentSource(
 	kindStr, source, dest string,
 ) error {
 	source = tf.RewriteLegacyGCSPublicSource(ctx, l, source, opts.strictControls)
-
-	isOCI := isOCISource(source)
 
 	if isCASProtocol(source) {
 		if !opts.casEnabled {
@@ -922,28 +937,18 @@ func fetchComponentSource(
 		return nil
 	}
 
-	// oci:// has no git remote, so the CAS clone can only fail; other non-git schemes still fall through to the getter.
-	if opts.casEnabled && !isOCI {
-		casErr := fetchViaCAS(ctx, l, v, opts, cmp.sourceDir, kindStr, source, dest)
+	if opts.casEnabled {
+		casErr := fetchViaCAS(ctx, l, v, opts, cmp, kindStr, source, dest)
 		if casErr == nil {
 			return nil
 		}
 
-		// Three failures must not fall back. A non-literal source on an
-		// update_source_with_cas block can never be rewritten by CAS, so the
-		// fallback would silently skip the rewrite the configuration asked
-		// for. CAS has the same problem when it cannot evaluate
-		// update_source_with_cas, since it cannot tell whether a rewrite was
-		// asked for. An offline miss would be filled by the standard getter
-		// over the network --cas-offline forbids.
-		if errors.Is(casErr, cas.ErrSourceNotLiteral) ||
-			errors.Is(casErr, cas.ErrUpdateSourceWithCASNotConstant) ||
-			errors.Is(casErr, cas.ErrCASOffline) {
+		if opts.casOffline || casFailureIsFinal(casErr) {
 			return fmt.Errorf("failed to fetch %s %q via CAS: %w", kindStr, cmp.name, casErr)
 		}
 
 		l.Warnf(
-			"CAS processing failed for %s %q: %v. Falling back to standard getter.",
+			"CAS processing failed for %s %q: %v. Falling back to standard getter; nested update_source_with_cas sources are not rewritten. Fix the source to restore the rewrite, or pass --no-cas to skip the CAS for every component.",
 			kindStr,
 			cmp.name,
 			casErr,
@@ -977,24 +982,33 @@ func fetchComponentSource(
 	return nil
 }
 
-// fetchViaCAS performs the CAS-backed fetch, rewrite, and copy for a stack component.
-// For remote sources the fetch is a CAS-backed git clone; for local sources it is a
-// copy into a temp overlay so rewrites do not mutate the caller's working tree.
+// fetchViaCAS clones, stages or copies a component through the CAS, rewrites it, and copies the result to dest.
 func fetchViaCAS(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	opts *generateOpts,
-	sourceDir, kindStr, source, dest string,
+	cmp *componentToGenerate,
+	kindStr, source, dest string,
 ) error {
-	resolvedSource := resolveLocalCASSource(v.FS, sourceDir, source)
-
-	result, err := opts.casInstance.ProcessStackComponent(ctx, l, v, resolvedSource, kindStr)
+	result, err := rewriteViaCAS(ctx, l, v, opts, cmp, kindStr, source)
 	if err != nil {
 		return err
 	}
 
 	defer result.Cleanup()
+
+	for i := range result.SourcesInsideStack {
+		if err := evaluateDetailControl(
+			ctx,
+			l,
+			opts.strictControls,
+			controls.CASSourceInsideStack,
+			CASSourceInsideStackError{Component: kindStr + " " + cmp.address, Block: &result.SourcesInsideStack[i]},
+		); err != nil {
+			return err
+		}
+	}
 
 	// A copy failure can leave partial content in dest, so reset it before
 	// falling through to the standard getter. ProcessStackComponent writes only
@@ -1018,6 +1032,48 @@ func fetchViaCAS(
 	}
 
 	return nil
+}
+
+// rewriteViaCAS rewrites the update_source_with_cas sources of a staged package, a git clone or a local copy.
+func rewriteViaCAS(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	opts *generateOpts,
+	cmp *componentToGenerate,
+	kindStr, source string,
+) (*cas.StackCASResult, error) {
+	pkg, ok := packageSource(v.FS, cmp.sourceDir, source)
+	if !ok {
+		resolvedSource := resolveLocalCASSource(v.FS, cmp.sourceDir, source)
+
+		return opts.casInstance.ProcessStackComponent(ctx, l, v, resolvedSource, kindStr, cas.WithMutable(cmp.mutable))
+	}
+
+	staged, err := stagePackage(ctx, l, v, opts, cmp, pkg)
+	if err != nil {
+		return nil, err
+	}
+
+	inside, err := opts.casInstance.ProcessStoredStackComponent(
+		ctx,
+		l,
+		v,
+		staged.root,
+		staged.contentDir,
+		staged.treeKey,
+	)
+	if err != nil {
+		staged.cleanup()
+
+		return nil, err
+	}
+
+	return &cas.StackCASResult{
+		ContentDir:         staged.contentDir,
+		Cleanup:            staged.cleanup,
+		SourcesInsideStack: inside,
+	}, nil
 }
 
 // resolveLocalCASSource normalizes a relative local source against sourceDir so
@@ -1045,6 +1101,132 @@ func resolveLocalCASSource(fsys vfs.FS, sourceDir, source string) string {
 	}
 
 	return abs
+}
+
+// packageSource returns the detected form of a remote source the staged CAS getter fetches whole.
+func packageSource(fsys vfs.FS, sourceDir, source string) (string, bool) {
+	basePath, _ := getter.SourceDirSubdir(source)
+	if isLocal(fsys, sourceDir, basePath) {
+		return "", false
+	}
+
+	detected, err := getter.Detect(source, "")
+	if err != nil {
+		return "", false
+	}
+
+	detectedBase, _ := getter.SourceDirSubdir(detected)
+
+	return detected, isPackageURL(detectedBase)
+}
+
+// stagedPackageSchemes are the forced prefixes the staged CAS getter serves; any other prefix takes the git path.
+var stagedPackageSchemes = map[string]bool{
+	getter.SchemeS3:    true,
+	getter.SchemeGCS:   true,
+	getter.SchemeHTTP:  true,
+	getter.SchemeHTTPS: true,
+	getter.SchemeHg:    true,
+	getter.SchemeSMB:   true,
+	getter.SchemeOCI:   true,
+}
+
+// isPackageURL reports whether a detected source is a staged forced getter, an oci reference, or an http archive.
+func isPackageURL(detected string) bool {
+	if forced, _ := getter.SplitForcedGetter(detected); forced != "" {
+		return stagedPackageSchemes[strings.ToLower(forced)]
+	}
+
+	u, err := url.Parse(detected)
+	if err != nil {
+		return false
+	}
+
+	switch strings.ToLower(u.Scheme) {
+	case getter.SchemeOCI:
+		return true
+	case getter.SchemeHTTP, getter.SchemeHTTPS:
+		return getter.IsArchiveURL(u)
+	}
+
+	return false
+}
+
+// stagedPackage is a remote package the CAS linked into a temp dir for the walk.
+type stagedPackage struct {
+	cleanup    func()
+	root       string
+	contentDir string
+	treeKey    string
+}
+
+// stagePackage fetches the whole package behind a non-git remote source through the CAS for the walk.
+func stagePackage(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	opts *generateOpts,
+	cmp *componentToGenerate,
+	source string,
+) (*stagedPackage, error) {
+	packageURL, subdir := getter.SourceDirSubdir(source)
+
+	tempDir, err := vfs.MkdirTemp(v.FS, "", "terragrunt-cas-stack-package-")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create temp dir for %s: %w", redact.NewURL(source), err)
+	}
+
+	cleanup := func() {
+		if rmErr := v.FS.RemoveAll(tempDir); rmErr != nil {
+			l.Warnf("cleanup error for %s: %v", tempDir, rmErr)
+		}
+	}
+
+	packageDir := filepath.Join(tempDir, "package")
+
+	casGetter := getter.NewCASGetter(
+		l,
+		opts.casInstance,
+		v,
+		&cas.CloneOptions{Mutable: cmp.mutable},
+		getter.WithDefaultGenericDispatch(
+			getter.WithDispatchLogger(l),
+			getter.WithDispatchFS(v.FS),
+			getter.WithDispatchVenv(v),
+			getter.WithOCIConfig(v),
+		),
+	)
+
+	client := &getter.Client{Getters: []getter.Getter{casGetter}}
+
+	if _, err := getter.Download(ctx, client, &getter.Request{Src: packageURL, Dst: packageDir}); err != nil {
+		cleanup()
+
+		return nil, StackPackageFetchError{Source: redact.NewURL(packageURL), Err: err}
+	}
+
+	staged := &stagedPackage{cleanup: cleanup, root: packageDir, contentDir: packageDir, treeKey: casGetter.TreeKey()}
+	if subdir == "" {
+		return staged, nil
+	}
+
+	selected, err := getter.SubdirGlob(packageDir, subdir)
+	if err != nil {
+		cleanup()
+
+		return nil, fmt.Errorf("failed to select subdir %q in %s: %w", subdir, redact.NewURL(packageURL), err)
+	}
+
+	rel, err := filepath.Rel(packageDir, selected)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		cleanup()
+
+		return nil, fmt.Errorf("%w: %q", cas.ErrSourceEscapesRepo, subdir)
+	}
+
+	staged.contentDir = selected
+
+	return staged, nil
 }
 
 // isCASProtocol checks if a source string uses the CAS protocol (cas::sha1:<hash>).
@@ -1123,18 +1305,6 @@ func copyFiles(
 	}
 
 	return nil
-}
-
-// isOCISource reports whether source is an oci reference, in the oci:// or oci:: form.
-func isOCISource(source string) bool {
-	// go-getter matches the forced token exactly, so only the URL scheme folds.
-	if strings.HasPrefix(source, getter.SchemeOCI+"::") {
-		return true
-	}
-
-	scheme, _, found := strings.Cut(source, "://")
-
-	return found && strings.EqualFold(scheme, getter.SchemeOCI)
 }
 
 // stackGetterOptions builds the getter options a component fetch needs, adding oci:// when enabled.
@@ -1597,7 +1767,17 @@ func decodeComponents(
 		return nil, nil, err
 	}
 
+	units, err = withValidValuesKeys(file, MetadataUnit, units)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	stacks, err := decodeStackBlocks(ctx, file, evalCtx)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	stacks, err = withValidValuesKeys(file, MetadataStack, stacks)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1669,6 +1849,148 @@ func decodeStackBlocks(
 	}
 
 	return stacks, nil
+}
+
+// componentValues is the values one unit or stack instance sets, with where they were set.
+type componentValues struct {
+	values     *cty.Value
+	blockLabel string
+	address    string
+}
+
+// valuesComponent is a unit or stack decoded from a stack file.
+type valuesComponent interface {
+	valuesOf() componentValues
+}
+
+func (u *Unit) valuesOf() componentValues {
+	return componentValues{values: u.Values, blockLabel: u.Name, address: componentAddress(u.Name, u.Expansion)}
+}
+
+func (s *Stack) valuesOf() componentValues {
+	return componentValues{values: s.Values, blockLabel: s.Name, address: componentAddress(s.Name, s.Expansion)}
+}
+
+// withValidValuesKeys returns components, decoded from the blockType blocks of file, without those whose values set a
+// top-level key that is not an HCL identifier. An attribute of terragrunt.values.hcl needs an identifier.
+//
+// Reports a diagnostic through file for each such key. A component is dropped even when the diagnostics handlers
+// swallow its diagnostics, as [hclparse.File.ExpandBlocks] drops a block whose diagnostics they swallow.
+func withValidValuesKeys[C valuesComponent](file *hclparse.File, blockType string, components []C) ([]C, error) {
+	valid := make([]C, 0, len(components))
+
+	for _, component := range components {
+		ok, err := valuesKeysValid(file, blockType, component.valuesOf())
+		if err != nil {
+			return nil, err
+		}
+
+		if ok {
+			valid = append(valid, component)
+		}
+	}
+
+	return valid, nil
+}
+
+// valuesKeysValid reports whether every top-level key of cv, set by a blockType block, is an HCL identifier.
+//
+// Reports a diagnostic through file for each key that is not one, on the key or, when the keys are computed, on the
+// values expression. Returns false with a nil error when the diagnostics handlers swallow the diagnostics.
+func valuesKeysValid(file *hclparse.File, blockType string, cv componentValues) (bool, error) {
+	var invalid []string
+
+	for _, key := range valuesKeys(cv.values) {
+		if !hclsyntax.ValidIdentifier(key) {
+			invalid = append(invalid, key)
+		}
+	}
+
+	if len(invalid) == 0 {
+		return true, nil
+	}
+
+	expr, err := valuesExpr(file, blockType, cv.blockLabel)
+	if err != nil {
+		return false, err
+	}
+
+	diags := make(hcl.Diagnostics, 0, len(invalid))
+
+	for _, key := range invalid {
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  "Invalid values key",
+			Detail: fmt.Sprintf(
+				"The %s %q sets the values key %q, which is not a valid identifier, "+
+					"so Terragrunt cannot write it to %s.",
+				blockType,
+				cv.address,
+				key,
+				valuesFile,
+			),
+			Subject: objectKeyRange(expr, key).Ptr(),
+		})
+	}
+
+	return false, file.HandleDiagnostics(diags)
+}
+
+// valuesKeys returns the top-level keys of values, or none when values is absent, null, unknown, or not an object or
+// map.
+func valuesKeys(values *cty.Value) []string {
+	if values == nil || values.IsNull() || !values.IsKnown() {
+		return nil
+	}
+
+	unmarked, _ := values.Unmark()
+
+	if ty := unmarked.Type(); !ty.IsObjectType() && !ty.IsMapType() {
+		return nil
+	}
+
+	keys := make([]string, 0, unmarked.LengthInt())
+
+	for it := unmarked.ElementIterator(); it.Next(); {
+		key, _ := it.Element()
+		keys = append(keys, key.AsString())
+	}
+
+	return keys
+}
+
+// valuesExpr returns the values expression of the blockType block labeled label in file.
+//
+// Panics when file has no such block setting values. A component that decoded values from file came from one.
+func valuesExpr(file *hclparse.File, blockType, label string) (hcl.Expression, error) {
+	content, _, diags := file.Body.PartialContent(&hcl.BodySchema{
+		Blocks: []hcl.BlockHeaderSchema{{Type: blockType, LabelNames: []string{"name"}}},
+	})
+	if diags.HasErrors() {
+		return nil, diags
+	}
+
+	for _, block := range content.Blocks {
+		if block.Labels[0] != label {
+			continue
+		}
+
+		attrs, _, diags := block.Body.PartialContent(&hcl.BodySchema{
+			Attributes: []hcl.AttributeSchema{{Name: MetadataValues}},
+		})
+		if diags.HasErrors() {
+			return nil, diags
+		}
+
+		attr, found := attrs.Attributes[MetadataValues]
+		if !found {
+			continue
+		}
+
+		return attr.Expr, nil
+	}
+
+	panic(fmt.Sprintf("no %s block labeled %q sets values in %s", blockType, label, file.ConfigPath))
 }
 
 // processStackConfigIncludes resolves include blocks during stack file parsing.
@@ -1891,6 +2213,8 @@ func stackName(s *Stack) string {
 }
 
 // writeValues generates and writes values to a terragrunt.values.hcl file in the specified directory.
+//
+// Panics when a top-level key of values is not an HCL identifier. [ParseStackConfig] rejects such a key first.
 func writeValues(l log.Logger, fsys vfs.FS, values *cty.Value, directory string) error {
 	if values == nil {
 		l.Debugf("No values to write in %s", directory)
@@ -1947,7 +2271,11 @@ func writeValues(l log.Logger, fsys vfs.FS, values *cty.Value, directory string)
 	sort.Strings(keys)
 
 	for _, key := range keys {
-		body.SetAttributeValue(key, valueMap[key])
+		if !hclsyntax.ValidIdentifier(key) {
+			panic(fmt.Sprintf("values key %q is not an HCL identifier, which ParseStackConfig rejects", key))
+		}
+
+		body.SetAttributeRaw(key, hclhelper.TokensForValue(valueMap[key]))
 	}
 
 	// CAS may materialize the target as a read-only hard link, so remove it before writing
@@ -2226,4 +2554,22 @@ func stackNameSet(stacks []*Stack) map[string]struct{} {
 	}
 
 	return names
+}
+
+// casFailureIsFinal reports whether a CAS failure is final: a fallback would repeat it or skip a required rewrite.
+func casFailureIsFinal(err error) bool {
+	var (
+		packageErr StackPackageFetchError
+		insideErr  CASSourceInsideStackError
+	)
+
+	return errors.As(err, &insideErr) ||
+		errors.Is(err, cas.ErrSourceNotLiteral) ||
+		errors.Is(err, cas.ErrUpdateSourceWithCASNotConstant) ||
+		errors.Is(err, cas.ErrCASOffline) ||
+		errors.Is(err, cas.ErrSourceEscapesRepo) ||
+		errors.Is(err, cas.ErrAbsoluteSource) ||
+		errors.Is(err, cas.ErrRewriteIncomplete) ||
+		errors.Is(err, getter.ErrSubdirNotResolved) ||
+		errors.As(err, &packageErr)
 }

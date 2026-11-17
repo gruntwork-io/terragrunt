@@ -137,6 +137,14 @@ jobs:
             tags: tf
             setup_scripts:
               - .github/scripts/setup/experiment-mode.sh
+              - .github/scripts/setup/smbclient.sh
+          - name: Config rewrite
+            os: ubuntu
+            target: ./...
+            tags: "tf,parse"
+            setup_scripts:
+              - .github/scripts/setup/config-rewrite.sh
+              - .github/scripts/setup/smbclient.sh
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
@@ -146,7 +154,7 @@ jobs:
       - name: "Setup Docker"
         if: runner.os == 'Linux'
         id: set-up-docker
-        uses: docker/setup-docker-action@2bf61fb9464cc67f0cbdeabed6aa0380accd1c70 # v5
+        uses: docker/setup-docker-action@7ec28a010822b4626af4874f9448a4b05ac6f3e5 # v5
 
       - name: "Save space on node"
         if: runner.os != 'Windows'
@@ -154,9 +162,9 @@ jobs:
 
       # install dependencies for the integration tests
       - name: Use mise to install dependencies
-        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
         with:
-          version: 2026.9.12
+          version: 2026.11.0
           cache_save: ${{ github.ref == 'refs/heads/main' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -237,7 +245,7 @@ jobs:
 
       - name: Upload Test Results (${{ matrix.integration.name }})
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: test-results-${{ matrix.integration.name }}
           path: |
@@ -246,7 +254,7 @@ jobs:
             rerun-report.txt
 
       - name: Display Test Results (${{ matrix.integration.name }})
-        uses: mikepenz/action-junit-report@b7b80d7ac5b1da46d6aaff9fb57ad50d8453bcb3 # v6
+        uses: mikepenz/action-junit-report@4a26df3e2ae132254ba12a53f65a388d0961e786 # v6
         if: always()
         with:
           report_paths: result.xml

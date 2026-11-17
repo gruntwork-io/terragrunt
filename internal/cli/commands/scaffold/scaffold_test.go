@@ -1,7 +1,6 @@
 package scaffold_test
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,7 +11,6 @@ import (
 	"github.com/gruntwork-io/boilerplate/variables"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/scaffold"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -115,9 +113,10 @@ func TestDefaultTemplateVariables(t *testing.T) {
 	require.NoError(t, err)
 
 	v := venvtest.NewWithOSFS()
+	ctx := config.WithCaches(t.Context())
 	pctx := configbridge.NewParsingContext(opts)
 	cfg, err := config.ReadTerragruntConfig(
-		t.Context(),
+		ctx,
 		l,
 		v,
 		pctx,
@@ -223,9 +222,10 @@ func TestDefaultTemplateUserValueOverridesTODO(t *testing.T) {
 	require.NoError(t, err)
 
 	v := venvtest.NewWithOSFS()
+	ctx := config.WithCaches(t.Context())
 	pctx := configbridge.NewParsingContext(opts)
 	cfg, err := config.ReadTerragruntConfig(
-		t.Context(),
+		ctx,
 		l,
 		v,
 		pctx,
@@ -437,7 +437,7 @@ catalog {
 			err = os.WriteFile(terragruntConfigPath, []byte(tc.terragruntConfig), 0644)
 			require.NoError(t, err)
 
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts := options.NewTerragruntOptions()
 			// Set CLI flags if specified in test case
 			if tc.cliNoShell != nil {
 				opts.NoShell = *tc.cliNoShell
@@ -460,7 +460,7 @@ catalog {
 			// First, verify catalog config parsing
 			v := venvtest.NewWithOSFS()
 			catalogPctx := configbridge.NewParsingContext(opts)
-			catalogCfg, err := config.ReadCatalogConfig(context.Background(), l, v, catalogPctx)
+			catalogCfg, err := config.ReadCatalogConfig(config.WithCaches(t.Context()), l, v, catalogPctx)
 			require.NoError(t, err)
 			require.NotNil(t, catalogCfg, tc.description)
 
@@ -545,7 +545,7 @@ catalog {
 	err := os.WriteFile(terragruntConfigPath, []byte(terragruntConfig), 0644)
 	require.NoError(t, err)
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.TerragruntConfigPath = terragruntConfigPath
 	opts.WorkingDir = workDir
 	opts.ScaffoldRootFileName = "terragrunt.hcl"
@@ -555,7 +555,7 @@ catalog {
 	// Parse the configuration
 	v := venvtest.NewWithOSFS()
 	catalogPctx := configbridge.NewParsingContext(opts)
-	catalogCfg, err := config.ReadCatalogConfig(context.Background(), l, v, catalogPctx)
+	catalogCfg, err := config.ReadCatalogConfig(config.WithCaches(t.Context()), l, v, catalogPctx)
 	require.NoError(t, err)
 	require.NotNil(t, catalogCfg)
 
@@ -585,7 +585,7 @@ catalog {
 	err := os.WriteFile(terragruntConfigPath, []byte(terragruntConfig), 0644)
 	require.NoError(t, err)
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.TerragruntConfigPath = terragruntConfigPath
 	opts.WorkingDir = workDir
 	opts.ScaffoldRootFileName = "terragrunt.hcl"
@@ -595,7 +595,7 @@ catalog {
 	// Parse the configuration
 	v := venvtest.NewWithOSFS()
 	catalogPctx := configbridge.NewParsingContext(opts)
-	catalogCfg, err := config.ReadCatalogConfig(context.Background(), l, v, catalogPctx)
+	catalogCfg, err := config.ReadCatalogConfig(config.WithCaches(t.Context()), l, v, catalogPctx)
 	require.NoError(t, err)
 	require.NotNil(t, catalogCfg)
 

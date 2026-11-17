@@ -126,7 +126,7 @@ func TestGitRunner_Diff(t *testing.T) {
 		runner := newMemRunner(t, staticResult(vexec.Result{ExitCode: 128})).WithWorkDir("/repo")
 
 		_, err := runner.Diff(t.Context(), "main", "feature")
-		require.ErrorIs(t, err, git.ErrCommandSpawn)
+		require.ErrorIs(t, err, git.ErrGitCommand)
 	})
 
 	t.Run("parse failure", func(t *testing.T) {

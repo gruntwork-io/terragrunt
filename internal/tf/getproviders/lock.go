@@ -218,6 +218,7 @@ func getExistingHashes(providerBlock *hclwrite.Block, provider Provider) ([]Hash
 				return nil, err
 			}
 
+			hashes = make([]Hash, 0, len(vals))
 			for _, val := range vals {
 				hashes = append(hashes, Hash(val))
 			}
@@ -297,7 +298,13 @@ func getAttributeValueAsSlice(attr *hclwrite.Attribute) ([]string, error) {
 // tokensForListPerLine builds a hclwrite.Tokens for a given hashes, but breaks the line for each element.
 func tokensForListPerLine(hashes []Hash) hclwrite.Tokens {
 	// The original TokensForValue implementation does not break line by line for hashes, so we build a token sequence by ourselves.
-	tokens := append(hclwrite.Tokens{},
+	const (
+		listDelimiterTokens = 3
+		tokensPerHashLine   = 5
+	)
+
+	tokens := make(hclwrite.Tokens, 0, listDelimiterTokens+tokensPerHashLine*len(hashes))
+	tokens = append(tokens,
 		&hclwrite.Token{Type: hclsyntax.TokenOBrack, Bytes: []byte{'['}},
 		&hclwrite.Token{Type: hclsyntax.TokenNewline, Bytes: []byte{'\n'}})
 

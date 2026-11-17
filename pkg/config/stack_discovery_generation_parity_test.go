@@ -335,7 +335,7 @@ unit "member" {
 func generateStackTree(t *testing.T, files map[string]string) *venv.Venv {
 	t.Helper()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 
 	for _, name := range []string{"main.tf", config.DefaultTerragruntConfigPath} {
 		require.NoError(t, vfs.WriteFile(

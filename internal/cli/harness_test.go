@@ -27,7 +27,7 @@ func runCLI(t *testing.T, v *venv.Venv, args ...string) (string, error) {
 	l := logger.CreateLogger()
 	l.Formatter().SetDisabledColors(true)
 
-	err := cli.NewApp(l, options.NewTerragruntOptions(v.Exec), v).
+	err := cli.NewApp(l, options.NewTerragruntOptions(), v).
 		Run(l, v, append([]string{"terragrunt"}, args...))
 
 	return out.String(), err
@@ -38,7 +38,7 @@ func runCLI(t *testing.T, v *venv.Venv, args ...string) (string, error) {
 func oneUnit(t *testing.T) *venv.Venv {
 	t.Helper()
 
-	return venvtest.New().WithFS(venvtest.NewFS(t, unitRoot, map[string]string{
+	return venv.MemVenv().WithFS(venvtest.NewFS(t, unitRoot, map[string]string{
 		"terragrunt.hcl": "",
 	}))
 }
@@ -51,7 +51,7 @@ var discoveryRoot = venvtest.Root("/components")
 func runDiscovery(t *testing.T, files map[string]string, args ...string) string {
 	t.Helper()
 
-	v := venvtest.New().WithFS(venvtest.NewFS(t, discoveryRoot, files))
+	v := venv.MemVenv().WithFS(venvtest.NewFS(t, discoveryRoot, files))
 
 	out, err := runCLI(t, v, append(args, "--no-color", "--working-dir", discoveryRoot)...)
 	require.NoError(t, err)

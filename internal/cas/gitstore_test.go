@@ -1,8 +1,10 @@
 package cas_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"io"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -15,7 +17,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/redact"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -188,6 +193,68 @@ func TestGitStoreEnsureRefLockReleaseAllowsWaiterToProceedWithRacing(t *testing.
 	require.NoError(t, repo2.Unlock())
 }
 
+// TestGitStoreEnsureRefLockWaitProgress checks that the lock wait is drawn with a reporter and hides the password.
+func TestGitStoreEnsureRefLockWaitProgress(t *testing.T) {
+	t.Parallel()
+
+	const password = "not-a-real-password"
+
+	tests := []struct {
+		name     string
+		reported bool
+	}{
+		{name: "run with a reporter", reported: true},
+		{name: "run without a reporter", reported: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			url := strings.Replace(startTestServer(t), "http://", "http://tester:"+password+"@", 1)
+			require.Contains(t, url, password, "the URL must reach the store carrying the password")
+
+			hash := resolveHead(t, url)
+			shownURL := redact.NewURL(url)
+
+			store, v, root := newTestGitStore(t)
+			require.NotEmpty(t, root)
+
+			gv := newTestGitStoreVenv(t, v)
+
+			holder, err := store.EnsureRef(t.Context(), logger.CreateLogger(), gv, shownURL, "main", hash, 0)
+			require.NoError(t, err)
+
+			released := unlockAfter(holder, 50*time.Millisecond)
+
+			ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+			defer cancel()
+
+			term := new(bytes.Buffer)
+
+			if tt.reported {
+				ctx = spinner.ContextWithReporter(ctx, drawingReporter(term))
+			}
+
+			logs := new(bytes.Buffer)
+			l := log.New(log.WithLevel(log.InfoLevel), log.WithOutput(util.NewSyncWriter(logs)))
+
+			waiter, err := store.EnsureRef(ctx, l, gv, shownURL, "main", hash, 0)
+			require.NoError(t, err)
+			require.NoError(t, <-released)
+			require.NoError(t, waiter.Unlock())
+
+			assert.Equal(t, holder.Path, waiter.Path)
+			assert.NotContains(t, logs.String(), password)
+			assert.NotContains(t, term.String(), password)
+
+			if tt.reported {
+				assert.NotEmpty(t, term.String())
+			}
+		})
+	}
+}
+
 func TestGitStoreEnsureRef_FetchFailureSurfacesError(t *testing.T) {
 	t.Parallel()
 
@@ -206,7 +273,7 @@ func TestGitStoreEnsureRef_FetchFailureSurfacesError(t *testing.T) {
 func TestNewGitStoreVenvRejectsNonOSFilesystem(t *testing.T) {
 	t.Parallel()
 
-	_, err := cas.NewGitStoreVenv(venvtest.New())
+	_, err := cas.NewGitStoreVenv(venv.MemVenv())
 	require.ErrorIs(t, err, cas.ErrGitStoreFSNotOS)
 }
 
@@ -242,4 +309,27 @@ func resolveHead(t *testing.T, url string) string {
 	require.NotEmpty(t, results)
 
 	return results[0].Hash
+}
+
+// unlockAfter unlocks repo after delay on the real clock, as a synctest bubble cannot wait on git or its server.
+func unlockAfter(repo *cas.GitStoreRepo, delay time.Duration) <-chan error {
+	released := make(chan error, 1)
+
+	go func() {
+		time.Sleep(delay)
+
+		released <- repo.Unlock()
+	}()
+
+	return released
+}
+
+// drawingReporter returns a reporter that draws its progress line on term from the start.
+func drawingReporter(term io.Writer) *spinner.Reporter {
+	v := venv.MemVenv().WithErrWriter(term).WithEnv(map[string]string{"TERM": "xterm"}).WithGOOS("linux")
+	v.Terminal.StderrIsTTY = func() bool { return true }
+	v.Terminal.StderrHandlesEscapes = func() bool { return true }
+	v.Terminal.ErrWidth = func() int { return 120 }
+
+	return spinner.New(v, spinner.Options{LogsForHumans: true})
 }

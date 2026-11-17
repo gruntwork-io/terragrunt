@@ -3,6 +3,8 @@ package options
 // ContentOptionName is the option name.
 const ContentOptionName = "content"
 
+// ContentOption is the `content` option. It replaces the text with its value
+// when the value is not empty.
 type ContentOption struct {
 	*CommonOption[string]
 }

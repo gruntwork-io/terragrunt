@@ -8,11 +8,13 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl/validate"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -126,7 +128,7 @@ func TestRunValidateInputsDoesNotLeakEnvBetweenUnits(t *testing.T) {
 		return vexec.Result{ExitCode: 127, Stderr: []byte("unexpected invocation: " + inv.Name)}
 	})
 
-	v := venvtest.New().WithExec(exec).WithFS(vfs.NewOSFS())
+	v := venv.MemVenv().WithExec(exec).WithFS(vfs.NewOSFS())
 	l := logger.CreateLogger()
 
 	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(tmpDir, "terragrunt.hcl"))
@@ -134,7 +136,7 @@ func TestRunValidateInputsDoesNotLeakEnvBetweenUnits(t *testing.T) {
 
 	opts.AuthProviderCmd = "fake-auth-provider"
 
-	err = validate.RunValidateInputs(t.Context(), l, v, opts)
+	err = validate.RunValidateInputs(config.WithCaches(t.Context()), l, v, new(rewrite.Store), opts)
 	require.Error(
 		t,
 		err,
@@ -154,12 +156,49 @@ func TestRunValidateInputsPassesWhenInputsDefined(t *testing.T) {
 
 	tmpDir := writeValidateInputsUnits(t, "inputs = {\n  region = \"eu-west-1\"\n}\n")
 
-	v := venvtest.New().WithFS(vfs.NewOSFS())
+	v := venv.MemVenv().WithFS(vfs.NewOSFS())
 	l := logger.CreateLogger()
 
 	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(tmpDir, "terragrunt.hcl"))
 	require.NoError(t, err)
 
-	err = validate.RunValidateInputs(t.Context(), l, v, opts)
+	err = validate.RunValidateInputs(config.WithCaches(t.Context()), l, v, new(rewrite.Store), opts)
 	require.NoError(t, err)
+}
+
+// TestRunValidateReportsOneParserDiagnosticPerRange expects one diagnostic for a parser cascade at one source range.
+func TestRunValidateReportsOneParserDiagnosticPerRange(t *testing.T) {
+	t.Parallel()
+
+	result := runValidate(t, &validateRun{files: map[string]string{
+		"app/terragrunt.hcl": "locals {\n  t =\n}\n",
+	}})
+
+	require.Error(t, result.err)
+	require.Len(t, result.diags, 1)
+	assert.Equal(t, "Invalid expression", result.diags[0].Summary)
+	require.NotNil(t, result.diags[0].Range)
+	assert.Equal(t, 2, result.diags[0].Range.Start.Line)
+}
+
+func TestRunValidateReportsValuesKeysThatAreNotIdentifiers(t *testing.T) {
+	t.Parallel()
+
+	result := runValidate(t, &validateRun{files: map[string]string{
+		"live/terragrunt.stack.hcl": `unit "app" {
+  source = "../app"
+  path   = "app"
+  values = {
+    "a b" = "space"
+  }
+}
+`,
+		"app/terragrunt.hcl": "",
+	}})
+
+	require.Error(t, result.err)
+	require.Len(t, result.diags, 1)
+	assert.Equal(t, "Invalid values key", result.diags[0].Summary)
+	require.NotNil(t, result.diags[0].Range)
+	assert.Equal(t, 5, result.diags[0].Range.Start.Line)
 }

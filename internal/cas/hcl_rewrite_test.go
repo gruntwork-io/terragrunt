@@ -558,3 +558,57 @@ stack "fn" {
 	assert.Contains(t, out, `"cas::sha256:abc"`)
 	assert.NotContains(t, out, `"../..//units/override"`)
 }
+
+// TestReadStackBlocks_DisabledBlocksLeftOut: a block whose enabled attribute evaluates to false is not read.
+func TestReadStackBlocks_DisabledBlocksLeftOut(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name    string
+		enabled string
+		source  string
+		kept    bool
+	}{
+		{name: "false", enabled: `false`, source: `"../units/service"`, kept: false},
+		{name: "true", enabled: `true`, source: `"../units/service"`, kept: true},
+		{name: "null", enabled: `null`, source: `"../units/service"`, kept: true},
+		{name: "false local", enabled: `local.no_cas`, source: `"../units/service"`, kept: false},
+		{name: "function call", enabled: `tobool("false")`, source: `"../units/service"`, kept: true},
+		{name: "false with non-literal source", enabled: `false`, source: `"../units/${local.use_cas}"`, kept: false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			input := []byte(updateSourceWithCASLocals + `
+unit "service" {
+  source = ` + tc.source + `
+  update_source_with_cas = true
+  enabled = ` + tc.enabled + `
+  path = "service"
+}
+
+unit "plain" {
+  source = "../units/plain"
+  path   = "plain"
+}
+`)
+
+			_, blocks, err := cas.ReadStackBlocks(input)
+			require.NoError(t, err)
+
+			names := make([]string, 0, len(blocks))
+			for _, block := range blocks {
+				names = append(names, block.Name)
+			}
+
+			want := []string{"plain"}
+			if tc.kept {
+				want = []string{"service", "plain"}
+			}
+
+			assert.Equal(t, want, names)
+		})
+	}
+}

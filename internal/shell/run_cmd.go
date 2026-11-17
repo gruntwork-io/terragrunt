@@ -226,7 +226,7 @@ func RunCommandWithOutput(
 		Collect(ctx, l, "run_"+filepath.Base(command), map[string]any{
 			"binary":      filepath.Base(command),
 			"binary_path": command,
-			"args":        fmt.Sprintf("%v", args),
+			"args":        args,
 			"dir":         commandDir,
 		}, func(ctx context.Context, l log.Logger) error {
 			runErr := runCommand(ctx, l, v, runOpts, RunCommandOptions{

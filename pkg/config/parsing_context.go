@@ -15,7 +15,6 @@ import (
 	pcoptions "github.com/gruntwork-io/terragrunt/internal/providercache/options"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
-	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
@@ -62,12 +61,11 @@ type ParsingContext struct {
 	DownloadDir                  string
 	Source                       string
 	TerraformCommand             string
-	OriginalTerraformCommand     string
+	OriginalTofuCommand          string
 	AuthProviderCmd              string
 	TFPath                       string
 	ScaffoldRootFileName         string
 	TerragruntStackConfigPath    string
-	TofuImplementation           tfimpl.Type
 
 	IAMRoleOptions         iam.RoleOptions
 	OriginalIAMRoleOptions iam.RoleOptions
@@ -75,6 +73,7 @@ type ParsingContext struct {
 	Experiments            experiment.Experiments
 	StrictControls         strict.Controls
 	PartialParseDecodeList []PartialDecodeSectionType
+	VersionManagerFileName []string
 
 	// Parser configures the HCL parsers this context builds.
 	Parser ParserSettings
@@ -116,7 +115,8 @@ type ParsingContext struct {
 	// the unit being parsed and prevents an autoinclude that includes another file from recursing.
 	SkipAutoIncludeMerge bool
 
-	// catalogOnly decodes only the catalog block, for [ReadCatalogConfig].
+	// catalogOnly decodes only the catalog block, for [ReadCatalogConfig], and
+	// runs run_cmd beside the root config when parsing the child it generates.
 	catalogOnly bool
 
 	// stubWorkingDirFunc makes get_working_dir return an empty string, for the parse
@@ -169,6 +169,7 @@ func (ctx *ParsingContext) Clone() *ParsingContext {
 	return &clone
 }
 
+// WithDecodeList returns a copy whose partial parses decode only the sections in decodeList.
 func (ctx *ParsingContext) WithDecodeList(decodeList ...PartialDecodeSectionType) *ParsingContext {
 	c := ctx.Clone()
 	c.PartialParseDecodeList = decodeList
@@ -176,6 +177,7 @@ func (ctx *ParsingContext) WithDecodeList(decodeList ...PartialDecodeSectionType
 	return c
 }
 
+// WithLocals returns a copy that exposes locals to expressions as `local`.
 func (ctx *ParsingContext) WithLocals(locals *cty.Value) *ParsingContext {
 	c := ctx.Clone()
 	c.Locals = locals
@@ -183,6 +185,7 @@ func (ctx *ParsingContext) WithLocals(locals *cty.Value) *ParsingContext {
 	return c
 }
 
+// WithValues returns a copy that exposes values to expressions as `values`.
 func (ctx *ParsingContext) WithValues(values *cty.Value) *ParsingContext {
 	c := ctx.Clone()
 	c.Values = values
@@ -198,6 +201,7 @@ func (ctx *ParsingContext) WithFeatures(features *cty.Value) *ParsingContext {
 	return c
 }
 
+// WithTrackInclude returns a copy that resolves includes and include functions against trackInclude.
 func (ctx *ParsingContext) WithTrackInclude(trackInclude *TrackInclude) *ParsingContext {
 	c := ctx.Clone()
 	c.TrackInclude = trackInclude
@@ -252,6 +256,8 @@ func (ctx *ParsingContext) WithFileReadTracking() *ParsingContext {
 	return c
 }
 
+// WithSkipOutputsResolution returns a copy for parses that do not fetch dependency outputs. A partial parse with no
+// decoded dependencies then evaluates `dependency` references to unknown values.
 func (ctx *ParsingContext) WithSkipOutputsResolution() *ParsingContext {
 	c := ctx.Clone()
 	c.SkipOutputsResolution = true
@@ -340,6 +346,19 @@ func (ctx *ParsingContext) WithDependencyConfigPath(
 	return l, c, nil
 }
 
+// ReadConfigChain returns the configs being parsed by nested read_terragrunt_config calls, outermost first, as
+// each config's path followed by the original config it is parsed under.
+func (ctx *ParsingContext) ReadConfigChain() []string {
+	const stringsPerFrame = 2
+
+	chain := make([]string, 0, stringsPerFrame*len(ctx.readConfigChain))
+	for _, frame := range ctx.readConfigChain {
+		chain = append(chain, frame.path, frame.originalPath)
+	}
+
+	return chain
+}
+
 // readConfigFrame is one config on the read_terragrunt_config chain. A dependency block or a stack
 // file is parsed under its own original config, so get_original_terragrunt_dir() can make the same
 // file evaluate differently. Only a file parsed again under the same original config is a cycle.
@@ -356,4 +375,21 @@ func readConfigChainPaths(chain []readConfigFrame, last readConfigFrame) []strin
 	}
 
 	return append(paths, last.path)
+}
+
+// forReadTarget returns a copy for parsing a config that read_terragrunt_config reads, without the evaluation state
+// of the config that reads it.
+//
+// The reading config's dependency outputs are not the target's, so the target decodes its own dependency blocks, and
+// dependency tracing reports that their outputs resolve (https://github.com/gruntwork-io/terragrunt/issues/5624). The
+// target evaluates its own locals and feature flags, and its include and feature blocks would otherwise see the
+// reading config's values.
+func (ctx *ParsingContext) forReadTarget() *ParsingContext {
+	c := ctx.Clone()
+	c.DecodedDependencies = nil
+	c.SkipOutputsResolution = false
+	c.Locals = nil
+	c.Features = nil
+
+	return c
 }

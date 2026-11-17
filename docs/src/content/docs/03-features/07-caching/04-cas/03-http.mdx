@@ -8,13 +8,15 @@ sidebar:
 
 ## Overview
 
-An HTTP source is identified by its URL. Terragrunt cannot key it by a content hash up front, so it asks the server for a validator (an `ETag` or `Last-Modified` value) and keys the cached tree by that validator, scoped to the URL.
+An HTTP source is identified by its URL. Unless the URL pins a `checksum=`, Terragrunt cannot key it by a content hash up front, so it asks the server for a validator (an `ETag` or `Last-Modified` value) and keys the cached tree by that validator, scoped to the URL.
 
 ## The cheap probe
 
 The probe Terragrunt uses to attempt to avoid fetching HTTP sources is a `HEAD` request to the source URL. Terragrunt reads the `ETag` header when present, falling back to `Last-Modified`. Whichever it finds becomes the cache key.
 
-[`go-getter`](https://github.com/hashicorp/go-getter/) consumes a few query parameters itself rather than forwarding them to the server (`archive`, `checksum`, and `filename`). Terragrunt strips these before the `HEAD` request, because probing with them attached would split cache entries that resolve to the same downloaded bytes.
+[`go-getter`](https://github.com/hashicorp/go-getter/) consumes a few query parameters itself rather than forwarding them to the server (`archive`, `checksum`, and `filename`). Terragrunt sends the `HEAD` request without them and keys the cached tree by the URL with `archive` and `filename` kept, so a raw download and an extracted one are stored apart.
+
+A `checksum=` pin replaces the probe. The cached tree is keyed by the URL and the checksum, so the first run downloads and verifies the content, and later runs link it from the store without a request. A `checksum=file:` reference has no key until the file is read, so Terragrunt downloads and verifies the source on every run, and fails under `--cas-offline`.
 
 ## Cache key & deduplication
 
@@ -36,4 +38,4 @@ Any network error, non-2xx response, or timeout makes the probe yield no key. Te
 
 ## Supported URL forms / refs
 
-`http://` and `https://` URLs are accepted. The go-getter magic parameters (`archive=`, `checksum=`, `filename=`) are honored on the download but ignored by the probe. `.netrc` credentials are honored on the download.
+`http://` and `https://` URLs are accepted. The go-getter magic parameters (`archive=`, `checksum=`, `filename=`) are honored on the download. The `HEAD` request carries none of them; the cache key keeps `archive=` and `filename=`, and a `checksum=` pin replaces the validator. `.netrc` credentials are honored on the download.

@@ -27,6 +27,9 @@ type ExpressionValue struct {
 	Statement string `json:"statement"`
 }
 
+// DescribeExpressionValues returns a statement about the value of each variable that hclDiag's expression
+// references, sorted by traversal. Sensitive values and values known only after apply appear only when the
+// diagnostic says they caused it.
 func DescribeExpressionValues(hclDiag *hcl.Diagnostic) []ExpressionValue {
 	var (
 		expr = hclDiag.Expression

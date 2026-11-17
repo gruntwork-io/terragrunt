@@ -11,11 +11,14 @@ const (
 	discoveryPath = "/.well-known"
 )
 
+// Endpointer is a controller that lists its endpoints in the service discovery document.
 type Endpointer interface {
 	// Endpoints returns controller endpoints.
 	Endpoints() map[string]any
 }
 
+// DiscoveryController serves the `/.well-known/terraform.json` service discovery document,
+// merged from the endpoints of each of its Endpointers.
 type DiscoveryController struct {
 	*router.Router
 

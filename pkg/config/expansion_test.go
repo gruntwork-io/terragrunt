@@ -6,11 +6,11 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -79,7 +79,7 @@ include "extra" {
 `), 0o644))
 
 	l := logger.CreateLogger()
-	v := venvtest.New()
+	v := venv.MemVenv()
 	ctx, pctx := newTestParsingContext(t, stackPath)
 	v.FS = fsys
 
@@ -188,7 +188,7 @@ dependency "vpc" {
 func TestDisabledExpandedDependencySkipsOutputRetrieval(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 
 	cfg, err := config.ParseConfigString(
@@ -295,7 +295,7 @@ dependency "shard" {
 func TestExpandedDependencyCarriesItsOwnOutputConfig(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 
 	cfg, err := config.ParseConfigString(
@@ -365,7 +365,7 @@ func TestJSONConfigExpandsDependencies(t *testing.T) {
 func TestUnknownBlockRemainsRejected(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 
 	_, err := config.ParseConfigString(
@@ -564,7 +564,7 @@ func TestDependencyCtyShapeExcludesExpansionMetadata(t *testing.T) {
 func TestDependencyOutputsAddressedByInstanceKey(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 
 	cfg, err := config.ParseConfigString(
@@ -640,7 +640,7 @@ inputs = {
 func TestDependencyOutputsRejectExpandedBlockWithoutKey(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 
 	_, err := config.ParseConfigString(
@@ -683,7 +683,7 @@ inputs = {
 func TestDependencyOutputsEncodeDivergentSchemasPerKey(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 
 	cfg, err := config.ParseConfigString(
@@ -729,7 +729,7 @@ inputs = {
 func TestDependencyInstanceKeysMatchAddressableKeys(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 
 	cfg, err := config.ParseConfigString(
@@ -814,7 +814,7 @@ inputs = {
 func TestDependencyOutputsAddressEmptyEachKey(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 
 	cfg, err := config.ParseConfigString(
@@ -857,7 +857,7 @@ inputs = {
 func TestDependencyLabelClaimedByBlockAndInstances(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 
 	_, err := config.ParseConfigString(
@@ -906,7 +906,7 @@ inputs = {
 func TestDependencyOutputsResolveUnknownWhenOutputsSkipped(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	pctx.SkipOutput = true
 	pctx.SkipOutputsResolution = true
@@ -941,7 +941,7 @@ inputs = {
 func TestDependencyInstancesAccumulateWithRacing(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 
 	cfg, err := config.ParseConfigString(
@@ -1180,7 +1180,7 @@ unit "app" {
 func TestPartialParseKeepsParsingPastABrokenExpansion(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 
 	forgiving := pctx.Parser
@@ -1221,7 +1221,7 @@ dependency "vpc" {
 func parseDependencyString(tb testing.TB, cfg string) (*config.TerragruntConfig, error) {
 	tb.Helper()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	ctx, pctx := newTestParsingContext(tb, config.DefaultTerragruntConfigPath)
 
 	return config.PartialParseConfigString(
@@ -1249,7 +1249,7 @@ func parseDependencyJSONString(
 ) (*config.TerragruntConfig, error) {
 	tb.Helper()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	ctx, pctx := newTestParsingContext(tb, jsonConfigPath)
 
 	return config.PartialParseConfigString(
@@ -1278,7 +1278,7 @@ func parseStackJSONString(tb testing.TB, cfg string) (*config.StackConfig, error
 func parseStackStringAt(tb testing.TB, path, cfg string) (*config.StackConfig, error) {
 	tb.Helper()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	ctx, pctx := newTestParsingContext(tb, path)
 
 	return config.ReadStackConfigString(

@@ -1,0 +1,27 @@
+---
+question: "How do I get the docs for my version of Terragrunt?"
+description: "Install the Terragrunt docs MCP server in your AI agent. It has the docs for every Terragrunt release from v0.80 onward, so the agent can answer for the version you run."
+order: 9
+---
+
+Install the [Terragrunt docs MCP server](/getting-started/install#terragrunt-docs-mcp-server) in your AI agent of choice. The docs site describes the latest release, but the MCP server has the docs ingested at every Terragrunt release from v0.80 onward. Tell the agent which version you run, and it answers from the docs for that version.
+
+For Claude Code:
+
+```bash
+claude mcp add -s user --transport http terragrunt-docs https://mcp.docs.terragrunt.com/mcp
+```
+
+For Cursor and other MCP clients that read an `mcp.json`, add the server URL:
+
+```json
+{
+  "mcpServers": {
+    "terragrunt-docs": { "url": "https://mcp.docs.terragrunt.com/mcp" }
+  }
+}
+```
+
+Run `terragrunt --version` if you are not sure which version you have.
+
+The server is in public beta. It is read-only, public, and needs no authentication, but it has no availability guarantee and might change significantly.

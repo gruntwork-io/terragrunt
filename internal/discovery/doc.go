@@ -23,7 +23,8 @@
 //   - [NewForDiscoveryCommand]: Creates a Discovery configured for discovery commands (find/list)
 //     with parse error suppression and cycle breaking enabled.
 //
-//   - [NewForHCLCommand]: Creates a Discovery for HCL commands (validate/format).
+//   - [NewFiltered]: Creates a Discovery that applies filters and a discovery boundary, for
+//     commands that act on the components it finds, such as hcl validate and render --all.
 //
 //   - [NewForStackGenerate]: Creates a Discovery for stack generate commands.
 //
@@ -85,7 +86,7 @@
 //		WithRelationships().
 //		WithMaxDependencyDepth(10)
 //
-//	components, err := d.Discover(ctx, logger, opts)
+//	components, err := d.Discover(ctx, logger, v, s, opts)
 //
 // # Thread Safety
 //

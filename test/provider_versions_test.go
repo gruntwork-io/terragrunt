@@ -24,22 +24,25 @@ import (
 // repository install. CI caches providers so registry outages don't fail runs, and one version per
 // provider keeps that cache small.
 var canonicalProviderVersions = map[string]string{
-	"datadog/datadog":      "3.85.0",
-	"hashicorp/aws":        "6.56.0",
-	"hashicorp/azurerm":    "4.58.0",
-	"hashicorp/consul":     "2.22.1",
-	"hashicorp/external":   "2.3.5",
-	"hashicorp/google":     "6.50.0",
-	"hashicorp/helm":       "3.1.1",
-	"hashicorp/kubernetes": "2.38.0",
-	"hashicorp/local":      "2.6.1",
-	"hashicorp/nomad":      "2.5.2",
-	"hashicorp/null":       "3.2.4",
-	"hashicorp/random":     "3.8.0",
-	"hashicorp/time":       "0.14.2",
-	"hashicorp/tls":        "4.1.0",
-	"hashicorp/vault":      "5.6.0",
-	"integrations/github":  "6.10.2",
+	"azure/azapi":           "2.13.0",
+	"azure/modtm":           "0.4.0",
+	"datadog/datadog":       "3.85.0",
+	"hashicorp/aws":         "6.56.0",
+	"hashicorp/azurerm":     "4.58.0",
+	"hashicorp/consul":      "2.22.1",
+	"hashicorp/external":    "2.3.5",
+	"hashicorp/google":      "6.50.0",
+	"hashicorp/google-beta": "6.50.0",
+	"hashicorp/helm":        "3.1.1",
+	"hashicorp/kubernetes":  "2.38.0",
+	"hashicorp/local":       "2.6.1",
+	"hashicorp/nomad":       "2.5.2",
+	"hashicorp/null":        "3.2.4",
+	"hashicorp/random":      "3.8.0",
+	"hashicorp/time":        "0.14.2",
+	"hashicorp/tls":         "4.1.0",
+	"hashicorp/vault":       "5.6.0",
+	"integrations/github":   "6.10.2",
 }
 
 // providerRule is one requirement TestProviderVersionsMatchCanonicalVersions places on
@@ -154,7 +157,14 @@ func TestProviderVersionsMatchCanonicalVersions(t *testing.T) {
 
 	for key, exemption := range providerVersionExemptions {
 		for _, rule := range exemption.rules {
-			assert.Contains(t, waived[key], rule, "%s is exempt from %s but nothing there breaks it; remove the exemption", key, rule)
+			assert.Contains(
+				t,
+				waived[key],
+				rule,
+				"%s is exempt from %s but nothing there breaks it; remove the exemption",
+				key,
+				rule,
+			)
 		}
 	}
 
@@ -179,7 +189,13 @@ func pinnedProvidersTF(sources ...string) string {
 		}
 
 		_, name, _ := strings.Cut(source, "/")
-		fmt.Fprintf(&b, "    %s = {\n      source  = %q\n      version = %q\n    }\n", name, openTofuRegistry+"/"+source, version)
+		fmt.Fprintf(
+			&b,
+			"    %s = {\n      source  = %q\n      version = %q\n    }\n",
+			name,
+			openTofuRegistry+"/"+source,
+			version,
+		)
 	}
 
 	b.WriteString("  }\n}\n\n")
@@ -546,7 +562,10 @@ func (d *providerDir) addLockFile(file string, src []byte) {
 
 	parsed, diags := hclsyntax.ParseConfig(src, file, hcl.InitialPos)
 	if diags.HasErrors() {
-		d.violations = append(d.violations, providerViolation{rule: ruleLockEntry, message: fmt.Sprintf("%s: %v", file, diags)})
+		d.violations = append(
+			d.violations,
+			providerViolation{rule: ruleLockEntry, message: fmt.Sprintf("%s: %v", file, diags)},
+		)
 
 		return
 	}
@@ -563,7 +582,10 @@ func (d *providerDir) addLockFile(file string, src []byte) {
 
 		version, err := stringValue(attr.Expr, nil)
 		if err != nil {
-			d.violations = append(d.violations, providerViolation{rule: ruleCanonicalVersion, message: fmt.Sprintf("%s: %v", file, err)})
+			d.violations = append(
+				d.violations,
+				providerViolation{rule: ruleCanonicalVersion, message: fmt.Sprintf("%s: %v", file, err)},
+			)
 
 			continue
 		}
@@ -760,11 +782,18 @@ func versionViolations(where, source, version string) []providerViolation {
 
 	canonical, known := canonicalProviderVersions[source]
 	if !known {
-		return []providerViolation{{rule: ruleCanonicalVersion, message: fmt.Sprintf("%s: %s has no entry in canonicalProviderVersions", where, source)}}
+		return []providerViolation{
+			{
+				rule:    ruleCanonicalVersion,
+				message: fmt.Sprintf("%s: %s has no entry in canonicalProviderVersions", where, source),
+			},
+		}
 	}
 
 	if strings.TrimSpace(strings.TrimPrefix(version, "=")) != canonical {
-		return []providerViolation{{rule: ruleCanonicalVersion, message: fmt.Sprintf("%s: %s is %q, want %q", where, source, version, canonical)}}
+		return []providerViolation{
+			{rule: ruleCanonicalVersion, message: fmt.Sprintf("%s: %s is %q, want %q", where, source, version, canonical)},
+		}
 	}
 
 	return nil

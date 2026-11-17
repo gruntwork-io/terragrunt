@@ -13,7 +13,6 @@ import (
 
 	"errors"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	dynamodbtypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
@@ -192,7 +191,7 @@ func assertTags(
 	// Access the dynamodb client directly from the S3 client
 	dynamoClient := client.GetDynamoDBClient()
 
-	var description, err = dynamoClient.DescribeTable(t.Context(), &dynamodb.DescribeTableInput{TableName: aws.String(tableName)})
+	var description, err = dynamoClient.DescribeTable(t.Context(), &dynamodb.DescribeTableInput{TableName: new(tableName)})
 	if err != nil {
 		require.NoError(t, err, "Unexpected error: %v", err)
 	}
@@ -263,7 +262,7 @@ func AssertCanWriteToTable(t *testing.T, tableName string, client *s3backend.Cli
 	dynamoClient := client.GetDynamoDBClient()
 
 	_, err := dynamoClient.PutItem(t.Context(), &dynamodb.PutItemInput{
-		TableName: aws.String(tableName),
+		TableName: new(tableName),
 		Item:      item,
 	})
 	require.NoError(t, err, "Unexpected error: %v", err)
@@ -341,7 +340,7 @@ func TestAWSCreateS3BucketWithTagsAtCreation(t *testing.T) {
 	s3Client := client.GetS3Client()
 
 	tagsOut, err := s3Client.GetBucketTagging(t.Context(), &s3.GetBucketTaggingInput{
-		Bucket: aws.String(bucketName),
+		Bucket: new(bucketName),
 	})
 	require.NoError(t, err)
 

@@ -3,6 +3,7 @@ package handlers_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"net/url"
 	"syscall"
@@ -13,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -142,4 +144,156 @@ func TestProviderHandlers_DiscoveryURL_WithNetworkMirrorForBlockedRegistry(t *te
 	urls, err := providerHandlers.DiscoveryURL(context.Background(), "blocked-registry.invalid")
 	require.NoError(t, err)
 	assert.Equal(t, handlers.DefaultRegistryURLs, urls)
+}
+
+func TestNewProviderHandlersBuildsHandlerPerMethod(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name    string
+		methods cliconfig.ProviderInstallationMethods
+		want    []string
+	}{
+		{
+			name: "every method gets a handler",
+			methods: cliconfig.ProviderInstallationMethods{
+				cliconfig.NewProviderInstallationFilesystemMirror("/mirror", nil, nil),
+				cliconfig.NewProviderInstallationNetworkMirror("https://mirror.example.com/providers/", nil, nil),
+				cliconfig.NewProviderInstallationDirect(nil, nil),
+			},
+			want: []string{
+				"filesystem_mirror '/mirror'",
+				"network_mirror 'https://mirror.example.com/providers/'",
+				"direct",
+			},
+		},
+		{
+			name: "direct handler is added when no method names it",
+			methods: cliconfig.ProviderInstallationMethods{
+				cliconfig.NewProviderInstallationFilesystemMirror("/mirror", nil, nil),
+			},
+			want: []string{"filesystem_mirror '/mirror'", "direct"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			providerHandlers, err := handlers.NewProviderHandlers(
+				&cliconfig.Config{ProviderInstallation: &cliconfig.ProviderInstallation{Methods: tc.methods}},
+				logger.CreateLogger(),
+				vhttp.NewNoNetworkClient(),
+				vfs.NewMemMapFS(),
+				map[string]string{},
+				[]string{"cache.example.com"},
+			)
+			require.NoError(t, err)
+
+			got := make([]string, 0, len(providerHandlers))
+			for _, handler := range providerHandlers {
+				got = append(got, fmt.Sprint(handler))
+			}
+
+			assert.Equal(t, tc.want, got)
+
+			for _, method := range tc.methods {
+				assert.Contains(
+					t,
+					excludesOf(t, method),
+					"cache.example.com/*/*",
+					"the cache server registries should be excluded from %s",
+					method,
+				)
+			}
+		})
+	}
+}
+
+func TestNewProviderHandlersInvalidNetworkMirror(t *testing.T) {
+	t.Parallel()
+
+	providerHandlers, err := handlers.NewProviderHandlers(
+		&cliconfig.Config{ProviderInstallation: &cliconfig.ProviderInstallation{
+			Methods: cliconfig.ProviderInstallationMethods{
+				cliconfig.NewProviderInstallationNetworkMirror("https://bad host/providers/", nil, nil),
+			},
+		}},
+		logger.CreateLogger(),
+		vhttp.NewNoNetworkClient(),
+		vfs.NewMemMapFS(),
+		map[string]string{},
+		nil,
+	)
+
+	var urlErr *url.Error
+
+	require.ErrorAs(t, err, &urlErr)
+	assert.Nil(t, providerHandlers)
+}
+
+func TestProviderHandlersSetDiscoveryURLCache(t *testing.T) {
+	t.Parallel()
+
+	providerHandlers, err := handlers.NewProviderHandlers(
+		&cliconfig.Config{ProviderInstallation: &cliconfig.ProviderInstallation{}},
+		logger.CreateLogger(),
+		vhttp.NewNoNetworkClient(),
+		vfs.NewMemMapFS(),
+		map[string]string{},
+		nil,
+	)
+	require.NoError(t, err)
+
+	custom := &handlers.RegistryURLs{
+		ModulesV1:   "https://custom.example.com/modules/",
+		ProvidersV1: "https://custom.example.com/providers/",
+	}
+	providerHandlers.SetDiscoveryURLCache("custom.example.com", custom)
+
+	urls, err := providerHandlers.DiscoveryURL(t.Context(), "custom.example.com")
+	require.NoError(t, err)
+	assert.Equal(t, custom, urls, "a preset registry should be answered without discovery")
+}
+
+func TestProviderHandlersDiscoveryURLWithoutMatchingHandler(t *testing.T) {
+	t.Parallel()
+
+	providerHandlers, err := handlers.NewProviderHandlers(
+		&cliconfig.Config{ProviderInstallation: &cliconfig.ProviderInstallation{
+			Methods: cliconfig.ProviderInstallationMethods{
+				cliconfig.NewProviderInstallationDirect(nil, []string{"registry.example.com/*/*"}),
+			},
+		}},
+		logger.CreateLogger(),
+		vhttp.NewNoNetworkClient(),
+		vfs.NewMemMapFS(),
+		map[string]string{},
+		nil,
+	)
+	require.NoError(t, err)
+
+	urls, err := providerHandlers.DiscoveryURL(t.Context(), "registry.example.com")
+	require.NoError(t, err)
+	assert.Equal(t, handlers.DefaultRegistryURLs, urls, "a registry no handler serves should get the default urls")
+}
+
+// excludesOf returns the exclude patterns of an installation method.
+func excludesOf(t *testing.T, method cliconfig.ProviderInstallationMethod) []string {
+	t.Helper()
+
+	var exclude *[]string
+
+	switch method := method.(type) {
+	case *cliconfig.ProviderInstallationDirect:
+		exclude = method.Exclude
+	case *cliconfig.ProviderInstallationFilesystemMirror:
+		exclude = method.Exclude
+	case *cliconfig.ProviderInstallationNetworkMirror:
+		exclude = method.Exclude
+	}
+
+	require.NotNil(t, exclude, "%s should have exclude patterns", method)
+
+	return *exclude
 }

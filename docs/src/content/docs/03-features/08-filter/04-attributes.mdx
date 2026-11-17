@@ -82,8 +82,8 @@ read the file `shared.hcl`. This hook is used by all native HCL functions that T
 
 Note, however, that there are certain scenarios where Terragrunt may not be able to track that a file has been read this way.
 
-For example, you may be using a bash script to read a file via [`run_cmd`](/reference/hcl/functions/#run_cmd), or reading the file via OpenTofu/Terraform code. To support these
-use-cases, the [`mark_as_read`](/reference/hcl/functions/#mark_as_read) function can be used to explicitly mark a file as read in the unit.
+For example, you may be using a bash script to read a file via [`run_cmd`](/reference/hcl/functions/run_cmd), or reading the file via OpenTofu/Terraform code. To support these
+use-cases, the [`mark_as_read`](/reference/hcl/functions/mark_as_read) function can be used to explicitly mark a file as read in the unit.
 
 That would look something like this:
 
@@ -104,9 +104,51 @@ Due to how Terragrunt parses configurations during `run --all`, functions will o
 Reading a file directly in the `inputs` attribute will not mark the file as read, as the `inputs` attribute is not parsed until after the queue has already been populated to support rendering of dependency outputs, which are only available after dependencies have been run.
 </Aside>
 
-To mark many files at once, use [`mark_glob_as_read`](/reference/hcl/functions/#mark_glob_as_read), which accepts a glob (with `**` support) and marks every matching file.
+To mark many files at once, use [`mark_glob_as_read`](/reference/hcl/functions/mark_glob_as_read), which accepts a glob (with `**` support) and marks every matching file.
 
 If a unit's `terraform` block points at a local module source, Terragrunt automatically marks that module's `*.tf`, `*.tf.json`, `*.hcl`, `*.tofu`, and `*.tofu.json` files as read. Reading-based filters cascade local module changes to every unit that consumes the module.
+
+### Files read by stacks
+
+A stack reads the files its `terragrunt.stack.hcl` file reads, so `reading=regions.yml` matches this stack:
+
+```hcl
+# terragrunt.stack.hcl
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+
+  values = {
+    regions = yamldecode(file("regions.yml"))
+  }
+}
+```
+
+Terragrunt tracks reads anywhere in a stack file and in the stack files it includes, except inside [`autoinclude`](/reference/hcl/blocks/autoinclude/) blocks.
+
+<Aside type="caution">
+A file read inside an `autoinclude` block is not marked as read. Terragrunt reads the file when it generates the stack and writes its content into the generated unit, so the unit does not read the file either. When the file changes, reading filters and Git filters do not regenerate the stack, and the unit keeps the old content. Read the file in `locals` and reference the local from the `autoinclude` block:
+
+```hcl
+# terragrunt.stack.hcl
+
+locals {
+  config = yamldecode(file("config.yml"))
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+
+  autoinclude {
+    inputs = {
+      message = local.config.message
+    }
+  }
+}
+```
+</Aside>
 
 ## Source-Based Expressions
 

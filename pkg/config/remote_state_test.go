@@ -20,7 +20,7 @@ func unitsVenv(t *testing.T, files map[string]string) (*venv.Venv, string) {
 
 	root := filepath.Join(venvtest.Root("/units"), t.Name())
 
-	return venvtest.New().WithFS(venvtest.NewFS(t, root, files)), root
+	return venv.MemVenv().WithFS(venvtest.NewFS(t, root, files)), root
 }
 
 // unitPairVenv builds a venv over a `bar` unit and a `foo` unit beside it, and returns it with the

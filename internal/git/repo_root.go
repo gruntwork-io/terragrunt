@@ -146,44 +146,60 @@ func GoRepoRoot(
 	}
 }
 
-// walkCeiling returns the deepest GIT_CEILING_DIRECTORIES entry the walk from
-// start must not ascend into, or "" when none applies. Git compares resolved
-// entries against a resolved starting directory, which is what [startDir]
-// produces. It drops entries that are not absolute, and reads a leading empty
-// entry as opting the rest out of symlink resolution.
+// walkCeiling returns the deepest GIT_CEILING_DIRECTORIES entry the walk from start must not ascend into, or "".
 func walkCeiling(fsys vfs.FS, env map[string]string, start string) string {
-	entries := filepath.SplitList(env[EnvNameGitCeilingDirectories])
-
-	resolve := true
-	if len(entries) > 0 && entries[0] == "" {
-		resolve = false
-		entries = entries[1:]
-	}
-
 	var deepest string
 
-	for _, entry := range entries {
+	blocked := resolvedCeiling
+
+	for _, entry := range filepath.SplitList(env[EnvNameGitCeilingDirectories]) {
+		if entry == "" {
+			blocked = keptCeiling
+
+			continue
+		}
+
 		if !filepath.IsAbs(entry) {
 			continue
 		}
 
-		ceiling := filepath.Clean(entry)
-		if resolve {
-			ceiling = vfs.ResolveForCompare(fsys, ceiling)
-		}
-
-		// Git tests ancestry, and no directory is its own ancestor, so an entry
-		// naming the starting directory does not block the walk beginning there.
-		if !isStrictAncestor(ceiling, start) {
-			continue
-		}
-
-		if len(ceiling) > len(deepest) {
+		if ceiling := blocked(fsys, entry, start); len(ceiling) > len(deepest) {
 			deepest = ceiling
 		}
 	}
 
 	return deepest
+}
+
+// resolvedCeiling returns the strict ancestor of start that an absolute entry blocks, or "" when it blocks none.
+func resolvedCeiling(fsys vfs.FS, entry, start string) string {
+	ceiling := vfs.ResolveForCompare(fsys, filepath.Clean(entry))
+	if !isStrictAncestor(ceiling, start) {
+		return ""
+	}
+
+	return ceiling
+}
+
+// keptCeiling returns the strict ancestor of start that a kept entry names, compared as written with forward slashes.
+func keptCeiling(_ vfs.FS, entry, start string) string {
+	prefix := strings.TrimSuffix(entry, "/")
+	if !isStrictSlashAncestor(prefix, filepath.ToSlash(start)) {
+		return ""
+	}
+
+	if len(prefix) == len(filepath.VolumeName(start)) {
+		return start[:len(prefix)] + string(filepath.Separator)
+	}
+
+	return start[:len(prefix)]
+}
+
+// isStrictSlashAncestor reports whether path sits strictly below ancestor, both written with forward slashes.
+func isStrictSlashAncestor(ancestor, path string) bool {
+	rest, ok := strings.CutPrefix(path, ancestor+"/")
+
+	return ok && rest != ""
 }
 
 // isStrictAncestor reports whether path sits strictly below ancestor.

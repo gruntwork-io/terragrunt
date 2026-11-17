@@ -20,6 +20,7 @@ func IsCommandExecutable(e vexec.Exec, ctx context.Context, command string, args
 	return vexec.Run(e, ctx, command, args...) == nil
 }
 
+// CmdOutput is the captured standard output and standard error of a command.
 type CmdOutput struct {
 	Stdout bytes.Buffer
 	Stderr bytes.Buffer
@@ -88,6 +89,7 @@ func (err *ProcessExecutionError) Error() string {
 	)
 }
 
+// ExitStatus returns the exit code of the failed command, as [GetExitCode] reads it from the wrapped error.
 func (err *ProcessExecutionError) ExitStatus() (int, error) {
 	return GetExitCode(err.Err)
 }

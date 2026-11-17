@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -18,12 +19,11 @@ import (
 const CommandName = "browse"
 
 // NewCommand returns the browse command, gated behind the browse-tui experiment.
-func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *clihelper.Command {
+func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *rewrite.Store) *clihelper.Command {
 	cmdOpts := NewOptions(opts)
-	prefix := flags.Prefix{CommandName}
-
-	cmdFlags := shared.NewFeatureFlags(opts, prefix)
-	cmdFlags = append(cmdFlags, shared.NewNoDiscoveryAuthProviderCmdFlag(opts, prefix))
+	cmdFlags := shared.NewFeatureFlags(opts, nil)
+	cmdFlags = append(cmdFlags, shared.NewNoDiscoveryAuthProviderCmdFlag(opts, nil))
+	flags.DeprecateEnvVarPrefix(cmdFlags, flags.Prefix{flags.TgPrefix, CommandName}, opts.StrictControls)
 
 	return &clihelper.Command{
 		Name:  CommandName,
@@ -37,7 +37,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *cl
 			return nil
 		},
 		Action: func(ctx context.Context, _ *clihelper.Context) error {
-			return Run(ctx, l, v, cmdOpts)
+			return Run(ctx, l, v, s, cmdOpts)
 		},
 	}
 }

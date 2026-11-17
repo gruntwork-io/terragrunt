@@ -7,10 +7,9 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -41,7 +40,7 @@ func TestRunCommandMemBackendWithRacing(t *testing.T) {
 
 	opts := shell.NewShellOptions(map[string]string{})
 
-	v := venvtest.New().WithExec(e).WithWriter(stdout).WithErrWriter(stderr)
+	v := venv.MemVenv().WithExec(e).WithWriter(stdout).WithErrWriter(stderr)
 
 	l := logger.CreateLogger()
 
@@ -79,7 +78,7 @@ func TestRunCommandRoutesStdoutAndStderrSeparately(t *testing.T) {
 
 	opts := shell.NewShellOptions(map[string]string{})
 
-	v := venvtest.New().WithExec(e).WithWriter(stdout).WithErrWriter(stderr)
+	v := venv.MemVenv().WithExec(e).WithWriter(stdout).WithErrWriter(stderr)
 
 	require.NoError(t, shell.RunCommand(t.Context(), logger.CreateLogger(), v, opts, "tool"))
 	assert.Contains(t, stdout.String(), "out-line", "subprocess stdout must reach Writer")
@@ -99,7 +98,7 @@ func TestRunCommandRoutesStdoutAndStderrSeparately(t *testing.T) {
 
 	// Same buffer for both writers: each line still appears, both in the shared buffer.
 	merged := &bytes.Buffer{}
-	mergedV := venvtest.New().WithExec(e).WithWriter(merged).WithErrWriter(merged)
+	mergedV := venv.MemVenv().WithExec(e).WithWriter(merged).WithErrWriter(merged)
 
 	require.NoError(t, shell.RunCommand(t.Context(), logger.CreateLogger(), mergedV, opts, "tool"))
 	assert.Contains(t, merged.String(), "out-line")
@@ -112,7 +111,7 @@ func TestRunCommandWithOutputPanicsOnNilShellOptions(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	v := venvtest.New()
+	v := venv.MemVenv()
 
 	assert.PanicsWithValue(t, shell.ErrShellOptionsNil, func() {
 		_, err := shell.RunCommandWithOutput(t.Context(), l, v, nil, "work", false, false, "tool")

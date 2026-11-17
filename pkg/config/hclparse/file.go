@@ -13,12 +13,14 @@ const (
 	multipleBlockDetailFmt = "Terragrunt currently does not support multiple %[1]s blocks in a single config. Consolidate to a single %[1]s block."
 )
 
+// File is a parsed config file bound to the [Parser] that parsed it.
 type File struct {
 	*Parser
 	*hcl.File
 	ConfigPath string
 }
 
+// Content returns the file's source text.
 func (file *File) Content() string {
 	return string(file.Bytes)
 }
@@ -115,6 +117,10 @@ func (file *File) Blocks(name string, isMultipleAllowed bool) ([]*Block, error) 
 	return extractedBlocks, nil
 }
 
+// JustAttributes returns the file's top-level attributes.
+//
+// Returns an error when the body holds a block or an attribute name is not a valid identifier, unless the parser's
+// diagnostics handlers drop it.
 func (file *File) JustAttributes() (Attributes, error) {
 	hclAttrs, diags := file.Body.JustAttributes()
 
@@ -131,6 +137,8 @@ func (file *File) JustAttributes() (Attributes, error) {
 	return attrs, nil
 }
 
+// HandleDiagnostics passes diags through the parser's diagnostics handlers and writer, and returns what the handlers
+// keep as an error. It returns nil when diags is empty or the handlers drop them.
 func (file *File) HandleDiagnostics(diags hcl.Diagnostics) error {
 	return file.handleDiagnostics(file, diags)
 }

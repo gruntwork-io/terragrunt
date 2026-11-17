@@ -7,7 +7,7 @@ import type { APIRoute } from 'astro';
 import { getCollection } from 'astro:content';
 import { entriesForVersion, groupByCategory, uniqueVersions } from '@lib/changelog';
 import { getLatestVersion } from '@lib/release';
-import { markdownDocument } from '@lib/page-to-markdown';
+import { markdownResponse } from '@lib/generated-pages';
 import { compareVersionsDesc, isReleased } from '@lib/versions';
 
 export const prerender = true;
@@ -45,12 +45,9 @@ export const GET: APIRoute = async () => {
 		`For all prior releases, see the [GitHub Releases Page](${RELEASES_URL}).`,
 	);
 
-	return new Response(
-		markdownDocument(
-			'Changelog',
-			'A log of notable changes to Terragrunt.',
-			sections.join('\n\n'),
-		),
-		{ headers: { 'Content-Type': 'text/markdown; charset=utf-8' } },
-	);
+	return markdownResponse({
+		title: 'Changelog',
+		description: 'A log of notable changes to Terragrunt.',
+		body: sections.join('\n\n'),
+	});
 };

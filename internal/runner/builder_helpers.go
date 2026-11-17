@@ -10,9 +10,11 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
@@ -129,6 +131,7 @@ func discoverWithRetry(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	opts *options.TerragruntOptions,
 	runnerOpts ...Option,
 ) (component.Components, error) {
@@ -137,12 +140,19 @@ func discoverWithRetry(
 	var discovered component.Components
 
 	err := doWithTelemetry(ctx, l, telemetryDiscovery, map[string]any{
-		"working_dir":       opts.WorkingDir,
-		"terraform_command": opts.TerraformCommand,
+		"working_dir":  opts.WorkingDir,
+		"tofu_command": opts.TofuCommand,
 	}, func(childCtx context.Context, l log.Logger) error {
-		var discoveryErr error
+		discoveryErr := spinner.ShowAfter(childCtx, l, spinner.Messages{
+			Working: "Discovering units...",
+			Done:    "Discovered units",
+		}, func() error {
+			var err error
 
-		discovered, discoveryErr = d.Discover(childCtx, l, v, opts)
+			discovered, err = d.Discover(childCtx, l, v, s, opts)
+
+			return err
+		})
 		if discoveryErr == nil {
 			l.Debugf("Runner pool discovery found %d configs", len(discovered))
 		}
@@ -166,7 +176,7 @@ func createRunner(
 
 	err := doWithTelemetry(ctx, l, telemetryCreation, map[string]any{
 		"discovered_configs": len(comps),
-		"terraform_command":  opts.TerraformCommand,
+		"tofu_command":       opts.TofuCommand,
 	}, func(childCtx context.Context, l log.Logger) error {
 		var err2 error
 
@@ -252,9 +262,7 @@ func CheckUnitVersionConstraints(
 		}
 	}
 
-	if !unitOpts.TFPathExplicitlySet && unitConfig.TerraformBinary != "" {
-		unitOpts.TFPath = unitConfig.TerraformBinary
-	}
+	unitOpts.SetTFPathFromConfig(unitConfig.TerraformBinary)
 
 	if unitLogger != nil {
 		l = unitLogger
@@ -267,11 +275,7 @@ func CheckUnitVersionConstraints(
 
 	unitOpts.EngineConfig = engineConfig
 
-	_, ver, impl, err := run.PopulateTFVersion(ctx, l, v, run.PopulateTFVersionInput{
-		TFOpts:       configbridge.TFRunOptsFromOpts(v.Env, unitOpts),
-		WorkingDir:   unitOpts.WorkingDir,
-		VersionFiles: unitOpts.VersionManagerFileName,
-	})
+	_, probe, err := configbridge.ProbeTF(ctx, l, v, unitOpts)
 	if err != nil {
 		return fmt.Errorf(
 			"failed to populate OpenTofu/Terraform version for unit %s: %w",
@@ -280,18 +284,15 @@ func CheckUnitVersionConstraints(
 		)
 	}
 
-	unitOpts.TerraformVersion = ver
-	unitOpts.TofuImplementation = impl
-
 	if err := run.CheckTerraformVersionMeetsConstraint(
 		l,
-		unitOpts.TerraformVersion,
-		unitOpts.TofuImplementation,
+		probe.Version,
+		probe.Type,
 		unitConfig.TerraformVersionConstraint,
 	); err != nil {
 		return fmt.Errorf(
 			"%s version check failed for unit %s: %w",
-			unitOpts.TofuImplementation.DisplayName(),
+			probe.Type.DisplayName(),
 			unit.DisplayPath(),
 			err,
 		)

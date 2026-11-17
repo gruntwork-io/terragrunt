@@ -64,6 +64,14 @@
     "order": 21
   },
   {
+    "id": "terraform-1.17.x",
+    "tool": "terraform",
+    "version": "1.17.x",
+    "terragrunt_min": "1.2.2",
+    "terragrunt_max": null,
+    "order": 21
+  },
+  {
     "id": "terraform-1.14.x",
     "tool": "terraform",
     "version": "1.14.x",

@@ -49,9 +49,14 @@ type sessionState int
 type button int
 
 const (
+	// ListState shows the tabbed list of discovered components.
 	ListState sessionState = iota
+	// PagerState shows the selected component's README with its action buttons.
 	PagerState
+	// FormState shows the form that collects the selected component's inputs.
 	FormState
+	// ScaffoldState renders nothing while the selected component is scaffolded
+	// or copied.
 	ScaffoldState
 )
 
@@ -62,6 +67,8 @@ const (
 
 var availableButtons = []button{scaffoldBtn, viewSourceBtn}
 
+// Model is the bubbletea model of the catalog browser that takes over from
+// the welcome screen once the first component arrives.
 type Model struct {
 	// ctx is the welcome layer's cancellable context. Long-running off-UI
 	// work (e.g. scaffold.Prepare downloading sources) propagates the

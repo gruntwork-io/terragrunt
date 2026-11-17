@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -472,7 +473,7 @@ func parseDependencyStateEligibilityFixture(
 		effectiveEnv = map[string]string{}
 	}
 
-	v := venvtest.New().
+	v := venv.MemVenv().
 		WithEnv(effectiveEnv).
 		WithExec(recorder.exec()).
 		WithHTTP(recorder.httpClient())
@@ -510,7 +511,7 @@ inputs = {
 	require.NoError(t, vfs.WriteFile(v.FS, consumerPath, []byte(consumer), 0o600))
 
 	ctx, pctx := newTestParsingContext(t, consumerPath)
-	ctx = config.WithConfigValues(ctx)
+	ctx = config.WithCaches(ctx)
 	pctx.OriginalTerragruntConfigPath = consumerPath
 	pctx.NoDependencyFetchOutputFromState = testCase.optOut
 

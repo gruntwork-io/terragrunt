@@ -7,6 +7,7 @@ import (
 )
 
 const (
+	// TFPathFlagName is the flag name for `--tf-path`, the path to the tofu or terraform binary.
 	TFPathFlagName = "tf-path"
 )
 

@@ -1,6 +1,7 @@
 package find_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"io"
@@ -11,9 +12,12 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/find"
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -502,7 +506,7 @@ locals {
 			// Setup test directory
 			tmpDir := tt.setup(t)
 
-			tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+			tgOpts := options.NewTerragruntOptions()
 			tgOpts.WorkingDir = tmpDir
 
 			l := logger.CreateLogger()
@@ -520,7 +524,13 @@ locals {
 			r, w, err := os.Pipe()
 			require.NoError(t, err)
 
-			err = find.Run(t.Context(), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), opts)
+			err = find.Run(
+				config.WithCaches(t.Context()),
+				l,
+				venvtest.NewOSWithEmptyEnv().WithWriter(w),
+				new(rewrite.Store),
+				opts,
+			)
 			if tt.format == "invalid" || tt.mode == "invalid" {
 				require.Error(t, err)
 				return
@@ -554,12 +564,12 @@ func TestRunPropagatesAmbiguousConfigError(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(unitDir, "terragrunt.hcl"), []byte(""), 0644))
 	require.NoError(t, os.WriteFile(filepath.Join(unitDir, "terragrunt.hcl.json"), []byte("{}"), 0644))
 
-	tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+	tgOpts := options.NewTerragruntOptions()
 	tgOpts.WorkingDir = tmpDir
 
 	opts := find.NewOptions(tgOpts)
 
-	err := find.Run(t.Context(), logger.CreateLogger(), venvtest.NewOSWithEmptyEnv(), opts)
+	err := find.Run(t.Context(), logger.CreateLogger(), venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
 	require.Error(t, err)
 
 	var ambiguousErr discovery.AmbiguousConfigError
@@ -592,7 +602,7 @@ dependency "target" {
 		require.NoError(t, err)
 	}
 
-	tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+	tgOpts := options.NewTerragruntOptions()
 	tgOpts.WorkingDir = tmpDir
 	tgOpts.RootWorkingDir = tmpDir
 
@@ -608,7 +618,7 @@ dependency "target" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	err = find.Run(t.Context(), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), opts)
+	err = find.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), new(rewrite.Store), opts)
 	require.NoError(t, err)
 
 	require.NoError(t, w.Close())
@@ -711,7 +721,7 @@ exclude {
 `,
 	})
 
-	tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+	tgOpts := options.NewTerragruntOptions()
 	tgOpts.WorkingDir = root
 	tgOpts.RootWorkingDir = root
 
@@ -722,8 +732,8 @@ exclude {
 
 	var buf strings.Builder
 
-	v := venvtest.New().WithFS(fsys).WithWriter(&buf)
-	require.NoError(t, find.Run(t.Context(), newTestLogger(t), v, opts))
+	v := venv.MemVenv().WithFS(fsys).WithWriter(&buf)
+	require.NoError(t, find.Run(config.WithCaches(t.Context()), newTestLogger(t), v, new(rewrite.Store), opts))
 
 	var found find.FoundComponents
 
@@ -754,15 +764,19 @@ func TestRunFailsWhenTheWriterFails(t *testing.T) {
 			root := "/find-writer"
 			fsys := venvtest.NewFS(t, root, map[string]string{"unit1/terragrunt.hcl": ""})
 
-			tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+			tgOpts := options.NewTerragruntOptions()
 			tgOpts.WorkingDir = root
 			tgOpts.RootWorkingDir = root
 
 			opts := find.NewOptions(tgOpts)
 			opts.Format = tc.format
 
-			v := venvtest.New().WithFS(fsys).WithWriter(failingWriter{})
-			require.ErrorIs(t, find.Run(t.Context(), newTestLogger(t), v, opts), errWriteFailed)
+			v := venv.MemVenv().WithFS(fsys).WithWriter(failingWriter{})
+			require.ErrorIs(
+				t,
+				find.Run(config.WithCaches(t.Context()), newTestLogger(t), v, new(rewrite.Store), opts),
+				errWriteFailed,
+			)
 		})
 	}
 }
@@ -794,7 +808,7 @@ func TestRunRejectsUnsupportedOptions(t *testing.T) {
 			root := "/find-invalid"
 			fsys := venvtest.NewFS(t, root, map[string]string{"unit1/terragrunt.hcl": ""})
 
-			tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+			tgOpts := options.NewTerragruntOptions()
 			tgOpts.WorkingDir = root
 			tgOpts.RootWorkingDir = root
 
@@ -805,10 +819,61 @@ func TestRunRejectsUnsupportedOptions(t *testing.T) {
 
 			var buf strings.Builder
 
-			v := venvtest.New().WithFS(fsys).WithWriter(&buf)
+			v := venv.MemVenv().WithFS(fsys).WithWriter(&buf)
 
-			require.Error(t, find.Run(t.Context(), newTestLogger(t), v, opts))
+			require.Error(t, find.Run(config.WithCaches(t.Context()), newTestLogger(t), v, new(rewrite.Store), opts))
 			assert.Empty(t, buf.String())
+		})
+	}
+}
+
+// TestRunDiscoveryProgress checks that unit discovery is drawn with a reporter and prints the same units without one.
+func TestRunDiscoveryProgress(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		reported bool
+	}{
+		{name: "reporter on the context", reported: true},
+		{name: "plain context"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := "/find-progress"
+			fsys := venvtest.NewFS(t, root, map[string]string{
+				"unit1/terragrunt.hcl": "",
+				"unit2/terragrunt.hcl": "",
+			})
+
+			tgOpts := options.NewTerragruntOptions()
+			tgOpts.WorkingDir = root
+			tgOpts.RootWorkingDir = root
+
+			opts := find.NewOptions(tgOpts)
+			opts.Format = find.FormatText
+
+			l := newTestLogger(t)
+			term := new(bytes.Buffer)
+
+			ctx := t.Context()
+			if tc.reported {
+				ctx = spinner.ContextWithReporter(ctx, drawingReporter(term))
+			}
+
+			var buf strings.Builder
+
+			v := venv.MemVenv().WithFS(fsys).WithWriter(&buf)
+			require.NoError(t, find.Run(ctx, l, v, new(rewrite.Store), opts))
+
+			assert.Equal(t, "unit1\nunit2\n", buf.String(), "stdout is the same with and without a reporter")
+
+			if tc.reported {
+				assert.NotEmpty(t, term.String())
+			}
 		})
 	}
 }
@@ -855,7 +920,7 @@ exclude {
 		"plain/terragrunt.hcl": "",
 	})
 
-	tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+	tgOpts := options.NewTerragruntOptions()
 	tgOpts.WorkingDir = root
 	tgOpts.RootWorkingDir = root
 
@@ -865,8 +930,144 @@ exclude {
 
 	var buf strings.Builder
 
-	v := venvtest.New().WithFS(fsys).WithWriter(&buf)
-	require.NoError(t, find.Run(t.Context(), newTestLogger(t), v, opts))
+	v := venv.MemVenv().WithFS(fsys).WithWriter(&buf)
+	require.NoError(t, find.Run(config.WithCaches(t.Context()), newTestLogger(t), v, new(rewrite.Store), opts))
 
 	assert.Equal(t, []string{"kept", "plain"}, strings.Fields(buf.String()))
+}
+
+// TestRunFileDependency pins how find reports a `dependency` whose `config_path` names a configuration
+// file: the dependency is a unit at the path of that file, so it is not the unit in the directory the
+// file is in, and a filter for the dependents of that directory does not reach the dependent.
+//
+// This is deprecated functionality: a file `config_path` is undocumented and deprecated behind the
+// dependency-config-path-file strict control. This output stays as it is for backwards compatibility
+// through Terragrunt 1.x, including the dependents it leaves out.
+func TestRunFileDependency(t *testing.T) {
+	t.Parallel()
+
+	const (
+		fileDependency = "dependency \"db\" {\n  config_path = \"../db/custom.hcl\"\n}\n"
+		dirDependency  = "dependency \"db\" {\n  config_path = \"../db\"\n}\n"
+	)
+
+	testCases := []struct {
+		files   map[string]string
+		name    string
+		queries []string
+		want    find.FoundComponents
+	}{
+		{
+			name: "file dependency is listed at the path of the file",
+			files: map[string]string{
+				"app/terragrunt.hcl": fileDependency,
+				"db/custom.hcl":      "",
+			},
+			want: find.FoundComponents{
+				{
+					Type:         component.UnitKind,
+					Path:         "app",
+					Dependencies: []string{filepath.Join("db", "custom.hcl")},
+				},
+			},
+		},
+		{
+			name: "dependency filter reaches the file",
+			files: map[string]string{
+				"app/terragrunt.hcl": fileDependency,
+				"db/custom.hcl":      "",
+			},
+			queries: []string{"{./app}..."},
+			want: find.FoundComponents{
+				{
+					Type:         component.UnitKind,
+					Path:         "app",
+					Dependencies: []string{filepath.Join("db", "custom.hcl")},
+				},
+				{Type: component.UnitKind, Path: filepath.Join("db", "custom.hcl")},
+			},
+		},
+		{
+			name: "file dependency is not the unit in its directory",
+			files: map[string]string{
+				"app/terragrunt.hcl": fileDependency,
+				"db/custom.hcl":      "",
+				"db/terragrunt.hcl":  "",
+			},
+			want: find.FoundComponents{
+				{
+					Type:         component.UnitKind,
+					Path:         "app",
+					Dependencies: []string{filepath.Join("db", "custom.hcl")},
+				},
+				{Type: component.UnitKind, Path: "db"},
+			},
+		},
+		{
+			name: "dependents filter on the directory misses a file dependency",
+			files: map[string]string{
+				"app/terragrunt.hcl": fileDependency,
+				"db/custom.hcl":      "",
+				"db/terragrunt.hcl":  "",
+			},
+			queries: []string{"...{./db}"},
+			want: find.FoundComponents{
+				{Type: component.UnitKind, Path: "db"},
+			},
+		},
+		{
+			name: "dependents filter on the directory reaches a directory dependency",
+			files: map[string]string{
+				"app/terragrunt.hcl": dirDependency,
+				"db/terragrunt.hcl":  "",
+			},
+			queries: []string{"...{./db}"},
+			want: find.FoundComponents{
+				{Type: component.UnitKind, Path: "app", Dependencies: []string{"db"}},
+				{Type: component.UnitKind, Path: "db"},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := venvtest.Root("/repo")
+			l := newTestLogger(t)
+
+			tgOpts := options.NewTerragruntOptions()
+			tgOpts.WorkingDir = root
+			tgOpts.RootWorkingDir = root
+
+			filters, err := filter.ParseFilterQueries(l, tc.queries)
+			require.NoError(t, err)
+
+			tgOpts.Filters = filters
+
+			opts := find.NewOptions(tgOpts)
+			opts.Format = find.FormatJSON
+			opts.Dependencies = true
+
+			var buf strings.Builder
+
+			v := venv.MemVenv().WithFS(venvtest.NewFS(t, root, tc.files)).WithWriter(&buf)
+			require.NoError(t, find.Run(config.WithCaches(t.Context()), l, v, new(rewrite.Store), opts))
+
+			var found find.FoundComponents
+
+			require.NoError(t, json.Unmarshal([]byte(buf.String()), &found))
+			assert.Equal(t, tc.want, found)
+		})
+	}
+}
+
+// drawingReporter returns a reporter that draws its progress line on term from the start.
+func drawingReporter(term io.Writer) *spinner.Reporter {
+	v := venv.MemVenv().WithErrWriter(term).WithEnv(map[string]string{"TERM": "xterm"}).WithGOOS("linux")
+	v.Terminal.StderrIsTTY = func() bool { return true }
+	v.Terminal.StderrHandlesEscapes = func() bool { return true }
+	v.Terminal.ErrWidth = func() int { return 120 }
+
+	return spinner.New(v, spinner.Options{LogsForHumans: true})
 }

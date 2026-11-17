@@ -10,10 +10,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -21,40 +20,40 @@ import (
 func TestGetTFVersionOpenTofu(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+	v := venv.MemVenv().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
 		assert.Equal(t, "tofu", inv.Name)
 		assert.Equal(t, []string{tf.FlagNameVersion}, inv.Args)
 
 		return vexec.Result{Stdout: []byte("OpenTofu v1.7.2\non darwin_arm64\n")}
 	})
 
-	_, ver, impl, err := run.GetTFVersion(
+	_, probe, err := run.GetTFVersion(
 		t.Context(),
 		logger.CreateLogger(),
 		v,
 		newVersionTFOptions("tofu"),
 	)
 	require.NoError(t, err)
-	assert.Equal(t, tfimpl.OpenTofu, impl)
-	assert.Equal(t, "1.7.2", ver.String())
+	assert.Equal(t, tfimpl.OpenTofu, probe.Type)
+	assert.Equal(t, "1.7.2", probe.Version.String())
 }
 
 func TestGetTFVersionTerraform(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New().WithHandler(func(_ context.Context, _ vexec.Invocation) vexec.Result {
+	v := venv.MemVenv().WithHandler(func(_ context.Context, _ vexec.Invocation) vexec.Result {
 		return vexec.Result{Stdout: []byte("Terraform v1.5.7\non linux_amd64\n")}
 	})
 
-	_, ver, impl, err := run.GetTFVersion(
+	_, probe, err := run.GetTFVersion(
 		t.Context(),
 		logger.CreateLogger(),
 		v,
 		newVersionTFOptions("terraform"),
 	)
 	require.NoError(t, err)
-	assert.Equal(t, tfimpl.Terraform, impl)
-	assert.Equal(t, "1.5.7", ver.String())
+	assert.Equal(t, tfimpl.Terraform, probe.Type)
+	assert.Equal(t, "1.5.7", probe.Version.String())
 }
 
 // TestGetTFVersionUnknownImplReportsUnknown pins that GetTFVersion reports
@@ -62,29 +61,29 @@ func TestGetTFVersionTerraform(t *testing.T) {
 func TestGetTFVersionUnknownImplReportsUnknown(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New().WithHandler(func(_ context.Context, _ vexec.Invocation) vexec.Result {
+	v := venv.MemVenv().WithHandler(func(_ context.Context, _ vexec.Invocation) vexec.Result {
 		return vexec.Result{Stdout: []byte("Custom-Fork v0.42.0\n")}
 	})
 
-	_, ver, impl, err := run.GetTFVersion(
+	_, probe, err := run.GetTFVersion(
 		t.Context(),
 		logger.CreateLogger(),
 		v,
 		newVersionTFOptions("custom-fork"),
 	)
 	require.NoError(t, err)
-	assert.Equal(t, tfimpl.Unknown, impl)
-	assert.Equal(t, "0.42.0", ver.String())
+	assert.Equal(t, tfimpl.Unknown, probe.Type)
+	assert.Equal(t, "0.42.0", probe.Version.String())
 }
 
 func TestGetTFVersionInvalidOutput(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New().WithHandler(func(_ context.Context, _ vexec.Invocation) vexec.Result {
+	v := venv.MemVenv().WithHandler(func(_ context.Context, _ vexec.Invocation) vexec.Result {
 		return vexec.Result{Stdout: []byte("not a version line\n")}
 	})
 
-	_, _, _, err := run.GetTFVersion(
+	_, _, err := run.GetTFVersion(
 		t.Context(),
 		logger.CreateLogger(),
 		v,
@@ -96,11 +95,11 @@ func TestGetTFVersionInvalidOutput(t *testing.T) {
 func TestGetTFVersionPropagatesExecError(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New().WithHandler(func(_ context.Context, _ vexec.Invocation) vexec.Result {
+	v := venv.MemVenv().WithHandler(func(_ context.Context, _ vexec.Invocation) vexec.Result {
 		return vexec.Result{ExitCode: 1, Stderr: []byte("binary missing\n")}
 	})
 
-	_, _, _, err := run.GetTFVersion(
+	_, _, err := run.GetTFVersion(
 		t.Context(),
 		logger.CreateLogger(),
 		v,
@@ -124,12 +123,12 @@ func TestGetTFVersionStripsTFCLIArgs(t *testing.T) {
 		"TF_CLI_ARGS_plan": "-refresh=false",
 	}
 
-	v := venvtest.New().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+	v := venv.MemVenv().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
 		observed.Store(append([]string(nil), inv.Env...))
 		return vexec.Result{Stdout: []byte("OpenTofu v1.7.2\n")}
 	}).WithEnv(env)
 
-	_, _, _, err := run.GetTFVersion(
+	_, _, err := run.GetTFVersion(
 		t.Context(),
 		logger.CreateLogger(),
 		v,

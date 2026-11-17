@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/browse"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -52,7 +52,7 @@ func TestRunUnwindsCleanlyWhenContextCancelledWithRacing(t *testing.T) {
 	done := make(chan error, 1)
 
 	go func() {
-		done <- browse.Run(ctx, logger.CreateLogger(), v, browse.NewOptions(opts))
+		done <- browse.Run(ctx, logger.CreateLogger(), v, new(rewrite.Store), browse.NewOptions(opts))
 	}()
 
 	select {
@@ -72,7 +72,13 @@ func TestRunWithoutTerminalFails(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(t.TempDir(), "terragrunt.hcl"))
 	require.NoError(t, err)
 
-	err = browse.Run(t.Context(), logger.CreateLogger(), venvtest.NewOSWithEmptyEnv(), browse.NewOptions(opts))
+	err = browse.Run(
+		t.Context(),
+		logger.CreateLogger(),
+		venvtest.NewOSWithEmptyEnv(),
+		new(rewrite.Store),
+		browse.NewOptions(opts),
+	)
 	require.ErrorIs(t, err, viewtui.ErrNoTerminal)
 }
 
@@ -81,8 +87,8 @@ func TestNewCommandIsNamedBrowse(t *testing.T) {
 
 	cmd := browse.NewCommand(
 		logger.CreateLogger(),
-		options.NewTerragruntOptions(vexec.NewOSExec()),
-		venvtest.NewOSWithEmptyEnv(),
+		options.NewTerragruntOptions(),
+		venvtest.NewOSWithEmptyEnv(), new(rewrite.Store),
 	)
 
 	require.NotNil(t, cmd)

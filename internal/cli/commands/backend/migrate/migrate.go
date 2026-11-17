@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -27,6 +28,7 @@ func Run(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	srcPath, dstPath string,
 	opts *options.TerragruntOptions,
 ) error {
@@ -46,7 +48,7 @@ func Run(
 
 	l.Debugf("Destination unit path %s", dstPath)
 
-	rnr, err := runner.New(ctx, l, v, opts)
+	rnr, err := runner.New(ctx, l, v, s, opts)
 	if err != nil {
 		return err
 	}
@@ -113,7 +115,7 @@ func Run(
 			ctx,
 			l,
 			srcV,
-			configbridge.RemoteStateOptsFromOpts(v.Env, srcOpts),
+			configbridge.RemoteStateOptsFromOpts(v.Exec, v.Env, srcOpts),
 		)
 		if err != nil && !errors.As(err, new(backend.BucketDoesNotExistError)) {
 			return err
@@ -130,8 +132,8 @@ func Run(
 	return srcRemoteState.Migrate(
 		ctx, l,
 		srcV, dstV,
-		configbridge.RemoteStateOptsFromOpts(v.Env, srcOpts),
-		configbridge.RemoteStateOptsFromOpts(v.Env, dstOpts),
+		configbridge.RemoteStateOptsFromOpts(v.Exec, v.Env, srcOpts),
+		configbridge.RemoteStateOptsFromOpts(v.Exec, v.Env, dstOpts),
 		dstRemoteState,
 	)
 }

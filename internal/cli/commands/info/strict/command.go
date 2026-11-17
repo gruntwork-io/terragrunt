@@ -18,13 +18,19 @@ import (
 )
 
 const (
+	// CommandName is the name of the `terragrunt info strict` command.
 	CommandName = "strict"
 
+	// ListCommandName is the name of the `terragrunt info strict list`
+	// subcommand.
 	ListCommandName = "list"
 
+	// ShowAllFlagName is the name of the flag that lists completed strict
+	// controls alongside active ones.
 	ShowAllFlagName = "all"
 )
 
+// NewListFlags returns the flags of `terragrunt info strict list`.
 func NewListFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelper.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 
@@ -37,6 +43,8 @@ func NewListFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelpe
 	}
 }
 
+// NewCommand returns the `terragrunt info strict` command, which groups the
+// list subcommand and prints help when run alone.
 func NewCommand(l log.Logger, opts *options.TerragruntOptions) *clihelper.Command {
 	return &clihelper.Command{
 		Name:  CommandName,
@@ -54,6 +62,11 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *clihelper.Comman
 	}
 }
 
+// ListAction returns the action of `terragrunt info strict list`. It lists the
+// active strict controls in opts, plus completed ones with --all. Given a
+// control name as its argument, it lists that control's subcontrols instead.
+//
+// The action returns an error when the named control is not among those listed.
 func ListAction(
 	opts *options.TerragruntOptions,
 ) func(ctx context.Context, cliCtx *clihelper.Context) error {

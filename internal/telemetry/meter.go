@@ -24,6 +24,7 @@ const (
 	oltpHTTPMetricsExporterType metricsExporterType = "otlpHttp"
 	grpcHTTPMetricsExporterType metricsExporterType = "grpcHttp"
 
+	// ErrorsCounter is the name of the counter incremented for every collected operation that returns an error.
 	ErrorsCounter = "errors"
 
 	readerInterval = 1 * time.Second
@@ -36,6 +37,7 @@ var (
 
 type metricsExporterType string
 
+// Meter records OpenTelemetry metrics and exports them through the configured exporter.
 type Meter struct {
 	otelmetric.Meter
 	provider *metric.MeterProvider
@@ -66,7 +68,7 @@ func NewMeter(
 	otel.SetMeterProvider(provider)
 
 	meter := &Meter{
-		Meter:    otel.GetMeterProvider().Meter(appName),
+		Meter:    provider.Meter(appName, otelmetric.WithInstrumentationVersion(appVersion)),
 		provider: provider,
 		exporter: exporter,
 	}

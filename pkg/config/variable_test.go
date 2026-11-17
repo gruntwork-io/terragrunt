@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -77,7 +78,7 @@ func TestParseVariablesIgnoresSubdirectories(t *testing.T) {
 
 	inputs, err := config.ParseVariables(
 		logger.CreateLogger(),
-		venvtest.New().WithFS(fsys),
+		venv.MemVenv().WithFS(fsys),
 		controls.New(),
 		moduleDir,
 	)
@@ -85,6 +86,55 @@ func TestParseVariablesIgnoresSubdirectories(t *testing.T) {
 
 	require.Len(t, inputs, 1)
 	assert.Equal(t, "root", inputs[0].Name)
+}
+
+func TestParseVariablesKeepsDefaultIntegersAboveFloat64Precision(t *testing.T) {
+	t.Parallel()
+
+	fsys := vfs.NewMemMapFS()
+	moduleDir := "/module"
+
+	require.NoError(t, fsys.MkdirAll(moduleDir, 0755))
+	require.NoError(
+		t,
+		vfs.WriteFile(
+			fsys,
+			filepath.Join(moduleDir, "main.tf"),
+			[]byte(`variable "account_id" {
+  default = 111111111111111111
+}
+
+variable "limits" {
+  default = {
+    ids = [9007199254740993]
+  }
+}
+`),
+			0644,
+		),
+	)
+
+	inputs, err := config.ParseVariables(
+		logger.CreateLogger(),
+		venv.MemVenv().WithFS(fsys),
+		controls.New(),
+		moduleDir,
+	)
+	require.NoError(t, err)
+
+	defaultByName := map[string]string{}
+	for _, input := range inputs {
+		defaultByName[input.Name] = input.DefaultValue
+	}
+
+	assert.Equal(
+		t,
+		map[string]string{
+			"account_id": "111111111111111111",
+			"limits":     `{"ids":[9007199254740993]}`,
+		},
+		defaultByName,
+	)
 }
 
 func TestScanDefaultVariables(t *testing.T) {

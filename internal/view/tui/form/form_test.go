@@ -1317,6 +1317,11 @@ func TestCtyValueAsHCLRoundTrips(t *testing.T) {
 		{name: "string", in: cty.StringVal("hello"), want: `"hello"`},
 		{name: "bool", in: cty.BoolVal(true), want: "true"},
 		{name: "number", in: cty.NumberIntVal(42), want: "42"},
+		{
+			name: "object with a for key",
+			in:   cty.ObjectVal(map[string]cty.Value{"for": cty.StringVal("x")}),
+			want: "{\n  \"for\" = \"x\"\n}",
+		},
 	}
 
 	for _, tc := range cases {

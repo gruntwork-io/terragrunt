@@ -9,7 +9,10 @@ import (
 )
 
 const (
-	CurDir              = "."
+	// CurDir is the relative path of the current directory.
+	CurDir = "."
+	// CurDirWithSeparator is [CurDir] followed by the OS path separator, the
+	// leading part of a relative path such as `./modules`.
 	CurDirWithSeparator = CurDir + string(os.PathSeparator)
 
 	// startASNISeq is the ANSI start escape sequence

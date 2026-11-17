@@ -33,13 +33,13 @@ func TestRunCommandTraceParentLeavesCallerEnvWithRacing(t *testing.T) {
 	t.Parallel()
 
 	recorder := &isolationExecRecorder{}
-	v := venvtest.New().
+	v := venv.MemVenv().
 		WithEnv(map[string]string{"CALLER": "value"}).
 		WithExec(recorder.exec())
 	want := maps.Clone(v.Env)
 
 	ctx, pctx := newTestParsingContext(t, venvtest.Root("/repo/unit/terragrunt.hcl"))
-	ctx = contextWithTraceParent(config.WithConfigValues(ctx))
+	ctx = contextWithTraceParent(config.WithCaches(ctx))
 	l := logger.CreateLogger()
 
 	const calls = 8
@@ -173,7 +173,7 @@ func prepareIsolationFixture(
 
 	consumerPath := venvtest.Root("/repo/consumer/terragrunt.hcl")
 
-	v := venvtest.New().
+	v := venv.MemVenv().
 		WithEnv(map[string]string{"CALLER": "value"}).
 		WithExec(recorder.exec())
 
@@ -229,7 +229,7 @@ terraform {
 	require.NoError(t, vfs.WriteFile(v.FS, consumerPath, []byte(consumer), 0o600))
 
 	ctx, pctx := newTestParsingContext(t, consumerPath)
-	ctx = config.WithConfigValues(ctx)
+	ctx = config.WithCaches(ctx)
 	pctx.OriginalTerragruntConfigPath = consumerPath
 	pctx.AuthProviderCmd = isolationAuthCmd
 

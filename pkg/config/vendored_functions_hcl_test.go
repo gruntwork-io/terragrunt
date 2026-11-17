@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/vendored/opentofu/upstream/lang/funcs"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -39,9 +40,9 @@ func TestHCLResolvesAVendoredOnlyFunction(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	v := venvtest.New().WithFS(memUnitFS(t, nil))
+	v := venv.MemVenv().WithFS(memUnitFS(t, nil))
 	ctx, pctx := newTestParsingContext(t, memConfigPath)
-	ctx = config.WithConfigValues(ctx)
+	ctx = config.WithCaches(ctx)
 
 	const hcl = `locals {
   encoded = urlencode("foo/bar")
@@ -57,11 +58,11 @@ func TestHCLFileReadsThroughTheVenv(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	v := venvtest.New().WithFS(memUnitFS(t, map[string]string{
+	v := venv.MemVenv().WithFS(memUnitFS(t, map[string]string{
 		"data.txt": "from the in-memory filesystem\n",
 	}))
 	ctx, pctx := newTestParsingContext(t, memConfigPath)
-	ctx = config.WithConfigValues(ctx)
+	ctx = config.WithCaches(ctx)
 
 	const hcl = `locals {
   data = file("data.txt")
@@ -77,11 +78,11 @@ func TestHCLTemplateFileReadsThroughTheVenv(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	v := venvtest.New().WithFS(memUnitFS(t, map[string]string{
+	v := venv.MemVenv().WithFS(memUnitFS(t, map[string]string{
 		"greeting.tmpl": "Hello, ${name}! ${urlencode(\"a/b\")}",
 	}))
 	ctx, pctx := newTestParsingContext(t, memConfigPath)
-	ctx = config.WithConfigValues(ctx)
+	ctx = config.WithCaches(ctx)
 
 	const hcl = `locals {
   greeting = templatefile("greeting.tmpl", { name = "world" })
@@ -97,9 +98,9 @@ func TestHCLBase64GzipUsesTheCurrentEncoder(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	v := venvtest.New().WithFS(memUnitFS(t, nil))
+	v := venv.MemVenv().WithFS(memUnitFS(t, nil))
 	ctx, pctx := newTestParsingContext(t, memConfigPath)
-	ctx = config.WithConfigValues(ctx)
+	ctx = config.WithCaches(ctx)
 
 	const hcl = `locals {
   encoded = base64gzip("test")

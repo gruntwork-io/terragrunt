@@ -1,0 +1,10 @@
+---
+version: "v1.2.1"
+category: "performance-improvements"
+---
+
+#### Faster discovery with path filters
+
+Terragrunt now analyzes `--filter` expressions before discovery starts and uses them to narrow the filesystem walk it does during discovery. Filters that name specific paths let Terragrunt skip most of the walk, or walk only the directories those paths can match.
+
+On a repository of 10,000 units, discovery with a filter like `--filter './doublestar/glob/**'`, matching 1,250 of those units, took 27 ms instead of 224 ms. A filter like `--filter './path/to/specific/unit'`, which names a single unit, took under 1 ms instead of 215 ms. Discovery selects the same units as before. It still walks the whole working directory when there is no filter, when every filter is negated, or when any filter can select a unit anywhere, such as `name=vpc` or `...vpc`.

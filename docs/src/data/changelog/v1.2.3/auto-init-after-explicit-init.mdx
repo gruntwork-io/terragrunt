@@ -1,0 +1,10 @@
+---
+version: "v1.2.3"
+category: "bug-fixes"
+---
+
+#### Auto-init no longer repeats an explicit `init` after a source change
+
+When the files of a local [`source`](/reference/hcl/blocks/terraform/) changed, running `terragrunt init` ran `init`, and the next command, e.g. `terragrunt plan`, ran it a second time.
+
+Terragrunt requests `init` after a source change by writing a `.terragrunt-init-required` file, and only auto-init removed it. An explicit `terragrunt init` now removes it too. See [Auto-init](/features/units/auto-init).

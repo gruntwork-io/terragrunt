@@ -2,5 +2,5 @@
 
 set -euo pipefail
 
-# Install Terraform 1.14.4
-.github/scripts/setup/terraform-switch.sh 1.14.4
+# Install Terraform 1.17.1
+.github/scripts/setup/terraform-switch.sh 1.17.1

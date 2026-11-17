@@ -6,8 +6,10 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/list"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -35,7 +37,7 @@ func TestNewCommandExposesTheListFlags(t *testing.T) {
 	t.Parallel()
 
 	cmd := list.NewCommand(
-		logger.CreateLogger(), options.NewTerragruntOptions(vexec.NewOSExec()), venvtest.New(),
+		logger.CreateLogger(), options.NewTerragruntOptions(), venv.MemVenv(), new(rewrite.Store),
 	)
 
 	assert.Equal(t, list.CommandName, cmd.Name)
@@ -106,7 +108,7 @@ func TestNewCommandBeforeResolvesTheFormat(t *testing.T) {
 			cmd := newListCommand(t, &buf)
 			require.NoError(t, cmd.Flags.Parse(clihelper.Args(tc.args), map[string]string{}))
 
-			err := cmd.Before(t.Context(), &clihelper.Context{})
+			err := cmd.Before(config.WithCaches(t.Context()), &clihelper.Context{})
 			if tc.wantErr {
 				require.Error(t, err)
 
@@ -119,7 +121,7 @@ func TestNewCommandBeforeResolvesTheFormat(t *testing.T) {
 			}
 
 			require.NoError(t, err)
-			require.NoError(t, cmd.Action(t.Context(), &clihelper.Context{}))
+			require.NoError(t, cmd.Action(config.WithCaches(t.Context()), &clihelper.Context{}))
 			assert.Equal(t, tc.wantOutput, buf.String())
 		})
 	}
@@ -158,8 +160,8 @@ func TestNewCommandBeforeResolvesTheMode(t *testing.T) {
 
 			cmd := newListCommand(t, &buf)
 			require.NoError(t, cmd.Flags.Parse(clihelper.Args(tc.args), map[string]string{}))
-			require.NoError(t, cmd.Before(t.Context(), &clihelper.Context{}))
-			require.NoError(t, cmd.Action(t.Context(), &clihelper.Context{}))
+			require.NoError(t, cmd.Before(config.WithCaches(t.Context()), &clihelper.Context{}))
+			require.NoError(t, cmd.Action(config.WithCaches(t.Context()), &clihelper.Context{}))
 			assert.Equal(t, tc.wantPaths, strings.Fields(buf.String()))
 		})
 	}
@@ -186,8 +188,8 @@ func TestNewCommandTreeFlagRendersATree(t *testing.T) {
 
 			cmd := newListCommand(t, &buf)
 			require.NoError(t, cmd.Flags.Parse(clihelper.Args(tc.args), map[string]string{}))
-			require.NoError(t, cmd.Before(t.Context(), &clihelper.Context{}))
-			require.NoError(t, cmd.Action(t.Context(), &clihelper.Context{}))
+			require.NoError(t, cmd.Before(config.WithCaches(t.Context()), &clihelper.Context{}))
+			require.NoError(t, cmd.Action(config.WithCaches(t.Context()), &clihelper.Context{}))
 			assert.Equal(t, []string{".", "alpha", "zulu"}, treeLabels(buf.String()))
 		})
 	}
@@ -221,7 +223,7 @@ func TestNewFlagsHiddenFlagRunsTheStrictControl(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+			tgOpts := options.NewTerragruntOptions()
 			if tc.strictMode {
 				require.NoError(
 					t,
@@ -229,10 +231,10 @@ func TestNewFlagsHiddenFlagRunsTheStrictControl(t *testing.T) {
 				)
 			}
 
-			flags := list.NewFlags(newTestLogger(t), list.NewOptions(tgOpts), venvtest.New(), nil)
+			flags := list.NewFlags(newTestLogger(t), list.NewOptions(tgOpts), venv.MemVenv())
 			require.NoError(t, flags.Parse(clihelper.Args(tc.args), map[string]string{}))
 
-			err := flags.RunActions(t.Context(), &clihelper.Context{})
+			err := flags.RunActions(config.WithCaches(t.Context()), &clihelper.Context{})
 			if tc.wantErr {
 				require.Error(t, err)
 
@@ -269,11 +271,11 @@ func TestNewFlagsExternalFlagAddsAGraphFilter(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			opts := list.NewOptions(options.NewTerragruntOptions(vexec.NewOSExec()))
+			opts := list.NewOptions(options.NewTerragruntOptions())
 
-			flags := list.NewFlags(newTestLogger(t), opts, venvtest.New(), nil)
+			flags := list.NewFlags(newTestLogger(t), opts, venv.MemVenv())
 			require.NoError(t, flags.Parse(clihelper.Args(tc.args), map[string]string{}))
-			require.NoError(t, flags.RunActions(t.Context(), &clihelper.Context{}))
+			require.NoError(t, flags.RunActions(config.WithCaches(t.Context()), &clihelper.Context{}))
 			assert.Len(t, opts.Filters, tc.wantFilters)
 		})
 	}
@@ -284,11 +286,11 @@ func newListCommand(t *testing.T, w *strings.Builder) *clihelper.Command {
 	t.Helper()
 
 	root := "/list-cli"
-	v := venvtest.New().WithFS(venvtest.NewFS(t, root, listCLIUnits)).WithWriter(w)
+	v := venv.MemVenv().WithFS(venvtest.NewFS(t, root, listCLIUnits)).WithWriter(w)
 
-	tgOpts := options.NewTerragruntOptions(vexec.NewOSExec())
+	tgOpts := options.NewTerragruntOptions()
 	tgOpts.WorkingDir = root
 	tgOpts.RootWorkingDir = root
 
-	return list.NewCommand(newTestLogger(t), tgOpts, v)
+	return list.NewCommand(newTestLogger(t), tgOpts, v, new(rewrite.Store))
 }

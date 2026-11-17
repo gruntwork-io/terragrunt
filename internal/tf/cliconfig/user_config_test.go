@@ -352,7 +352,7 @@ func userConfigVenv(home string, env map[string]string) *venv.Venv {
 		env = map[string]string{}
 	}
 
-	return venvtest.New().
+	return venv.MemVenv().
 		WithGOOS("linux").
 		WithUserHomeDir(func() (string, error) { return home, nil }).
 		WithEnv(env)

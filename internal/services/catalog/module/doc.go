@@ -33,8 +33,10 @@ var (
 type docDataKey byte
 type docTagName byte
 
+// DocRegs is a list of patterns that strip markup from README text.
 type DocRegs []*regexp.Regexp
 
+// Replace applies each pattern to str in order, replacing every match with its first capture group.
 func (regs DocRegs) Replace(str string) string {
 	for _, reg := range regs {
 		str = reg.ReplaceAllString(str, "$1")
@@ -43,6 +45,7 @@ func (regs DocRegs) Replace(str string) string {
 	return str
 }
 
+// Doc is a module's README, in Markdown or AsciiDoc, from which the catalog reads a title and description.
 type Doc struct {
 	tagCache         map[docDataKey]string
 	tagRegs          map[docTagName]*regexp.Regexp
@@ -53,6 +56,7 @@ type Doc struct {
 	tagStripRegs     DocRegs
 }
 
+// NewDoc returns a [Doc] for rawContent, parsed by the rules for fileExt (".md" or ".adoc").
 func NewDoc(rawContent, fileExt string) *Doc {
 	doc := &Doc{
 		rawContent: rawContent,
@@ -140,6 +144,9 @@ func NewDoc(rawContent, fileExt string) *Doc {
 	return doc
 }
 
+// FindDoc reads the README.md or README.adoc in dir, matched case-insensitively, preferring README.md.
+//
+// Returns an empty [Doc] when dir has neither file.
 func FindDoc(fsys vfs.FS, dir string) (*Doc, error) {
 	var filePath, fileExt string
 
@@ -182,6 +189,7 @@ func FindDoc(fsys vfs.FS, dir string) (*Doc, error) {
 	return NewDoc(rawContent, fileExt), nil
 }
 
+// Title returns the name from the frontmatter comment, or else the first H1 heading.
 func (doc *Doc) Title() string {
 	if title := doc.parseFrontmatter(docTitle); title != "" {
 		return title
@@ -190,6 +198,11 @@ func (doc *Doc) Title() string {
 	return doc.parseTag(docTitle)
 }
 
+// Description returns the description from the frontmatter comment, or else the text under the first H1 and H2
+// headings with markup stripped.
+//
+// A non-zero maxLenght cuts the description at the last sentence that ends within maxLenght characters. A first
+// sentence longer than maxLenght is kept whole.
 func (doc *Doc) Description(maxLenght int) string {
 	desc := doc.parseFrontmatter(docDescription)
 
@@ -225,6 +238,7 @@ func (doc *Doc) Description(maxLenght int) string {
 	return desc
 }
 
+// Content returns the README text, with markup stripped when stripTags is true.
 func (doc *Doc) Content(stripTags bool) string {
 	if !stripTags {
 		return doc.rawContent
@@ -233,6 +247,7 @@ func (doc *Doc) Content(stripTags bool) string {
 	return doc.parseTag(docContent)
 }
 
+// IsMarkDown reports whether the README is a Markdown file.
 func (doc *Doc) IsMarkDown() bool {
 	return doc.fileExt == mdExt
 }

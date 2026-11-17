@@ -3,6 +3,7 @@ package options
 // SuffixOptionName is the option name.
 const SuffixOptionName = "suffix"
 
+// SuffixOption is the `suffix` option. It appends its value to the text.
 type SuffixOption struct {
 	*CommonOption[string]
 }

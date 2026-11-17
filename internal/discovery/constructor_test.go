@@ -27,7 +27,7 @@ func TestNewForDiscoveryCommand_QueueConstructAs(t *testing.T) {
 	newForDiscoveryCommand := func(t *testing.T, queueConstructAs string) (*discovery.Discovery, error) {
 		t.Helper()
 
-		v := venvtest.New()
+		v := venv.MemVenv()
 
 		return discovery.NewForDiscoveryCommand(
 			logger.CreateLogger(),
@@ -314,7 +314,7 @@ func TestWorktreeBoundary(t *testing.T) {
 		},
 		{
 			name: "outside a git repository",
-			v: venvtest.New().WithFS(venvtest.NewFS(t, repoRoot, map[string]string{
+			v: venv.MemVenv().WithFS(venvtest.NewFS(t, repoRoot, map[string]string{
 				filepath.Join("live", ".keep"): "",
 			})),
 			opts:     discovery.StackGenerateOptions{WorkingDir: repoRoot, DiscoveryBoundary: liveDir},
@@ -449,7 +449,7 @@ func TestCheckWorktreeBoundaries(t *testing.T) {
 	to := venvtest.Root("/to")
 	other := venvtest.Root("/other")
 	// Git answers for a reference that is not checked out: main also holds live/tree-only.
-	v := venvtest.New().WithFS(venvtest.NewFS(t, venvtest.Root("/"), map[string]string{
+	v := venv.MemVenv().WithFS(venvtest.NewFS(t, venvtest.Root("/"), map[string]string{
 		filepath.Join("from", "live", "old", ".keep"): "",
 		filepath.Join("to", "live", "new", ".keep"):   "",
 		filepath.Join("other", "catalog", ".keep"):    "",

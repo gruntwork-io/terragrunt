@@ -1,0 +1,46 @@
+name: Weekly RFC Feedback Request
+
+on:
+  schedule:
+    # Every Wednesday at 15:00 UTC
+    - cron: '0 15 * * 3'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Log the message without posting it to Discord'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  request_feedback:
+    name: Request RFC Feedback
+    runs-on: ubuntu-slim
+    permissions:
+      contents: read
+      issues: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          sparse-checkout: .github/scripts
+
+      - name: Request RFC feedback
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        if: ${{ inputs.dry_run || env.WEBHOOK_URL != '' }}
+        env:
+          WEBHOOK_URL: ${{ secrets.RFC_FEEDBACK_WEBHOOK_URL }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        with:
+          script: |
+            const { default: requestFeedback } = require('./.github/scripts/rfc-feedback-request.ts');
+            await requestFeedback({
+              github,
+              context,
+              core,
+              fetch,
+              webhookUrl: process.env.WEBHOOK_URL,
+              dryRun: process.env.DRY_RUN === 'true',
+            });

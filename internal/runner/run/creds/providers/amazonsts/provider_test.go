@@ -15,16 +15,16 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/amazonsts"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 const (
-	baseAccessKeyID    = "AKIABASEKEYFORCACHE"
-	assumedAccessKeyID = "ASIAASSUMEDSESSION"
+	baseAccessKeyID    = "fake-base-access-key-id"
+	assumedAccessKeyID = "fake-assumed-session-key-id"
 	testRoleARNPrefix  = "arn:aws:iam::123456789012:role/cache-test-"
 )
 
@@ -44,7 +44,7 @@ func TestGetCredentialsReusesCacheWhenDurationUnset(t *testing.T) {
 	roleARN := testRoleARNPrefix + t.Name()
 	sts := newRecordingSTS(t, assumedAccessKeyID, time.Hour)
 
-	v := venvtest.New().
+	v := venv.MemVenv().
 		WithHTTP(sts.client).
 		WithEnv(map[string]string{
 			"AWS_REGION":            "us-east-1",
@@ -89,7 +89,7 @@ func TestGetCredentialsEmptyRoleARNIsNoop(t *testing.T) {
 		return vhttp.Respond(http.StatusInternalServerError, []byte("unexpected"), nil), nil
 	})
 
-	v := venvtest.New().WithHTTP(memHTTP).WithEnv(map[string]string{
+	v := venv.MemVenv().WithHTTP(memHTTP).WithEnv(map[string]string{
 		"AWS_REGION":            "us-east-1",
 		"AWS_ACCESS_KEY_ID":     baseAccessKeyID,
 		"AWS_SECRET_ACCESS_KEY": "base-secret",
@@ -112,7 +112,7 @@ func TestGetCredentialsPropagatesSTSFailure(t *testing.T) {
 		return vhttp.Respond(http.StatusForbidden, []byte("AccessDenied"), nil), nil
 	})
 
-	v := venvtest.New().WithHTTP(memHTTP).WithEnv(map[string]string{
+	v := venv.MemVenv().WithHTTP(memHTTP).WithEnv(map[string]string{
 		"AWS_REGION":            "us-east-1",
 		"AWS_ACCESS_KEY_ID":     baseAccessKeyID,
 		"AWS_SECRET_ACCESS_KEY": "base-secret",
@@ -134,8 +134,8 @@ func TestGetCredentialsUsesExplicitDurationCachesAcrossCalls(t *testing.T) {
 	t.Parallel()
 
 	ctx := testCtx(t)
-	sts := newRecordingSTS(t, "ASIAEXPLICITDURATION", 30*time.Minute)
-	v := venvtest.New().
+	sts := newRecordingSTS(t, "fake-explicit-duration-key-id", 30*time.Minute)
+	v := venv.MemVenv().
 		WithHTTP(sts.client).
 		WithEnv(map[string]string{
 			"AWS_REGION":            "us-east-1",
@@ -159,7 +159,7 @@ func TestGetCredentialsUsesExplicitDurationCachesAcrossCalls(t *testing.T) {
 	require.NotNil(t, second)
 	assert.Equal(t, int64(1), sts.calls.Load())
 	assert.Equal(t, providers.AWSCredentials, second.Name)
-	assert.Equal(t, "ASIAEXPLICITDURATION", second.Envs["AWS_ACCESS_KEY_ID"])
+	assert.Equal(t, "fake-explicit-duration-key-id", second.Envs["AWS_ACCESS_KEY_ID"])
 }
 
 // TestGetCredentialsAWSMinimumDurationStillCaches uses the AWS minimum role
@@ -168,8 +168,8 @@ func TestGetCredentialsAWSMinimumDurationStillCaches(t *testing.T) {
 	t.Parallel()
 
 	ctx := testCtx(t)
-	sts := newRecordingSTS(t, "ASIAMINIMUMDURATION", 15*time.Minute)
-	v := venvtest.New().
+	sts := newRecordingSTS(t, "fake-minimum-duration-key-id", 15*time.Minute)
+	v := venv.MemVenv().
 		WithHTTP(sts.client).
 		WithEnv(map[string]string{
 			"AWS_REGION":            "us-east-1",
@@ -192,7 +192,7 @@ func TestGetCredentialsAWSMinimumDurationStillCaches(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, second)
 	assert.Equal(t, int64(1), sts.calls.Load())
-	assert.Equal(t, "ASIAMINIMUMDURATION", second.Envs["AWS_ACCESS_KEY_ID"])
+	assert.Equal(t, "fake-minimum-duration-key-id", second.Envs["AWS_ACCESS_KEY_ID"])
 }
 
 // TestGetCredentialsNegativeDurationDefaultsAndCaches treats nonpositive
@@ -201,8 +201,8 @@ func TestGetCredentialsNegativeDurationDefaultsAndCaches(t *testing.T) {
 	t.Parallel()
 
 	ctx := testCtx(t)
-	sts := newRecordingSTS(t, "ASIANEGATIVEDURATION", time.Hour)
-	v := venvtest.New().
+	sts := newRecordingSTS(t, "fake-negative-duration-key-id", time.Hour)
+	v := venv.MemVenv().
 		WithHTTP(sts.client).
 		WithEnv(map[string]string{
 			"AWS_REGION":            "us-east-1",
@@ -239,11 +239,11 @@ func TestGetCredentialsIsolatesDifferentSessionNames(t *testing.T) {
 		sessionName string
 		assumedKey  string
 	}{
-		{sessionName: "unit-a", assumedKey: "ASIAA"},
-		{sessionName: "unit-b", assumedKey: "ASIAB"},
+		{sessionName: "unit-a", assumedKey: "fake-unit-a-key-id"},
+		{sessionName: "unit-b", assumedKey: "fake-unit-b-key-id"},
 	} {
 		sts := newRecordingSTS(t, tc.assumedKey, time.Hour)
-		v := venvtest.New().
+		v := venv.MemVenv().
 			WithHTTP(sts.client).
 			WithEnv(map[string]string{
 				"AWS_REGION":            "us-east-1",
@@ -273,8 +273,8 @@ func TestGetCredentialsIsolatesDifferentSourceSecrets(t *testing.T) {
 	roleARN := testRoleARNPrefix + t.Name()
 
 	for i, secret := range []string{"secret-one", "secret-two"} {
-		sts := newRecordingSTS(t, "ASIASECRET"+string(rune('A'+i)), time.Hour)
-		v := venvtest.New().
+		sts := newRecordingSTS(t, "fake-key-id-"+string(rune('A'+i)), time.Hour)
+		v := venv.MemVenv().
 			WithHTTP(sts.client).
 			WithEnv(map[string]string{
 				"AWS_REGION":            "us-east-1",
@@ -302,7 +302,7 @@ func TestGetCredentialsSessionIndexRequiresFullCredentialTuple(t *testing.T) {
 	roleARN := testRoleARNPrefix + t.Name()
 	sts := newRecordingSTS(t, assumedAccessKeyID, time.Hour)
 
-	v := venvtest.New().
+	v := venv.MemVenv().
 		WithHTTP(sts.client).
 		WithEnv(map[string]string{
 			"AWS_REGION":            "us-east-1",
@@ -324,12 +324,12 @@ func TestGetCredentialsSessionIndexRequiresFullCredentialTuple(t *testing.T) {
 	v.Env["AWS_SESSION_TOKEN"] = "wrong-token"
 	v.Env["AWS_SECURITY_TOKEN"] = "wrong-token"
 
-	sts.assumedKey = "ASIASECONDSESSION"
+	sts.assumedKey = "fake-second-session-key-id"
 	second, err := provider.GetCredentials(ctx, logger.CreateLogger(), v)
 	require.NoError(t, err)
 	require.NotNil(t, second)
 	assert.Equal(t, int64(2), sts.calls.Load(), "partial session credentials must not hit the cache")
-	assert.Equal(t, "ASIASECONDSESSION", second.Envs["AWS_ACCESS_KEY_ID"])
+	assert.Equal(t, "fake-second-session-key-id", second.Envs["AWS_ACCESS_KEY_ID"])
 }
 
 // TestGetCredentialsIsolatesDifferentWebIdentityTokens pins that different
@@ -341,11 +341,11 @@ func TestGetCredentialsIsolatesDifferentWebIdentityTokens(t *testing.T) {
 	roleARN := testRoleARNPrefix + t.Name()
 
 	for i, token := range []string{"token-a", "token-b"} {
-		assumedKey := "ASIAWEB" + string(rune('A'+i))
+		assumedKey := "fake-web-key-id-" + string(rune('A'+i))
 		sts := newRecordingSTS(t, assumedKey, time.Hour)
 		sts.webIdentity = true
 
-		v := venvtest.New().
+		v := venv.MemVenv().
 			WithHTTP(sts.client).
 			WithEnv(map[string]string{
 				"AWS_REGION": "us-east-1",
@@ -375,7 +375,7 @@ func TestGetCredentialsRefreshAfterExpiryUsesSourceIdentity(t *testing.T) {
 		roleARN := testRoleARNPrefix + t.Name()
 		sts := newRecordingSTS(t, assumedAccessKeyID, 10*time.Minute)
 
-		v := venvtest.New().
+		v := venv.MemVenv().
 			WithHTTP(sts.client).
 			WithEnv(map[string]string{
 				"AWS_REGION":            "us-east-1",
@@ -419,7 +419,7 @@ func TestGetCredentialsRefreshFailureReusesValidSession(t *testing.T) {
 		roleARN := testRoleARNPrefix + t.Name()
 		sts := newRecordingSTS(t, assumedAccessKeyID, 10*time.Minute)
 
-		v := venvtest.New().
+		v := venv.MemVenv().
 			WithHTTP(sts.client).
 			WithEnv(map[string]string{
 				"AWS_REGION":            "us-east-1",
@@ -454,10 +454,10 @@ func TestGetCredentialsCoalescesConcurrentSameKeyAssumes(t *testing.T) {
 	t.Parallel()
 
 	ctx := testCtx(t)
-	sts := newRecordingSTS(t, "ASIACONCURRENT", time.Hour)
+	sts := newRecordingSTS(t, "fake-concurrent-key-id", time.Hour)
 	sts.gate = make(chan struct{})
 
-	v := venvtest.New().
+	v := venv.MemVenv().
 		WithHTTP(sts.client).
 		WithEnv(map[string]string{
 			"AWS_REGION":            "us-east-1",
@@ -501,7 +501,7 @@ func TestGetCredentialsCoalescesConcurrentSameKeyAssumes(t *testing.T) {
 			require.NoError(t, err)
 		case creds := <-results:
 			require.NotNil(t, creds)
-			assert.Equal(t, "ASIACONCURRENT", creds.Envs["AWS_ACCESS_KEY_ID"])
+			assert.Equal(t, "fake-concurrent-key-id", creds.Envs["AWS_ACCESS_KEY_ID"])
 		}
 	}
 

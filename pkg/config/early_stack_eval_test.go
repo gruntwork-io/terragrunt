@@ -13,7 +13,6 @@ import (
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -127,7 +126,7 @@ func TestEarlyStackParseFunctions_GetEnvReadsVenvEnv(t *testing.T) {
 	pctx := newStackParsePctx(t, baseDir)
 	v.Env = map[string]string{"PLAN_KEY": "plan_value"}
 
-	funcs, err := config.EarlyStackParseFunctions(t.Context(), logger.CreateLogger(), v, pctx, baseDir)
+	funcs, err := config.EarlyStackParseFunctions(config.WithCaches(t.Context()), logger.CreateLogger(), v, pctx, baseDir)
 	require.NoError(t, err)
 
 	got, err := funcs[config.FuncNameGetEnv].Call([]cty.Value{cty.StringVal("PLAN_KEY")})
@@ -220,7 +219,7 @@ func TestEarlyStackParseFunctions_GetTerraformCommandReadsPctx(t *testing.T) {
 	pctx := newStackParsePctx(t, baseDir)
 	pctx.TerraformCommand = "plan"
 
-	funcs, err := config.EarlyStackParseFunctions(t.Context(), logger.CreateLogger(), v, pctx, baseDir)
+	funcs, err := config.EarlyStackParseFunctions(config.WithCaches(t.Context()), logger.CreateLogger(), v, pctx, baseDir)
 	require.NoError(t, err)
 
 	got, err := funcs[config.FuncNameGetTerraformCommand].Call(nil)
@@ -238,7 +237,7 @@ func TestEarlyStackParseFunctions_GetTerraformCLIArgsReadsPctx(t *testing.T) {
 	pctx.TerraformCliArgs = iacargs.New()
 	pctx.TerraformCliArgs.InsertArguments(0, "-auto-approve")
 
-	funcs, err := config.EarlyStackParseFunctions(t.Context(), logger.CreateLogger(), v, pctx, baseDir)
+	funcs, err := config.EarlyStackParseFunctions(config.WithCaches(t.Context()), logger.CreateLogger(), v, pctx, baseDir)
 	require.NoError(t, err)
 
 	got, err := funcs[config.FuncNameGetTerraformCLIArgs].Call(nil)
@@ -256,7 +255,7 @@ func TestEarlyStackParseFunctions_MarkAsReadAppendsToPctxFilesRead(t *testing.T)
 	pctx := newStackParsePctx(t, baseDir)
 	pctx.FilesRead = config.NewFilesRead()
 
-	funcs, err := config.EarlyStackParseFunctions(t.Context(), logger.CreateLogger(), v, pctx, baseDir)
+	funcs, err := config.EarlyStackParseFunctions(config.WithCaches(t.Context()), logger.CreateLogger(), v, pctx, baseDir)
 	require.NoError(t, err)
 
 	got, err := funcs[config.FuncNameMarkAsRead].Call([]cty.Value{cty.StringVal("inputs.yaml")})
@@ -310,12 +309,12 @@ unit "vpc" {
 
 	pctx := newStackParsePctx(t, stackDir)
 	funcsFor := func(dir string) (map[string]function.Function, error) {
-		return config.EarlyStackParseFunctions(t.Context(), logger.CreateLogger(), v, pctx, dir)
+		return config.EarlyStackParseFunctions(config.WithCaches(t.Context()), logger.CreateLogger(), v, pctx, dir)
 	}
 
 	paths, err := inthclparse.UnitPathsFromStackDir(
 		t.Context(),
-		vfs.NewOSFS(),
+		venvtest.NewOSOverlayFS(),
 		stackDir,
 		&inthclparse.StackDirArgs{FuncsFor: funcsFor},
 	)
@@ -354,12 +353,12 @@ unit "vpc" {
 	)
 
 	funcsFor := func(dir string) (map[string]function.Function, error) {
-		return config.EarlyStackParseFunctions(t.Context(), logger.CreateLogger(), v, pctx, dir)
+		return config.EarlyStackParseFunctions(config.WithCaches(t.Context()), logger.CreateLogger(), v, pctx, dir)
 	}
 
 	paths, err := inthclparse.UnitPathsFromStackDir(
 		t.Context(),
-		vfs.NewOSFS(),
+		venvtest.NewOSOverlayFS(),
 		stackDir,
 		&inthclparse.StackDirArgs{FuncsFor: funcsFor},
 	)

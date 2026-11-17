@@ -15,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errorconfig"
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
+	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -35,6 +36,12 @@ func CopyLockFile(
 	logShowAbsPaths bool,
 	sourceFolder, destinationFolder string,
 ) error {
+	// When a unit runs in place, source and destination are the same directory and there is nothing to copy.
+	// Copying the lock file onto itself would also replace a symlinked lock file with a regular file.
+	if filepath.Clean(sourceFolder) == filepath.Clean(destinationFolder) {
+		return nil
+	}
+
 	sourceLockFilePath := filepath.Join(sourceFolder, tf.TerraformLockFile)
 	destinationLockFilePath := filepath.Join(destinationFolder, tf.TerraformLockFile)
 
@@ -81,6 +88,33 @@ func GetTerraformSourceURL(
 	default:
 		return ".", nil
 	}
+}
+
+// ShouldSkipCache reports whether a unit should run in place, skipping the copy of its source into the
+// .terragrunt-cache directory.
+//
+// A unit runs in place only when terraform.no_dot_terragrunt_cache is true. Setting it to true without the
+// no-dot-terragrunt-cache experiment returns a NoDotTerragruntCacheRequiresExperimentError. Setting it to true
+// together with an external source (via the terraform block or the --source flag) returns a
+// NoDotTerragruntCacheWithSourceError, because an external source has to be fetched into the cache directory.
+func ShouldSkipCache(noCacheEnabled bool, source, configPath string, cfg *RunConfig) (bool, error) {
+	if cfg == nil || !cfg.Terraform.NoDotTerragruntCache {
+		return false, nil
+	}
+
+	if !noCacheEnabled {
+		return false, NoDotTerragruntCacheRequiresExperimentError{ConfigPath: configPath}
+	}
+
+	if source != "" {
+		return false, NoDotTerragruntCacheWithSourceError{Source: source}
+	}
+
+	if cfg.Terraform.Source != "" {
+		return false, NoDotTerragruntCacheWithSourceError{Source: cfg.Terraform.Source}
+	}
+
+	return true, nil
 }
 
 // AdjustSourceWithMap implements the --terragrunt-source-map feature. This function will check if the URL portion of a
@@ -181,6 +215,40 @@ func (err ParsingModulePathError) Error() string {
 	)
 }
 
+// NoDotTerragruntCacheRequiresExperimentError is returned when terraform.no_dot_terragrunt_cache is true without
+// the no-dot-terragrunt-cache experiment enabled.
+type NoDotTerragruntCacheRequiresExperimentError struct {
+	ConfigPath string
+}
+
+func (err NoDotTerragruntCacheRequiresExperimentError) Error() string {
+	return fmt.Sprintf(
+		"terraform.no_dot_terragrunt_cache in %s requires the 'no-dot-terragrunt-cache' experiment;"+
+			" enable it with --experiment no-dot-terragrunt-cache",
+		err.ConfigPath,
+	)
+}
+
+// NoDotTerragruntCacheWithSourceError is returned when terraform.no_dot_terragrunt_cache is true on a unit that
+// also configures an external source. no_dot_terragrunt_cache runs a unit in place, which is incompatible with a
+// source that must be fetched into the cache directory.
+//
+// Source holds the raw source so callers can inspect it; Error renders it through redact so credentials embedded in the
+// source URL do not leak into logs.
+type NoDotTerragruntCacheWithSourceError struct {
+	Source string
+}
+
+func (err NoDotTerragruntCacheWithSourceError) Error() string {
+	return fmt.Sprintf(
+		"terraform.no_dot_terragrunt_cache cannot be combined with an external source ('%s')."+
+			" no_dot_terragrunt_cache runs the unit in place and only applies when no source is configured."+
+			" Remove the source to run from the unit directory,"+
+			" or remove no_dot_terragrunt_cache to run from .terragrunt-cache.",
+		redact.NewURL(err.Source).String(),
+	)
+}
+
 // Regexp for module name extraction. It assumes that the query string has already been stripped off.
 // Then we simply capture anything after the last slash, and before `.` or end of string.
 var moduleNameRegexp = regexp.MustCompile(`(?:.+/)(.+?)(?:\.|$)`)
@@ -252,10 +320,7 @@ func (cfg *RunConfig) ErrorsConfig() (*errorconfig.Config, error) {
 		return nil, nil
 	}
 
-	result := &errorconfig.Config{
-		Retry:  make(map[string]*errorconfig.RetryConfig),
-		Ignore: make(map[string]*errorconfig.IgnoreConfig),
-	}
+	result := &errorconfig.Config{}
 
 	for _, retryBlock := range cfg.Errors.Retry {
 		if retryBlock == nil {
@@ -289,12 +354,12 @@ func (cfg *RunConfig) ErrorsConfig() (*errorconfig.Config, error) {
 			compiledPatterns = append(compiledPatterns, value)
 		}
 
-		result.Retry[retryBlock.Label] = &errorconfig.RetryConfig{
+		result.Retry = append(result.Retry, &errorconfig.RetryConfig{
 			Name:             retryBlock.Label,
 			RetryableErrors:  compiledPatterns,
 			MaxAttempts:      retryBlock.MaxAttempts,
 			SleepIntervalSec: retryBlock.SleepIntervalSec,
-		}
+		})
 	}
 
 	for _, ignoreBlock := range cfg.Errors.Ignore {
@@ -327,12 +392,12 @@ func (cfg *RunConfig) ErrorsConfig() (*errorconfig.Config, error) {
 			compiledPatterns = append(compiledPatterns, value)
 		}
 
-		result.Ignore[ignoreBlock.Label] = &errorconfig.IgnoreConfig{
+		result.Ignore = append(result.Ignore, &errorconfig.IgnoreConfig{
 			Name:            ignoreBlock.Label,
 			IgnorableErrors: compiledPatterns,
 			Message:         ignoreBlock.Message,
 			Signals:         signals,
-		}
+		})
 	}
 
 	return result, nil

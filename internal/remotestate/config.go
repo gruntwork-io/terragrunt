@@ -15,9 +15,12 @@ import (
 )
 
 var (
+	// ErrRemoteBackendMissing is returned by [Config.Validate] when the remote_state block sets no backend.
 	ErrRemoteBackendMissing = errors.New(
 		"the remote_state.backend field cannot be empty",
 	)
+	// ErrGenerateCalledWithNoGenerateAttr is returned by [Config.GenerateOpenTofuCode] when the remote_state block
+	// has no generate attribute.
 	ErrGenerateCalledWithNoGenerateAttr = errors.New(
 		"generate code routine called when no generate attribute is configured",
 	)
@@ -111,6 +114,8 @@ func (cfg *Config) GenerateOpenTofuCode(
 	return codegen.WriteToFile(ctx, l, v, workingDir, &codegenConfig)
 }
 
+// ConfigFileGenerate is the generate attribute of a remote_state block as parsed from a terragrunt.hcl config
+// file.
 type ConfigFileGenerate struct {
 	// We use cty instead of hcl, since we are using this type to convert an attr and not a block.
 	Path     string `cty:"path"`

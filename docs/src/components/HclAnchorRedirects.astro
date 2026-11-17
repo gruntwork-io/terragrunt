@@ -1,0 +1,28 @@
+---
+/**
+ * Redirects old links to a heading on a kind's index page to the entry page it
+ * is on now: `/reference/hcl/functions/#get_env` to the entry's own page, and a
+ * subsection such as `/reference/hcl/blocks/#backend` to that heading on the
+ * entry's page. Render it once on the index page, ahead of any heading.
+ */
+import { render } from 'astro:content';
+import AnchorRedirects from '@components/AnchorRedirects.astro';
+import { anchorRedirects, itemAnchors, type HclKind } from '@lib/hcl';
+import { getPublishedHclItems } from '@lib/hcl/published';
+
+interface Props {
+	kind: HclKind;
+}
+
+const { kind } = Astro.props;
+const entries = await getPublishedHclItems(kind);
+
+const items = await Promise.all(
+	entries.map(async (entry) => {
+		const { headings } = await render(entry);
+		return { name: entry.data.name, anchors: itemAnchors(entry, headings) };
+	}),
+);
+---
+
+<AnchorRedirects redirects={anchorRedirects(kind, items)} />

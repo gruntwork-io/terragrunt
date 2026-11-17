@@ -1255,3 +1255,19 @@ func TestTFDownloadWithCASMutable(t *testing.T) {
 
 	require.Positive(t, checked, "expected at least one .tf file under %s", cacheDir)
 }
+
+func TestTFLocalNoDotTerragruntCacheSkipsTerragruntCache(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLocalNoDotTerragruntCache)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureLocalNoDotTerragruntCache)
+
+	helpers.RunTerragrunt(
+		t,
+		"terragrunt apply -auto-approve --non-interactive --experiment no-dot-terragrunt-cache --working-dir "+rootPath,
+	)
+
+	// The unit runs in place: no cache directory, and local state lands next to terragrunt.hcl.
+	assert.NoDirExists(t, filepath.Join(rootPath, ".terragrunt-cache"))
+	assert.FileExists(t, filepath.Join(rootPath, "terraform.tfstate"))
+}

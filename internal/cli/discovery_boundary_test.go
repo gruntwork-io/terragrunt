@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 
 	"github.com/stretchr/testify/assert"
@@ -45,7 +46,7 @@ inputs = {
 func runInBoundaryFixture(t *testing.T, workDir string, args ...string) (string, error) {
 	t.Helper()
 
-	v := venvtest.New().WithFS(venvtest.NewFS(t, discoveryRoot, boundaryUnits))
+	v := venv.MemVenv().WithFS(venvtest.NewFS(t, discoveryRoot, boundaryUnits))
 
 	base := []string{
 		"--no-color",
@@ -192,7 +193,7 @@ func TestIncludeExternalInDagGraph(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			v := venvtest.New().WithFS(venvtest.NewFS(t, discoveryRoot, regionUnits))
+			v := venv.MemVenv().WithFS(venvtest.NewFS(t, discoveryRoot, regionUnits))
 			workDir := filepath.Join(discoveryRoot, "region-1")
 
 			out, err := runCLI(t, v, append(tc.args, "--no-color", "--working-dir", workDir)...)

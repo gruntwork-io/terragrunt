@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -393,7 +394,7 @@ func TestExternalGetDefaultConfigPath(t *testing.T) {
 
 	// When given a non-existent directory, GetDefaultConfigPath returns a path
 	// ending with the default config file name.
-	result := config.GetDefaultConfigPath(venvtest.New().FS, "/some/nonexistent/path")
+	result := config.GetDefaultConfigPath(venv.MemVenv().FS, "/some/nonexistent/path")
 	assert.Contains(t, result, "terragrunt.hcl")
 }
 
@@ -433,7 +434,7 @@ inputs = {
 }
 `
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 	v := venvtest.NewWithOSFS()
 	pctx := config.NewParsingContext()
 	cfg, err := config.ParseConfigString(
@@ -470,7 +471,7 @@ unit "db" {
 }
 `
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 	v := venvtest.NewWithOSFS()
 	pctx := config.NewParsingContext()
 
@@ -514,7 +515,7 @@ unit "db" {
 }
 `
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 	v := venvtest.NewWithOSFS()
 	pctx := config.NewParsingContext()
 
@@ -556,7 +557,7 @@ unit "db" {
 }
 `
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 	v := venvtest.NewWithOSFS()
 	pctx := config.NewParsingContext()
 
@@ -602,7 +603,7 @@ region   = "us-west-2"
 		os.WriteFile(filepath.Join(dir, "terragrunt.values.hcl"), valuesContent, 0644),
 	)
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 	v := venvtest.NewWithOSFS()
 	pctx := config.NewParsingContext()
 
@@ -649,7 +650,7 @@ region = "eu-west-1"
 		os.WriteFile(filepath.Join(dir, "terragrunt.values.hcl"), valuesContent, 0644),
 	)
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 	v := venvtest.NewWithOSFS()
 	pctx := config.NewParsingContext()
 

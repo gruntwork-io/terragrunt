@@ -11,6 +11,11 @@ import (
 // the providers it caches. Match with errors.Is.
 var ErrCacheDirNotSpecified = errors.New("provider cache directory not specified")
 
+// ErrNoSafeTempDir is returned by [ProviderService.Init] when neither the temp dir nor the user cache dir can be used.
+var ErrNoSafeTempDir = errors.New(
+	"no safe directory for provider lock files; set TMPDIR to a directory only you can write to",
+)
+
 // UnexpectedProviderCachePathError is returned when something other than a
 // Terragrunt-managed symlink occupies a provider's package path inside the
 // provider cache directory. Terragrunt only ever writes a directory (from a
@@ -35,8 +40,11 @@ func (e *UnexpectedProviderCachePathError) Error() string {
 type ChecksumField string
 
 const (
-	FieldSHA256Sum              ChecksumField = "shasum"
-	FieldSHA256SumsURL          ChecksumField = "shasums_url"
+	// FieldSHA256Sum is the SHA-256 hash of the provider archive.
+	FieldSHA256Sum ChecksumField = "shasum"
+	// FieldSHA256SumsURL is the URL of the SHA256SUMS document that lists the archive hash.
+	FieldSHA256SumsURL ChecksumField = "shasums_url"
+	// FieldSHA256SumsSignatureURL is the URL of the signature over the SHA256SUMS document.
 	FieldSHA256SumsSignatureURL ChecksumField = "shasums_signature_url"
 )
 

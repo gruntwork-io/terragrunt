@@ -268,8 +268,8 @@ func TestAttemptErrorRecoveryHonorsNegativePatterns(t *testing.T) {
 			name: "negative pattern blocks the ignore rule",
 			err:  errors.New("safe to ignore, but critical"),
 			config: &errorconfig.Config{
-				Ignore: map[string]*errorconfig.IgnoreConfig{
-					"known_safe_errors": {
+				Ignore: []*errorconfig.IgnoreConfig{
+					{
 						Name:            "known_safe_errors",
 						IgnorableErrors: []*errorconfig.Pattern{safe, critical},
 					},
@@ -280,8 +280,8 @@ func TestAttemptErrorRecoveryHonorsNegativePatterns(t *testing.T) {
 			name: "ignore rule applies when no negative pattern matches",
 			err:  errors.New("safe to ignore"),
 			config: &errorconfig.Config{
-				Ignore: map[string]*errorconfig.IgnoreConfig{
-					"known_safe_errors": {
+				Ignore: []*errorconfig.IgnoreConfig{
+					{
 						Name:            "known_safe_errors",
 						IgnorableErrors: []*errorconfig.Pattern{safe, critical},
 					},
@@ -293,8 +293,8 @@ func TestAttemptErrorRecoveryHonorsNegativePatterns(t *testing.T) {
 			name: "negative pattern blocks the retry rule",
 			err:  errors.New("transient, but critical"),
 			config: &errorconfig.Config{
-				Retry: map[string]*errorconfig.RetryConfig{
-					"transient_errors": {
+				Retry: []*errorconfig.RetryConfig{
+					{
 						Name:            "transient_errors",
 						RetryableErrors: []*errorconfig.Pattern{transient, critical},
 						MaxAttempts:     3,
@@ -306,8 +306,8 @@ func TestAttemptErrorRecoveryHonorsNegativePatterns(t *testing.T) {
 			name: "retry rule applies when no negative pattern matches",
 			err:  errors.New("transient"),
 			config: &errorconfig.Config{
-				Retry: map[string]*errorconfig.RetryConfig{
-					"transient_errors": {
+				Retry: []*errorconfig.RetryConfig{
+					{
 						Name:            "transient_errors",
 						RetryableErrors: []*errorconfig.Pattern{transient, critical},
 						MaxAttempts:     3,
@@ -320,14 +320,14 @@ func TestAttemptErrorRecoveryHonorsNegativePatterns(t *testing.T) {
 			name: "negative pattern applies only to the block it is written in",
 			err:  errors.New("safe to ignore, but critical"),
 			config: &errorconfig.Config{
-				Ignore: map[string]*errorconfig.IgnoreConfig{
-					"known_safe_errors": {
+				Ignore: []*errorconfig.IgnoreConfig{
+					{
 						Name:            "known_safe_errors",
 						IgnorableErrors: []*errorconfig.Pattern{safe, critical},
 					},
 				},
-				Retry: map[string]*errorconfig.RetryConfig{
-					"critical_errors": {
+				Retry: []*errorconfig.RetryConfig{
+					{
 						Name:            "critical_errors",
 						RetryableErrors: []*errorconfig.Pattern{retryCritical},
 						MaxAttempts:     3,
@@ -362,8 +362,8 @@ func TestAttemptErrorRecoveryNilError(t *testing.T) {
 	t.Parallel()
 
 	cfg := &errorconfig.Config{
-		Retry: map[string]*errorconfig.RetryConfig{
-			"all": {
+		Retry: []*errorconfig.RetryConfig{
+			{
 				Name:            "all",
 				RetryableErrors: []*errorconfig.Pattern{{Pattern: regexp.MustCompile(`.*`)}},
 				MaxAttempts:     3,
@@ -387,8 +387,8 @@ func TestAttemptErrorRecoveryPopulatesAction(t *testing.T) {
 		{
 			name: "ignore block",
 			config: &errorconfig.Config{
-				Ignore: map[string]*errorconfig.IgnoreConfig{
-					"safe": {
+				Ignore: []*errorconfig.IgnoreConfig{
+					{
 						Name:            "safe",
 						Message:         "known flake",
 						Signals:         map[string]any{"alert": false},
@@ -406,8 +406,8 @@ func TestAttemptErrorRecoveryPopulatesAction(t *testing.T) {
 		{
 			name: "retry block",
 			config: &errorconfig.Config{
-				Retry: map[string]*errorconfig.RetryConfig{
-					"transient": {
+				Retry: []*errorconfig.RetryConfig{
+					{
 						Name:             "transient",
 						RetryableErrors:  []*errorconfig.Pattern{{Pattern: regexp.MustCompile(`.*transient.*`)}},
 						MaxAttempts:      5,
@@ -417,6 +417,81 @@ func TestAttemptErrorRecoveryPopulatesAction(t *testing.T) {
 			},
 			want: &errorconfig.Action{
 				RetryBlockName: "transient",
+				RetryAttempts:  5,
+				RetrySleepSecs: 7,
+				ShouldRetry:    true,
+			},
+		},
+		{
+			name: "ignore block when a retry block also matches",
+			config: &errorconfig.Config{
+				Ignore: []*errorconfig.IgnoreConfig{
+					{
+						Name:            "safe",
+						Message:         "known flake",
+						IgnorableErrors: []*errorconfig.Pattern{{Pattern: regexp.MustCompile(`transient`)}},
+					},
+				},
+				Retry: []*errorconfig.RetryConfig{
+					{
+						Name:            "transient",
+						RetryableErrors: []*errorconfig.Pattern{{Pattern: regexp.MustCompile(`transient`)}},
+						MaxAttempts:     5,
+					},
+				},
+			},
+			want: &errorconfig.Action{
+				IgnoreBlockName: "safe",
+				IgnoreMessage:   "known flake",
+				IgnoreSignals:   map[string]any{},
+				ShouldIgnore:    true,
+			},
+		},
+		{
+			name: "first of two matching ignore blocks",
+			config: &errorconfig.Config{
+				Ignore: []*errorconfig.IgnoreConfig{
+					{
+						Name:            "specific",
+						Message:         "known flake",
+						Signals:         map[string]any{"alert": false},
+						IgnorableErrors: []*errorconfig.Pattern{{Pattern: regexp.MustCompile(`transient`)}},
+					},
+					{
+						Name:            "catch_all",
+						Message:         "unknown failure",
+						Signals:         map[string]any{"alert": true},
+						IgnorableErrors: []*errorconfig.Pattern{{Pattern: regexp.MustCompile(`.*`)}},
+					},
+				},
+			},
+			want: &errorconfig.Action{
+				IgnoreBlockName: "specific",
+				IgnoreMessage:   "known flake",
+				IgnoreSignals:   map[string]any{"alert": false},
+				ShouldIgnore:    true,
+			},
+		},
+		{
+			name: "first of two matching retry blocks",
+			config: &errorconfig.Config{
+				Retry: []*errorconfig.RetryConfig{
+					{
+						Name:             "specific",
+						RetryableErrors:  []*errorconfig.Pattern{{Pattern: regexp.MustCompile(`transient`)}},
+						MaxAttempts:      5,
+						SleepIntervalSec: 7,
+					},
+					{
+						Name:             "catch_all",
+						RetryableErrors:  []*errorconfig.Pattern{{Pattern: regexp.MustCompile(`.*`)}},
+						MaxAttempts:      2,
+						SleepIntervalSec: 30,
+					},
+				},
+			},
+			want: &errorconfig.Action{
+				RetryBlockName: "specific",
 				RetryAttempts:  5,
 				RetrySleepSecs: 7,
 				ShouldRetry:    true,
@@ -440,8 +515,8 @@ func TestAttemptErrorRecoveryMaxAttemptsReached(t *testing.T) {
 
 	origErr := errors.New("transient")
 	cfg := &errorconfig.Config{
-		Retry: map[string]*errorconfig.RetryConfig{
-			"transient": {
+		Retry: []*errorconfig.RetryConfig{
+			{
 				Name:            "transient",
 				RetryableErrors: []*errorconfig.Pattern{{Pattern: regexp.MustCompile(`.*transient.*`)}},
 				MaxAttempts:     3,

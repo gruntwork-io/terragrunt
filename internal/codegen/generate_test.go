@@ -3,8 +3,10 @@ package codegen_test
 import (
 	"bytes"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
@@ -13,8 +15,11 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	ctyjson "github.com/zclconf/go-cty/cty/json"
 )
 
 func TestRemoteStateConfigToTerraformCode(t *testing.T) {
@@ -227,6 +232,157 @@ func TestRemoteStateConfigToTerraformCode(t *testing.T) {
 	}
 }
 
+// TestRemoteStateConfigToTerraformCodeEncryptionFallback verifies that a fallback map produces
+// the unencrypted fallback method OpenTofu needs to read pre-existing plaintext state.
+func TestRemoteStateConfigToTerraformCodeEncryptionFallback(t *testing.T) {
+	t.Parallel()
+
+	expected := `terraform {
+  backend "local" {
+  }
+  encryption {
+    key_provider "pbkdf2" "default" {
+      passphrase = "randompassphrase123456"
+    }
+    method "aes_gcm" "default" {
+      keys = key_provider.pbkdf2.default
+    }
+    method "unencrypted" "fallback" {
+    }
+    state {
+      method = method.aes_gcm.default
+      fallback {
+        method = method.unencrypted.fallback
+      }
+    }
+    plan {
+      method = method.aes_gcm.default
+      fallback {
+        method = method.unencrypted.fallback
+      }
+    }
+  }
+}
+`
+
+	output, err := codegen.RemoteStateConfigToTerraformCode(
+		"local",
+		map[string]any{},
+		map[string]any{
+			"key_provider": "pbkdf2",
+			"passphrase":   "randompassphrase123456",
+			"fallback": map[string]any{
+				"method": "unencrypted",
+			},
+		},
+	)
+	require.NoError(t, err)
+	assert.Equal(t, expected, string(output))
+}
+
+// TestRemoteStateConfigToTerraformCodeEncryptionEnforced verifies that enforced is set on the
+// state and plan blocks rather than passed to the key provider.
+func TestRemoteStateConfigToTerraformCodeEncryptionEnforced(t *testing.T) {
+	t.Parallel()
+
+	expected := `terraform {
+  backend "local" {
+  }
+  encryption {
+    key_provider "pbkdf2" "default" {
+      passphrase = "randompassphrase123456"
+    }
+    method "aes_gcm" "default" {
+      keys = key_provider.pbkdf2.default
+    }
+    state {
+      method   = method.aes_gcm.default
+      enforced = true
+    }
+    plan {
+      method   = method.aes_gcm.default
+      enforced = true
+    }
+  }
+}
+`
+
+	output, err := codegen.RemoteStateConfigToTerraformCode(
+		"local",
+		map[string]any{},
+		map[string]any{
+			"key_provider": "pbkdf2",
+			"passphrase":   "randompassphrase123456",
+			"enforced":     true,
+		},
+	)
+	require.NoError(t, err)
+	assert.Equal(t, expected, string(output))
+}
+
+func TestRemoteStateConfigToTerraformCodeEncryptionInvalidTarget(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		entries map[string]any
+		wantErr error
+		name    string
+	}{
+		{
+			name:    "fallback-string",
+			entries: map[string]any{"fallback": "unencrypted"},
+			wantErr: codegen.ErrInvalidEncryptionFallback,
+		},
+		{
+			name:    "fallback-other-method",
+			entries: map[string]any{"fallback": map[string]any{"method": "aes_gcm"}},
+			wantErr: codegen.ErrInvalidEncryptionFallback,
+		},
+		{
+			name: "fallback-key-provider",
+			entries: map[string]any{
+				"fallback": map[string]any{"key_provider": "pbkdf2", "passphrase": "oldpassphrase123456"},
+			},
+			wantErr: codegen.ErrInvalidEncryptionFallback,
+		},
+		{
+			name: "fallback-extra-key",
+			entries: map[string]any{
+				"fallback": map[string]any{"method": "unencrypted", "passphrase": "oldpassphrase123456"},
+			},
+			wantErr: codegen.ErrInvalidEncryptionFallback,
+		},
+		{
+			name:    "enforced-string",
+			entries: map[string]any{"enforced": "true"},
+			wantErr: codegen.ErrInvalidEncryptionEnforced,
+		},
+		{
+			name: "fallback-with-enforced",
+			entries: map[string]any{
+				"fallback": map[string]any{"method": "unencrypted"},
+				"enforced": true,
+			},
+			wantErr: codegen.ErrEncryptionFallbackEnforced,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			encryption := map[string]any{
+				"key_provider": "pbkdf2",
+				"passphrase":   "randompassphrase123456",
+			}
+			maps.Copy(encryption, tc.entries)
+
+			_, err := codegen.RemoteStateConfigToTerraformCode("local", map[string]any{}, encryption)
+			require.ErrorIs(t, err, tc.wantErr)
+		})
+	}
+}
+
 // TestRemoteStateConfigToTerraformCode_BoolValues verifies that native bool
 // values in the config map produce unquoted true/false in the generated HCL.
 // This is the expected output when string booleans from HCL ternary type
@@ -276,6 +432,82 @@ func TestRemoteStateConfigToTerraformCode_StringBoolProducesQuotedValue(t *testi
 
 	// String "true" produces a quoted string literal in HCL, which Terraform rejects
 	assert.Contains(t, string(output), `use_lockfile = "true"`)
+}
+
+func TestRemoteStateConfigToTerraformCodeParsesBackForKeys(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		config     map[string]any
+		encryption map[string]any
+		name       string
+		backend    string
+		attribute  string
+		expected   string
+		blocks     []string
+	}{
+		{
+			name:      "s3 assume_role tags",
+			backend:   "s3",
+			config:    map[string]any{"assume_role": `{role_arn="arn:aws:iam::123456789012:role/MyRole",tags={"for"="x"}}`},
+			blocks:    []string{"terraform", "backend"},
+			attribute: "assume_role",
+			expected:  `{"role_arn": "arn:aws:iam::123456789012:role/MyRole", "tags": {"for": "x"}}`,
+		},
+		{
+			name:      "backend config",
+			backend:   "local",
+			config:    map[string]any{"workspaces": map[string]any{"for": "x"}},
+			blocks:    []string{"terraform", "backend"},
+			attribute: "workspaces",
+			expected:  `{"for": "x"}`,
+		},
+		{
+			name:    "encryption key provider",
+			backend: "local",
+			config:  map[string]any{},
+			encryption: map[string]any{
+				"key_provider": "test",
+				"options":      map[string]any{"for": "x"},
+			},
+			blocks:    []string{"terraform", "encryption", "key_provider"},
+			attribute: "options",
+			expected:  `{"for": "x"}`,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			output, err := codegen.RemoteStateConfigToTerraformCode(tc.backend, tc.config, tc.encryption)
+			require.NoError(t, err)
+
+			file, diags := hclsyntax.ParseConfig(output, "backend.tf", hcl.InitialPos)
+			require.False(t, diags.HasErrors(), "%s\n%s", diags, output)
+
+			body, ok := file.Body.(*hclsyntax.Body)
+			require.True(t, ok)
+
+			for _, blockType := range tc.blocks {
+				index := slices.IndexFunc(body.Blocks, func(block *hclsyntax.Block) bool {
+					return block.Type == blockType
+				})
+				require.NotEqual(t, -1, index, "no %s block in\n%s", blockType, output)
+
+				body = body.Blocks[index].Body
+			}
+
+			require.Contains(t, body.Attributes, tc.attribute)
+
+			value, diags := body.Attributes[tc.attribute].Expr.Value(nil)
+			require.False(t, diags.HasErrors(), "%s", diags)
+
+			encoded, err := ctyjson.Marshal(value, value.Type())
+			require.NoError(t, err)
+			assert.JSONEq(t, tc.expected, string(encoded))
+		})
+	}
 }
 
 func TestFmtGeneratedFile(t *testing.T) {
@@ -554,7 +786,10 @@ func TestWriteToFileOverwritesReadOnlyTarget(t *testing.T) {
 			}
 
 			l := logger.CreateLogger()
-			require.NoError(t, codegen.WriteToFile(t.Context(), l, venvtest.NewOSWithEmptyEnv(), "", &config))
+			require.NoError(
+				t,
+				codegen.WriteToFile(t.Context(), l, venvtest.NewOSWithEmptyEnv(), "", &config),
+			)
 
 			fileContent, err := os.ReadFile(path)
 			require.NoError(t, err)
@@ -608,7 +843,13 @@ func TestWriteToFileSkipAndErrorLeaveExistingFileIntact(t *testing.T) {
 			}
 
 			l := logger.CreateLogger()
-			writeErr := codegen.WriteToFile(t.Context(), l, venvtest.NewOSWithEmptyEnv(), "", &config)
+			writeErr := codegen.WriteToFile(
+				t.Context(),
+				l,
+				venvtest.NewOSWithEmptyEnv(),
+				"",
+				&config,
+			)
 
 			if tc.wantErr {
 				var existsErr codegen.GenerateFileExistsError
@@ -657,7 +898,10 @@ func TestWriteToFileOverwriteDoesNotMutateHardlinkedStore(t *testing.T) {
 	}
 
 	l := logger.CreateLogger()
-	require.NoError(t, codegen.WriteToFile(t.Context(), l, venvtest.NewOSWithEmptyEnv(), "", &config))
+	require.NoError(
+		t,
+		codegen.WriteToFile(t.Context(), l, venvtest.NewOSWithEmptyEnv(), "", &config),
+	)
 
 	storeContentAfter, err := os.ReadFile(storePath)
 	require.NoError(t, err)
@@ -854,7 +1098,10 @@ func TestWriteToFileDisabledRemovesReadOnlyFile(t *testing.T) {
 	}
 
 	l := logger.CreateLogger()
-	require.NoError(t, codegen.WriteToFile(t.Context(), l, venvtest.NewOSWithEmptyEnv(), "", &config))
+	require.NoError(
+		t,
+		codegen.WriteToFile(t.Context(), l, venvtest.NewOSWithEmptyEnv(), "", &config),
+	)
 	assert.NoFileExists(t, targetPath)
 }
 
@@ -899,7 +1146,10 @@ func TestWriteToFileSignatureWithoutTrailingNewline(t *testing.T) {
 			}
 
 			l := logger.CreateLogger()
-			require.NoError(t, codegen.WriteToFile(t.Context(), l, venvtest.NewOSWithEmptyEnv(), "", &config))
+			require.NoError(
+				t,
+				codegen.WriteToFile(t.Context(), l, venvtest.NewOSWithEmptyEnv(), "", &config),
+			)
 
 			if tc.disable {
 				assert.NoFileExists(t, path)
@@ -966,7 +1216,13 @@ func TestWriteToFileUnsignedFileWithoutTrailingNewline(t *testing.T) {
 			}
 
 			l := logger.CreateLogger()
-			writeErr := codegen.WriteToFile(t.Context(), l, venvtest.NewOSWithEmptyEnv(), "", &config)
+			writeErr := codegen.WriteToFile(
+				t.Context(),
+				l,
+				venvtest.NewOSWithEmptyEnv(),
+				"",
+				&config,
+			)
 
 			if tc.disable {
 				var removeErr codegen.GenerateFileRemoveError
@@ -1015,7 +1271,12 @@ func TestWriteToFileWithContentStoreDeduplicates(t *testing.T) {
 
 		l := logger.CreateLogger()
 		require.NoError(t, codegen.WriteToFile(
-			t.Context(), l, venvtest.NewOSWithEmptyEnv(), "", &config, codegen.WithContentStore(store),
+			t.Context(),
+			l,
+			venvtest.NewOSWithEmptyEnv(),
+			"",
+			&config,
+			codegen.WithContentStore(store),
 		))
 	}
 
@@ -1071,7 +1332,12 @@ func TestWriteToFileWithContentStoreMutableOptsOut(t *testing.T) {
 
 		l := logger.CreateLogger()
 		require.NoError(t, codegen.WriteToFile(
-			t.Context(), l, venvtest.NewOSWithEmptyEnv(), "", &config, codegen.WithContentStore(store),
+			t.Context(),
+			l,
+			venvtest.NewOSWithEmptyEnv(),
+			"",
+			&config,
+			codegen.WithContentStore(store),
 		))
 	}
 
@@ -1237,7 +1503,13 @@ func TestWriteToFileSymlinkIsNotTerragruntGenerated(t *testing.T) {
 			}
 
 			l := logger.CreateLogger()
-			writeErr := codegen.WriteToFile(t.Context(), l, venvtest.NewOSWithEmptyEnv(), "", &config)
+			writeErr := codegen.WriteToFile(
+				t.Context(),
+				l,
+				venvtest.NewOSWithEmptyEnv(),
+				"",
+				&config,
+			)
 
 			if tc.disable {
 				var removeErr codegen.GenerateFileRemoveError
@@ -1258,7 +1530,12 @@ func TestWriteToFileSymlinkIsNotTerragruntGenerated(t *testing.T) {
 			if tc.destination != "" {
 				destination, err := os.ReadFile(destinationPath)
 				require.NoError(t, err)
-				assert.Equal(t, tc.destination, string(destination), "the destination must stay intact")
+				assert.Equal(
+					t,
+					tc.destination,
+					string(destination),
+					"the destination must stay intact",
+				)
 			}
 		})
 	}
@@ -1295,7 +1572,11 @@ func TestGenerateConfigDisabledFromString(t *testing.T) {
 	}{
 		{name: "skip", input: "skip", expected: codegen.DisabledSkip},
 		{name: "remove", input: "remove", expected: codegen.DisabledRemove},
-		{name: "remove_terragrunt", input: "remove_terragrunt", expected: codegen.DisabledRemoveTerragrunt},
+		{
+			name:     "remove_terragrunt",
+			input:    "remove_terragrunt",
+			expected: codegen.DisabledRemoveTerragrunt,
+		},
 		{name: "invalid", input: "invalid", expected: codegen.DisabledUnknown, wantErr: true},
 		{name: "true", input: "true", expected: codegen.DisabledUnknown, wantErr: true},
 		{name: "empty", input: "", expected: codegen.DisabledUnknown, wantErr: true},

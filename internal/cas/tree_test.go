@@ -203,7 +203,7 @@ func TestLinkTreeSymlinks(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			v := venvtest.New()
+			v := venv.MemVenv()
 			require.NoError(t, v.FS.MkdirAll("/store", 0o755))
 
 			store := cas.NewStore("/store")
@@ -521,7 +521,7 @@ func TestLinkTreeRejectsPathTraversal(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			v := venvtest.New()
+			v := venv.MemVenv()
 			require.NoError(t, v.FS.MkdirAll("/store", 0o755))
 
 			store := cas.NewStore("/store")
@@ -645,7 +645,7 @@ func TestLinkTreeEmptyTreeWritesNothing(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	v := venvtest.New()
+	v := venv.MemVenv()
 	require.NoError(t, v.FS.MkdirAll("/store", 0o755))
 
 	store := cas.NewStore("/store")
@@ -700,7 +700,7 @@ func TestLinkTreeAllowsPathsInsideRoot(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			v := venvtest.New()
+			v := venv.MemVenv()
 			require.NoError(t, v.FS.MkdirAll("/store", 0o755))
 
 			store := cas.NewStore("/store")
@@ -845,7 +845,7 @@ func TestLinkTree(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			v := venvtest.New()
+			v := venv.MemVenv()
 
 			// Setup store
 			store, _ := tt.setupStore(t, v)
@@ -897,7 +897,7 @@ func TestLinkTreeStopsAtNestingBound(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	v := venvtest.New()
+	v := venv.MemVenv()
 
 	require.NoError(t, v.FS.MkdirAll("/store", 0755))
 
@@ -938,7 +938,7 @@ func TestLinkTreeAcceptsTreeAtNestingBound(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	v := venvtest.New()
+	v := venv.MemVenv()
 
 	require.NoError(t, v.FS.MkdirAll("/store", 0755))
 
@@ -1041,7 +1041,7 @@ func TestLinkTreeBoundsConcurrencyAcrossNestingWithRacing(t *testing.T) {
 		l := logger.CreateLogger()
 
 		fs := &countingFS{FS: vfs.NewMemMapFS()}
-		v := venvtest.New().WithFS(fs.FS)
+		v := venv.MemVenv().WithFS(fs.FS)
 
 		require.NoError(t, v.FS.MkdirAll("/store", 0755))
 		require.NoError(t, v.FS.MkdirAll("/target", 0755))

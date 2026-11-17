@@ -21,6 +21,8 @@ const (
 // ctxKey is a type-safe context key type to prevent key collisions
 type ctxKey byte
 
+// ContextWithCache returns a copy of ctx with fresh run-command and repo-root caches stored under
+// [RunCmdCacheContextKey] and [RepoRootCacheContextKey].
 func ContextWithCache(ctx context.Context) context.Context {
 	ctx = context.WithValue(ctx, RunCmdCacheContextKey, NewCache[string](runCmdCacheName))
 	ctx = context.WithValue(ctx, RepoRootCacheContextKey, NewRepoRootCache(repoRootCacheName))

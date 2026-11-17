@@ -1,0 +1,10 @@
+---
+version: "v1.2.3"
+category: "bug-fixes"
+---
+
+#### `fileset` matches patterns with `./`, `../` or `//`
+
+`fileset` returned an empty set for patterns such as `./resources/*.json`, `resources//*.json` and `../shared/*.json`.
+
+`fileset` now cleans the pattern the way OpenTofu does before matching, so these patterns return the matching files.

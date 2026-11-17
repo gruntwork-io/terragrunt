@@ -1,0 +1,16 @@
+---
+name: filter-affected
+description: Render only the units affected by changes between the default branch and HEAD
+type: bool
+env:
+  - TG_FILTER_AFFECTED
+since: "v1.2.2"
+---
+
+Render only the units modified, added, or removed between the default branch and `HEAD`. Equivalent to `--filter '[main...HEAD]'`, with your repository's default branch in place of `main`. Combine it with `--all`.
+
+```bash
+terragrunt render --all --filter-affected
+```
+
+See [Git-based filtering](/features/filter/git) for how units are compared.

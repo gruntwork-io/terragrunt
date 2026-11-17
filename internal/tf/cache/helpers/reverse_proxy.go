@@ -11,6 +11,7 @@ import (
 	svchost "github.com/hashicorp/terraform-svchost"
 )
 
+// ReverseProxy forwards requests to a remote host, adding the credentials CredsSource has for that host.
 type ReverseProxy struct {
 	ServerURL   *url.URL
 	CredsSource *cliconfig.CredentialsSource
@@ -29,6 +30,7 @@ type ReverseProxy struct {
 	Logger log.Logger
 }
 
+// WithModifyResponse returns a copy of rp that passes each response through fn.
 func (rp ReverseProxy) WithModifyResponse(
 	fn func(resp *http.Response) error,
 ) *ReverseProxy {

@@ -11,6 +11,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -331,7 +332,7 @@ resource "aws_vpc" "main" {
 
 			opts.WorkingDir = tmpDir
 
-			err = run.CheckFolderContainsTerraformCode(fsys, configbridge.NewRunOptions(opts))
+			err = run.CheckFolderContainsTerraformCode(fsys, configbridge.NewRunOptions(opts, tfimpl.Unknown))
 
 			if tc.expectValid {
 				assert.NoError(t, err, "Expected no error for valid directory: %s", tc.description)

@@ -10,7 +10,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
@@ -58,7 +57,7 @@ func TestGatedFlagUsageFollowsExperimentStatus(t *testing.T) {
 	t.Run("ongoing", func(t *testing.T) {
 		t.Parallel()
 
-		opts := options.NewTerragruntOptions(vexec.NewOSExec())
+		opts := options.NewTerragruntOptions()
 		casFlags := shared.NewCASFlags(opts, flags.Prefix{})
 
 		for _, name := range gated {
@@ -71,7 +70,7 @@ func TestGatedFlagUsageFollowsExperimentStatus(t *testing.T) {
 	t.Run("completed", func(t *testing.T) {
 		t.Parallel()
 
-		opts := options.NewTerragruntOptions(vexec.NewOSExec())
+		opts := options.NewTerragruntOptions()
 
 		exp := opts.Experiments.Find(experiment.OfflineCAS)
 		require.NotNil(t, exp)

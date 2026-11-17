@@ -5,7 +5,6 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/gruntwork-io/terragrunt/internal/awshelper"
@@ -33,11 +32,11 @@ func TestConfig_CreateS3LoggingInput(t *testing.T) {
 				"accesslogging_bucket_name": "logging-bucket",
 			},
 			s3.PutBucketLoggingInput{
-				Bucket: aws.String("source-bucket"),
+				Bucket: new("source-bucket"),
 				BucketLoggingStatus: &s3types.BucketLoggingStatus{
 					LoggingEnabled: &s3types.LoggingEnabled{
-						TargetBucket: aws.String("logging-bucket"),
-						TargetPrefix: aws.String(
+						TargetBucket: new("logging-bucket"),
+						TargetPrefix: new(
 							s3backend.DefaultS3BucketAccessLoggingTargetPrefix,
 						),
 					},
@@ -53,10 +52,10 @@ func TestConfig_CreateS3LoggingInput(t *testing.T) {
 				"accesslogging_target_prefix": "",
 			},
 			s3.PutBucketLoggingInput{
-				Bucket: aws.String("source-bucket"),
+				Bucket: new("source-bucket"),
 				BucketLoggingStatus: &s3types.BucketLoggingStatus{
 					LoggingEnabled: &s3types.LoggingEnabled{
-						TargetBucket: aws.String("logging-bucket"),
+						TargetBucket: new("logging-bucket"),
 					},
 				},
 			},
@@ -70,11 +69,11 @@ func TestConfig_CreateS3LoggingInput(t *testing.T) {
 				"accesslogging_target_prefix": "custom-prefix/",
 			},
 			s3.PutBucketLoggingInput{
-				Bucket: aws.String("source-bucket"),
+				Bucket: new("source-bucket"),
 				BucketLoggingStatus: &s3types.BucketLoggingStatus{
 					LoggingEnabled: &s3types.LoggingEnabled{
-						TargetBucket: aws.String("logging-bucket"),
-						TargetPrefix: aws.String("custom-prefix/"),
+						TargetBucket: new("logging-bucket"),
+						TargetPrefix: new("custom-prefix/"),
 					},
 				},
 			},
@@ -89,11 +88,11 @@ func TestConfig_CreateS3LoggingInput(t *testing.T) {
 				"accesslogging_target_prefix":                       "custom-prefix/",
 			},
 			s3.PutBucketLoggingInput{
-				Bucket: aws.String("source-bucket"),
+				Bucket: new("source-bucket"),
 				BucketLoggingStatus: &s3types.BucketLoggingStatus{
 					LoggingEnabled: &s3types.LoggingEnabled{
-						TargetBucket: aws.String("logging-bucket"),
-						TargetPrefix: aws.String("custom-prefix/"),
+						TargetBucket: new("logging-bucket"),
+						TargetPrefix: new("custom-prefix/"),
 						TargetObjectKeyFormat: &s3types.TargetObjectKeyFormat{
 							PartitionedPrefix: &s3types.PartitionedPrefix{
 								PartitionDateSource: s3types.PartitionDateSource("EventTime"),
@@ -150,6 +149,21 @@ func TestConfig_ForcePathStyleClientSession(t *testing.T) {
 			name:     "path-style-non-existent",
 			config:   s3backend.Config{},
 			expected: false,
+		},
+		{
+			name:     "use-path-style-true",
+			config:   s3backend.Config{"use_path_style": true},
+			expected: true,
+		},
+		{
+			name:     "use-path-style-false",
+			config:   s3backend.Config{"use_path_style": false},
+			expected: false,
+		},
+		{
+			name:     "use-path-style-string-true",
+			config:   s3backend.Config{"use_path_style": "true"},
+			expected: true,
 		},
 	}
 

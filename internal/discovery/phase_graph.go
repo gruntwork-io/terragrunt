@@ -11,6 +11,7 @@ import (
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -67,6 +68,7 @@ func (p *GraphPhase) Run(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	input *PhaseInput,
 ) (*PhaseResults, error) {
 	results := NewPhaseResults()
@@ -96,7 +98,7 @@ func (p *GraphPhase) Run(
 	allComponents := make([]component.Component, 0, len(input.Components)+len(candidateComponents))
 	allComponents = append(allComponents, input.Components...)
 	allComponents = append(allComponents, candidateComponents...)
-	threadSafeComponents := component.NewThreadSafeComponents(v.FS, allComponents)
+	threadSafeComponents := component.NewThreadSafeComponents(input.Discovery.paths, allComponents)
 
 	graphTargetCandidates := make([]DiscoveryResult, 0, len(input.Candidates))
 	otherCandidates := make([]DiscoveryResult, 0, len(input.Candidates))
@@ -151,7 +153,7 @@ func (p *GraphPhase) Run(
 
 		for _, candidate := range matchingCandidates {
 			g.Go(func() error {
-				err := p.processGraphTarget(ctx, l, v, state, candidate, graphExpr)
+				err := p.processGraphTarget(ctx, l, v, s, state, candidate, graphExpr)
 				if err != nil {
 					errMu.Lock()
 
@@ -181,6 +183,7 @@ func (p *GraphPhase) processGraphTarget(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	state *graphTraversalState,
 	candidate DiscoveryResult,
 	graphExpr *filter.GraphExpressionInfo,
@@ -221,7 +224,7 @@ func (p *GraphPhase) processGraphTarget(
 			boundary = resolved
 		}
 
-		err := p.discoverDependencies(ctx, l, v, state, c, depth, boundary)
+		err := p.discoverDependencies(ctx, l, v, s, state, c, depth, boundary)
 		if err != nil {
 			return err
 		}
@@ -239,7 +242,7 @@ func (p *GraphPhase) processGraphTarget(
 		}
 
 		if isWorktreeComponent(c) {
-			return p.discoverWorktreeDependents(ctx, l, v, state, c, graphExpr, depth)
+			return p.discoverWorktreeDependents(ctx, l, v, s, state, c, graphExpr, depth)
 		}
 
 		// The upstream dependent walk is capped by an explicit boundary when the
@@ -290,6 +293,7 @@ func (p *GraphPhase) processGraphTarget(
 				ctx,
 				l,
 				v,
+				s,
 				state,
 				c,
 				visitedDirs,
@@ -311,6 +315,7 @@ func (p *GraphPhase) discoverWorktreeDependents(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	state *graphTraversalState,
 	c component.Component,
 	graphExpr *filter.GraphExpressionInfo,
@@ -328,7 +333,7 @@ func (p *GraphPhase) discoverWorktreeDependents(
 
 	l.Debugf("Starting worktree dependent discovery for %s within %s", c.Path(), root)
 
-	return p.discoverDependentsUpstream(ctx, l, v, state, c, newStringSet(), root, root, depth)
+	return p.discoverDependentsUpstream(ctx, l, v, s, state, c, newStringSet(), root, root, depth)
 }
 
 // discoverDependencies recursively discovers dependencies of a component.
@@ -338,6 +343,7 @@ func (p *GraphPhase) discoverDependencies(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	state *graphTraversalState,
 	c component.Component,
 	depthRemaining int,
@@ -358,13 +364,13 @@ func (p *GraphPhase) discoverDependencies(
 
 	ctx = contextWithParsePhase(ctx, parsePhaseTagGraphDependencies)
 
-	if err := ensureParsed(ctx, l, v, c, state.opts, state.discovery); err != nil {
+	if err := ensureParsed(ctx, l, v, s, c, state.opts, state.discovery); err != nil {
 		return err
 	}
 
 	cfg := unit.Config()
 
-	depPaths, err := extractDependencyPaths(v.FS, cfg, c)
+	depPaths, err := extractDependencyPaths(state.discovery.paths, cfg, c)
 	if err != nil {
 		return err
 	}
@@ -422,6 +428,7 @@ func (p *GraphPhase) discoverDependencies(
 					contextWithIncrementedParseDepth(ctx),
 					l,
 					v,
+					s,
 					state,
 					depComponent,
 					depthRemaining-1,
@@ -535,6 +542,7 @@ func (p *GraphPhase) discoverDependentsUpstream(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	state *graphTraversalState,
 	target component.Component,
 	visitedDirs *stringSet,
@@ -567,7 +575,7 @@ func (p *GraphPhase) discoverDependentsUpstream(
 		return nil
 	}
 
-	resolvedTargetPath := vfs.ResolveForCompare(v.FS, target.Path())
+	resolvedTargetPath := state.discovery.paths.Resolve(target.Path())
 
 	// When the target is from a worktree, we need to compare using relative suffixes
 	// because the absolute paths will differ (worktree vs original directory).
@@ -575,12 +583,12 @@ func (p *GraphPhase) discoverDependentsUpstream(
 	targetRelSuffix := ""
 
 	if targetDCtx := target.DiscoveryContext(); targetDCtx != nil && targetDCtx.WorkingDir != "" {
-		resolvedWorkingDir := vfs.ResolveForCompare(v.FS, targetDCtx.WorkingDir)
+		resolvedWorkingDir := state.discovery.paths.Resolve(targetDCtx.WorkingDir)
 		targetRelSuffix = strings.TrimPrefix(resolvedTargetPath, resolvedWorkingDir)
 	}
 
 	// Resolve discovery.workingDir for consistent path comparison.
-	resolvedDiscoveryWorkingDir := vfs.ResolveForCompare(v.FS, state.discovery.workingDir)
+	resolvedDiscoveryWorkingDir := state.discovery.paths.Resolve(state.discovery.workingDir)
 
 	var candidates []component.Component
 
@@ -652,7 +660,7 @@ func (p *GraphPhase) discoverDependentsUpstream(
 
 	for _, candidate := range candidates {
 		g.Go(func() error {
-			dependent := p.processUpstreamCandidate(gCtx, l, v, upstreamState, candidate)
+			dependent := p.processUpstreamCandidate(gCtx, l, v, s, upstreamState, candidate)
 			if dependent != nil {
 				dependentsMu.Lock()
 
@@ -697,7 +705,7 @@ func (p *GraphPhase) discoverDependentsUpstream(
 		)
 
 		err := p.discoverDependentsUpstream(
-			contextWithIncrementedParseDepth(ctx), l, v, state, dependent, freshVisitedDirs,
+			contextWithIncrementedParseDepth(ctx), l, v, s, state, dependent, freshVisitedDirs,
 			filepath.Dir(dependent.Path()), boundaryRoot, depthRemaining-1,
 		)
 		if err != nil {
@@ -708,7 +716,7 @@ func (p *GraphPhase) discoverDependentsUpstream(
 	parentDir := filepath.Dir(currentDir)
 	if parentDir != currentDir && depthRemaining > 0 {
 		err := p.discoverDependentsUpstream(
-			contextWithIncrementedParseDepth(ctx), l, v, state, target, visitedDirs,
+			contextWithIncrementedParseDepth(ctx), l, v, s, state, target, visitedDirs,
 			parentDir, boundaryRoot, depthRemaining-1,
 		)
 		if err != nil {
@@ -730,6 +738,7 @@ func (p *GraphPhase) processUpstreamCandidate(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	state *upstreamDiscoveryState,
 	candidate component.Component,
 ) component.Component {
@@ -754,13 +763,14 @@ func (p *GraphPhase) processUpstreamCandidate(
 	ctx = contextWithParsePhase(ctx, parsePhaseTagGraphDependents)
 	graphState := state.graphTraversalState
 
-	published := graphState.threadSafeComponents.FindByPath(v.FS, candidate.Path())
+	published := graphState.threadSafeComponents.FindByPath(candidate.Path())
 	parseUnit := upstreamParseUnit(published, unit)
 
 	if err := ensureParsed(
 		ctx,
 		l,
 		v,
+		s,
 		parseUnit,
 		graphState.opts,
 		graphState.discovery,
@@ -778,7 +788,7 @@ func (p *GraphPhase) processUpstreamCandidate(
 
 	cfg := parseUnit.Config()
 
-	deps, err := extractDependencyPaths(v.FS, cfg, candidate)
+	deps, err := extractDependencyPaths(graphState.discovery.paths, cfg, candidate)
 	if err != nil {
 		state.errMu.Lock()
 
@@ -804,10 +814,7 @@ func (p *GraphPhase) processUpstreamCandidate(
 		candidate.SetDiscoveryContext(graphDiscoveryContext(dCtx))
 	}
 
-	canonicalCandidate, _ := graphState.threadSafeComponents.EnsureComponent(
-		v.FS,
-		candidate,
-	)
+	canonicalCandidate, _ := graphState.threadSafeComponents.EnsureComponent(candidate)
 
 	dependsOnTarget := false
 
@@ -824,14 +831,11 @@ func (p *GraphPhase) processUpstreamCandidate(
 			assignGraphDiscoveryContext(v.FS, depComponent, parentCtx, dep)
 		}
 
-		depComponent, _ = state.graphTraversalState.threadSafeComponents.EnsureComponent(
-			v.FS,
-			depComponent,
-		)
+		depComponent, _ = state.graphTraversalState.threadSafeComponents.EnsureComponent(depComponent)
 
 		// Compare paths: first try exact match, then try relative suffix match
 		// for worktree scenarios where target is in a different directory.
-		resolvedDep := vfs.ResolveForCompare(v.FS, dep)
+		resolvedDep := state.graphTraversalState.discovery.paths.Resolve(dep)
 
 		switch {
 		case resolvedDep == state.resolvedTargetPath:
@@ -902,7 +906,7 @@ func (p *GraphPhase) resolveDependency(
 
 	assignGraphDiscoveryContext(fsys, depComponent, parentCtx, depPath)
 
-	addedComponent, _ := threadSafeComponents.EnsureComponent(fsys, depComponent)
+	addedComponent, _ := threadSafeComponents.EnsureComponent(depComponent)
 
 	parent.AddDependency(addedComponent)
 

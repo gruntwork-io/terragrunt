@@ -6,8 +6,11 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
+// Attributes lists the attributes of a block or file body.
 type Attributes []*Attribute
 
+// NewAttributes wraps hclAttrs, binding each to file so its diagnostics go through the file's parser. The order is
+// random, since hclAttrs is a map.
 func NewAttributes(file *File, hclAttrs hcl.Attributes) Attributes {
 	var attrs = make(Attributes, 0, len(hclAttrs))
 
@@ -21,6 +24,7 @@ func NewAttributes(file *File, hclAttrs hcl.Attributes) Attributes {
 	return attrs
 }
 
+// ValidateIdentifier returns the error of the first attribute whose name is not a valid identifier.
 func (attrs Attributes) ValidateIdentifier() error {
 	for _, attr := range attrs {
 		if err := attr.ValidateIdentifier(); err != nil {
@@ -31,6 +35,7 @@ func (attrs Attributes) ValidateIdentifier() error {
 	return nil
 }
 
+// Range returns a range in the file of attrs that spans every attribute.
 func (attrs Attributes) Range() hcl.Range {
 	var rng hcl.Range
 
@@ -49,11 +54,14 @@ func (attrs Attributes) Range() hcl.Range {
 	return rng
 }
 
+// Attribute is an HCL attribute bound to the [File] that declares it.
 type Attribute struct {
 	*File
 	*hcl.Attribute
 }
 
+// ValidateIdentifier reports a diagnostic through the file's parser when the attribute name is not a valid
+// identifier.
 func (attr *Attribute) ValidateIdentifier() error {
 	if !hclsyntax.ValidIdentifier(attr.Name) {
 		diags := hcl.Diagnostics{{
@@ -71,6 +79,7 @@ func (attr *Attribute) ValidateIdentifier() error {
 	return nil
 }
 
+// Value evaluates the attribute's expression in evalCtx. It returns the value even when evaluation fails.
 func (attr *Attribute) Value(evalCtx *hcl.EvalContext) (cty.Value, error) {
 	evaluatedVal, diags := attr.Expr.Value(evalCtx)
 

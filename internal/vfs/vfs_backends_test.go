@@ -53,6 +53,19 @@ func TestMemMapFSNameCollisions(t *testing.T) {
 		assert.Equal(t, "/first", target, "the existing link must keep its target")
 	})
 
+	t.Run("symlink onto an existing file is ErrExist", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := vfs.NewMemMapFS()
+		require.NoError(t, vfs.WriteFile(fsys, "/file", []byte("x"), 0o644))
+
+		require.ErrorIs(t, vfs.Symlink(fsys, "/elsewhere", "/file"), os.ErrExist)
+
+		got, err := vfs.ReadFile(fsys, "/file")
+		require.NoError(t, err)
+		assert.Equal(t, []byte("x"), got, "the existing file must keep its contents")
+	})
+
 	t.Run("hard link onto an existing symlink is ErrExist", func(t *testing.T) {
 		t.Parallel()
 

@@ -1,6 +1,7 @@
 package tf
 
 import (
+	"errors"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -53,34 +54,12 @@ var variableAttributesSchema = &hcl.BodySchema{
 // constraint at all, is read literally; every other type constraint makes OpenTofu/Terraform parse
 // the value as an HCL expression.
 func ModuleVariables(fsys vfs.FS, modulePath string) (map[string]ModuleVariable, error) {
-	files, err := util.ListTfFiles(fsys, modulePath)
+	body, err := moduleBody(fsys, modulePath)
 	if err != nil {
 		return nil, err
 	}
 
-	parser := hclparse.NewParser()
-	hclFiles := make([]*hcl.File, 0, len(files))
-
-	for _, path := range files {
-		src, err := vfs.ReadFile(fsys, path)
-		if err != nil {
-			return nil, err
-		}
-
-		parseFunc := parser.ParseHCL
-		if strings.HasSuffix(path, ".json") {
-			parseFunc = parser.ParseJSON
-		}
-
-		file, diags := parseFunc(src, path)
-		if diags.HasErrors() {
-			return nil, diags
-		}
-
-		hclFiles = append(hclFiles, file)
-	}
-
-	content, _, diags := hcl.MergeFiles(hclFiles).PartialContent(variableBlockSchema)
+	content, _, diags := body.PartialContent(variableBlockSchema)
 	if diags.HasErrors() {
 		return nil, diags
 	}
@@ -106,4 +85,56 @@ func ModuleVariables(fsys vfs.FS, modulePath string) (map[string]ModuleVariable,
 	}
 
 	return variables, nil
+}
+
+// moduleBody parses every OpenTofu/Terraform file of the module at modulePath into one body.
+func moduleBody(fsys vfs.FS, modulePath string) (hcl.Body, error) {
+	files, err := util.ListTfFiles(fsys, modulePath)
+	if err != nil {
+		return nil, err
+	}
+
+	return parseModuleFiles(fsys, files)
+}
+
+// parseModuleFiles parses the OpenTofu/Terraform files at paths into one body.
+func parseModuleFiles(fsys vfs.FS, paths []string) (hcl.Body, error) {
+	parser := hclparse.NewParser()
+	hclFiles := make([]*hcl.File, 0, len(paths))
+	errs := make([]error, 0, len(paths))
+
+	var diags hcl.Diagnostics
+
+	for _, path := range paths {
+		src, err := vfs.ReadFile(fsys, path)
+		if err != nil {
+			errs = append(errs, err)
+
+			continue
+		}
+
+		parseFunc := parser.ParseHCL
+		if strings.HasSuffix(path, ".json") {
+			parseFunc = parser.ParseJSON
+		}
+
+		file, fileDiags := parseFunc(src, path)
+		if fileDiags.HasErrors() {
+			diags = append(diags, fileDiags...)
+
+			continue
+		}
+
+		hclFiles = append(hclFiles, file)
+	}
+
+	if diags.HasErrors() {
+		errs = append(errs, diags)
+	}
+
+	if err := errors.Join(errs...); err != nil {
+		return nil, err
+	}
+
+	return hcl.MergeFiles(hclFiles), nil
 }

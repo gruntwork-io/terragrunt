@@ -37,6 +37,7 @@ const (
 
 type traceExporterType string
 
+// Tracer records OpenTelemetry spans, parented to the trace in TRACEPARENT when one is set.
 type Tracer struct {
 	trace.Tracer
 	provider         *sdktrace.TracerProvider
@@ -108,7 +109,7 @@ func NewTracer(
 	}
 
 	tracer := &Tracer{
-		Tracer:           provider.Tracer(appName),
+		Tracer:           provider.Tracer(appName, trace.WithInstrumentationVersion(appVersion)),
 		provider:         provider,
 		spanExporter:     spanExporter,
 		parentTraceID:    parentTraceID,

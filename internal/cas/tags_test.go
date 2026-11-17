@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/redact"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -21,7 +22,7 @@ import (
 func TestProbeCache_StoreTagsKeepsReleaseTagsHighestFirst(t *testing.T) {
 	t.Parallel()
 
-	fsys := venvtest.New().FS
+	fsys := venv.MemVenv().FS
 	p := cas.NewProbeCache(probeCacheRoot)
 	url := "https://example.com/tags.git"
 
@@ -46,7 +47,7 @@ func TestProbeCache_StoreTagsKeepsReleaseTagsHighestFirst(t *testing.T) {
 func TestProbeCache_StoreTagsBoundsEntry(t *testing.T) {
 	t.Parallel()
 
-	fsys := venvtest.New().FS
+	fsys := venv.MemVenv().FS
 	p := cas.NewProbeCache(probeCacheRoot)
 	url := "https://example.com/many-tags.git"
 
@@ -68,7 +69,7 @@ func TestProbeCache_StoreTagsBoundsEntry(t *testing.T) {
 func TestProbeCache_LookupTagsDamagedEntry(t *testing.T) {
 	t.Parallel()
 
-	fsys := venvtest.New().FS
+	fsys := venv.MemVenv().FS
 	p := cas.NewProbeCache(probeCacheRoot)
 	url := "https://example.com/damaged-tags.git"
 
@@ -119,7 +120,7 @@ func TestCAS_StoredTagsServesRecordedTagsWithoutOSFilesystem(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	v := venvtest.New()
+	v := venv.MemVenv()
 	url := redact.NewURL("https://example.com/recorded-tags.git")
 	refs := []git.LsRemoteResult{{Hash: testTagHash(3), Ref: "refs/tags/v2.0.0"}}
 

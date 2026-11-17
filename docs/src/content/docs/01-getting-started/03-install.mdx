@@ -249,6 +249,8 @@ To install a test build at a specific commit:
 curl -sSfL --proto '=https' --tlsv1.2 https://terragrunt.com/install | bash -s -- --test --commit <commit-sha>
 ```
 
+`--commit` accepts a short commit SHA, which the script expands to the full SHA through the GitHub API. If you hit the GitHub API rate limit, set `GH_TOKEN` or `GITHUB_TOKEN`, or pass the full 40-character SHA, which needs no API request.
+
 If you prefer to run the install steps manually, the tabs below show the equivalent commands:
 
 <Tabs>

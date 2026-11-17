@@ -5,10 +5,9 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl/validate"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -76,8 +75,8 @@ func TestNewFlagsMapsEachEnvVarToOneFlag(t *testing.T) {
 		t.Run(tc.envVar, func(t *testing.T) {
 			t.Parallel()
 
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
-			flagSet := validate.NewFlags(logger.CreateLogger(), opts, venvtest.New())
+			opts := options.NewTerragruntOptions()
+			flagSet := validate.NewFlags(logger.CreateLogger(), opts, venv.MemVenv())
 
 			require.NoError(t, flagSet.Parse(clihelper.Args{}, map[string]string{tc.envVar: "true"}))
 

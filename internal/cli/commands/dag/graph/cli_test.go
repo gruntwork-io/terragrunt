@@ -1,13 +1,17 @@
 package graph_test
 
 import (
+	"bytes"
 	"io"
 	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/dag/graph"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -69,10 +73,9 @@ func BenchmarkRunGraphDependencies(b *testing.B) {
 			b.StartTimer()
 
 			err = graph.Run(
-				b.Context(),
+				config.WithCaches(b.Context()),
 				logger.CreateLogger(),
-				venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard),
-				terragruntOptions,
+				venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard), new(rewrite.Store), terragruntOptions,
 			)
 
 			b.StopTimer()
@@ -89,7 +92,7 @@ func TestNewCommandExposesTheQueueFlags(t *testing.T) {
 	t.Parallel()
 
 	cmd := graph.NewCommand(
-		logger.CreateLogger(), options.NewTerragruntOptions(vexec.NewOSExec()), venvtest.New(),
+		logger.CreateLogger(), options.NewTerragruntOptions(), venv.MemVenv(), new(rewrite.Store),
 	)
 
 	assert.Equal(t, graph.CommandName, cmd.Name)
@@ -100,4 +103,32 @@ func TestNewCommandExposesTheQueueFlags(t *testing.T) {
 	} {
 		assert.NotNil(t, cmd.Flags.Get(name), name)
 	}
+}
+
+// TestNewCommandRendersTheDependencyGraph pins the DOT output, edges included, that `dag graph` prints.
+func TestNewCommandRendersTheDependencyGraph(t *testing.T) {
+	t.Parallel()
+
+	root := venvtest.Root("/graph")
+	out := new(bytes.Buffer)
+	v := venv.MemVenv().WithWriter(out).WithFS(venvtest.NewFS(t, root, map[string]string{
+		"app/terragrunt.hcl": "dependency \"db\" {\n  config_path = \"../db\"\n}\n" +
+			"dependency \"vpc\" {\n  config_path = \"../vpc\"\n}\n",
+		"db/terragrunt.hcl":  "dependency \"vpc\" {\n  config_path = \"../vpc\"\n}\n",
+		"vpc/terragrunt.hcl": "",
+	}))
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = root
+	opts.RootWorkingDir = root
+
+	cmd := graph.NewCommand(logger.CreateLogger(), opts, v, new(rewrite.Store))
+	require.NoError(t, cmd.Action(config.WithCaches(t.Context()), &clihelper.Context{}))
+
+	assert.Equal(
+		t,
+		"digraph {\n\t\"app\" ;\n\t\"app\" -> \"db\";\n\t\"app\" -> \"vpc\";\n"+
+			"\t\"db\" ;\n\t\"db\" -> \"vpc\";\n\t\"vpc\" ;\n}\n",
+		out.String(),
+	)
 }

@@ -1,6 +1,13 @@
 {
   "findings": [
     {
+      "id": "CVE-2026-93687",
+      "pkg": "braces",
+      "target": "docs/bun.lock",
+      "reason": "No fixed version exists: braces 3.0.3 is the latest upstream release (micromatch/braces), so scanners will keep flagging this until a patched release is published.",
+      "expires": "2027-04-21"
+    },
+    {
       "id": "GO-2026-5932",
       "pkg": "golang.org/x/crypto",
       "reason": "Advisory is for golang.org/x/crypto/openpgp (unmaintained, no fixed version). No openpgp package is in the Terragrunt build graph (go list -deps ./...); only x/crypto/ssh, bcrypt, and their internals are linked.",

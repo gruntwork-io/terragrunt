@@ -223,7 +223,7 @@ func (b *AWSConfigBuilder) BuildS3Client(
 
 	if b.sessionConfig.CustomS3Endpoint != "" {
 		customFN = append(customFN, func(o *s3.Options) {
-			o.BaseEndpoint = aws.String(b.sessionConfig.CustomS3Endpoint)
+			o.BaseEndpoint = new(b.sessionConfig.CustomS3Endpoint)
 		})
 	}
 
@@ -352,9 +352,9 @@ func AssumeIamRole(
 		}
 
 		input := &sts.AssumeRoleWithWebIdentityInput{
-			RoleArn:          aws.String(iamRoleOpts.RoleARN),
-			RoleSessionName:  aws.String(roleSessionName),
-			WebIdentityToken: aws.String(string(tb)),
+			RoleArn:          new(iamRoleOpts.RoleARN),
+			RoleSessionName:  new(roleSessionName),
+			WebIdentityToken: new(string(tb)),
 			DurationSeconds:  aws.Int32(int32(duration.Seconds())),
 		}
 
@@ -372,13 +372,13 @@ func AssumeIamRole(
 
 	// Use regular sts AssumeRole
 	input := &sts.AssumeRoleInput{
-		RoleArn:         aws.String(iamRoleOpts.RoleARN),
-		RoleSessionName: aws.String(roleSessionName),
+		RoleArn:         new(iamRoleOpts.RoleARN),
+		RoleSessionName: new(roleSessionName),
 		DurationSeconds: aws.Int32(int32(duration.Seconds())),
 	}
 
 	if externalID != "" {
-		input.ExternalId = aws.String(externalID)
+		input.ExternalId = new(externalID)
 	}
 
 	result, err := stsClient.AssumeRole(ctx, input)
@@ -516,9 +516,9 @@ func getWebIdentityCredentialsFromIAMRoleOptions(
 		}
 
 		input := &sts.AssumeRoleWithWebIdentityInput{
-			RoleArn:          aws.String(iamRoleOptions.RoleARN),
-			RoleSessionName:  aws.String(roleSessionName),
-			WebIdentityToken: aws.String(string(token)),
+			RoleArn:          new(iamRoleOptions.RoleARN),
+			RoleSessionName:  new(roleSessionName),
+			WebIdentityToken: new(string(token)),
 			DurationSeconds:  aws.Int32(int32(duration.Seconds())),
 		}
 
@@ -557,13 +557,13 @@ func getSTSCredentialsFromIAMRoleOptions(
 		}
 
 		input := &sts.AssumeRoleInput{
-			RoleArn:         aws.String(iamRoleOptions.RoleARN),
-			RoleSessionName: aws.String(roleSessionName),
+			RoleArn:         new(iamRoleOptions.RoleARN),
+			RoleSessionName: new(roleSessionName),
 			DurationSeconds: aws.Int32(int32(duration.Seconds())),
 		}
 
 		if externalID != "" {
-			input.ExternalId = aws.String(externalID)
+			input.ExternalId = new(externalID)
 		}
 
 		result, err := stsClient.AssumeRole(ctx, input)

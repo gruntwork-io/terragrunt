@@ -1,0 +1,28 @@
+---
+name: get_aws_account_alias
+description: Returns the alias of the AWS account that Terragrunt's credentials belong to.
+configs: [unit, stack]
+params: []
+returns: string
+examples:
+  - code: |
+      # terragrunt.hcl
+
+      inputs = {
+        account_alias = get_aws_account_alias() # "acme-prod"
+      }
+---
+
+`get_aws_account_alias` asks AWS IAM for the alias of the account the current credentials belong to. It returns an empty string when the account has no alias, and fails when Terragrunt has no AWS credentials or the credentials can't list account aliases. Once Terragrunt has evaluated the unit's [`iam_role`](/reference/hcl/attributes/iam_role), it asks with that role, so a call evaluated before and after it can return different aliases.
+
+```hcl
+# terragrunt.hcl
+
+locals {
+  alias = get_aws_account_alias()
+}
+
+inputs = {
+  name_prefix = local.alias != "" ? local.alias : get_aws_account_id()
+}
+```

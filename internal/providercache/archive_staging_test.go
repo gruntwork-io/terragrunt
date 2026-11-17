@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"runtime"
 	"strings"
 	"testing"
@@ -127,6 +128,8 @@ func startProviderCacheRun(t *testing.T, upstreamURL string) *providerCacheRun {
 
 	// A temp dir of its own keeps the provider lock file away from the sibling test.
 	tempDir := helpers.TmpDirWOSymlinks(t)
+	require.NoError(t, os.Chmod(tempDir, 0o700))
+
 	v := venvtest.NewOSWithEmptyEnv().WithTempDir(func() string { return tempDir })
 
 	service := services.NewProviderService(
@@ -152,6 +155,7 @@ func startProviderCacheRun(t *testing.T, upstreamURL string) *providerCacheRun {
 	token := fmt.Sprintf("%s:%s", providercache.APIKeyAuth, uuid.New().String())
 
 	server := cache.NewServer(
+		cache.WithHostname("127.0.0.1"),
 		cache.WithToken(token),
 		cache.WithProviderService(service),
 		cache.WithProviderHandlers(directHandler),
@@ -213,7 +217,10 @@ func (run *providerCacheRun) warmUpProviderArchive(t *testing.T) string {
 
 	// A bounded client keeps a stuck cache server from hanging the test
 	// until the suite timeout.
-	client := &http.Client{Timeout: 30 * time.Second}
+	transport := &http.Transport{}
+	t.Cleanup(transport.CloseIdleConnections)
+
+	client := &http.Client{Timeout: 30 * time.Second, Transport: transport}
 
 	resp, err := client.Do(req)
 	require.NoError(t, err)

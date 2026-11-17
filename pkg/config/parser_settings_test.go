@@ -9,11 +9,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 const (
@@ -147,7 +147,7 @@ func TestParserOptions(t *testing.T) {
 
 			var errBuf bytes.Buffer
 
-			v := venvtest.New().WithErrWriter(&errBuf)
+			v := venv.MemVenv().WithErrWriter(&errBuf)
 			l := logger.CreateLogger().WithOptions(log.WithLevel(tc.level))
 
 			var handled hcl.Diagnostics
@@ -213,7 +213,7 @@ func TestParserOptionsBareIncludeRewrite(t *testing.T) {
 
 			l := logger.CreateLogger()
 
-			file, err := hclparse.NewParser(config.ParserOptions(l, venvtest.New(), tc.settings)...).
+			file, err := hclparse.NewParser(config.ParserOptions(l, venv.MemVenv(), tc.settings)...).
 				ParseFromString(bareInclude, "terragrunt.hcl")
 			require.NoError(t, err)
 

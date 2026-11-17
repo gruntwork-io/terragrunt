@@ -1,0 +1,200 @@
+---
+name: generate
+description: Writes a file into the directory where Terragrunt runs OpenTofu/Terraform, e.g. a provider configuration shared by many units.
+configs: [unit]
+labels:
+  - name: name
+    description: Names the block. Names must be unique across a unit and the files it includes. With `merge_strategy = "deep"` on the `include`, a unit's block replaces an included block with the same name.
+attributes:
+  - name: path
+    type: string
+    required: true
+    description: The file to write. A relative path resolves against the directory where Terragrunt runs OpenTofu/Terraform.
+    example: |
+      # terragrunt.hcl
+
+      generate "provider" {
+        path      = "provider.tf"
+        if_exists = "overwrite_terragrunt"
+        contents  = <<EOF
+      provider "aws" {
+        region = "us-east-1"
+      }
+      EOF
+      }
+  - name: if_exists
+    type: string
+    required: true
+    description: What to do when a file exists at `path`. `overwrite` replaces it, `overwrite_terragrunt` replaces it only if Terragrunt generated it and fails otherwise, `skip` leaves it as it is, and `error` fails.
+    example: |
+      # terragrunt.hcl
+
+      generate "provider" {
+        path      = "provider.tf"
+        if_exists = "skip"
+        contents  = file("provider.tf.tpl")
+      }
+  - name: contents
+    type: string
+    required: true
+    description: The contents of the file.
+    example: |
+      # terragrunt.hcl
+
+      generate "versions" {
+        path      = "versions.tf"
+        if_exists = "overwrite_terragrunt"
+        contents  = <<EOF
+      terraform {
+        required_version = ">= 1.8"
+      }
+      EOF
+      }
+  - name: disable
+    type: bool
+    default: "false"
+    description: Turns off the block, so Terragrunt doesn't write the file. `if_disabled` sets what happens to a file already at `path`.
+    example: |
+      # terragrunt.hcl
+
+      generate "provider" {
+        path      = "provider.tf"
+        if_exists = "overwrite_terragrunt"
+        disable   = get_env("SKIP_PROVIDER", "false") == "true"
+        contents  = file("provider.tf.tpl")
+      }
+  - name: if_disabled
+    type: string
+    default: '"skip"'
+    description: What to do with a file at `path` when `disable` is `true`. `remove` deletes it, `remove_terragrunt` deletes it only if Terragrunt generated it and fails otherwise, and `skip` leaves it.
+    example: |
+      # terragrunt.hcl
+
+      generate "provider" {
+        path        = "provider.tf"
+        if_exists   = "overwrite_terragrunt"
+        disable     = true
+        if_disabled = "remove_terragrunt"
+        contents    = ""
+      }
+  - name: comment_prefix
+    type: string
+    default: '"# "'
+    description: The comment syntax for the signature line Terragrunt writes at the top of the file, which `overwrite_terragrunt` and `remove_terragrunt` look for. Set it for a file type that doesn't use `#` comments.
+    example: |
+      # terragrunt.hcl
+
+      generate "config" {
+        path           = "config.js"
+        if_exists      = "overwrite_terragrunt"
+        comment_prefix = "// "
+        contents       = "module.exports = {};"
+      }
+  - name: disable_signature
+    type: bool
+    default: "false"
+    description: Leaves out the signature line, e.g. for a file format with no comment syntax. Without the signature, `overwrite_terragrunt` and `remove_terragrunt` can't tell that Terragrunt generated the file.
+    example: |
+      # terragrunt.hcl
+
+      generate "settings" {
+        path              = "settings.json"
+        if_exists         = "overwrite"
+        disable_signature = true
+        contents          = jsonencode({ region = "us-east-1" })
+      }
+  - name: hcl_fmt
+    type: bool
+    description: Whether to format the file as HCL. When unset, Terragrunt formats files ending in `.tf`, `.tofu`, or `.hcl`. `true` formats the file whatever its name, and `false` writes the contents unchanged.
+    example: |
+      # terragrunt.hcl
+
+      generate "provider" {
+        path      = "provider.tf"
+        if_exists = "overwrite_terragrunt"
+        hcl_fmt   = false
+        contents  = file("provider.tf.tpl")
+      }
+  - name: mutable
+    type: bool
+    default: "false"
+    description: Writes an ordinary writable file. Otherwise Terragrunt stores the contents in the [content-addressable store (CAS)](/features/caching/cas), and the file at `path` is a read-only link to the stored copy, shared by every unit that generates the same contents. Set it when something edits the file in place, e.g. a hook. With `--no-cas`, Terragrunt writes ordinary files and `mutable` has no effect.
+    example: |
+      # terragrunt.hcl
+
+      generate "provider" {
+        path      = "provider.tf"
+        if_exists = "overwrite_terragrunt"
+        mutable   = true
+        contents  = file("provider.tf.tpl")
+      }
+---
+
+import FileTree from '@components/vendored/starlight/FileTree.astro';
+
+Before it runs OpenTofu/Terraform, Terragrunt writes the file into the unit's copy of the module in `.terragrunt-cache`:
+
+```hcl
+# live/vpc/terragrunt.hcl
+
+terraform {
+  source = "../../modules//vpc"
+}
+
+generate "provider" {
+  path      = "provider.tf"
+  if_exists = "overwrite_terragrunt"
+  contents  = <<EOF
+provider "aws" {
+  region = "us-east-1"
+}
+EOF
+}
+```
+
+<FileTree>
+
+- live
+  - vpc
+    - terragrunt.hcl
+    - .terragrunt-cache/
+      - KscGyaXartMp6_NdWM9ZI_yqw70
+        - mzEiLIbIiJRsotGoGtH-j-KOhUo
+          - vpc
+            - main.tf
+            - **provider.tf** written by the `generate` block
+- modules
+  - vpc
+    - main.tf
+
+</FileTree>
+
+A `generate` block in a file that units include, e.g. `root.hcl`, gives every unit the same provider or backend configuration.
+
+### Setting `generate` as an attribute
+
+`generate` also works as an attribute, a map from block names to the same settings. This lets a unit take its `generate` configuration from another file:
+
+```hcl
+# common.hcl
+
+generate "provider" {
+  path      = "provider.tf"
+  if_exists = "overwrite_terragrunt"
+  contents  = <<EOF
+provider "aws" {
+  region = "us-east-1"
+}
+EOF
+}
+```
+
+```hcl
+# terragrunt.hcl
+
+locals {
+  common = read_terragrunt_config(find_in_parent_folders("common.hcl"))
+}
+
+generate = local.common.generate
+```

@@ -627,7 +627,8 @@ func mergeIncludes(
 	evalCtx *hcl.EvalContext,
 	srcByFilename map[string][]byte,
 ) (hcl.Body, error) {
-	bodies := []hcl.Body{parsedFile.Remain}
+	bodies := make([]hcl.Body, 0, 1+len(parsedFile.Includes))
+	bodies = append(bodies, parsedFile.Remain)
 
 	for _, inc := range parsedFile.Includes {
 		resolved, err := mergeOneInclude(fsys, inc, stackDir, evalCtx)

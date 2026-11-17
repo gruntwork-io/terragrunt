@@ -12,14 +12,12 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/amazonsts"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
-
 	"github.com/stretchr/testify/require"
 )
 
-const mintedAccessKeyID = "ASIAMINTEDSESSION"
+const mintedAccessKeyID = "fake-minted-session-key-id"
 
-var credentialRe = regexp.MustCompile(`Credential=([A-Z0-9]+)/`)
+var credentialRe = regexp.MustCompile(`Credential=([^/]+)/`)
 
 // TestNoAssumeRoleIsSignedByAMintedSession checks differing role options still sign with the caller's key.
 func TestNoAssumeRoleIsSignedByAMintedSession(t *testing.T) {
@@ -165,7 +163,7 @@ func assertNoMintedSigner(t *testing.T, sts *recordingSTS) {
 
 // newSelfAssumeVenv returns a venv holding the caller's own credentials.
 func newSelfAssumeVenv(sts *recordingSTS) *venv.Venv {
-	return venvtest.New().WithHTTP(sts.client).WithEnv(map[string]string{
+	return venv.MemVenv().WithHTTP(sts.client).WithEnv(map[string]string{
 		"AWS_REGION":            "us-east-1",
 		"AWS_ACCESS_KEY_ID":     baseAccessKeyID,
 		"AWS_SECRET_ACCESS_KEY": "base-secret",

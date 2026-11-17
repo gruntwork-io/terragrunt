@@ -7,10 +7,10 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/info/print"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 
 	"github.com/stretchr/testify/assert"
@@ -84,7 +84,7 @@ func TestInfoPrintAllReportsEachUnitsContext(t *testing.T) {
 		assert.Equal(t, filepath.Join(unitDir, config.DefaultTerragruntConfigPath), info.ConfigPath)
 		assert.Equal(t, downloadDir, info.DownloadDir)
 		assert.Empty(t, info.IAMRole)
-		assert.Equal(t, options.TofuDefaultPath, info.TerraformBinary)
+		assert.Equal(t, tfimpl.TofuDefaultPath, info.TerraformBinary)
 		assert.Equal(t, "print", info.TerraformCommand)
 		assert.True(
 			t,
@@ -96,10 +96,44 @@ func TestInfoPrintAllReportsEachUnitsContext(t *testing.T) {
 	}
 }
 
+// TestInfoPrintReportsTGTFPathOverTerraformBinary pins that TG_TF_PATH names
+// the binary reported for a unit whose config sets terraform_binary.
+func TestInfoPrintReportsTGTFPathOverTerraformBinary(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		args []string
+	}{
+		{name: "single unit", args: []string{"info", "print", "--working-dir", filepath.Join(unitRoot, "a")}},
+		{name: "all units", args: []string{"info", "print", "--all", "--working-dir", unitRoot}},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v := venv.MemVenv().
+				WithEnv(map[string]string{"TG_TF_PATH": "/fake/bin/tofu-env"}).
+				WithFS(venvtest.NewFS(t, unitRoot, map[string]string{
+					"a/terragrunt.hcl": `terraform_binary = "/fake/bin/tofu-a"`,
+				}))
+
+			out, err := runCLI(t, v, tc.args...)
+			require.NoError(t, err)
+
+			var info print.InfoOutput
+
+			require.NoError(t, json.Unmarshal([]byte(out), &info))
+			assert.Equal(t, "/fake/bin/tofu-env", info.TerraformBinary)
+		})
+	}
+}
+
 func infoPrintUnits(t *testing.T) *venv.Venv {
 	t.Helper()
 
-	return venvtest.New().WithFS(venvtest.NewFS(t, unitRoot, map[string]string{
+	return venv.MemVenv().WithFS(venvtest.NewFS(t, unitRoot, map[string]string{
 		"a/terragrunt.hcl": "",
 		"b/terragrunt.hcl": "",
 	}))

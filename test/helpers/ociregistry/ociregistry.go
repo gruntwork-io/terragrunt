@@ -18,6 +18,7 @@ import (
 
 	"github.com/opencontainers/go-digest"
 	ociv1 "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"oras.land/oras-go/v2"
 	"oras.land/oras-go/v2/content/memory"
@@ -74,7 +75,9 @@ func Start(t *testing.T) *Registry {
 	t.Helper()
 
 	r := &Registry{repos: map[string]*repository{}}
-	r.server = httptest.NewTLSServer(http.HandlerFunc(r.serve))
+	r.server = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		assert.NoError(t, r.serve(w, req), "answering %s %s", req.Method, req.URL.Path)
+	}))
 
 	t.Cleanup(r.server.Close)
 
@@ -161,20 +164,18 @@ func (r *Registry) OverwriteBlob(t *testing.T, repo string, target digest.Digest
 	held.blobs[target] = stored
 }
 
-// serve routes the subset of the distribution API a module download exercises.
-func (r *Registry) serve(w http.ResponseWriter, req *http.Request) {
+// serve routes the subset of the distribution API a module download exercises, and returns
+// the error from writing the response body.
+func (r *Registry) serve(w http.ResponseWriter, req *http.Request) error {
 	if req.URL.Path == "/v2" || req.URL.Path == "/v2/" {
 		w.Header().Set(headerContentType, "application/json")
-		writeBody(w, []byte("{}"))
 
-		return
+		return writeBody(w, []byte("{}"))
 	}
 
 	name, kind, ref, ok := splitAPIPath(req.URL.Path)
 	if !ok {
-		writeNotFound(w, codeNameUnknown)
-
-		return
+		return writeNotFound(w, codeNameUnknown)
 	}
 
 	r.mu.RLock()
@@ -182,18 +183,14 @@ func (r *Registry) serve(w http.ResponseWriter, req *http.Request) {
 
 	held, ok := r.repos[name]
 	if !ok {
-		writeNotFound(w, codeNameUnknown)
-
-		return
+		return writeNotFound(w, codeNameUnknown)
 	}
 
 	if kind == pathBlobs {
-		serveBlob(w, req, held, ref)
-
-		return
+		return serveBlob(w, req, held, ref)
 	}
 
-	serveManifest(w, req, held, ref)
+	return serveManifest(w, req, held, ref)
 }
 
 // repositoryLocked returns repo's content, creating it on first push, and expects the write lock held.
@@ -214,44 +211,38 @@ func (r *Registry) repositoryLocked(repo string) *repository {
 }
 
 // serveManifest answers the HEAD that resolves a reference and the GET that reads the manifest.
-func serveManifest(w http.ResponseWriter, req *http.Request, held *repository, ref string) {
+func serveManifest(w http.ResponseWriter, req *http.Request, held *repository, ref string) error {
 	target, ok := resolveReference(held, ref)
 	if !ok {
-		writeNotFound(w, codeManifestUnknown)
-
-		return
+		return writeNotFound(w, codeManifestUnknown)
 	}
 
 	stored, ok := held.manifests[target]
 	if !ok {
-		writeNotFound(w, codeManifestUnknown)
-
-		return
+		return writeNotFound(w, codeManifestUnknown)
 	}
 
 	w.Header().Set(headerContentDigest, target.String())
-	writeContent(w, req, stored)
+
+	return writeContent(w, req, stored)
 }
 
 // serveBlob answers the GET that streams a layer.
-func serveBlob(w http.ResponseWriter, req *http.Request, held *repository, ref string) {
+func serveBlob(w http.ResponseWriter, req *http.Request, held *repository, ref string) error {
 	target, err := digest.Parse(ref)
 	if err != nil {
-		writeNotFound(w, codeBlobUnknown)
-
-		return
+		return writeNotFound(w, codeBlobUnknown)
 	}
 
 	stored, ok := held.blobs[target]
 	if !ok {
-		writeNotFound(w, codeBlobUnknown)
-
-		return
+		return writeNotFound(w, codeBlobUnknown)
 	}
 
 	// The advertised digest stays the pushed one, so an overwritten blob reaches the caller's verifier.
 	w.Header().Set(headerContentDigest, target.String())
-	writeContent(w, req, stored)
+
+	return writeContent(w, req, stored)
 }
 
 // resolveReference turns a tag or a digest reference into the digest it names.
@@ -270,29 +261,32 @@ func resolveReference(held *repository, ref string) (digest.Digest, bool) {
 }
 
 // writeContent sends stored with the length oras requires, omitting the body for a HEAD.
-func writeContent(w http.ResponseWriter, req *http.Request, stored storedBlob) {
+func writeContent(w http.ResponseWriter, req *http.Request, stored storedBlob) error {
 	w.Header().Set(headerContentType, stored.mediaType)
 	w.Header().Set("Content-Length", strconv.Itoa(len(stored.data)))
 
 	if req.Method == http.MethodHead {
 		w.WriteHeader(http.StatusOK)
 
-		return
+		return nil
 	}
 
-	writeBody(w, stored.data)
+	return writeBody(w, stored.data)
 }
 
 // writeNotFound answers with the distribution-spec error body a registry client parses.
-func writeNotFound(w http.ResponseWriter, code string) {
+func writeNotFound(w http.ResponseWriter, code string) error {
 	w.Header().Set(headerContentType, "application/json")
 	w.WriteHeader(http.StatusNotFound)
-	writeBody(w, []byte(`{"errors":[{"code":"`+code+`"}]}`))
+
+	return writeBody(w, []byte(`{"errors":[{"code":"`+code+`"}]}`))
 }
 
-// writeBody writes a response body, since a broken test connection is not the registry's concern.
-func writeBody(w http.ResponseWriter, data []byte) {
-	_, _ = w.Write(data)
+// writeBody writes a response body.
+func writeBody(w http.ResponseWriter, data []byte) error {
+	_, err := w.Write(data)
+
+	return err
 }
 
 // splitAPIPath splits /v2/<name>/<kind>/<ref>, keeping a multi-segment repository name whole.

@@ -6,10 +6,10 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/require"
 )
 
@@ -71,7 +71,7 @@ func FuzzHCLRunCommand(f *testing.F) {
 			return vexec.Result{Stdout: []byte(mockOutput)}
 		})
 
-		v := venvtest.New().WithExec(memExec)
+		v := venv.MemVenv().WithExec(memExec)
 		ctx, pctx := newTestParsingContext(t, "")
 
 		l := logger.CreateLogger()

@@ -9,9 +9,11 @@ import (
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/tips"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -24,13 +26,20 @@ import (
 // Discover performs the full discovery process. The supplied [venv.Venv]
 // supplies the process executor for the git top-level probe and the
 // auth-provider-command credentials fetch during the parse phase.
+//
+// The config rewrite memoizes its parses in s when [rewrite.EnvRewrite] selects it. Discoveries that share s share
+// those parses.
 func (d *Discovery) Discover(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	opts *options.TerragruntOptions,
 ) (component.Components, error) {
 	d.classifier = filter.NewClassifier(d.filters)
+	d.paths = vfs.NewPathResolver(v.FS)
+
+	defer func() { tips.GiveInputsReadTip(l, v, d.InputsReads(), opts.Tips) }()
 
 	// A working directory that cannot be walked to discovers nothing, which is
 	// reported as an empty result rather than an error, so it keeps the
@@ -99,7 +108,7 @@ func (d *Discovery) Discover(
 		}, func(childCtx context.Context, l log.Logger) error {
 			var phaseErr error
 
-			results, phaseErr = d.runFilesystemPhase(childCtx, l, v, opts)
+			results, phaseErr = d.runFilesystemPhase(childCtx, l, v, s, opts)
 
 			return phaseErr
 		})
@@ -140,7 +149,7 @@ func (d *Discovery) Discover(
 			}, func(childCtx context.Context, l log.Logger) error {
 				var phaseErr error
 
-				results, phaseErr = d.runParsePhase(childCtx, l, v, opts, discovered, candidates)
+				results, phaseErr = d.runParsePhase(childCtx, l, v, s, opts, discovered, candidates)
 
 				return phaseErr
 			})
@@ -182,7 +191,7 @@ func (d *Discovery) Discover(
 			}, func(childCtx context.Context, l log.Logger) error {
 				var phaseErr error
 
-				results, phaseErr = d.runGraphPhase(childCtx, l, v, opts, discovered, candidates)
+				results, phaseErr = d.runGraphPhase(childCtx, l, v, s, opts, discovered, candidates)
 
 				return phaseErr
 			})
@@ -210,7 +219,7 @@ func (d *Discovery) Discover(
 			}, func(childCtx context.Context, l log.Logger) error {
 				var phaseErr error
 
-				components, phaseErr = d.runRelationshipPhase(childCtx, l, v, opts, components)
+				components, phaseErr = d.runRelationshipPhase(childCtx, l, v, s, opts, components)
 
 				return phaseErr
 			})
@@ -318,6 +327,7 @@ func (d *Discovery) runFilesystemPhase(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	opts *options.TerragruntOptions,
 ) (*PhaseResults, error) {
 	var (
@@ -348,7 +358,7 @@ func (d *Discovery) runFilesystemPhase(
 
 				var phaseErr error
 
-				result, phaseErr = phase.Run(childCtx, l, v, &PhaseInput{
+				result, phaseErr = phase.Run(childCtx, l, v, s, &PhaseInput{
 					Opts:       opts,
 					Classifier: d.classifier,
 					Discovery:  d,
@@ -393,7 +403,7 @@ func (d *Discovery) runFilesystemPhase(
 
 					var phaseErr error
 
-					result, phaseErr = phase.Run(childCtx, l, v, &PhaseInput{
+					result, phaseErr = phase.Run(childCtx, l, v, s, &PhaseInput{
 						Opts:       opts,
 						Classifier: d.classifier,
 						Discovery:  d,
@@ -447,12 +457,13 @@ func (d *Discovery) runParsePhase(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	opts *options.TerragruntOptions,
 	discovered []DiscoveryResult,
 	candidates []DiscoveryResult,
 ) (*PhaseResults, error) {
 	phase := NewParsePhase(d.numWorkers)
-	result, err := phase.Run(ctx, l, v, &PhaseInput{
+	result, err := phase.Run(ctx, l, v, s, &PhaseInput{
 		Opts:       opts,
 		Components: resultsToComponents(discovered),
 		Candidates: candidates,
@@ -483,6 +494,7 @@ func (d *Discovery) runGraphPhase(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	opts *options.TerragruntOptions,
 	discovered []DiscoveryResult,
 	candidates []DiscoveryResult,
@@ -496,7 +508,7 @@ func (d *Discovery) runGraphPhase(
 		buildErr := telemetry.TelemeterFromContext(ctx).Collect(
 			ctx, l, "discover_dependents", map[string]any{},
 			func(childCtx context.Context, l log.Logger) error {
-				return errors.Join(d.buildDependencyGraph(childCtx, l, v, opts, allComponents, unparsed)...)
+				return errors.Join(d.buildDependencyGraph(childCtx, l, v, s, opts, allComponents, unparsed)...)
 			})
 
 		if buildErr != nil && !d.suppressParseErrors {
@@ -516,7 +528,7 @@ func (d *Discovery) runGraphPhase(
 		func(childCtx context.Context, l log.Logger) error {
 			var runErr error
 
-			result, runErr = phase.Run(childCtx, l, v, &PhaseInput{
+			result, runErr = phase.Run(childCtx, l, v, s, &PhaseInput{
 				Opts:       opts,
 				Components: resultsToComponents(discovered),
 				Candidates: candidates,
@@ -550,11 +562,12 @@ func (d *Discovery) runRelationshipPhase(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	opts *options.TerragruntOptions,
 	components component.Components,
 ) (component.Components, error) {
 	phase := NewRelationshipPhase(d.numWorkers, d.maxDependencyDepth)
-	_, err := phase.Run(ctx, l, v, &PhaseInput{
+	_, err := phase.Run(ctx, l, v, s, &PhaseInput{
 		Opts:       opts,
 		Components: components,
 		Discovery:  d,
@@ -571,11 +584,12 @@ func (d *Discovery) buildDependencyGraph(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	opts *options.TerragruntOptions,
 	allComponents component.Components,
 	unparsed map[string]struct{},
 ) []error {
-	threadSafeComponents := component.NewThreadSafeComponents(v.FS, allComponents)
+	threadSafeComponents := component.NewThreadSafeComponents(d.paths, allComponents)
 
 	var (
 		errs []error
@@ -592,7 +606,7 @@ func (d *Discovery) buildDependencyGraph(
 		}
 
 		g.Go(func() error {
-			err := d.buildComponentDependencies(ctx, l, v, opts, c, threadSafeComponents)
+			err := d.buildComponentDependencies(ctx, l, v, s, opts, c, threadSafeComponents)
 			if err != nil {
 				mu.Lock()
 
@@ -618,6 +632,7 @@ func (d *Discovery) buildComponentDependencies(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	opts *options.TerragruntOptions,
 	c component.Component,
 	threadSafeComponents *component.ThreadSafeComponents,
@@ -629,7 +644,7 @@ func (d *Discovery) buildComponentDependencies(
 
 	ctx = contextWithParsePhase(ctx, parsePhaseTagDependencyGraph)
 
-	if err := ensureParsed(ctx, l, v, c, opts, d); err != nil {
+	if err := ensureParsed(ctx, l, v, s, c, opts, d); err != nil {
 		if d.suppressParseErrors {
 			l.Debugf("Suppressed parse error for %s: %v", c.Path(), err)
 			return nil
@@ -640,7 +655,7 @@ func (d *Discovery) buildComponentDependencies(
 
 	cfg := unit.Config()
 
-	depPaths, err := extractDependencyPaths(v.FS, cfg, c)
+	depPaths, err := extractDependencyPaths(d.paths, cfg, c)
 	if err != nil {
 		return err
 	}
@@ -674,7 +689,7 @@ func (d *Discovery) buildComponentDependencies(
 			}
 		}
 
-		addedComponent, _ := threadSafeComponents.EnsureComponent(v.FS, depComponent)
+		addedComponent, _ := threadSafeComponents.EnsureComponent(depComponent)
 
 		c.AddDependency(addedComponent)
 	}
@@ -716,11 +731,11 @@ func (d *Discovery) filterGraphTarget(
 
 	targetPath := canonicalizeGraphTarget(fsys, d.workingDir, d.graphTarget)
 
-	dependentUnits := buildDependentsIndex(fsys, components)
+	dependentUnits := buildDependentsIndex(d.paths, components)
 
 	allowed := buildAllowSet(targetPath, dependentUnits)
 
-	return filterByAllowSet(fsys, components, allowed)
+	return filterByAllowSet(d.paths, components, allowed)
 }
 
 // canonicalizeGraphTarget resolves the graph target to an absolute, cleaned path with symlinks resolved.
@@ -749,14 +764,17 @@ func canonicalizeGraphTarget(fsys vfs.FS, baseDir, target string) string {
 // buildDependentsIndex builds an index mapping each unit path to the list of units
 // that directly depend on it. A unit that lists the same dependency twice appears twice.
 // Paths are resolved to handle symlinks consistently across platforms.
-func buildDependentsIndex(fsys vfs.FS, components component.Components) map[string][]string {
+func buildDependentsIndex(
+	paths *vfs.PathResolver,
+	components component.Components,
+) map[string][]string {
 	dependentUnits := make(map[string][]string)
 
 	for _, c := range components {
-		cPath := vfs.ResolveForCompare(fsys, c.Path())
+		cPath := paths.Resolve(c.Path())
 
 		for _, dep := range c.Dependencies() {
-			depPath := vfs.ResolveForCompare(fsys, dep.Path())
+			depPath := paths.Resolve(dep.Path())
 			dependentUnits[depPath] = append(dependentUnits[depPath], cPath)
 		}
 	}
@@ -791,14 +809,14 @@ func buildAllowSet(targetPath string, dependentUnits map[string][]string) map[st
 // Paths are resolved to handle symlinks consistently across platforms.
 // The output order matches the input order (no sorting is performed here).
 func filterByAllowSet(
-	fsys vfs.FS,
+	paths *vfs.PathResolver,
 	components component.Components,
 	allowed map[string]struct{},
 ) component.Components {
 	filtered := make(component.Components, 0, len(components))
 
 	for _, c := range components {
-		resolvedPath := vfs.ResolveForCompare(fsys, c.Path())
+		resolvedPath := paths.Resolve(c.Path())
 		if _, ok := allowed[resolvedPath]; ok {
 			filtered = append(filtered, c)
 		}
@@ -900,7 +918,7 @@ func (d *Discovery) applyExcludeModules(
 			continue
 		}
 
-		if !cfg.Exclude.Excludes(opts.TerraformCliArgs.CommandName(opts.TerraformCommand)) {
+		if !cfg.Exclude.Excludes(opts.TerraformCliArgs.CommandName(opts.TofuCommand)) {
 			continue
 		}
 

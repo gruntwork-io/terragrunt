@@ -1,0 +1,28 @@
+---
+version: "v1.2.3"
+category: "performance-improvements"
+---
+
+#### Commands that never run OpenTofu/Terraform stop probing its version
+
+Every command ran `tofu -version` at startup to set up provider caching, including the ones that never run OpenTofu/Terraform. These commands now skip that probe:
+
+- `find`
+- `list`
+- `browse`
+- `dag graph`
+- `hcl fmt`
+- `hcl validate`
+- `catalog`
+- `scaffold`
+- `info strict`
+- `stack clean`
+
+Each of those commands finishes sooner by the time `tofu -version` takes. On a tree of 100 units, with OpenTofu 1.13.2 on a Ryzen AI Max+ 395:
+
+| Command | Before | After |
+| --- | --- | --- |
+| `terragrunt find` | 43.0 ms | 21.6 ms |
+| `terragrunt list` | 37.5 ms | 20.6 ms |
+| `terragrunt hcl fmt --check` | 39.3 ms | 21.2 ms |
+| `terragrunt hcl validate` | 59.1 ms | 38.8 ms |

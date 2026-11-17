@@ -11,14 +11,32 @@ import (
 )
 
 const (
-	QueueIgnoreErrorsFlagName        = "queue-ignore-errors"
-	QueueIgnoreDAGOrderFlagName      = "queue-ignore-dag-order"
-	QueueExcludeExternalFlagName     = "queue-exclude-external"
-	QueueExcludeDirFlagName          = "queue-exclude-dir"
-	QueueExcludesFileFlagName        = "queue-excludes-file"
-	QueueIncludeDirFlagName          = "queue-include-dir"
-	QueueIncludeExternalFlagName     = "queue-include-external"
-	QueueStrictIncludeFlagName       = "queue-strict-include"
+	// QueueIgnoreErrorsFlagName is the flag name for `--queue-ignore-errors`, which runs a unit even when a
+	// dependency fails.
+	QueueIgnoreErrorsFlagName = "queue-ignore-errors"
+	// QueueIgnoreDAGOrderFlagName is the flag name for `--queue-ignore-dag-order`, which runs units without
+	// waiting on their dependencies.
+	QueueIgnoreDAGOrderFlagName = "queue-ignore-dag-order"
+	// QueueExcludeExternalFlagName is the flag name for the hidden, deprecated `--queue-exclude-external`.
+	// External dependencies are excluded by default, so setting it only evaluates its strict control.
+	QueueExcludeExternalFlagName = "queue-exclude-external"
+	// QueueExcludeDirFlagName is the flag name for the hidden `--queue-exclude-dir`, a glob of directories
+	// to drop from the queue.
+	QueueExcludeDirFlagName = "queue-exclude-dir"
+	// QueueExcludesFileFlagName is the flag name for the hidden `--queue-excludes-file`, a file listing
+	// directories to drop from the queue.
+	QueueExcludesFileFlagName = "queue-excludes-file"
+	// QueueIncludeDirFlagName is the flag name for the hidden `--queue-include-dir`, a glob of directories
+	// to add to the queue.
+	QueueIncludeDirFlagName = "queue-include-dir"
+	// QueueIncludeExternalFlagName is the flag name for the hidden `--queue-include-external`, which adds
+	// dependencies outside the working directory to the queue.
+	QueueIncludeExternalFlagName = "queue-include-external"
+	// QueueStrictIncludeFlagName is the flag name for the hidden, deprecated `--queue-strict-include`. Its
+	// behavior is the default, so setting it only evaluates its strict control.
+	QueueStrictIncludeFlagName = "queue-strict-include"
+	// QueueIncludeUnitsReadingFlagName is the flag name for the hidden `--queue-include-units-reading`,
+	// which limits the queue to units that read the named file.
 	QueueIncludeUnitsReadingFlagName = "queue-include-units-reading"
 )
 

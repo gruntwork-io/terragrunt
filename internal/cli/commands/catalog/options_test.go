@@ -8,7 +8,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
@@ -60,7 +59,7 @@ func TestOptionsValidate(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			opts := catalog.NewOptions(options.NewTerragruntOptions(vexec.NewOSExec()))
+			opts := catalog.NewOptions(options.NewTerragruntOptions())
 			opts.Format = tc.format
 
 			err := opts.Validate()

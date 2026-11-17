@@ -113,6 +113,22 @@ provider "aws" {
 }
 `
 
+const tofuCodeExampleNestedBlocksTagsOverridden = `
+provider "aws" {
+  region = var.aws_region
+
+  assume_role {
+    role_arn = "arn:aws:iam::123456789012:role/example"
+  }
+
+  default_tags {
+    tags = {
+      "for" = "x"
+    }
+  }
+}
+`
+
 func TestTofuPatchAwsProvider(t *testing.T) {
 	t.Parallel()
 
@@ -157,6 +173,13 @@ func TestTofuPatchAwsProvider(t *testing.T) {
 			},
 			expectedCodeWasUpdated: true,
 			expectedTofuCode:       []string{tofuCodeExampleNestedBlocksRegionRoleArnOverridden},
+		},
+		{
+			testName:               "tofu file with nested blocks - tags override with a for key",
+			originalTofuCode:       tofuCodeExampleNestedBlocksOriginal,
+			attributesToOverride:   map[string]string{"default_tags.tags": `{"for": "x"}`},
+			expectedCodeWasUpdated: true,
+			expectedTofuCode:       []string{tofuCodeExampleNestedBlocksTagsOverridden},
 		},
 		{
 			testName:         "tofu file with aws provider - no overrides",

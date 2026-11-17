@@ -8,9 +8,14 @@ import (
 const AlignOptionName = "align"
 
 const (
+	// NoneAlign leaves the text where it is. It has no name in a format string.
 	NoneAlign AlignValue = iota
+	// LeftAlign, `align=left`, moves all surrounding spaces after the text.
 	LeftAlign
+	// CenterAlign, `align=center`, splits the surrounding spaces around the text,
+	// putting the odd one before it.
 	CenterAlign
+	// RightAlign, `align=right`, moves all surrounding spaces before the text.
 	RightAlign
 )
 
@@ -20,8 +25,12 @@ var alignList = NewMapValue(map[AlignValue]string{
 	RightAlign:  "right",
 })
 
+// AlignValue selects where [AlignOption] puts the text among its leading and
+// trailing spaces.
 type AlignValue byte
 
+// AlignOption is the `align` option. It repositions the text within the spaces
+// around it, such as the padding [WidthOption] adds.
 type AlignOption struct {
 	*CommonOption[AlignValue]
 }

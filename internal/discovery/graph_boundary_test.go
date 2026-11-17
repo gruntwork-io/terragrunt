@@ -8,11 +8,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -82,7 +83,7 @@ func (f *graphBoundaryFixture) discover(
 ) component.Components {
 	t.Helper()
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = f.stagingDir
 	opts.RootWorkingDir = f.stagingDir
 
@@ -91,7 +92,7 @@ func (f *graphBoundaryFixture) discover(
 
 	configs, err := discovery.NewDiscovery(f.stagingDir).
 		WithFilters(filters).
-		Discover(t.Context(), logger.CreateLogger(), v, opts)
+		Discover(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(rewrite.Store), opts)
 	require.NoError(t, err)
 
 	return configs
@@ -169,7 +170,7 @@ func TestDiscoveryGraphBoundary_ValidatesBoundary(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts := options.NewTerragruntOptions()
 			opts.WorkingDir = f.stagingDir
 			opts.RootWorkingDir = f.stagingDir
 
@@ -178,7 +179,7 @@ func TestDiscoveryGraphBoundary_ValidatesBoundary(t *testing.T) {
 
 			_, err = discovery.NewDiscovery(f.stagingDir).
 				WithFilters(filters).
-				Discover(t.Context(), logger.CreateLogger(), v, opts)
+				Discover(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(rewrite.Store), opts)
 			require.ErrorAs(t, err, tc.errAs)
 		})
 	}
@@ -211,7 +212,7 @@ dependency "vpc" {
 	discover := func(query string) component.Components {
 		t.Helper()
 
-		opts := options.NewTerragruntOptions(vexec.NewOSExec())
+		opts := options.NewTerragruntOptions()
 		opts.WorkingDir = repoRoot
 		opts.RootWorkingDir = repoRoot
 
@@ -220,7 +221,7 @@ dependency "vpc" {
 
 		configs, err := discovery.NewDiscovery(repoRoot).
 			WithFilters(filters).
-			Discover(t.Context(), logger.CreateLogger(), v, opts)
+			Discover(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(rewrite.Store), opts)
 		require.NoError(t, err)
 
 		return configs
@@ -353,7 +354,7 @@ locals {
 			})
 			require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(elsewhereDir, ".keep"), nil, 0o644))
 
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts := options.NewTerragruntOptions()
 			opts.WorkingDir = repoRoot
 			opts.RootWorkingDir = repoRoot
 
@@ -366,7 +367,7 @@ locals {
 				d = d.WithDiscoveryBoundary(tc.boundary)
 			}
 
-			configs, err := d.Discover(t.Context(), logger.CreateLogger(), v, opts)
+			configs, err := d.Discover(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(rewrite.Store), opts)
 
 			switch {
 			case tc.errAs != nil:

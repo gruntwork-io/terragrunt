@@ -112,6 +112,10 @@ func hashDir(fsys vfs.FS, dir string) (string, error) {
 	})
 }
 
+// DocumentHashes returns a `zh:` hash for each line of a SHA256SUMS document, skipping lines that
+// do not have two fields.
+//
+// Returns nil when any two-field line does not start with a hex SHA-256 hash.
 func DocumentHashes(doc []byte) []Hash {
 	var hashes []Hash
 

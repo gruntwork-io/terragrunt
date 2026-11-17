@@ -5,8 +5,10 @@ import (
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -111,7 +113,13 @@ type PhaseInput struct {
 type Phase interface {
 	Name() string
 	Kind() PhaseKind
-	Run(ctx context.Context, l log.Logger, v *venv.Venv, input *PhaseInput) (*PhaseResults, error)
+	Run(
+		ctx context.Context,
+		l log.Logger,
+		v *venv.Venv,
+		s *rewrite.Store,
+		input *PhaseInput,
+	) (*PhaseResults, error)
 }
 
 // Discovery is the main configuration for discovery.
@@ -135,6 +143,10 @@ type Discovery struct {
 	// boundaries and dependency paths name it. Discover fills it in before any
 	// phase runs.
 	resolvedWorkingDir string
+
+	// paths memoizes symlink resolution for one Discover call. Discover fills
+	// it in before any phase runs.
+	paths *vfs.PathResolver
 
 	// gitRoot is the detected git repository root: the default ceiling for the
 	// upstream dependent walk. It is detected lazily and only when needed, so
@@ -172,6 +184,10 @@ type Discovery struct {
 	// parseReasons gates the parse phase: non-empty (or classifier
 	// parse-required filters at activation) runs it. Surfaced on telemetry.
 	parseReasons []parseReason
+
+	// inputsReads collects the file reads found in inputs attributes while trackReads is on,
+	// for the tip Discover gives.
+	inputsReads inputsReads
 
 	// maxDependencyDepth is the maximum depth of the dependency tree to discover.
 	maxDependencyDepth int

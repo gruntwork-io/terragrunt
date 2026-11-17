@@ -199,13 +199,13 @@
     padding: 0 !important;
   }
 
-  starlight-menu-button button {
+  .sl-menu-button {
     top: 92px;
     position: fixed;
   }
 
   @media (max-width: 767px) {
-    starlight-menu-button button {
+    .sl-menu-button {
       top: 70px;
     }
   }
@@ -319,6 +319,14 @@
     border: 1px solid var(--color-code-border);
     border-radius: 6px;
     color: var(--color-code-text);
+  }
+
+  starlight-file-tree .comment code {
+    border: 0;
+    padding: 0;
+    background: none;
+    color: var(--sl-color-gray-2);
+    font-size: inherit;
   }
 
   #starlight__sidebar ul li {

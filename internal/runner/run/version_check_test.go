@@ -12,9 +12,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -286,24 +287,24 @@ func TestPopulateTFVersionSkipsProbeWhenEngineEnabled(t *testing.T) {
 	t.Run("engine enabled reports an unknown version without a probe", func(t *testing.T) {
 		t.Parallel()
 
-		_, ver, impl, err := run.PopulateTFVersion(
+		_, probe, err := run.PopulateTFVersion(
 			run.WithRunVersionCache(t.Context()),
 			logger.CreateLogger(),
-			venvtest.New(),
+			venv.MemVenv(),
 			run.PopulateTFVersionInput{TFOpts: tfOpts(new(engine.EngineOptions))},
 		)
 		require.NoError(t, err)
-		assert.Nil(t, ver)
-		assert.Equal(t, tfimpl.Unknown, impl)
+		assert.Nil(t, probe.Version)
+		assert.Equal(t, tfimpl.Unknown, probe.Type)
 	})
 
 	t.Run("no-engine probes the binary", func(t *testing.T) {
 		t.Parallel()
 
-		_, _, _, err := run.PopulateTFVersion(
+		_, _, err := run.PopulateTFVersion(
 			run.WithRunVersionCache(t.Context()),
 			logger.CreateLogger(),
-			venvtest.New(),
+			venv.MemVenv(),
 			run.PopulateTFVersionInput{TFOpts: tfOpts(&engine.EngineOptions{NoEngine: true})},
 		)
 		require.Error(t, err)
@@ -337,7 +338,7 @@ func TestPopulateTFVersionRespectsTFPath(t *testing.T) {
 	}
 	e := vexec.NewMemExec(handler)
 
-	ctx := run.WithRunVersionCache(t.Context())
+	ctx := config.WithCaches(t.Context())
 	l := logger.CreateLogger()
 
 	tfOpts := func(binary string) *tf.TFOptions {
@@ -352,39 +353,39 @@ func TestPopulateTFVersionRespectsTFPath(t *testing.T) {
 	// First call mirrors what setupAutoProviderCacheDir does before
 	// terraform_binary is read from HCL: TFPath is still the auto-detected
 	// "tofu", and the OpenTofu version gets resolved and cached.
-	_, tofuVer, tofuImpl, err := run.PopulateTFVersion(
+	_, tofuProbe, err := run.PopulateTFVersion(
 		ctx,
 		l,
-		venvtest.New().WithExec(e),
+		venv.MemVenv().WithExec(e),
 		run.PopulateTFVersionInput{
 			TFOpts: tfOpts("tofu"),
 		},
 	)
 	require.NoError(t, err)
-	assert.Equal(t, tfimpl.OpenTofu, tofuImpl)
-	assert.Equal(t, "1.9.0", tofuVer.String())
+	assert.Equal(t, tfimpl.OpenTofu, tofuProbe.Type)
+	assert.Equal(t, "1.9.0", tofuProbe.Version.String())
 
 	// Second call mirrors checkVersionConstraints after `terraform_binary =
 	// "terraform"` has been applied. Before the fix, this hit the poisoned
 	// cache entry and returned OpenTofu v1.9.0, which then failed any
 	// terraform-version-constraint check pinned to a real Terraform release.
-	_, terraformVer, terraformImpl, err := run.PopulateTFVersion(
+	_, terraformProbe, err := run.PopulateTFVersion(
 		ctx,
 		l,
-		venvtest.New().WithExec(e),
+		venv.MemVenv().WithExec(e),
 		run.PopulateTFVersionInput{
 			TFOpts: tfOpts("terraform"),
 		},
 	)
 	require.NoError(t, err)
-	assert.Equal(t, tfimpl.Terraform, terraformImpl,
+	assert.Equal(t, tfimpl.Terraform, terraformProbe.Type,
 		"expected Terraform after switching TFPath to 'terraform'; got %s"+
 			" (version cache likely ignored TFPath)",
-		terraformImpl)
-	assert.Equal(t, "1.15.3", terraformVer.String(),
+		terraformProbe.Type)
+	assert.Equal(t, "1.15.3", terraformProbe.Version.String(),
 		"expected Terraform v1.15.3 after switching TFPath; got %s"+
 			" (version cache likely ignored TFPath)",
-		terraformVer)
+		terraformProbe.Version)
 }
 
 func testCheckTerragruntVersionMeetsConstraint(

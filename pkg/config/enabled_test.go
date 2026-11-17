@@ -74,7 +74,7 @@ unit "member" {
 func generateStack(t *testing.T, files map[string]string) generatedStack {
 	t.Helper()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 
 	for _, path := range []string{"main.tf", config.DefaultTerragruntConfigPath} {
 		require.NoError(t, vfs.WriteFile(

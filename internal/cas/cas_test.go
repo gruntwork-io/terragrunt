@@ -10,6 +10,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/redact"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -258,7 +259,7 @@ func TestCASRejectsNonOSFilesystem(t *testing.T) {
 	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 
 	err = c.Clone(t.Context(), logger.CreateLogger(), v, redact.NewURL("https://example.com/repo.git"),
 		cas.WithDir(filepath.Join(helpers.TmpDirWOSymlinks(t), "repo")),

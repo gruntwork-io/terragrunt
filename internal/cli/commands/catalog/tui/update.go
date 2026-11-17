@@ -567,11 +567,7 @@ func renderValuesBox(accent, heading, path, summary, body string) string {
 // interactive is true the user came through the form so any unfilled
 // fields landed as `# TODO` lines; otherwise every input is a TODO.
 func formatScaffoldMessage(opts *options.TerragruntOptions, interactive bool, files []string) string {
-	outputDir := opts.ScaffoldOutputFolder
-	if outputDir == "" {
-		outputDir = opts.WorkingDir
-	}
-
+	outputDir := scaffold.OutputDir(opts)
 	if outputDir == "" {
 		return ""
 	}
@@ -848,7 +844,7 @@ func startPlaceholderScaffold(m Model, c *Component) (tea.Model, tea.Cmd) {
 // scaffoldComponentPlaceholderCmd schedules a planless scaffold run, which
 // downloads the source itself and emits TODO placeholders for every input.
 func scaffoldComponentPlaceholderCmd(l log.Logger, m Model, c *Component) tea.Cmd {
-	cmd := newScaffoldCmd(l, m.venv, m.terragruntOptions, c)
+	cmd := newScaffoldCmd(m.ctx, l, m.venv, m.terragruntOptions, c)
 
 	return tea.Exec(cmd, func(err error) tea.Msg {
 		return ScaffoldFinishedMsg{Err: err, Interactive: false, Files: cmd.Files()}
@@ -876,7 +872,7 @@ func scaffoldComponentWithPlanCmd(
 	plan *scaffold.Plan,
 	values map[string]string,
 ) tea.Cmd {
-	cmd := newScaffoldCmd(l, m.venv, m.terragruntOptions, c).WithPlan(plan, values)
+	cmd := newScaffoldCmd(m.ctx, l, m.venv, m.terragruntOptions, c).WithPlan(plan, values)
 
 	return tea.Exec(cmd, func(err error) tea.Msg {
 		return ScaffoldFinishedMsg{Err: err, Interactive: true, Files: cmd.Files()}

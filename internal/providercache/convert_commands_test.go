@@ -48,7 +48,15 @@ func TestConvertToMultipleCommandsByPlatforms(t *testing.T) {
 		},
 		{
 			name: "other flags and provider addresses are kept in every command",
-			args: []string{"providers", "lock", "-fs-mirror=/tmp/mirror", "-platform", "linux_amd64", "hashicorp/aws", "-platform=darwin_arm64"},
+			args: []string{
+				"providers",
+				"lock",
+				"-fs-mirror=/tmp/mirror",
+				"-platform",
+				"linux_amd64",
+				"hashicorp/aws",
+				"-platform=darwin_arm64",
+			},
 			expected: [][]string{
 				{"providers", "lock", "-fs-mirror=/tmp/mirror", "hashicorp/aws", "-platform=linux_amd64"},
 				{"providers", "lock", "-fs-mirror=/tmp/mirror", "hashicorp/aws", "-platform=darwin_arm64"},

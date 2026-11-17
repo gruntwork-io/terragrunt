@@ -1,0 +1,30 @@
+---
+name: get_working_dir
+description: Returns the absolute path of the directory where Terragrunt runs OpenTofu/Terraform for the unit.
+configs: [unit]
+params: []
+returns: string
+examples:
+  - description: In a repository checked out at `/home/me/infra`.
+    code: |
+      # app/terragrunt.hcl
+
+      locals {
+        # "/home/me/infra/app/.terragrunt-cache/xbSzpJsW/i_cfJmj8"
+        working_dir = get_working_dir()
+      }
+---
+
+Terragrunt copies the unit's module into `.terragrunt-cache` and runs OpenTofu/Terraform there, even when the unit sets no `source`. `get_working_dir` returns that directory, e.g. `/repo/app/.terragrunt-cache/xbSzpJsW/i_cfJmj8`:
+
+```hcl
+# app/terragrunt.hcl
+
+terraform {
+  source = "../modules/app"
+}
+
+inputs = {
+  lambda_zip = "${get_working_dir()}/lambda.zip"
+}
+```

@@ -2494,7 +2494,7 @@ func assertS3Tags(
 	ctx := t.Context()
 
 	var in = s3.GetBucketTaggingInput{
-		Bucket: aws.String(bucketName),
+		Bucket: new(bucketName),
 	}
 
 	var tags, err2 = client.GetBucketTagging(ctx, &in)
@@ -2515,7 +2515,7 @@ func assertS3BucketVersioning(t *testing.T, bucketName string, versioning bool, 
 	ctx := t.Context()
 	res, err := client.GetBucketVersioning(
 		ctx,
-		&s3.GetBucketVersioningInput{Bucket: aws.String(bucketName)},
+		&s3.GetBucketVersioningInput{Bucket: new(bucketName)},
 	)
 	require.NoError(t, err)
 	require.NotNil(t, res)
@@ -2555,7 +2555,7 @@ func validateDynamoDBTableExistsAndIsTaggedAndIsSSEncrypted(
 	ctx := t.Context()
 	description, err := client.DescribeTable(
 		ctx,
-		&dynamodb.DescribeTableInput{TableName: aws.String(tableName)},
+		&dynamodb.DescribeTableInput{TableName: new(tableName)},
 	)
 	require.NoError(t, err, "DynamoDB table %s does not exist", tableName)
 
@@ -2593,12 +2593,12 @@ func doesDynamoDBTableItemExist(t *testing.T, awsRegion string, tableName, key s
 	ctx := t.Context()
 	_, err := client.DescribeTable(
 		ctx,
-		&dynamodb.DescribeTableInput{TableName: aws.String(tableName)},
+		&dynamodb.DescribeTableInput{TableName: new(tableName)},
 	)
 	require.NoError(t, err, "DynamoDB table %s does not exist", tableName)
 
 	input := &dynamodb.GetItemInput{
-		TableName: aws.String(tableName),
+		TableName: new(tableName),
 		Key: map[string]types.AttributeValue{
 			"LockID": &types.AttributeValueMemberS{
 				Value: key,
@@ -2632,7 +2632,7 @@ func validateS3BucketExistsAndIsTaggedAndVersioning(
 	// Use the AWS SDK waiter to handle S3 eventual consistency.
 	// Newly created buckets may not be immediately visible to subsequent API calls.
 	waiter := s3.NewBucketExistsWaiter(client)
-	err := waiter.Wait(ctx, &s3.HeadBucketInput{Bucket: aws.String(bucketName)}, 2*time.Minute)
+	err := waiter.Wait(ctx, &s3.HeadBucketInput{Bucket: new(bucketName)}, 2*time.Minute)
 	require.NoError(t, err, "S3 bucket %s does not exist", bucketName)
 
 	if expectedTags != nil {
@@ -2653,12 +2653,12 @@ func doesS3BucketKeyExist(t *testing.T, awsRegion string, bucketName, key string
 
 	// Use the AWS SDK waiter to handle S3 eventual consistency.
 	waiter := s3.NewBucketExistsWaiter(client)
-	err := waiter.Wait(ctx, &s3.HeadBucketInput{Bucket: aws.String(bucketName)}, 2*time.Minute)
+	err := waiter.Wait(ctx, &s3.HeadBucketInput{Bucket: new(bucketName)}, 2*time.Minute)
 	require.NoError(t, err, "S3 bucket %s does not exist", bucketName)
 
 	_, err = client.HeadObject(ctx, &s3.HeadObjectInput{
-		Bucket: aws.String(bucketName),
-		Key:    aws.String(key),
+		Bucket: new(bucketName),
+		Key:    new(key),
 	})
 	if err != nil {
 		if apiErr, ok := errors.AsType[smithy.APIError](err); ok {
@@ -2678,7 +2678,7 @@ func assertS3PublicAccessBlocks(t *testing.T, client *s3.Client, bucketName stri
 
 	ctx := t.Context()
 	resp, err := client.GetPublicAccessBlock(
-		ctx, &s3.GetPublicAccessBlockInput{Bucket: aws.String(bucketName)},
+		ctx, &s3.GetPublicAccessBlockInput{Bucket: new(bucketName)},
 	)
 	require.NoError(t, err)
 
@@ -2699,7 +2699,7 @@ func bucketEncryption(
 	client := helpers.CreateS3ClientForTest(t, awsRegion)
 
 	ctx := t.Context()
-	input := &s3.GetBucketEncryptionInput{Bucket: aws.String(bucketName)}
+	input := &s3.GetBucketEncryptionInput{Bucket: new(bucketName)}
 
 	output, err := client.GetBucketEncryption(ctx, input)
 	if err != nil {
@@ -2720,7 +2720,7 @@ func createS3Bucket(t *testing.T, awsRegion, bucketName string) {
 	ctx := t.Context()
 
 	input := &s3.CreateBucketInput{
-		Bucket: aws.String(bucketName),
+		Bucket: new(bucketName),
 		CreateBucketConfiguration: &s3types.CreateBucketConfiguration{
 			LocationConstraint: s3types.BucketLocationConstraint(awsRegion),
 		},
@@ -2748,7 +2748,7 @@ func cleanupTableForTest(t *testing.T, tableName string, awsRegion string) {
 
 	_, err := client.DescribeTable(
 		ctx,
-		&dynamodb.DescribeTableInput{TableName: aws.String(tableName)},
+		&dynamodb.DescribeTableInput{TableName: new(tableName)},
 	)
 	if err != nil {
 		var apiErr smithy.APIError
@@ -2764,7 +2764,7 @@ func cleanupTableForTest(t *testing.T, tableName string, awsRegion string) {
 
 	_, err = client.DeleteTable(
 		ctx,
-		&dynamodb.DeleteTableInput{TableName: aws.String(tableName)},
+		&dynamodb.DeleteTableInput{TableName: new(tableName)},
 	)
 	assert.NoError(t, err, "Failed to delete DynamoDB table %s", tableName)
 }
@@ -2781,7 +2781,7 @@ func bucketPolicy(
 	ctx := t.Context()
 
 	policyOutput, err := client.GetBucketPolicy(ctx, &s3.GetBucketPolicyInput{
-		Bucket: aws.String(bucketName),
+		Bucket: new(bucketName),
 	})
 	if err != nil {
 		return nil, err
@@ -2800,17 +2800,17 @@ func createDynamoDBTableE(t *testing.T, awsRegion string, tableName string) erro
 	_, err := client.CreateTable(ctx, &dynamodb.CreateTableInput{
 		AttributeDefinitions: []types.AttributeDefinition{
 			{
-				AttributeName: aws.String("LockID"),
+				AttributeName: new("LockID"),
 				AttributeType: types.ScalarAttributeTypeS,
 			},
 		},
 		KeySchema: []types.KeySchemaElement{
 			{
-				AttributeName: aws.String("LockID"),
+				AttributeName: new("LockID"),
 				KeyType:       types.KeyTypeHash,
 			},
 		},
-		TableName: aws.String(tableName),
+		TableName: new(tableName),
 		ProvisionedThroughput: &types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(1),
 			WriteCapacityUnits: aws.Int64(1),
@@ -2824,7 +2824,7 @@ func createDynamoDBTableE(t *testing.T, awsRegion string, tableName string) erro
 	waiter := dynamodb.NewTableExistsWaiter(client)
 	err = waiter.Wait(
 		ctx,
-		&dynamodb.DescribeTableInput{TableName: aws.String(tableName)},
+		&dynamodb.DescribeTableInput{TableName: new(tableName)},
 		5*time.Minute,
 	)
 

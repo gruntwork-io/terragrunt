@@ -4,6 +4,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 )
 
+// Retryer wraps an AWS SDK retryer.
 type Retryer struct {
 	aws.Retryer
 }

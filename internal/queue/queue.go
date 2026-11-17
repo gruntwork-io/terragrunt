@@ -49,11 +49,17 @@ type Entry struct {
 type Status byte
 
 const (
+	// StatusPending is the status of an entry that [NewQueue] has not yet ordered.
 	StatusPending Status = iota
+	// StatusBlocked is the status of an entry that [NewQueue] could not order because it waits on a cycle.
 	StatusBlocked
+	// StatusReady is the status of an ordered entry that has not started running.
 	StatusReady
+	// StatusRunning is the status of an entry whose run has started.
 	StatusRunning
+	// StatusSucceeded is the terminal status of an entry whose run finished without error.
 	StatusSucceeded
+	// StatusFailed is the terminal status of an entry whose run returned an error.
 	StatusFailed
 	StatusEarlyExit // Terminal status set on Entries in case of fail fast mode
 )
@@ -77,6 +83,7 @@ func (e *Entry) IsUp() bool {
 	return true
 }
 
+// Queue is the ordered set of entries for one run, from dependencies at the front to dependents at the back.
 type Queue struct {
 	// Entries is a list of entries in the queue.
 	Entries Entries
@@ -92,6 +99,7 @@ type Queue struct {
 	IgnoreDependencyErrors bool
 }
 
+// Entries is a list of queue entries.
 type Entries []*Entry
 
 // Components returns the queue components.

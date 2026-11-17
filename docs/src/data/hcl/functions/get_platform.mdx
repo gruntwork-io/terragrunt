@@ -1,0 +1,25 @@
+---
+name: get_platform
+description: Returns the operating system Terragrunt runs on, e.g. `linux`.
+configs: [unit, stack]
+params: []
+returns: string
+examples:
+  - code: |
+      # terragrunt.hcl
+
+      inputs = {
+        platform = get_platform() # "darwin" on macOS
+      }
+---
+
+`get_platform` returns the Go name of the operating system: `darwin`, `freebsd`, `linux`, or `windows`.
+
+```hcl
+# terragrunt.hcl
+
+locals {
+  is_windows   = get_platform() == "windows"
+  setup_script = local.is_windows ? "setup.ps1" : "setup.sh"
+}
+```

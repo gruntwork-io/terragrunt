@@ -1,0 +1,50 @@
+---
+title: Units
+description: Learn how to configure a Terragrunt unit in a terragrunt.hcl file
+slug: reference/hcl/units
+sidebar:
+  order: 5
+---
+
+import HclItemTable from '@components/HclItemTable.astro';
+
+A [unit](/getting-started/terminology#unit) is configured in a `terragrunt.hcl` file in the unit's directory, e.g.:
+
+```hcl
+# terragrunt.hcl
+
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+
+dependencies {
+  paths = ["../vpc", "../mysql", "../redis"]
+}
+```
+
+Terragrunt also reads [JSON-serialized HCL](https://github.com/hashicorp/hcl/blob/hcl2/json/spec.md) from `terragrunt.hcl.json` files. Wherever the docs mention `terragrunt.hcl`, a `terragrunt.hcl.json` file works too.
+
+Terragrunt uses the first of these as a unit's configuration file:
+
+1. The file the `--config` flag names.
+2. The file the `TG_CONFIG` environment variable names.
+3. A `terragrunt.hcl` file in the current working directory.
+4. A `terragrunt.hcl.json` file in the current working directory.
+
+If none of them exists, Terragrunt exits with an error.
+
+## Blocks
+
+<HclItemTable kind="blocks" config="unit" />
+
+The [Blocks](/reference/hcl/blocks) page documents the blocks not listed here.
+
+## Attributes
+
+<HclItemTable kind="attributes" config="unit" />
+
+## Functions
+
+<HclItemTable kind="functions" config="unit" />
+
+The [Functions](/reference/hcl/functions) page documents the functions not listed here.

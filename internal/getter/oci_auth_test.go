@@ -19,7 +19,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"go.opentelemetry.io/otel/sdk/trace"
 	"oras.land/oras-go/v2/registry/remote/auth"
 
@@ -1216,7 +1215,7 @@ func credentialVenvForGOOS(goos, home string, extra map[string]string) *venv.Ven
 	env := map[string]string{}
 	maps.Copy(env, extra)
 
-	return venvtest.New().
+	return venv.MemVenv().
 		WithGOOS(goos).
 		WithUserHomeDir(func() (string, error) { return home, nil }).
 		WithEnv(env)

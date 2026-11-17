@@ -18,7 +18,8 @@ const SourceAccessHint = "Check that git can clone each repository listed above.
 type SourceFailure struct {
 	// Err is the load failure for this source.
 	Err error
-	// URL is the repository URL of the failed source.
+	// URL is the repository URL of the failed source, or the name of the root
+	// config file when its `catalog` block is what failed.
 	URL string
 }
 

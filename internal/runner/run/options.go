@@ -23,6 +23,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/tflint"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
@@ -58,7 +59,7 @@ type Options struct {
 	DownloadDir                  string
 	RootWorkingDir               string
 	ProfileDir                   string
-	OriginalTerraformCommand     string
+	OriginalTofuCommand          string
 	Source                       string
 	AuthProviderCmd              string
 	OriginalIAMRoleOptions       iam.RoleOptions
@@ -195,13 +196,13 @@ func (o *Options) DataDir(env map[string]string) string {
 }
 
 // shellRunOptions builds a *shell.ShellOptions from this Options.
-func (o *Options) shellRunOptions(env map[string]string) *shell.ShellOptions {
+func (o *Options) shellRunOptions(e vexec.Exec, env map[string]string) *shell.ShellOptions {
 	s := shell.NewShellOptions(env).
 		WithWorkingDir(o.CacheDir).
 		WithUnitDir(o.UnitDir).
 		WithTelemetry(o.Telemetry).
 		WithEngine(o.EngineConfig, o.EngineOptions).
-		WithTFPath(o.TFPath).
+		WithTFPath(tfimpl.BinaryOrDefault(e, o.TFPath)).
 		WithRootWorkingDir(o.RootWorkingDir).
 		WithExperiments(o.Experiments).
 		WithHeadless(o.Headless).
@@ -213,34 +214,34 @@ func (o *Options) shellRunOptions(env map[string]string) *shell.ShellOptions {
 }
 
 // tfRunOptions builds a *tf.TFOptions from this Options.
-func (o *Options) tfRunOptions(env map[string]string) *tf.TFOptions {
+func (o *Options) tfRunOptions(e vexec.Exec, env map[string]string) *tf.TFOptions {
 	return &tf.TFOptions{
 		JSONLogFormat:                o.JSONLogFormat,
 		OriginalTerragruntConfigPath: o.OriginalTerragruntConfigPath,
 		TerragruntConfigPath:         o.TerragruntConfigPath,
 		TofuImplementation:           o.TofuImplementation,
 		TerraformCliArgs:             o.TerraformCliArgs,
-		ShellOptions:                 o.shellRunOptions(env),
+		ShellOptions:                 o.shellRunOptions(e, env),
 	}
 }
 
 // remoteStateOpts builds a *remotestate.Options from this Options.
-func (o *Options) remoteStateOpts(env map[string]string) *remotestate.Options {
+func (o *Options) remoteStateOpts(e vexec.Exec, env map[string]string) *remotestate.Options {
 	return &remotestate.Options{
 		Experiments:                  o.Experiments,
 		IAMRoleOptions:               o.IAMRoleOptions,
 		StrictControls:               o.StrictControls,
 		NonInteractive:               o.NonInteractive,
 		FailIfBucketCreationRequired: o.FailIfBucketCreationRequired,
-		TFRunOpts:                    o.tfRunOptions(env),
+		TFRunOpts:                    o.tfRunOptions(e, env),
 		DisableBucketUpdate:          o.DisableBucketUpdate,
 	}
 }
 
 // tflintRunOptions builds a *tflint.TFLintOptions from this Options.
-func (o *Options) tflintRunOptions(env map[string]string) *tflint.TFLintOptions {
+func (o *Options) tflintRunOptions(e vexec.Exec, env map[string]string) *tflint.TFLintOptions {
 	return &tflint.TFLintOptions{
-		ShellOptions:         o.shellRunOptions(env),
+		ShellOptions:         o.shellRunOptions(e, env),
 		LogShowAbsPaths:      o.LogShowAbsPaths,
 		WorkingDir:           o.CacheDir,
 		RootWorkingDir:       o.RootWorkingDir,
@@ -291,6 +292,8 @@ func (o *Options) RunWithErrorHandling(
 
 		if action.ShouldIgnore {
 			l.Warnf("Ignoring error, reason: %s", action.IgnoreMessage)
+
+			clearDetailedExitCodeError(ctx, filepath.Dir(o.OriginalTerragruntConfigPath))
 
 			if len(action.IgnoreSignals) > 0 {
 				if err := o.handleIgnoreSignals(l, fsys, action.IgnoreSignals); err != nil {
@@ -376,4 +379,19 @@ func (o *Options) handleIgnoreSignals(l log.Logger, fsys vfs.FS, signals map[str
 	}
 
 	return nil
+}
+
+// clearDetailedExitCodeError replaces an error exit code recorded for unitDir in the context's
+// [tf.DetailedExitCodeMap] with [tf.DetailedExitCodeSuccess]. Any other recorded code is kept.
+func clearDetailedExitCodeError(ctx context.Context, unitDir string) {
+	exitCodes := tf.DetailedExitCodeFromContext(ctx)
+	if exitCodes == nil {
+		return
+	}
+
+	if exitCodes.Get(unitDir) != tf.DetailedExitCodeError {
+		return
+	}
+
+	exitCodes.Set(unitDir, tf.DetailedExitCodeSuccess)
 }

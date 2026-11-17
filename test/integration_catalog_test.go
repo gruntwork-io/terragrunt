@@ -58,7 +58,7 @@ const (
 func TestCatalogGitRepoUpdate(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
 	cloneURL := helpers.LocalGitRemote(t, testFixtureLocalCatalog)
@@ -89,7 +89,7 @@ func TestCatalogGitRepoUpdate(t *testing.T) {
 func TestScaffoldGitRepo(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
 	cloneURL := helpers.LocalGitRemote(t, testFixtureLocalCatalog)
@@ -113,7 +113,7 @@ func TestScaffoldGitRepo(t *testing.T) {
 func TestScaffoldGitModule(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
 	cloneURL := helpers.LocalGitRemote(t, testFixtureLocalCatalog)
@@ -202,9 +202,10 @@ func readConfig(t *testing.T, opts *options.TerragruntOptions) *config.Terragrun
 
 	l := logger.CreateLogger()
 	v := venv.OSVenv()
+	ctx := config.WithCaches(t.Context())
 	pctx := configbridge.NewParsingContext(opts)
 	cfg, err := config.ReadTerragruntConfig(
-		t.Context(),
+		ctx,
 		l,
 		v,
 		pctx,
@@ -664,6 +665,37 @@ func catalogManyModulesFixture(t *testing.T, count int) string {
 `)
 
 	return workDir
+}
+
+// TestCatalogDotOnlyRepoNameIgnoresPlantedTempDir pins that a URL ending in `..` never lists what the temp dir holds.
+func TestCatalogDotOnlyRepoNameIgnoresPlantedTempDir(t *testing.T) {
+	t.Parallel()
+
+	v := venv.MemVenv()
+	tempDir := v.Platform.TempDir()
+
+	workDir, err := v.Platform.Getwd()
+	require.NoError(t, err)
+	require.NoError(t, v.FS.MkdirAll(workDir, 0o755))
+
+	require.NoError(t, vfs.WriteFile(
+		v.FS,
+		filepath.Join(tempDir, module.CloneCompleteSentinel),
+		nil,
+		0o644,
+	))
+	require.NoError(t, vfs.WriteFile(
+		v.FS,
+		filepath.Join(tempDir, "some-module", "terragrunt.hcl"),
+		[]byte("terraform {\n  source = \".\"\n}\n"),
+		0o644,
+	))
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutputWithVenv(t, v,
+		"terragrunt catalog --format jsonl --working-dir "+workDir+
+			" https://github.com/example/repo//..")
+	require.ErrorIs(t, err, module.ErrRemoteCloneFSNotOS)
+	assert.Empty(t, stdout)
 }
 
 // catalogFixture builds a repository holding one component of each kind

@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 
@@ -156,7 +157,7 @@ func TestScaffoldLocalTofuModule(t *testing.T) {
 		fmt.Sprintf(
 			"terragrunt scaffold --non-interactive --working-dir %s %s",
 			tmpEnvPath,
-			helpers.FileURL(filepath.Join(workingDir, testScaffoldLocalTofuModulePath)),
+			getter.FileURL(filepath.Join(workingDir, testScaffoldLocalTofuModulePath)).String(),
 		),
 	)
 	require.NoError(t, err)
@@ -206,7 +207,7 @@ func TestScaffoldLocalModule(t *testing.T) {
 	require.NoError(t, err)
 
 	// The one test of the "//subdir" form; its base is the fixture parent, not the whole test tree.
-	moduleURL := helpers.FileURL(filepath.Join(workingDir, filepath.Dir(testScaffoldLocalModulePath))) +
+	moduleURL := getter.FileURL(filepath.Join(workingDir, filepath.Dir(testScaffoldLocalModulePath))).String() +
 		"//" + filepath.Base(testScaffoldLocalModulePath)
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(
@@ -317,7 +318,7 @@ func localScaffoldSource(t *testing.T, fixturePath string) string {
 	workingDir, err := os.Getwd()
 	require.NoError(t, err)
 
-	return helpers.FileURL(filepath.Join(workingDir, fixturePath))
+	return getter.FileURL(filepath.Join(workingDir, fixturePath)).String()
 }
 
 // TestScaffoldRemoteGitModuleAtRef scaffolds from a git source pinned with a
@@ -414,9 +415,9 @@ func TestScaffoldNoDependencyPrompt(t *testing.T) {
 	workingDir, err := os.Getwd()
 	require.NoError(t, err)
 
-	localBoilerplateModuleDir := helpers.FileURL(
+	localBoilerplateModuleDir := getter.FileURL(
 		filepath.Join(workingDir, testScaffoldNoDependencyPrompt),
-	) + "//."
+	).String() + "//."
 
 	outputFolder := tmpEnvPath + "/foo/bar"
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
@@ -441,7 +442,7 @@ func TestScaffoldWithShellCommandsEnabled(t *testing.T) {
 	workingDir, err := os.Getwd()
 	require.NoError(t, err)
 
-	templatePath := helpers.FileURL(filepath.Join(workingDir, "fixtures/scaffold/with-shell-commands"))
+	templatePath := getter.FileURL(filepath.Join(workingDir, "fixtures/scaffold/with-shell-commands")).String()
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(
 		t,
@@ -469,7 +470,7 @@ func TestScaffoldWithShellCommandsDisabled(t *testing.T) {
 	workingDir, err := os.Getwd()
 	require.NoError(t, err)
 
-	templatePath := helpers.FileURL(filepath.Join(workingDir, "fixtures/scaffold/with-shell-commands"))
+	templatePath := getter.FileURL(filepath.Join(workingDir, "fixtures/scaffold/with-shell-commands")).String()
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(
 		t,
@@ -506,7 +507,7 @@ func TestScaffoldWithHooksEnabled(t *testing.T) {
 	workingDir, err := os.Getwd()
 	require.NoError(t, err)
 
-	templatePath := helpers.FileURL(filepath.Join(workingDir, "fixtures/scaffold/with-hooks"))
+	templatePath := getter.FileURL(filepath.Join(workingDir, "fixtures/scaffold/with-hooks")).String()
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(
 		t,
@@ -531,7 +532,7 @@ func TestScaffoldWithHooksDisabled(t *testing.T) {
 	workingDir, err := os.Getwd()
 	require.NoError(t, err)
 
-	templatePath := helpers.FileURL(filepath.Join(workingDir, "fixtures/scaffold/with-hooks"))
+	templatePath := getter.FileURL(filepath.Join(workingDir, "fixtures/scaffold/with-hooks")).String()
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(
 		t,
@@ -556,7 +557,7 @@ func TestScaffoldWithBothFlagsDisabled(t *testing.T) {
 	workingDir, err := os.Getwd()
 	require.NoError(t, err)
 
-	templatePath := helpers.FileURL(filepath.Join(workingDir, "fixtures/scaffold/with-shell-and-hooks"))
+	templatePath := getter.FileURL(filepath.Join(workingDir, "fixtures/scaffold/with-shell-and-hooks")).String()
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(
 		t,
@@ -627,7 +628,7 @@ func TestScaffoldCatalogConfigIntegration(t *testing.T) {
 		workingDir,
 		"fixtures/scaffold/catalog-config-test/terragrunt.hcl",
 	)
-	templatePath := helpers.FileURL(filepath.Join(workingDir, "fixtures/scaffold/with-shell-and-hooks"))
+	templatePath := getter.FileURL(filepath.Join(workingDir, "fixtures/scaffold/with-shell-and-hooks")).String()
 	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
 
 	catalogContent, err := vfs.ReadFileAsString(vfs.NewOSFS(), catalogConfigPath)

@@ -1,0 +1,360 @@
+---
+name: terraform
+description: Configures where Terragrunt gets the OpenTofu/Terraform module and how it runs tofu or terraform.
+configs: [unit]
+attributes:
+  - name: source
+    type: string
+    description: Where to fetch the OpenTofu/Terraform module from. It takes the same syntax as an OpenTofu/Terraform [module source](https://opentofu.org/docs/language/modules/sources/), e.g. a local path or a Git URL with a `ref`, plus `tfr://` registry sources and `oci://` sources. Terragrunt downloads the whole repository, the part before `//`, so relative paths between modules in it keep working. See [Module sources](/reference/hcl/blocks/terraform#module-sources).
+    example: |
+      # terragrunt.hcl
+
+      terraform {
+        source = "git::https://github.com/acme/modules.git//vpc?ref=v1.0.0"
+      }
+  - name: version
+    type: string
+    description: A version constraint for a `tfr://` source, in the same syntax as the `version` argument of an OpenTofu/Terraform `module` block. Terragrunt downloads the highest published version that satisfies it. See [Version constraints](/reference/hcl/blocks/terraform#version-constraints).
+    example: |
+      # terragrunt.hcl
+
+      terraform {
+        source  = "tfr://registry.opentofu.org/terraform-aws-modules/vpc/aws"
+        version = "~> 3.3"
+      }
+  - name: include_in_copy
+    type: list(string)
+    description: Glob patterns for files to copy into the OpenTofu/Terraform working directory that Terragrunt would otherwise skip, e.g. hidden files such as `.python-version`. Patterns are relative to the source directory. With the [`symlinks`](/reference/experiments/active#symlinks) experiment, a pattern can name a symlinked directory, and Terragrunt copies the link target's contents. It skips a link that points back at a directory it's already copying, or at a parent of one, and logs a warning.
+    example: |
+      # terragrunt.hcl
+
+      terraform {
+        source = "../modules/networking/vpc"
+
+        include_in_copy = [
+          ".security_group_rules.json",
+          "*.yaml",
+        ]
+      }
+  - name: exclude_from_copy
+    type: list(string)
+    description: Glob patterns for files in the unit's directory that Terragrunt skips when it copies them into the OpenTofu/Terraform working directory. A file that matches both this and `include_in_copy` is skipped. To keep files from the module `source` out of the working directory, use a [`before_hook`](/reference/hcl/blocks/terraform#before_hook).
+    example: |
+      # terragrunt.hcl
+
+      terraform {
+        source = "../modules/networking/vpc"
+
+        exclude_from_copy = ["*.md"]
+      }
+  - name: copy_terraform_lock_file
+    type: bool
+    default: "true"
+    description: Copies the `.terraform.lock.hcl` file from the OpenTofu/Terraform working directory back to the unit's directory. Set it to `false` to keep the lock file out of the unit's directory, e.g. when you don't commit it. See [Lock files](/features/units/lock-files).
+    example: |
+      # terragrunt.hcl
+
+      terraform {
+        source = "../modules/networking/vpc"
+
+        copy_terraform_lock_file = false
+      }
+  - name: no_dot_terragrunt_cache
+    type: bool
+    default: "false"
+    since: v1.2.2
+    description: Runs OpenTofu/Terraform in the unit's directory instead of a copy in `.terragrunt-cache`. Files a run creates stay in the unit's directory. Setting it with `source` or `--source` is an error. It needs the [`no-dot-terragrunt-cache`](/reference/experiments/active#no-dot-terragrunt-cache) experiment.
+    example: |
+      # terragrunt.hcl
+
+      terraform {
+        no_dot_terragrunt_cache = true
+      }
+  - name: update_source_with_cas
+    type: bool
+    default: "false"
+    description: Lets a catalog's `terragrunt.hcl` give `source` as a path relative to the catalog. Terragrunt rewrites it to a reference into its content-addressable store. See [CAS integration](/features/stacks/explicit#cas-integration).
+    example: |
+      # units/service/terragrunt.hcl
+
+      terraform {
+        source = "../..//modules/service"
+
+        update_source_with_cas = true
+      }
+  - name: mutable
+    type: bool
+    default: "false"
+    description: Makes the files Terragrunt copies from its [content-addressable store](/features/caching/cas) into `.terragrunt-cache` writable. Terragrunt writes them read-only by default, so an edit can't reach the shared store. It has no effect when Terragrunt fetches the source without the store, which already writes a separate, writable copy.
+    example: |
+      # terragrunt.hcl
+
+      terraform {
+        source = "git::https://github.com/acme/modules.git//vpc?ref=v1.0.0"
+
+        mutable = true
+      }
+blocks:
+  - name: extra_arguments
+    description: Passes extra CLI arguments, variable files, or environment variables to `tofu`/`terraform` for the commands you list. See [Extra arguments](/features/units/extra-arguments).
+    labels:
+      - name: name
+        description: Names the set of arguments.
+    attributes:
+      - name: commands
+        type: list(string)
+        required: true
+        description: The `tofu`/`terraform` commands to pass the arguments to, e.g. `["apply", "plan"]`.
+      - name: arguments
+        type: list(string)
+        description: CLI arguments to pass.
+      - name: env_vars
+        type: map(string)
+        description: Environment variables to set when Terragrunt calls `tofu`/`terraform`.
+      - name: required_var_files
+        type: list(string)
+        description: Paths to `.tfvars` files, each passed as `-var-file=<path>`.
+      - name: optional_var_files
+        type: list(string)
+        description: Like `required_var_files`, but Terragrunt skips a file that doesn't exist.
+    example: |
+      # terragrunt.hcl
+
+      terraform {
+        extra_arguments "retry_lock" {
+          commands  = get_terraform_commands_that_need_locking()
+          arguments = ["-lock-timeout=20m"]
+        }
+
+        extra_arguments "common_vars" {
+          commands           = ["apply", "plan", "import", "refresh"]
+          required_var_files = ["${get_parent_terragrunt_dir()}/common.tfvars"]
+        }
+      }
+  - name: before_hook
+    description: Runs a command before `tofu`/`terraform` runs one of the commands you list. Hooks run in the order you declare them. See [Hooks](/features/units/hooks).
+    labels:
+      - name: name
+        description: Names the hook in Terragrunt's log output.
+    attributes:
+      - name: commands
+        type: list(string)
+        required: true
+        description: The `tofu`/`terraform` commands to run the hook before. It also takes the [hook commands](/reference/hcl/blocks/terraform#hook-commands) `init-from-module` and `init`.
+      - name: execute
+        type: list(string)
+        required: true
+        description: The command to run and its arguments, e.g. `["echo", "Foo"]` runs `echo Foo`.
+      - name: working_dir
+        type: string
+        description: The directory to run the command in. Defaults to the directory Terragrunt runs OpenTofu/Terraform in, or the unit's directory for an `init-from-module` hook.
+      - name: run_on_error
+        type: bool
+        default: "false"
+        description: Runs the hook even when an earlier hook failed.
+      - name: suppress_stdout
+        type: bool
+        default: "false"
+        description: Hides the command's standard output, e.g. when a script parses OpenTofu/Terraform's output.
+      - name: if
+        type: bool
+        default: "true"
+        description: Skips the hook when `false`.
+    example: |
+      # terragrunt.hcl
+
+      terraform {
+        before_hook "fmt" {
+          commands = ["apply", "plan"]
+          execute  = ["tofu", "fmt", "-check"]
+        }
+      }
+  - name: after_hook
+    description: Runs a command after `tofu`/`terraform` runs one of the commands you list. Hooks run in the order you declare them. See [Hooks](/features/units/hooks).
+    labels:
+      - name: name
+        description: Names the hook in Terragrunt's log output.
+    attributes:
+      - name: commands
+        type: list(string)
+        required: true
+        description: The `tofu`/`terraform` commands to run the hook after. It also takes the [hook commands](/reference/hcl/blocks/terraform#hook-commands) `terragrunt-read-config`, `init-from-module`, and `init`.
+      - name: execute
+        type: list(string)
+        required: true
+        description: The command to run and its arguments, e.g. `["echo", "Foo"]` runs `echo Foo`.
+      - name: working_dir
+        type: string
+        description: The directory to run the command in. Defaults to the directory Terragrunt runs OpenTofu/Terraform in, or the unit's directory for a `terragrunt-read-config` or `init-from-module` hook.
+      - name: run_on_error
+        type: bool
+        default: "false"
+        description: Runs the hook even when an earlier hook or the `tofu`/`terraform` command failed.
+      - name: suppress_stdout
+        type: bool
+        default: "false"
+        description: Hides the command's standard output, e.g. when a script parses OpenTofu/Terraform's output.
+      - name: if
+        type: bool
+        default: "true"
+        description: Skips the hook when `false`.
+    example: |
+      # terragrunt.hcl
+
+      terraform {
+        after_hook "notify" {
+          commands     = ["apply"]
+          execute      = ["./scripts/notify.sh"]
+          run_on_error = true
+        }
+      }
+  - name: error_hook
+    description: Runs a command when `tofu`/`terraform` fails with an error that matches one of `on_errors`. Error hooks run after the before and after hooks.
+    labels:
+      - name: name
+        description: Names the hook in Terragrunt's log output.
+    attributes:
+      - name: commands
+        type: list(string)
+        required: true
+        description: The `tofu`/`terraform` commands whose errors trigger the hook. Use `init-from-module` to catch errors while Terragrunt downloads `source`.
+      - name: execute
+        type: list(string)
+        required: true
+        description: The command to run and its arguments.
+      - name: on_errors
+        type: list(string)
+        required: true
+        description: Regular expressions matched against the error message, e.g. `[".*"]` for any error.
+      - name: working_dir
+        type: string
+        description: The directory to run the command in. Defaults to the directory Terragrunt runs OpenTofu/Terraform in.
+      - name: suppress_stdout
+        type: bool
+        default: "false"
+        description: Hides the command's standard output.
+    example: |
+      # terragrunt.hcl
+
+      terraform {
+        error_hook "download_failed" {
+          commands  = ["init-from-module"]
+          execute   = ["echo", "Source download failed"]
+          on_errors = [".*"]
+        }
+      }
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The `terraform` block configures how Terragrunt runs OpenTofu/Terraform: where to get the module, which files to copy into the working directory, extra CLI arguments, and commands to run before and after `tofu`/`terraform`.
+
+```hcl
+# terragrunt.hcl
+
+terraform {
+  source = "git::https://github.com/acme/modules.git//vpc?ref=v1.0.0"
+
+  extra_arguments "retry_lock" {
+    commands  = get_terraform_commands_that_need_locking()
+    arguments = ["-lock-timeout=20m"]
+  }
+
+  before_hook "fmt" {
+    commands = ["apply", "plan"]
+    execute  = ["tofu", "fmt", "-check"]
+  }
+}
+```
+
+With a `source`, Terragrunt downloads the module into `.terragrunt-cache`, copies the unit's directory into the same place, and runs `tofu`/`terraform` there. It skips hidden files and directories in the copy unless [`include_in_copy`](/reference/hcl/blocks/terraform#include_in_copy) names them.
+
+### Module sources
+
+A `tfr://` source pulls a module from a module registry, in the form `tfr://REGISTRY_HOST/MODULE_SOURCE[?version=VERSION]`:
+
+```hcl
+# terragrunt.hcl
+
+terraform {
+  source = "tfr://registry.opentofu.org/terraform-aws-modules/vpc/aws?version=3.3.0"
+}
+```
+
+- Without `?version=` or a [`version`](/reference/hcl/blocks/terraform#version) attribute, Terragrunt downloads the latest stable version. Pin a version for reproducible runs.
+- `tfr:///` with three slashes uses the default registry: `registry.opentofu.org` for OpenTofu, and `registry.terraform.io` for Terraform. When Terragrunt can't tell which one it runs, it uses `registry.opentofu.org`. Set `TG_TF_DEFAULT_REGISTRY_HOST` to use another host.
+- `//` selects a submodule, e.g. `tfr:///terraform-aws-modules/iam/aws//modules/iam-policy?version=4.3.0`.
+- For a private registry, set `TG_TF_REGISTRY_TOKEN` to an API token for it.
+
+An `oci://` source pulls a module from an OCI registry, in the form `oci://REGISTRY_HOST/REPOSITORY[//SUBDIR][?tag=TAG|?digest=DIGEST]`, e.g. `oci://ghcr.io/acme/terraform-modules/vpc?tag=1.0.0`. Without a `tag` or `digest`, Terragrunt uses the `latest` tag. See [OCI registries](/features/units/oci).
+
+### Version constraints
+
+The [`version`](/reference/hcl/blocks/terraform#version) attribute resolves a `tfr://` source against the registry's list of versions:
+
+- It applies to `tfr://` sources only. Setting it with any other source is an error, and so is also setting `?version=` in the source.
+- The `--source` flag and `TG_SOURCE` replace `version` along with `source`. They take an exact `?version=` only, not a constraint.
+- Terragrunt checks the registry on every run, so it downloads a newly published version that satisfies the constraint without `--source-update`.
+- A prerelease qualifies only when the constraint names one, e.g. `>= 2.0.0-rc1`, as in OpenTofu/Terraform.
+
+### Hook commands
+
+Besides `tofu`/`terraform` commands, a hook's `commands` can name three stages of a Terragrunt run: `terragrunt-read-config`, `init-from-module`, and `init`. Running `terragrunt plan` on a unit with a `source` runs hooks in this order:
+
+```d2
+shape: sequence_diagram
+
+terragrunt: Terragrunt
+hooks: Hooks
+tofu: tofu
+
+terragrunt -> terragrunt: Load terragrunt.hcl
+terragrunt -> hooks: 'after_hook "terragrunt-read-config"'
+
+download: "Download source, unless .terragrunt-cache has it" {
+  terragrunt -> hooks: 'before_hook "init-from-module"'
+  terragrunt -> terragrunt: Download source
+  terragrunt -> hooks: 'after_hook "init-from-module"'
+}
+
+init: "Auto-Init, when the module needs it" {
+  terragrunt -> hooks: 'before_hook "init"'
+  terragrunt -> tofu: tofu init
+  terragrunt -> hooks: 'after_hook "init"'
+}
+
+plan: "The command you ran" {
+  terragrunt -> hooks: 'before_hook "plan"'
+  terragrunt -> tofu: tofu plan
+  terragrunt -> hooks: 'after_hook "plan"'
+}
+```
+
+When a stage fails, Terragrunt runs that stage's after hooks that set `run_on_error = true`, then its `error_hook` blocks whose `on_errors` match the error. An `error_hook` with `init-from-module` catches download errors.
+
+`terragrunt-read-config` and `init-from-module` hooks run in the unit's directory, and other hooks in the directory Terragrunt runs OpenTofu/Terraform in.
+
+<Aside type="caution" title="Use terragrunt-read-config in an after_hook">
+
+Terragrunt ignores a `before_hook` with `terragrunt-read-config`, and a hook that names `read-config` never runs. Neither is an error.
+
+</Aside>
+
+### A note about using modules from the registry
+
+Terragrunt runs **shared service modules** as **root modules**. OpenTofu/Terraform modules fall into two groups:
+
+- A **root module** is one you run `tofu init` and `tofu apply` in directly. It has the blocks that configure OpenTofu/Terraform, such as `backend` and `provider` blocks.
+- A **shared module** is one other modules call through `module` blocks. It lacks those blocks.
+
+Terragrunt splits shared modules in two:
+
+- A **shared service module** deploys on its own once something adds the `backend` and `provider` blocks, e.g. [terraform-aws-modules/vpc](https://registry.terraform.io/modules/terraform-aws-modules/vpc/aws/latest).
+- A **shared module** only works composed with other modules or resources, e.g. [consul-security-group-rules](https://registry.terraform.io/modules/hashicorp/consul/aws/latest/submodules/consul-security-group-rules).
+
+Terragrunt generates the missing blocks to run a shared service module as a root module. Most registry modules are shared modules meant for composition, so Terragrunt can't always deploy them. Two limitations block the conversion:
+
+- Every complex variable needs a `type`, or OpenTofu/Terraform reads the input Terragrunt passes as a `string`. This includes lists and maps.
+- Derived sensitive outputs must be marked `sensitive`. See [sensitive variables](https://learn.hashicorp.com/tutorials/terraform/sensitive-variables#reference-sensitive-variables).
+
+If a registry module fails to deploy with Terragrunt, [open an issue on the Terragrunt repository](https://github.com/gruntwork-io/terragrunt/issues) with the module and the error message, rather than on the module's repository.

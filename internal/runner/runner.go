@@ -20,6 +20,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/errfmt"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -28,6 +29,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/tips"
 	"github.com/gruntwork-io/terragrunt/internal/view/dag"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -145,7 +147,7 @@ func BuildUnitOpts(
 
 	if discoveryCtx := unit.DiscoveryContext(); discoveryCtx != nil {
 		if discoveryCtx.Cmd != "" {
-			unitOpts.TerraformCommand = discoveryCtx.Cmd
+			unitOpts.TofuCommand = discoveryCtx.Cmd
 		}
 
 		if len(discoveryCtx.Args) > 0 {
@@ -182,7 +184,7 @@ func syncUnitCliArgs(
 		stackOpts.RootWorkingDir,
 		stackOpts.OutputFolder,
 		unitOpts.JSONOutputFolder,
-		unitOpts.TerraformCommand,
+		unitOpts.TofuCommand,
 	)
 
 	if planFile != "" {
@@ -192,7 +194,7 @@ func syncUnitCliArgs(
 			return
 		}
 
-		if unitOpts.TerraformCommand == tf.CommandNamePlan {
+		if unitOpts.TofuCommand == tf.CommandNamePlan {
 			unitOpts.TerraformCliArgs.AppendFlag("-out=" + planFile)
 
 			return
@@ -257,11 +259,11 @@ func NewFromComponents(
 
 	rnr.Stack.Units = units
 
-	if opts.TerraformCliArgs.IsDestroyCommand(opts.TerraformCommand) {
+	if opts.TerraformCliArgs.IsDestroyCommand(opts.TofuCommand) {
 		applyPreventDestroyExclusions(l, units)
 	}
 
-	if opts.TerraformCommand == tf.CommandNamePlan || opts.TerraformCommand == tf.CommandNameApply {
+	if opts.TofuCommand == tf.CommandNamePlan || opts.TofuCommand == tf.CommandNameApply {
 		applyFilterAllowDestroyExclusions(l, opts, units)
 	}
 
@@ -318,10 +320,11 @@ func (rnr *Runner) Run(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *rewrite.Store,
 	stackOpts *options.TerragruntOptions,
 	r *report.Report,
 ) error {
-	terraformCmd := stackOpts.TerraformCommand
+	terraformCmd := stackOpts.TofuCommand
 
 	if stackOpts.OutputFolder != "" {
 		const ownerReadWriteExecutePerms = 0o700
@@ -448,20 +451,27 @@ func (rnr *Runner) Run(
 			Collect(ctx, unitLogger, "runner_pool_task", map[string]any{
 				"unit_path":              unitPath,
 				"unit_name":              unitName,
-				"terraform_command":      unitOpts.TerraformCommand,
-				"terraform_cli_args":     unitOpts.TerraformCliArgs,
+				"tofu_command":           unitOpts.TofuCommand,
+				"tofu_cli_args":          unitOpts.TerraformCliArgs.Slice(),
 				"working_dir":            unitOpts.WorkingDir,
 				"terragrunt_config_path": unitOpts.TerragruntConfigPath,
 			}, func(childCtx context.Context, unitLogger log.Logger) error {
 				l.Debugf(
 					"Runner Pool Task: starting unit=%s command=%s",
 					unitPath,
-					unitOpts.TerraformCommand,
+					unitOpts.TofuCommand,
 				)
 
 				// Wrap the writer to buffer unit-scoped output. Build a per-unit
 				// venv so the wrapped writers flow through tf and shell calls.
-				unitWriter := NewUnitWriter(v.Writers.Writer)
+				unitOut := unitOutput(v.FS, v.Writers.Writer, unitPath)
+				defer func() {
+					if closeErr := unitOut.Close(); closeErr != nil {
+						unitLogger.Errorf("Error closing the output of unit %s: %v", unitPath, closeErr)
+					}
+				}()
+
+				unitWriter := NewUnitWriter(unitOut)
 
 				// Per-unit mutations (e.g. SetTerragruntInputsAsEnvVars writing
 				// TF_VAR_* in run.go) must not leak across concurrent units.
@@ -485,10 +495,10 @@ func (rnr *Runner) Run(
 					unitLogger,
 					unitV,
 					unitOpts.AuthProviderCmd,
-					configbridge.ShellRunOptsFromOpts(v.Env, unitOpts),
+					configbridge.ShellRunOptsFromOpts(v.Exec, v.Env, unitOpts),
 				)
 				if err != nil {
-					logTaskOutcome(childCtx, l, unitPath, unitOpts.TerraformCommand, err)
+					logTaskOutcome(childCtx, l, unitPath, unitOpts.TofuCommand, err)
 
 					return err
 				}
@@ -505,23 +515,40 @@ func (rnr *Runner) Run(
 
 						var readErr error
 
-						cfg, readErr = config.ReadTerragruntConfig(
+						cfg, readErr = s.ReadTerragruntConfig(
 							readCtx,
 							unitLogger,
 							unitV,
 							pctx,
 						)
+						if readErr != nil {
+							return readErr
+						}
 
-						return readErr
+						return tips.GiveOutputsBlockTips(readCtx, unitLogger, unitV, pctx, cfg, unitOpts.Tips)
 					})
 				if err != nil {
-					logTaskOutcome(childCtx, l, unitPath, unitOpts.TerraformCommand, err)
+					logTaskOutcome(childCtx, l, unitPath, unitOpts.TofuCommand, err)
 
 					return err
 				}
 
-				if !unitOpts.TFPathExplicitlySet && cfg.TerraformBinary != "" {
-					unitOpts.TFPath = cfg.TerraformBinary
+				unitOpts.SetTFPathFromConfig(cfg.TerraformBinary)
+
+				engineConfig, err := cfg.EngineOptions()
+				if err != nil {
+					logTaskOutcome(childCtx, l, unitPath, unitOpts.TofuCommand, err)
+
+					return err
+				}
+
+				unitOpts.EngineConfig = engineConfig
+
+				_, probe, err := configbridge.ProbeTF(childCtx, unitLogger, unitV, unitOpts)
+				if err != nil {
+					logTaskOutcome(childCtx, l, unitPath, unitOpts.TofuCommand, err)
+
+					return err
 				}
 
 				discoveryCtx := u.DiscoveryContext()
@@ -533,15 +560,19 @@ func (rnr *Runner) Run(
 
 				err = telemetry.TelemeterFromContext(childCtx).
 					Collect(childCtx, unitLogger, "unit_run", map[string]any{
-						"unit_path":         unitPath,
-						"unit_name":         unitName,
-						"terraform_command": unitOpts.TerraformCommand,
+						"unit_path":    unitPath,
+						"unit_name":    unitName,
+						"tofu_command": unitOpts.TofuCommand,
 					}, func(runCtx context.Context, unitLogger log.Logger) error {
+						unlockOutputs := config.LockDependencyOutputs(runCtx, unitOpts.TerragruntConfigPath)
+						defer unlockOutputs()
+
 						return unitRunner.Run(
 							runCtx,
 							unitLogger,
 							unitV,
 							unitOpts,
+							probe.Type,
 							r,
 							runCfg,
 							credsGetter,
@@ -571,7 +602,7 @@ func (rnr *Runner) Run(
 					err = flushErr
 				}
 
-				logTaskOutcome(childCtx, l, unitPath, unitOpts.TerraformCommand, err)
+				logTaskOutcome(childCtx, l, unitPath, unitOpts.TofuCommand, err)
 
 				return err
 			})
@@ -833,16 +864,13 @@ func (rnr *Runner) summarizePlanAllErrors(l log.Logger, errorScanners map[string
 
 		var dependenciesMsg string
 
-		if len(unit.Dependencies()) > 0 {
-			cfg := unit.Config()
-			if cfg != nil && cfg.Dependencies != nil && len(cfg.Dependencies.Paths) > 0 {
-				dependenciesMsg = fmt.Sprintf(
-					" contains dependencies to %v and",
-					cfg.Dependencies.Paths,
-				)
-			} else {
-				dependenciesMsg = " contains dependencies and"
+		if deps := unit.Dependencies(); len(deps) > 0 {
+			depPaths := make([]string, 0, len(deps))
+			for _, dep := range deps {
+				depPaths = append(depPaths, dep.Path())
 			}
+
+			dependenciesMsg = fmt.Sprintf(" contains dependencies to %v and", depPaths)
 		}
 
 		l.Infof("%v%v refers to remote State "+
@@ -926,7 +954,8 @@ func applyFilterAllowDestroyExclusions(
 			unit.SetExcluded(true)
 
 			l.Warnf(
-				"The `%s` unit was removed in the `%s` Git reference, but the `--filter-allow-destroy` flag was not used. The unit will be excluded during applies unless --filter-allow-destroy is used.",
+				"The `%s` unit was removed in the `%s` Git reference, but the `--filter-allow-destroy` flag "+
+					"was not used. The unit will be excluded during applies unless --filter-allow-destroy is used.",
 				unit.DisplayPath(),
 				discoveryCtx.Ref,
 			)

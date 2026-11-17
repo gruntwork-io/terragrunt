@@ -1,0 +1,13 @@
+---
+name: terragrunt_version_constraint
+description: Specifies which versions of the Terragrunt CLI can be used with your configuration.
+configs: [unit]
+type: string
+examples:
+  - code: |
+      # terragrunt.hcl
+
+      terragrunt_version_constraint = ">= 0.23"
+---
+
+The `terragrunt_version_constraint` attribute specifies which versions of the Terragrunt CLI can be used with your configuration. If the running version of Terragrunt doesn't match the constraint, Terragrunt produces an error and exits without taking any further actions.

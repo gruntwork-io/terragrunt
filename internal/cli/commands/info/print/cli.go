@@ -3,19 +3,24 @@ package print
 import (
 	"context"
 
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/providercaching"
+
 	runcmd "github.com/gruntwork-io/terragrunt/internal/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 const (
+	// CommandName is the name of the `terragrunt info print` command.
 	CommandName = "print"
 )
 
-func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *clihelper.Command {
+// NewCommand returns the `terragrunt info print` command.
+func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *rewrite.Store) *clihelper.Command {
 	cmdFlags := runcmd.NewFlags(l, opts, v, nil)
 	cmdFlags = append(cmdFlags, shared.NewAllFlag(opts, nil))
 
@@ -24,9 +29,9 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *cl
 		Usage:     "Print out a short description of Terragrunt context.",
 		UsageText: "terragrunt info print",
 		Flags:     cmdFlags,
-		Action: func(ctx context.Context, _ *clihelper.Context) error {
-			return Run(ctx, l, v, opts.OptionsFromContext(ctx))
-		},
+		Action: providercaching.Wrap(l, opts, v, func(ctx context.Context, _ *clihelper.Context) error {
+			return Run(ctx, l, v, s, opts.OptionsFromContext(ctx))
+		}),
 	}
 
 	return cmd
