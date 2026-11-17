@@ -79,11 +79,8 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, opts
 			return discoverErr
 		})
 	if telemetryErr != nil {
-		// CoexistenceError and AmbiguousConfigError are structural discovery failures that
-		// bypass suppressParseErrors inside Discover itself (see discovery.go), leaving
-		// components nil rather than partial. Surface them as command errors instead of
-		// silently reporting an empty/incomplete result; ordinary suppressed parse errors
-		// still just get logged so discovery of other components isn't blocked.
+		// Discover returns no components with these two errors, so logging them
+		// and carrying on would print an empty result.
 		if coexistenceErr, ok := errors.AsType[discovery.CoexistenceError](telemetryErr); ok {
 			return coexistenceErr
 		}
