@@ -228,7 +228,8 @@ func testTerraformRegistryFetching(t *testing.T, modPath, expectedOutputKey stri
 	t.Helper()
 
 	modFullPath := filepath.Join(registryFixturePath, modPath)
-	helpers.CleanupTerraformFolder(t, modFullPath)
+	modFullPath = filepath.Join(helpers.CopyEnvironment(t, modFullPath), modFullPath)
+
 	helpers.RunTerragrunt(
 		t,
 		"terragrunt apply -auto-approve --non-interactive --working-dir "+modFullPath,

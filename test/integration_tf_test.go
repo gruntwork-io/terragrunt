@@ -1007,13 +1007,15 @@ func TestTFTerragruntStdOut(t *testing.T) {
 		stderr bytes.Buffer
 	)
 
+	rootPath := filepath.Join(helpers.CopyEnvironment(t, testFixtureDownload), testFixtureStdout)
+
 	helpers.RunTerragrunt(
 		t,
-		"terragrunt apply -auto-approve --non-interactive --working-dir "+testFixtureStdout,
+		"terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath,
 	)
 	helpers.RunTerragruntRedirectOutput(
 		t,
-		"terragrunt output foo --non-interactive --working-dir "+testFixtureStdout,
+		"terragrunt output foo --non-interactive --working-dir "+rootPath,
 		&stdout,
 		&stderr,
 	)
