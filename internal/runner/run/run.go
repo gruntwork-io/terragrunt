@@ -767,9 +767,10 @@ func FilterTerraformExtraArgs(l log.Logger, fsys vfs.FS, opts *Options, cfg *run
 // keys will be of the format TF_VAR_xxx and the values will be converted to JSON, which Terraform knows how to read
 // natively.
 //
-// A value only has its template sequences escaped when the module declares the matching variable
-// with a type constraint that makes OpenTofu/Terraform parse the value as HCL. Escaping a value that
-// is read literally would deliver $${...} to the module instead of ${...}.
+// Template sequences have to be escaped in a value OpenTofu/Terraform parse as HCL, and left alone
+// in a value they read literally, where escaping would deliver $${...} to the module instead of
+// ${...}. The type constraint in declared decides which applies. For a variable missing from
+// declared, a string is left alone and a map or list is escaped.
 func ToTerraformEnvVars(
 	l log.Logger,
 	vars map[string]any,
@@ -797,13 +798,18 @@ func ToTerraformEnvVars(
 
 // terraformEnvVarValue encodes value for a TF_VAR_* environment variable that OpenTofu/Terraform
 // read in the given mode.
+//
+// With [tf.VariableParseUnknown], a string is encoded for a variable read literally and any other
+// value for a variable parsed as HCL. An unescaped map or list makes OpenTofu/Terraform fail when
+// they do parse it as HCL.
 func terraformEnvVarValue(value any, mode tf.VariableParsingMode) (string, error) {
-	if mode != tf.VariableParseHCL {
-		return util.AsLiteralTerraformEnvVarJSONValue(value)
-	}
+	str, isString := value.(string)
 
-	if str, ok := value.(string); ok {
+	switch {
+	case isString && mode == tf.VariableParseHCL:
 		return util.EscapeTemplateSequencesInString(str), nil
+	case isString, mode == tf.VariableParseLiteral:
+		return util.AsLiteralTerraformEnvVarJSONValue(value)
 	}
 
 	return util.AsTerraformEnvVarJSONValue(value)
@@ -823,8 +829,8 @@ func hasTemplateSequence(envVars map[string]string) bool {
 // declaredVariables reads how the module at modulePath declared its variables, so that only the
 // values OpenTofu/Terraform parse as HCL get escaped.
 //
-// A module that cannot be read yields no declarations at all: values are then passed through
-// untouched, and OpenTofu/Terraform report the malformed module themselves.
+// A module that cannot be read yields no declarations at all, and OpenTofu/Terraform report the
+// malformed module themselves.
 func declaredVariables(l log.Logger, fsys vfs.FS, modulePath string) map[string]tf.ModuleVariable {
 	declared, err := tf.ModuleVariables(fsys, modulePath)
 	if err != nil {

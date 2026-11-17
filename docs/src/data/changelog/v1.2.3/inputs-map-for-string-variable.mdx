@@ -31,4 +31,4 @@ output "summary" {
 summary = "Instance $${instance} is down"
 ```
 
-Terragrunt now escapes `${` and `%{` in a map or list only when the variable's type makes OpenTofu/Terraform parse the value as HCL, so the output is `Instance ${instance} is down`.
+Terragrunt now leaves `${` and `%{` unescaped in a map or list when the module declares the variable as `string`, `number` or `bool`, or with no type, so the output is `Instance ${instance} is down`.

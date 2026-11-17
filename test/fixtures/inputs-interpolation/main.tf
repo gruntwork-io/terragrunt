@@ -14,6 +14,14 @@ variable "string_from_map" {
   type = string
 }
 
+variable "map_with_overridden_default" {
+  type = map(string)
+}
+
+output "map_with_overridden_default" {
+  value = var.map_with_overridden_default
+}
+
 output "map_with_interpolation" {
   value = var.map_with_interpolation
 }

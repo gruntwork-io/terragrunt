@@ -1312,6 +1312,14 @@ func TestTFInputsWithInterpolationPatterns(t *testing.T) {
 	assert.Equal(t, "test ${bar} test", decodedValue["foo"])
 	assert.Equal(t, "test %{bar} test", decodedValue["directive"])
 	assert.Equal(t, "no interpolation here", decodedValue["baz"])
+
+	overriddenOutput, ok := outputs["map_with_overridden_default"]
+	require.True(t, ok, "map_with_overridden_default output not found")
+	overriddenValue, ok := overriddenOutput.Value.(map[string]any)
+	require.True(t, ok, "map_with_overridden_default value is not a map")
+	assert.Equal(t, "test ${bar} test", overriddenValue["foo"])
+	assert.Equal(t, "test %{bar} test", overriddenValue["directive"])
+	assert.Equal(t, "no interpolation here", overriddenValue["baz"])
 }
 
 func TestTFTerragruntMissingDependenciesFail(t *testing.T) {
