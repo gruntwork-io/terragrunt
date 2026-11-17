@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/hashicorp/go-getter/v2"
+	"github.com/hashicorp/hcl/v2"
 
 	"github.com/gruntwork-io/terragrunt/internal/detect"
 	"github.com/gruntwork-io/terragrunt/internal/git"
@@ -87,6 +88,10 @@ type SourceInsideStack struct {
 	Name string
 	// Source is the source of the block, as written.
 	Source string
+	// Content is the stack file before the rewrite.
+	Content []byte
+	// Range is the source value of the block in Content, with StackFile as its Filename.
+	Range hcl.Range
 }
 
 // ProcessStackComponent resolves update_source_with_cas references for a stack
@@ -421,11 +426,20 @@ func (c *CAS) processStackFile(
 		}
 
 		if util.HasPathPrefix(targetDir, dirPath) {
+			stackFile := filepath.ToSlash(stackFileInRepo)
+
+			rng, err := block.sourceRange(content, stackFile)
+			if err != nil {
+				return nil, err
+			}
+
 			inside = append(inside, SourceInsideStack{
-				StackFile: filepath.ToSlash(stackFileInRepo),
+				StackFile: stackFile,
 				BlockType: block.BlockType,
 				Name:      block.Name,
 				Source:    block.Source,
+				Content:   content,
+				Range:     rng,
 			})
 		}
 

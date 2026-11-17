@@ -9,11 +9,13 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"testing/synctest"
 	"time"
 
+	"github.com/hashicorp/hcl/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -1476,6 +1478,40 @@ func TestProcessStackComponent_LocalSource_ReportsSourcesInsideStack(t *testing.
 			}},
 		},
 		{
+			name: "unit inside the stack directory declared in an autoinclude",
+			files: map[string]string{
+				"stacks/bar/terragrunt.stack.hcl": `unit "foo" {
+  source = "../../units/foo"
+  path   = "foo"
+}
+
+stack "baz" {
+  source                 = "../baz"
+  update_source_with_cas = true
+  path                   = "baz"
+
+  autoinclude {
+    unit "foo" {
+      source                 = "./units/foo"
+      update_source_with_cas = true
+      path                   = "foo"
+    }
+  }
+}
+`,
+				"stacks/bar/units/foo/terragrunt.hcl": unitConfig,
+				"stacks/baz/terragrunt.stack.hcl":     "",
+				"units/foo/terragrunt.hcl":            unitConfig,
+			},
+			subdir: "stacks/bar",
+			want: []cas.SourceInsideStack{{
+				StackFile: "stacks/bar/terragrunt.stack.hcl",
+				BlockType: "unit",
+				Name:      "foo",
+				Source:    "./units/foo",
+			}},
+		},
+		{
 			name: "unit outside the stack directory",
 			files: map[string]string{
 				"stacks/bar/terragrunt.stack.hcl": `unit "foo" {
@@ -1519,7 +1555,7 @@ func TestProcessStackComponent_LocalSource_ReportsSourcesInsideStack(t *testing.
 
 			defer result.Cleanup()
 
-			assert.Equal(t, tc.want, result.SourcesInsideStack)
+			assertSourcesInsideStack(t, tc.files, tc.want, result.SourcesInsideStack)
 		})
 	}
 }
@@ -1527,7 +1563,7 @@ func TestProcessStackComponent_LocalSource_ReportsSourcesInsideStack(t *testing.
 func TestProcessStoredStackComponent_ReportsSourcesInsideStack(t *testing.T) {
 	t.Parallel()
 
-	root := writeLocalFixture(t, map[string]string{
+	files := map[string]string{
 		"terragrunt.stack.hcl": `unit "foo" {
   source                 = "./units/foo"
   update_source_with_cas = true
@@ -1535,7 +1571,9 @@ func TestProcessStoredStackComponent_ReportsSourcesInsideStack(t *testing.T) {
 }
 `,
 		"units/foo/terragrunt.hcl": "inputs = {}\n",
-	})
+	}
+
+	root := writeLocalFixture(t, files)
 
 	c, v := newCAS(t)
 
@@ -1545,14 +1583,47 @@ func TestProcessStoredStackComponent_ReportsSourcesInsideStack(t *testing.T) {
 		v,
 		root,
 		root,
-		strings.Repeat("foo", sha256.Size*2),
+		strings.Repeat("a", sha256.Size*2),
 	)
 	require.NoError(t, err)
 
-	assert.Equal(t, []cas.SourceInsideStack{{
+	assertSourcesInsideStack(t, files, []cas.SourceInsideStack{{
 		StackFile: "terragrunt.stack.hcl",
 		BlockType: "unit",
 		Name:      "foo",
 		Source:    "./units/foo",
 	}}, inside)
+}
+
+// assertSourcesInsideStack asserts that got matches want, apart from Content, which must be the stack
+// file in files, and Range, which must cover the quoted source in Content.
+func assertSourcesInsideStack(t *testing.T, files map[string]string, want, got []cas.SourceInsideStack) {
+	t.Helper()
+
+	if len(want) == 0 {
+		assert.Empty(t, got)
+
+		return
+	}
+
+	stripped := make([]cas.SourceInsideStack, 0, len(got))
+
+	for i := range got {
+		inside := got[i]
+
+		assert.Equal(t, files[inside.StackFile], string(inside.Content))
+		assert.Equal(t, inside.StackFile, inside.Range.Filename)
+		require.LessOrEqual(t, inside.Range.End.Byte, len(inside.Content))
+		assert.Equal(
+			t,
+			strconv.Quote(inside.Source),
+			string(inside.Content[inside.Range.Start.Byte:inside.Range.End.Byte]),
+		)
+
+		inside.Content = nil
+		inside.Range = hcl.Range{}
+		stripped = append(stripped, inside)
+	}
+
+	assert.Equal(t, want, stripped)
 }

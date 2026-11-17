@@ -190,9 +190,9 @@ func New() strict.Controls {
 		Name:        CASSourceInsideStack,
 		Description: "Prevents a `unit` or `stack` block with `update_source_with_cas` from setting a source inside the directory of its stack file. Stack generation copies that directory whole, so the generated stack also contains a copy of the source, and `run --all` runs that copy as well.",
 		Error: errors.New(
-			"Setting the source of a `unit` or `stack` block with `update_source_with_cas` to a directory inside the stack directory is no longer supported. Move the source out of the stack directory, and select the stack with a `//` subdirectory in its source.",
+			"Setting the source of a `unit` or `stack` block with `update_source_with_cas` to a directory inside the stack directory is no longer supported. Move the unit or stack directory it points at out of the stack directory, and use `//` in the stack's source to separate the catalog from the stack directory.",
 		),
-		Warning: "Setting the source of a `unit` or `stack` block with `update_source_with_cas` to a directory inside the stack directory is deprecated and will be removed in a future version of Terragrunt. Stack generation copies the stack directory whole, so `run --all` also runs the copy. Move the source out of the stack directory, and select the stack with a `//` subdirectory in its source.",
+		Warning: "Setting the source of a `unit` or `stack` block with `update_source_with_cas` to a directory inside the stack directory is deprecated and will be removed in a future version of Terragrunt.",
 	}
 
 	controls := strict.Controls{
