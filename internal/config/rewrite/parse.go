@@ -244,7 +244,7 @@ func (s *Store) resolveFileOnce(
 				return parseErr
 			}
 
-			c = prepare(childCtx, l, v, pc, file, base)
+			c = s.prepare(childCtx, l, v, pc, file, base)
 
 			cfg, parseErr = s.assembleFirst(childCtx, l, v, pc, c)
 
@@ -267,14 +267,14 @@ func (s *Store) resolveBase(
 	file *pkghclparse.File,
 ) (*unitBase, error) {
 	if !pc.memoized {
-		return prepareBase(ctx, l, v, pc, file)
+		return s.prepareBase(ctx, l, v, pc, file)
 	}
 
 	key := Key{Path: filepath.Clean(file.ConfigPath), Context: pc.file.key, Stage: StageBase}
 	flight := pc.withOwnReads()
 
 	res, err := s.Memoize(ctx, key, func(ctx context.Context) (*unitBase, error) {
-		base, err := prepareBase(ctx, l, v, flight, file)
+		base, err := s.prepareBase(ctx, l, v, flight, file)
 		NoteReads(ctx, flight.sinks.filesRead.Paths()...)
 
 		if base == nil {
@@ -338,6 +338,8 @@ type unitBase struct {
 	evalVars map[string]cty.Value
 	// errs is the non-fatal errors of the stages before the eval context.
 	errs []error
+	// featureBlocks is the feature blocks the file declares, nil when the base blocks failed to decode.
+	featureBlocks pkgconfig.FeatureFlags
 	// scope is the file's state with its base applied.
 	scope fileScope
 }
@@ -347,10 +349,19 @@ func (b *unitBase) err() error {
 	return errors.Join(append(slices.Clone(b.errs), b.evalErr)...)
 }
 
+// firstErr returns the first error of b, which is where pkg/config stops the partial parse of an included file.
+func (b *unitBase) firstErr() error {
+	if len(b.errs) > 0 {
+		return b.errs[0]
+	}
+
+	return b.evalErr
+}
+
 // prepareBase runs the stages of [pkgconfig.ParseConfig] through the base blocks.
 //
 // Returns an error and no base where pkg/config returns no config.
-func prepareBase(
+func (s *Store) prepareBase(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
@@ -407,7 +418,7 @@ func prepareBase(
 		pctx,
 		file,
 		include,
-		pkgconfig.IncludeParseFeatureFlags,
+		s.includedFeatureFlags(v, pc),
 	)
 	if err != nil {
 		l.Warnf("Errors decoding base blocks in %s: %v", file.ConfigPath, err)
@@ -419,6 +430,7 @@ func prepareBase(
 	if baseBlocks != nil {
 		pc = pc.withBaseBlocks(baseBlocks)
 		base.locals = baseBlocks.Locals
+		base.featureBlocks = baseBlocks.FeatureFlagBlocks
 	}
 
 	base.evalVars, base.evalErr = pkgconfig.TerragruntEvalVariables(
@@ -435,7 +447,7 @@ func prepareBase(
 
 // prepare runs the stages of [pkgconfig.ParseConfig] after base through the block decode. It decodes file's dependency
 // blocks when file resolves its own dependencies, and every part when the run supplied the `dependency` value.
-func prepare(
+func (s *Store) prepare(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
@@ -455,7 +467,7 @@ func prepare(
 	if pc.file.decodedDeps == nil && !pc.file.inheritsDependencies {
 		depPC := pc.withOwnReads()
 
-		set, err := newDependencySet(ctx, l, v, depPC.parsingContext(), file)
+		set, err := newDependencySet(ctx, l, v, depPC.parsingContext(), file, s.includedDependencies(v, depPC))
 		c.dependencyReads = depPC.sinks.filesRead.Paths()
 
 		if err != nil {
