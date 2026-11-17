@@ -88,6 +88,7 @@ jobs:
         if: ${{ !cancelled() }}
         run: |
           bats --print-output-on-failure \
+            .github/scripts/benchmark/tests/ \
             .github/scripts/ci/tests/ \
             .github/scripts/release/tests/ \
             .github/scripts/coverage/tests/ \
