@@ -1360,7 +1360,10 @@ func ParseTerragruntConfig(
 	// target config check: make sure the target config exists. If the file does not exist, and there is no default val,
 	// return an error. If the file does not exist but there is a default val, return the default val. Otherwise,
 	// proceed to parse the file as a terragrunt config file.
-	targetConfig := getCleanedTargetConfigPath(v.FS, cfgPath, pctx.TerragruntConfigPath)
+	targetConfig, err := getCleanedTargetConfigPath(v.FS, cfgPath, pctx.TerragruntConfigPath)
+	if err != nil {
+		return cty.NilVal, err
+	}
 
 	targetConfigFileExists := vfs.Exists(v.FS, targetConfig)
 
@@ -1405,7 +1408,7 @@ func ParseTerragruntConfig(
 
 	pctx.FilesRead.Add(path)
 
-	l, pctx, err := pctx.WithConfigPath(l, targetConfig)
+	l, pctx, err = pctx.WithConfigPath(l, targetConfig)
 	if err != nil {
 		return cty.NilVal, err
 	}
@@ -1505,7 +1508,9 @@ func readTerragruntConfigAsFuncImpl(
 // Returns a cleaned path to the target config (the `terragrunt.hcl` or `terragrunt.hcl.json` file), handling relative
 // paths correctly. This will automatically append `terragrunt.hcl` or `terragrunt.hcl.json` to the path if the target
 // path is a directory.
-func getCleanedTargetConfigPath(fsys vfs.FS, cfgPath string, workingPath string) string {
+//
+// Returns an [AmbiguousConfigError] when the target path is a directory that holds both files.
+func getCleanedTargetConfigPath(fsys vfs.FS, cfgPath string, workingPath string) (string, error) {
 	cwd := filepath.Dir(workingPath)
 
 	targetConfig := cfgPath
@@ -1513,11 +1518,15 @@ func getCleanedTargetConfigPath(fsys vfs.FS, cfgPath string, workingPath string)
 		targetConfig = filepath.Join(cwd, targetConfig)
 	}
 
-	if vfs.IsDir(fsys, targetConfig) {
-		targetConfig = GetDefaultConfigPath(fsys, targetConfig)
+	if !vfs.IsDir(fsys, targetConfig) {
+		return filepath.Clean(targetConfig), nil
 	}
 
-	return filepath.Clean(targetConfig)
+	if err := RejectAmbiguousDefaultConfig(fsys, targetConfig); err != nil {
+		return "", err
+	}
+
+	return filepath.Clean(GetDefaultConfigPath(fsys, targetConfig)), nil
 }
 
 // GetTerragruntSourceForModule returns the source path for a module based on the source path of the parent module and the

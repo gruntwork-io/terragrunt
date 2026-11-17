@@ -1550,6 +1550,37 @@ func GetDefaultConfigPath(fsys vfs.FS, workingDir string) string {
 	return cfgPath
 }
 
+// RejectAmbiguousUnitConfig returns an [AmbiguousConfigError] when the config file of pctx was not named with
+// `--config` and its directory holds both default unit configuration files.
+func RejectAmbiguousUnitConfig(fsys vfs.FS, pctx *ParsingContext) error {
+	if pctx.TerragruntConfigPathExplicitlySet {
+		return nil
+	}
+
+	return RejectAmbiguousDefaultConfig(fsys, filepath.Dir(pctx.TerragruntConfigPath))
+}
+
+// RejectAmbiguousDefaultConfig returns an [AmbiguousConfigError] when dir holds both default unit configuration
+// files.
+func RejectAmbiguousDefaultConfig(fsys vfs.FS, dir string) error {
+	for _, name := range DefaultTerragruntConfigPaths {
+		exists, err := vfs.FileExists(fsys, filepath.Join(dir, name))
+		if err != nil {
+			return err
+		}
+
+		if !exists {
+			return nil
+		}
+	}
+
+	return AmbiguousConfigError{
+		ComponentPath: dir,
+		ConfigFileA:   DefaultTerragruntConfigPath,
+		ConfigFileB:   DefaultTerragruntJSONConfigPath,
+	}
+}
+
 // FindConfigFilesInPath returns a list of all Terragrunt config files in the given path or any subfolder of the path.
 //
 // Parameters:
@@ -1639,11 +1670,17 @@ func isTerragruntModuleDir(path string, tfDataDir string, downloadDir string) bo
 
 // ReadTerragruntConfig reads the Terragrunt config file from its default location.
 // The caller provides a fully populated ParsingContext (typically via configbridge.NewParsingContext).
+//
+// Returns an [AmbiguousConfigError] as [RejectAmbiguousUnitConfig] does.
 func ReadTerragruntConfig(ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	pctx *ParsingContext,
 ) (*TerragruntConfig, error) {
+	if err := RejectAmbiguousUnitConfig(v.FS, pctx); err != nil {
+		return nil, err
+	}
+
 	l.Debugf(
 		"Reading Terragrunt config file at %s",
 		util.RelPathForLog(pctx.RootWorkingDir, pctx.TerragruntConfigPath, pctx.LogShowAbsPaths),

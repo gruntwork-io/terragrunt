@@ -23,6 +23,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/view/dag"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -87,7 +88,7 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, opts
 			return coexistenceErr
 		}
 
-		if ambiguousErr, ok := errors.AsType[discovery.AmbiguousConfigError](err); ok {
+		if ambiguousErr, ok := errors.AsType[config.AmbiguousConfigError](err); ok {
 			return ambiguousErr
 		}
 

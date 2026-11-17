@@ -200,10 +200,15 @@ func (address dependencyAddress) noOutputsError(v *venv.Venv, pctx *ParsingConte
 			return nil, false
 		}
 
+		targetConfig, err := getCleanedTargetConfigPath(v.FS, configPath, pctx.TerragruntConfigPath)
+		if err != nil {
+			return err, true
+		}
+
 		return TerragruntOutputTargetNoOutputs{
 			targetName:    dep.Name,
 			targetPath:    configPath,
-			targetConfig:  getCleanedTargetConfigPath(v.FS, configPath, pctx.TerragruntConfigPath),
+			targetConfig:  targetConfig,
 			currentConfig: pctx.TerragruntConfigPath,
 		}, true
 	}

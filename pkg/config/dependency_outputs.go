@@ -119,7 +119,8 @@ func (dep *Dependency) readTarget(
 	return target, nil
 }
 
-// unitTarget returns the config of the unit dep reads, false when dep is disabled or reads a stack or a missing unit.
+// unitTarget returns the config of the unit dep reads, false when dep is disabled or reads a stack, a missing unit,
+// or a directory holding both default unit configs.
 func (dep *Dependency) unitTarget(fsys vfs.FS, pctx *ParsingContext) (string, bool) {
 	if dep.isDisabled() {
 		return "", false
@@ -130,8 +131,8 @@ func (dep *Dependency) unitTarget(fsys vfs.FS, pctx *ParsingContext) (string, bo
 		return "", false
 	}
 
-	targetConfig := getCleanedTargetConfigPath(fsys, configPath, pctx.TerragruntConfigPath)
-	if !vfs.Exists(fsys, targetConfig) {
+	targetConfig, err := getCleanedTargetConfigPath(fsys, configPath, pctx.TerragruntConfigPath)
+	if err != nil || !vfs.Exists(fsys, targetConfig) {
 		return "", false
 	}
 

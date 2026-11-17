@@ -94,14 +94,16 @@ type ParsingContext struct {
 	CASProbeTTL       time.Duration
 
 	TFPathExplicitlySet bool
-	SkipOutput          bool
-	ForwardTFStdout     bool
-	JSONLogFormat       bool
-	Debug               bool
-	AutoInit            bool
-	Headless            bool
-	BackendBootstrap    bool
-	CheckDependentUnits bool
+	// TerragruntConfigPathExplicitlySet is true when the user named TerragruntConfigPath with the --config flag.
+	TerragruntConfigPathExplicitlySet bool
+	SkipOutput                        bool
+	ForwardTFStdout                   bool
+	JSONLogFormat                     bool
+	Debug                             bool
+	AutoInit                          bool
+	Headless                          bool
+	BackendBootstrap                  bool
+	CheckDependentUnits               bool
 
 	NoDependencyFetchOutputFromState bool
 	UsePartialParseConfigCache       bool

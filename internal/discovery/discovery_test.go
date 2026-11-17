@@ -578,7 +578,7 @@ func TestDiscovery_BothHclAndStackFileInSameDir(t *testing.T) {
 }
 
 // TestDiscovery_BothHclAndJSONInSameDir pins that a directory holding both terragrunt.hcl and
-// terragrunt.hcl.json is rejected with an [discovery.AmbiguousConfigError].
+// terragrunt.hcl.json is rejected with an [config.AmbiguousConfigError].
 func TestDiscovery_BothHclAndJSONInSameDir(t *testing.T) {
 	t.Parallel()
 
@@ -601,7 +601,7 @@ func TestDiscovery_BothHclAndJSONInSameDir(t *testing.T) {
 		opts,
 	)
 
-	var ambiguousErr discovery.AmbiguousConfigError
+	var ambiguousErr config.AmbiguousConfigError
 	require.ErrorAs(t, err, &ambiguousErr)
 	assert.Equal(t, filepath.Join(root, "app"), ambiguousErr.ComponentPath)
 }

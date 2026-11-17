@@ -183,23 +183,40 @@ func isExternal(fsys vfs.FS, workingDir string, componentPath string) bool {
 // boundary. The new unit's config file is probed on disk rather than left at Unit's
 // terragrunt.hcl default, so a JSON-only dependency (terragrunt.hcl.json, no terragrunt.hcl)
 // doesn't get parsed against a config file that doesn't exist.
+//
+// Returns a [config.AmbiguousConfigError] when filenames, the config filenames discovery looks for, holds both
+// default unit filenames and the path holds both files.
 func componentFromDependencyPath(
 	fsys vfs.FS,
 	path string,
+	filenames []string,
 	components *component.ThreadSafeComponents,
-) component.Component {
+) (component.Component, error) {
 	if existing := components.FindByPath(path); existing != nil {
-		return existing
+		return existing, nil
 	}
 
 	if _, err := fsys.Stat(filepath.Join(path, config.DefaultStackFile)); err == nil {
-		return component.NewStack(path)
+		return component.NewStack(path), nil
+	}
+
+	if findsBothDefaultUnitConfigs(filenames) {
+		if err := config.RejectAmbiguousDefaultConfig(fsys, path); err != nil {
+			return nil, err
+		}
 	}
 
 	unit := component.NewUnit(path)
 	unit.SetConfigFile(unitConfigFilename(fsys, path))
 
-	return unit
+	return unit, nil
+}
+
+// findsBothDefaultUnitConfigs reports whether filenames holds both default unit config filenames, which it does
+// unless `--config` named one.
+func findsBothDefaultUnitConfigs(filenames []string) bool {
+	return slices.Contains(filenames, config.DefaultTerragruntConfigPath) &&
+		slices.Contains(filenames, config.DefaultTerragruntJSONConfigPath)
 }
 
 // unitConfigFilename returns the unit config filename that exists in dir, preferring
@@ -279,14 +296,50 @@ func validateNoCoexistence(results []DiscoveryResult) error {
 			switch {
 			case existing.Component.Kind() != result.Component.Kind():
 				return NewCoexistenceError(existing.Component, result.Component)
-			case existing.Component.ConfigFile() != result.Component.ConfigFile() &&
-				isDefaultUnitConfigFile(existing.Component.ConfigFile()) &&
-				isDefaultUnitConfigFile(result.Component.ConfigFile()):
-				return NewAmbiguousConfigError(existing.Component, result.Component)
+			case isAmbiguousPair(existing.Component, result.Component):
+				return newAmbiguousConfigError(existing.Component, result.Component)
 			}
 		}
 
 		seen[path] = result
+	}
+
+	return nil
+}
+
+// isAmbiguousPair reports whether a and b, two components of one kind at one path, were read from the two default
+// unit config files.
+func isAmbiguousPair(a, b component.Component) bool {
+	return a.ConfigFile() != b.ConfigFile() &&
+		isDefaultUnitConfigFile(a.ConfigFile()) &&
+		isDefaultUnitConfigFile(b.ConfigFile())
+}
+
+// newAmbiguousConfigError returns the [config.AmbiguousConfigError] for a and b, two units found at one path.
+func newAmbiguousConfigError(a, b component.Component) error {
+	return config.AmbiguousConfigError{
+		ComponentPath: a.Path(),
+		ConfigFileA:   a.ConfigFile(),
+		ConfigFileB:   b.ConfigFile(),
+	}
+}
+
+// rejectAmbiguousUnits returns a [config.AmbiguousConfigError] when two of candidates are units at one path read
+// from the two default unit config files.
+func rejectAmbiguousUnits(candidates []component.Component) error {
+	units := make(map[string]component.Component, len(candidates))
+
+	for _, candidate := range candidates {
+		if candidate.Kind() != component.UnitKind {
+			continue
+		}
+
+		existing, ok := units[candidate.Path()]
+		if ok && isAmbiguousPair(existing, candidate) {
+			return newAmbiguousConfigError(existing, candidate)
+		}
+
+		units[candidate.Path()] = candidate
 	}
 
 	return nil

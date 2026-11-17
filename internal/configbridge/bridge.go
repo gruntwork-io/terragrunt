@@ -69,6 +69,7 @@ func populateFromOpts(pctx *config.ParsingContext, opts *options.TerragruntOptio
 	pctx.NoDependencyFetchOutputFromState = opts.NoDependencyFetchOutputFromState
 	pctx.SkipOutput = opts.SkipOutput
 	pctx.TFPathExplicitlySet = opts.TFPathExplicitlySet
+	pctx.TerragruntConfigPathExplicitlySet = opts.TerragruntConfigPathExplicitlySet
 	pctx.AuthProviderCmd = opts.AuthProviderCmd
 	pctx.EngineConfig = opts.EngineConfig
 	pctx.EngineOptions = opts.EngineOptions

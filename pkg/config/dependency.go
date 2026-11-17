@@ -798,11 +798,14 @@ func decodeDependencies(
 			return &updatedDependencies, DependencyInvalidConfigPathError{DependencyName: dep.Name}
 		}
 
-		depPath := getCleanedTargetConfigPath(
+		depPath, err := getCleanedTargetConfigPath(
 			v.FS,
 			dep.ConfigPath.AsString(),
 			pctx.TerragruntConfigPath,
 		)
+		if err != nil {
+			return &updatedDependencies, err
+		}
 
 		if !vfs.Exists(v.FS, depPath) {
 			updatedDependencies.Dependencies = append(updatedDependencies.Dependencies, dep)
@@ -903,11 +906,14 @@ func checkForDependencyBlockCycles(
 			return DependencyInvalidConfigPathError{DependencyName: dependency.Name}
 		}
 
-		dependencyPath := getCleanedTargetConfigPath(
+		dependencyPath, err := getCleanedTargetConfigPath(
 			v.FS,
 			dependency.ConfigPath.AsString(),
 			cfgPath,
 		)
+		if err != nil {
+			return err
+		}
 
 		// Skip cycle checking for nonexistent dependency targets — there is nothing to traverse.
 		if !vfs.Exists(v.FS, dependencyPath) {
@@ -964,7 +970,10 @@ func checkForDependencyBlockCyclesUsingDFS(
 	}
 
 	for _, dependency := range dependencyPaths {
-		dependencyPath := getCleanedTargetConfigPath(v.FS, dependency, dependencyPath)
+		dependencyPath, err := getCleanedTargetConfigPath(v.FS, dependency, dependencyPath)
+		if err != nil {
+			return err
+		}
 
 		// Skip cycle checking for nonexistent dependency targets such as stack directories.
 		if !vfs.Exists(v.FS, dependencyPath) {
@@ -1230,11 +1239,14 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(
 		return nil, DependencyConfigPathNotStringError{Name: dependencyConfig.Name}
 	}
 
-	targetConfig := getCleanedTargetConfigPath(
+	targetConfig, err := getCleanedTargetConfigPath(
 		v.FS,
 		configPath,
 		pctx.TerragruntConfigPath,
 	)
+	if err != nil {
+		return nil, err
+	}
 
 	if dependencyConfig.shouldReturnMockOutputs(pctx) {
 		logMockOutputsFallback(l, pctx, targetConfig, declared)
@@ -1255,14 +1267,14 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(
 	// At this point, we expect outputs to exist because there is a `dependency` block without skip_outputs = true, and
 	// returning mocks is not allowed. So return a useful error message indicating that we expected outputs, but they
 	// did not exist.
-	err := TerragruntOutputTargetNoOutputs{
+	noOutputs := TerragruntOutputTargetNoOutputs{
 		targetName:    dependencyConfig.Name,
 		targetPath:    configPath,
 		targetConfig:  targetConfig,
 		currentConfig: pctx.TerragruntConfigPath,
 	}
 
-	return nil, err
+	return nil, noOutputs
 }
 
 // We should only return default outputs if the mock_outputs attribute is set, and if we are running one of the
@@ -1294,11 +1306,14 @@ func getTerragruntOutput(
 	declared *OutputsConfig,
 ) (*cty.Value, bool, error) {
 	// target config check: make sure the target config exists
-	targetConfigPath := getCleanedTargetConfigPath(
+	targetConfigPath, err := getCleanedTargetConfigPath(
 		v.FS,
 		dependencyConfig.ConfigPath.AsString(),
 		pctx.TerragruntConfigPath,
 	)
+	if err != nil {
+		return nil, false, err
+	}
 
 	// Check if config_path points to a directory containing a stack file. If so,
 	// resolve outputs from all units in the stack as a nested map.
@@ -3179,7 +3194,13 @@ func ValidateDependencyConfigPaths(fsys vfs.FS, cfg *TerragruntConfig, configPat
 		}
 
 		rawPath := dep.ConfigPath.AsString()
-		targetConfigPath := getCleanedTargetConfigPath(fsys, rawPath, configPath)
+
+		targetConfigPath, err := getCleanedTargetConfigPath(fsys, rawPath, configPath)
+		if err != nil {
+			errs = append(errs, DependencyBlockError{Name: dep.Name, ConfigPath: configPath, Err: err})
+
+			continue
+		}
 
 		if stackFilePath, ok := resolveStackFilePath(
 			rawPath,
