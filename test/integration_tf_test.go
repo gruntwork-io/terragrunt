@@ -1248,8 +1248,8 @@ func TestTFRunCommand(t *testing.T) {
 	validateInputs(t, outputs)
 }
 
-// TestTFInputsWithInterpolationPatterns validates that input variables containing ${...} patterns
-// reach the module as literal text, whether OpenTofu/Terraform read the variable's value verbatim
+// TestTFInputsWithInterpolationPatterns validates that input variables containing ${...} and %{...}
+// sequences reach the module as literal text, whether OpenTofu/Terraform read the variable's value verbatim
 // or parse it as HCL.
 func TestTFInputsWithInterpolationPatterns(t *testing.T) {
 	t.Parallel()
@@ -1282,6 +1282,7 @@ func TestTFInputsWithInterpolationPatterns(t *testing.T) {
 	mapValue, ok := mapOutput.Value.(map[string]any)
 	require.True(t, ok, "map_with_interpolation value is not a map")
 	assert.Equal(t, "test ${bar} test", mapValue["foo"])
+	assert.Equal(t, "test %{bar} test", mapValue["directive"])
 	assert.Equal(t, "no interpolation here", mapValue["baz"])
 
 	// A variable declared as a string is read verbatim, so it keeps the file contents as they are.
@@ -1299,7 +1300,26 @@ func TestTFInputsWithInterpolationPatterns(t *testing.T) {
 	anyValue, ok := anyOutput.Value.(map[string]any)
 	require.True(t, ok, "any_with_interpolation value is not an object")
 	assert.Equal(t, "test ${bar} test", anyValue["foo"])
+	assert.Equal(t, "test %{bar} test", anyValue["directive"])
 	assert.Equal(t, "no interpolation here", anyValue["baz"])
+
+	// A map given to a variable declared as a string is read verbatim as JSON, so decoding it in
+	// the module gives back the same values.
+	decodedOutput, ok := outputs["string_from_map"]
+	require.True(t, ok, "string_from_map output not found")
+	decodedValue, ok := decodedOutput.Value.(map[string]any)
+	require.True(t, ok, "string_from_map value is not an object")
+	assert.Equal(t, "test ${bar} test", decodedValue["foo"])
+	assert.Equal(t, "test %{bar} test", decodedValue["directive"])
+	assert.Equal(t, "no interpolation here", decodedValue["baz"])
+
+	overriddenOutput, ok := outputs["map_with_overridden_default"]
+	require.True(t, ok, "map_with_overridden_default output not found")
+	overriddenValue, ok := overriddenOutput.Value.(map[string]any)
+	require.True(t, ok, "map_with_overridden_default value is not a map")
+	assert.Equal(t, "test ${bar} test", overriddenValue["foo"])
+	assert.Equal(t, "test %{bar} test", overriddenValue["directive"])
+	assert.Equal(t, "no interpolation here", overriddenValue["baz"])
 }
 
 func TestTFTerragruntMissingDependenciesFail(t *testing.T) {
