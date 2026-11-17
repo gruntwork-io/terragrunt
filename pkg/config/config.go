@@ -143,12 +143,29 @@ var (
 
 // DecodedBaseBlocks decoded base blocks struct
 type DecodedBaseBlocks struct {
+	// TrackInclude is the include blocks of the file.
 	TrackInclude *TrackInclude
-	Locals       *cty.Value
+	// Locals is the evaluated locals block.
+	Locals *cty.Value
+	// FeatureFlags is the value of the `feature` variable: the file's flags merged with those of its includes.
 	FeatureFlags *cty.Value
+	// FeatureFlagBlocks is the feature blocks the file itself declares.
+	FeatureFlagBlocks FeatureFlags
 }
 
-// IncludeParse selects how [DecodeBaseBlocks] parses the included configs it reads feature defaults from.
+// IncludedFeatureFlags returns the feature blocks that the config include names declares, for the parse whose
+// include blocks are trackInclude.
+type IncludedFeatureFlags func(
+	ctx context.Context,
+	l log.Logger,
+	trackInclude *TrackInclude,
+	include *IncludeConfig,
+) (FeatureFlags, error)
+
+// IncludedDependencies returns the dependency blocks that the config include names declares.
+type IncludedDependencies func(ctx context.Context, l log.Logger, include *IncludeConfig) (Dependencies, error)
+
+// IncludeParse selects how this package parses the included configs it reads feature defaults from.
 type IncludeParse int
 
 const (
@@ -1833,7 +1850,15 @@ func ParseConfig(
 	pctx = pctx.WithValues(unitValues)
 
 	// Decode just the Base blocks. See the function docs for DecodeBaseBlocks for more info on what base blocks are.
-	baseBlocks, err := DecodeBaseBlocks(ctx, l, v, pctx, file, includeFromChild, IncludeParseFeatureFlags)
+	baseBlocks, err := DecodeBaseBlocks(
+		ctx,
+		l,
+		v,
+		pctx,
+		file,
+		includeFromChild,
+		parsedIncludeFeatureFlags(v, pctx, IncludeParseFeatureFlags),
+	)
 	if err != nil {
 		// Surface the error here so it reaches stderr; the multi-error returned at
 		// the function end is not always rendered to the user by the CLI's final
@@ -1851,7 +1876,7 @@ func ParseConfig(
 	if pctx.DecodedDependencies == nil {
 		// Decode just the `dependency` blocks, retrieving the outputs from the target terragrunt config in the
 		// process. Note: the actual `tofu/terraform output` side effect is gated by SkipOutput, not here.
-		retrievedOutputs, err := decodeAndRetrieveOutputs(ctx, l, v, pctx, file)
+		resolved, err := decodeAndRetrieveOutputs(ctx, l, v, pctx, file)
 		if err != nil {
 			errs = append(errs, err)
 
@@ -1860,13 +1885,14 @@ func ParseConfig(
 			// so that the "dependency" variable still exists in the eval context — otherwise
 			// every dependency.x.outputs.y reference cascades into a confusing "dependency is
 			// not defined" error that obscures the real problem.
-			if retrievedOutputs == nil {
+			if resolved.value == nil {
 				dynamicVal := cty.DynamicVal
-				retrievedOutputs = &dynamicVal
+				resolved.value = &dynamicVal
 			}
 		}
 
-		pctx.DecodedDependencies = retrievedOutputs
+		pctx.DependencyBlocks = resolved.blocks
+		pctx.DecodedDependencies = resolved.value
 	}
 
 	evalContext, err := CreateTerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath)
@@ -1877,6 +1903,7 @@ func ParseConfig(
 	// Decode the rest of the config, passing in this config's `include` block or the child's `include` block, whichever
 	// is appropriate
 	cfgFile, err := decodeAsTerragruntConfigFile(ctx, l, v, pctx, file, evalContext)
+	err = withNoOutputsError(v, pctx, err)
 	// The dependency blocks are decoded again here, so a dependency error already in errs
 	// comes back a second time.
 	if err != nil && !slices.ContainsFunc(errs, func(seen error) bool { return errors.Is(err, seen) }) {
@@ -2164,7 +2191,7 @@ func CompleteTerragruntConfigFile(
 		l.Debugf("Deferred attribute access error to autoinclude merge: %v", diagErr)
 	}
 
-	dependencies, err := decodeDependencyBlocksWithAutoIncludeOverrides(
+	dependencies, err := DecodeDependencyBlocks(
 		ctx,
 		l,
 		v,

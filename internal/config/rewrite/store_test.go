@@ -98,9 +98,9 @@ func TestResolveUnitConfigSharesTheParse(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(
 		t,
-		config.Stats{Hits: 0, Misses: 6},
+		config.Stats{Hits: 4, Misses: 6},
 		store.Stats(),
-		"two files, each at three stages",
+		"two files, each at three stages; the unit's dependency decode and merge are served the root's tree and base",
 	)
 
 	secondCtx, secondRun := newTestParsingContext(t, paths[0])
@@ -116,7 +116,7 @@ func TestResolveUnitConfigSharesTheParse(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(
 		t,
-		config.Stats{Hits: 1, Misses: 6},
+		config.Stats{Hits: 5, Misses: 6},
 		store.Stats(),
 		"the unit's parse is served whole",
 	)
@@ -536,7 +536,7 @@ func TestResolveRunConfigAddsTheRunPartsToTheSharedParse(t *testing.T) {
 		map[string]any{"name": "unit", "region": "us-east-1", "unit": "unit-0"},
 		runCfg.Inputs,
 	)
-	assert.Equal(t, config.Stats{Hits: 1, Misses: 6}, store.Stats())
+	assert.Equal(t, config.Stats{Hits: 5, Misses: 6}, store.Stats())
 }
 
 func TestResolveRunConfigReturnsNoConfigForAMissingFile(t *testing.T) {
@@ -626,7 +626,7 @@ func TestDependencyReadsReachOnlyARun(t *testing.T) {
 	assert.Contains(t, run.FilesRead.Paths(), readByDependency)
 }
 
-func TestInvalidateFindsAParseByTheFilesItsDependenciesRead(t *testing.T) {
+func TestInvalidateKeepsAParseWhenAFileItsDependencyReadChanges(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
@@ -652,7 +652,7 @@ func TestInvalidateFindsAParseByTheFilesItsDependenciesRead(t *testing.T) {
 
 	store.Invalidate(readByDependency)
 	resolve()
-	assert.Greater(t, store.Stats().Misses, misses, "the parse ran again")
+	assert.Equal(t, misses, store.Stats().Misses, "the parse is still served")
 }
 
 func TestResolveUnitBaseVariablesStopsBeforeTheDependencyBlocks(t *testing.T) {
@@ -698,13 +698,18 @@ func TestResolveUnitQueueConfigBuildsOnTheBaseVariables(t *testing.T) {
 
 	_, err := store.ResolveUnitBaseVariables(ctx, l, v, config.NewParseContext(v, run), paths[0])
 	require.NoError(t, err)
-	assert.Equal(t, config.Stats{Hits: 0, Misses: 2}, store.Stats(), "the syntax tree and the base")
+	assert.Equal(t, config.Stats{Hits: 0, Misses: 4}, store.Stats(), "the syntax tree and the base of both files")
 
 	_, err = store.ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(v, run), paths[0])
 	require.NoError(t, err)
 
 	stats := store.Stats()
-	assert.Equal(t, uint64(2), stats.Hits, "the syntax tree and the base are served")
+	assert.Equal(
+		t,
+		uint64(6),
+		stats.Hits,
+		"the unit's tree and base are served, and the root's to the dependency decode and to the merge",
+	)
 }
 
 func TestResolveUnitBaseVariablesEvaluatesOnceWithRacing(t *testing.T) {
@@ -738,7 +743,7 @@ func TestResolveUnitBaseVariablesEvaluatesOnceWithRacing(t *testing.T) {
 	}
 
 	require.NoError(t, g.Wait())
-	assert.Equal(t, uint64(2), store.Stats().Misses, "the syntax tree and the base")
+	assert.Equal(t, uint64(4), store.Stats().Misses, "the syntax tree and the base of both files")
 }
 
 func TestResolveUnitBaseVariablesGivesEachCallerItsOwnMap(t *testing.T) {
@@ -877,7 +882,7 @@ func TestResolveUnitConfigSharesIncludedFilesAcrossUnits(t *testing.T) {
 
 	assert.Equal(
 		t,
-		config.Stats{Hits: 2, Misses: 16},
+		config.Stats{Hits: 14, Misses: 16},
 		store.Stats(),
 		"the root's syntax tree is parsed once; each unit evaluates it in its own context",
 	)
@@ -990,7 +995,7 @@ func TestResolveUnitConfigRunsUnmemoizedForSuppliedValues(t *testing.T) {
 
 	assert.Equal(
 		t,
-		config.Stats{Hits: 2, Misses: 2},
+		config.Stats{Hits: 6, Misses: 2},
 		store.Stats(),
 		"only the syntax trees are shared",
 	)

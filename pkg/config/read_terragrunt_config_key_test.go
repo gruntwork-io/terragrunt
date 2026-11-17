@@ -76,6 +76,7 @@ const (
 // [config.ReadTerragruntConfigKey], why a change to it can't change the value a read_terragrunt_config read returns.
 var parsingContextFieldsOutsideKey = map[string]string{
 	"TrackInclude":                 "ParseConfig clears it before decoding the file",
+	"DependencyBlocks":             clearedByRead,
 	"DecodedDependencies":          clearedByRead,
 	"SkipOutputsResolution":        clearedByRead,
 	"Locals":                       clearedByRead,
