@@ -93,12 +93,7 @@ func runAll(
 		unitOpts := opts.Clone()
 		unitOpts.WorkingDir = unit.Path()
 
-		configFilename := config.DefaultTerragruntConfigPath
-		if len(opts.TerragruntConfigPath) > 0 {
-			configFilename = filepath.Base(opts.TerragruntConfigPath)
-		}
-
-		unitOpts.TerragruntConfigPath = filepath.Join(unit.Path(), configFilename)
+		unitOpts.TerragruntConfigPath = filepath.Join(unit.Path(), unit.ConfigFile())
 
 		// Parsing can write obtained credentials into the env, so each
 		// unit gets its own clone to keep them from leaking to siblings.

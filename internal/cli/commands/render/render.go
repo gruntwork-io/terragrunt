@@ -56,12 +56,7 @@ func runAll(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, o
 		unitOpts := opts.Clone()
 		unitOpts.WorkingDir = unit.Path()
 
-		configFilename := config.DefaultTerragruntConfigPath
-		if len(opts.TerragruntConfigPath) > 0 {
-			configFilename = filepath.Base(opts.TerragruntConfigPath)
-		}
-
-		unitOpts.TerragruntConfigPath = filepath.Join(unit.Path(), configFilename)
+		unitOpts.TerragruntConfigPath = filepath.Join(unit.Path(), unit.ConfigFile())
 
 		// Preparation writes obtained credentials into the env, so each
 		// unit gets its own clone to keep them from leaking to siblings.

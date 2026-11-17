@@ -81,6 +81,16 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, opts
 		return discoverErr
 	})
 	if err != nil {
+		// Discover returns no components with these two errors, so logging them
+		// and carrying on would print an empty result.
+		if coexistenceErr, ok := errors.AsType[discovery.CoexistenceError](err); ok {
+			return coexistenceErr
+		}
+
+		if ambiguousErr, ok := errors.AsType[discovery.AmbiguousConfigError](err); ok {
+			return ambiguousErr
+		}
+
 		l.Debugf("Errors encountered while discovering components:\n%s", err)
 	}
 

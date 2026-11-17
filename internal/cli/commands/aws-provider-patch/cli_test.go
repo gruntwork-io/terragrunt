@@ -366,6 +366,7 @@ func TestRunAllReadsTheConfiguredConfigFilename(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsWithConfigPath(filepath.Join(memRoot, "custom.hcl"))
 	require.NoError(t, err)
 
+	opts.TerragruntConfigPathExplicitlySet = true
 	opts.NonInteractive = true
 	opts.RunAll = true
 

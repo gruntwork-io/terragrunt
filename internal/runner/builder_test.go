@@ -132,12 +132,13 @@ func TestNew(t *testing.T) {
 
 		opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
 		opts.TerragruntConfigPath = filepath.Join(memRoot, "custom.hcl")
+		opts.TerragruntConfigPathExplicitlySet = true
 
 		rnr, err := runner.New(config.WithCaches(t.Context()), thlogger.CreateLogger(), v, new(rewrite.Store), opts)
 		require.NoError(t, err)
 
 		units := rnr.GetStack().Units
-		require.Len(t, units, 1, "the custom config filename is added to the discovered filenames")
+		require.Len(t, units, 1, "the custom config filename replaces the default unit filenames")
 		assert.Equal(t, unitDir, units[0].Path())
 	})
 

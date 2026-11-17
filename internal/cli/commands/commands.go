@@ -15,6 +15,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
+	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
@@ -23,6 +24,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 
@@ -373,6 +375,10 @@ func initialSetup(
 
 	// --- Terragrunt ConfigPath
 	if opts.TerragruntConfigPath == "" {
+		if err := rejectAmbiguousDefaultConfig(v.FS, opts.WorkingDir); err != nil {
+			return err
+		}
+
 		opts.TerragruntConfigPath = config.GetDefaultConfigPath(v.FS, opts.WorkingDir)
 	} else if !filepath.IsAbs(opts.TerragruntConfigPath) &&
 		(cliCtx.Command.Name == runcmd.CommandName || slices.Contains(tf.CommandNames, cliCtx.Command.Name)) {
@@ -529,4 +535,25 @@ func runsTofu(cliCtx *clihelper.Context) bool {
 	parent := cliCtx.Parent().Command
 
 	return parent != nil && parent.Name == runcmd.CommandName
+}
+
+// rejectAmbiguousDefaultConfig returns a [discovery.AmbiguousConfigError] when dir holds both
+// default unit configuration files. Callers skip it when `--config` is set.
+func rejectAmbiguousDefaultConfig(fsys vfs.FS, dir string) error {
+	for _, name := range config.DefaultTerragruntConfigPaths {
+		exists, err := vfs.FileExists(fsys, filepath.Join(dir, name))
+		if err != nil {
+			return err
+		}
+
+		if !exists {
+			return nil
+		}
+	}
+
+	return discovery.AmbiguousConfigError{
+		ComponentPath: dir,
+		ConfigFileA:   config.DefaultTerragruntConfigPath,
+		ConfigFileB:   config.DefaultTerragruntJSONConfigPath,
+	}
 }

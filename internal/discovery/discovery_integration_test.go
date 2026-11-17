@@ -9,6 +9,7 @@ import (
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -135,6 +136,37 @@ func TestDiscovery_StackHiddenDiscovered(t *testing.T) {
 	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
 	require.NoError(t, err)
 	assert.Contains(t, components.Filter(component.UnitKind).Paths(), stackHiddenDir)
+}
+
+// TestDiscovery_JSONConfigUnit pins that a unit configured with terragrunt.hcl.json is discovered.
+func TestDiscovery_JSONConfigUnit(t *testing.T) {
+	t.Parallel()
+
+	root := venvtest.Root("/repo")
+	fsys := venvtest.NewFS(t, root, map[string]string{
+		"json-unit/terragrunt.hcl.json": "{}",
+		"hcl-unit/terragrunt.hcl":       "",
+	})
+
+	opts := &options.TerragruntOptions{WorkingDir: root}
+
+	d := discovery.NewDiscovery(root).
+		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: root})
+
+	components, err := d.Discover(
+		config.WithCaches(t.Context()),
+		logger.CreateLogger(),
+		venv.MemVenv().WithFS(fsys),
+		new(rewrite.Store),
+		opts,
+	)
+	require.NoError(t, err)
+
+	assert.ElementsMatch(
+		t,
+		[]string{filepath.Join(root, "json-unit"), filepath.Join(root, "hcl-unit")},
+		components.Filter(component.UnitKind).Paths(),
+	)
 }
 
 // TestDiscovery_WithDependencies tests dependency discovery and relationship building.
@@ -898,6 +930,66 @@ func TestDiscovery_ExternalDependencies(t *testing.T) {
 			assert.True(t, dep.External(), "external app should be marked as external")
 		}
 	}
+}
+
+// TestDiscovery_ExternalJSONDependency pins that an external dependency configured only with
+// terragrunt.hcl.json records that filename on its unit.
+func TestDiscovery_ExternalJSONDependency(t *testing.T) {
+	t.Parallel()
+
+	root := venvtest.Root("/repo")
+	internalDir := filepath.Join(root, "internal")
+	appDir := filepath.Join(internalDir, "app")
+	extApp := filepath.Join(root, "external", "app")
+
+	fsys := venvtest.NewFS(t, root, map[string]string{
+		"internal/app/terragrunt.hcl":      `dependency "external" { config_path = "../../external/app" }`,
+		"external/app/terragrunt.hcl.json": "{}",
+	})
+
+	l := logger.CreateLogger()
+	opts := &options.TerragruntOptions{
+		WorkingDir:     internalDir,
+		RootWorkingDir: internalDir,
+	}
+
+	ctx := config.WithCaches(t.Context())
+
+	filters, err := filter.ParseFilterQueries(l, []string{"{./**}..."})
+	require.NoError(t, err)
+
+	d := discovery.NewDiscovery(internalDir).
+		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: internalDir}).
+		WithFilters(filters)
+
+	components, err := d.Discover(ctx, l, venv.MemVenv().WithFS(fsys), new(rewrite.Store), opts)
+	require.NoError(t, err)
+
+	var appCfg *component.Unit
+
+	for _, c := range components {
+		if c.Path() == appDir {
+			if unit, ok := c.(*component.Unit); ok {
+				appCfg = unit
+			}
+
+			break
+		}
+	}
+
+	require.NotNil(t, appCfg)
+
+	var extDep component.Component
+
+	for _, dep := range appCfg.Dependencies() {
+		if dep.Path() == extApp {
+			extDep = dep
+		}
+	}
+
+	require.NotNil(t, extDep, "external dependency should be present")
+	assert.True(t, extDep.External(), "external app should be marked as external")
+	assert.Equal(t, "terragrunt.hcl.json", extDep.ConfigFile())
 }
 
 // TestDiscovery_BreakCycles tests that WithBreakCycles removes cyclic components.

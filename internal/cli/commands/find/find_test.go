@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/find"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
+	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -548,6 +549,34 @@ locals {
 			tt.validate(t, string(output), tt.expectedPaths)
 		})
 	}
+}
+
+// TestRunPropagatesAmbiguousConfigError pins that Run returns the error for a directory holding
+// both terragrunt.hcl and terragrunt.hcl.json.
+func TestRunPropagatesAmbiguousConfigError(t *testing.T) {
+	t.Parallel()
+
+	root := venvtest.Root("/repo")
+	fsys := venvtest.NewFS(t, root, map[string]string{
+		"dual-unit/terragrunt.hcl":      "",
+		"dual-unit/terragrunt.hcl.json": "{}",
+	})
+
+	tgOpts := options.NewTerragruntOptions()
+	tgOpts.WorkingDir = root
+	tgOpts.RootWorkingDir = root
+
+	err := find.Run(
+		config.WithCaches(t.Context()),
+		logger.CreateLogger(),
+		venv.MemVenv().WithFS(fsys),
+		new(rewrite.Store),
+		find.NewOptions(tgOpts),
+	)
+
+	var ambiguousErr discovery.AmbiguousConfigError
+	require.ErrorAs(t, err, &ambiguousErr)
+	assert.Equal(t, filepath.Join(root, "dual-unit"), ambiguousErr.ComponentPath)
 }
 
 func TestRunWithGraphFilterAndDynamicDependencyConfigPath(t *testing.T) {

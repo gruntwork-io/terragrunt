@@ -3,9 +3,7 @@ package runner
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"runtime"
-	"slices"
 
 	"golang.org/x/sync/errgroup"
 
@@ -45,19 +43,6 @@ func resolveWorkingDir(opts *options.TerragruntOptions) string {
 	}
 
 	return opts.WorkingDir
-}
-
-// buildConfigFilenames returns the list of config filenames to consider, including custom if provided.
-func buildConfigFilenames(opts *options.TerragruntOptions) []string {
-	configFilenames := append([]string{}, discovery.DefaultConfigFilenames...)
-	customConfigName := filepath.Base(opts.TerragruntConfigPath)
-	isCustom := !slices.Contains(discovery.DefaultConfigFilenames, customConfigName)
-
-	if isCustom && customConfigName != "" && customConfigName != "." {
-		configFilenames = append(configFilenames, customConfigName)
-	}
-
-	return configFilenames
 }
 
 func extractWorktrees(opts []Option) *worktrees.Worktrees {
@@ -100,7 +85,7 @@ func prepareDiscovery(
 	runnerOpts ...Option,
 ) *discovery.Discovery {
 	workingDir := resolveWorkingDir(opts)
-	configFilenames := buildConfigFilenames(opts)
+	configFilenames := discovery.ConfigFilenames(opts)
 
 	d := newBaseDiscovery(opts, workingDir, configFilenames, runnerOpts...)
 

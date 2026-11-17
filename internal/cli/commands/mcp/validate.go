@@ -274,7 +274,7 @@ func validateDiscoveredTree(
 			continue
 		}
 
-		if unitErr := parser.Unit(ctx, l, v, s, opts, c.Path()); unitErr != nil {
+		if unitErr := parser.Unit(ctx, l, v, s, opts, c.Path(), c.ConfigFile()); unitErr != nil {
 			parseErrs = append(parseErrs, unitErr)
 		}
 	}
@@ -336,7 +336,10 @@ func validateSingleTarget(
 	var parseErrs []error
 
 	if hasUnit {
-		if unitErr := parser.Unit(ctx, l, v, new(rewrite.Store), opts, targetDir); unitErr != nil {
+		unitErr := parser.Unit(
+			ctx, l, v, new(rewrite.Store), opts, targetDir, config.DefaultTerragruntConfigPath,
+		)
+		if unitErr != nil {
 			parseErrs = append(parseErrs, unitErr)
 		}
 	}

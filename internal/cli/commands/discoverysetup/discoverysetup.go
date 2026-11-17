@@ -56,6 +56,8 @@ func Units(
 		return nil, noCleanup, err
 	}
 
+	d = d.WithConfigFilenames(discovery.ConfigFilenames(opts))
+
 	d, cleanup, err := attachWorktrees(ctx, l, v, s, opts, d, worktrees.CheckoutEverything)
 	if err != nil {
 		return nil, cleanup, err

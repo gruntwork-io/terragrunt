@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/tips"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -574,6 +575,35 @@ func TestDiscovery_BothHclAndStackFileInSameDir(t *testing.T) {
 	var coexistErr discovery.CoexistenceError
 	require.ErrorAs(t, err, &coexistErr)
 	assert.Equal(t, subDir, coexistErr.ComponentPath)
+}
+
+// TestDiscovery_BothHclAndJSONInSameDir pins that a directory holding both terragrunt.hcl and
+// terragrunt.hcl.json is rejected with an [discovery.AmbiguousConfigError].
+func TestDiscovery_BothHclAndJSONInSameDir(t *testing.T) {
+	t.Parallel()
+
+	root := venvtest.Root("/repo")
+	fsys := venvtest.NewFS(t, root, map[string]string{
+		"app/terragrunt.hcl":      "",
+		"app/terragrunt.hcl.json": "{}",
+	})
+
+	opts := &options.TerragruntOptions{WorkingDir: root}
+
+	d := discovery.NewDiscovery(root).
+		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: root})
+
+	_, err := d.Discover(
+		config.WithCaches(t.Context()),
+		logger.CreateLogger(),
+		venv.MemVenv().WithFS(fsys),
+		new(rewrite.Store),
+		opts,
+	)
+
+	var ambiguousErr discovery.AmbiguousConfigError
+	require.ErrorAs(t, err, &ambiguousErr)
+	assert.Equal(t, filepath.Join(root, "app"), ambiguousErr.ComponentPath)
 }
 
 // TestDiscovery_SingleUnitNoDuplicateError verifies that a directory with only

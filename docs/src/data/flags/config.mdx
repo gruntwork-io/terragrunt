@@ -6,6 +6,8 @@ env:
   - TG_CONFIG
 ---
 
+import Since from '@components/Since.astro';
+
 This flag allows you to specify a custom path to your Terragrunt configuration file. By default, Terragrunt looks for a file named `terragrunt.hcl` in the current directory.
 
 This is useful when you:
@@ -18,3 +20,9 @@ Example usage:
 ```bash
 terragrunt run plan --config custom-config.hcl
 ```
+
+<Since version="v1.2.3">
+
+With [`--all`](/reference/cli/commands/run#all), only files with the name you pass are unit configurations. `terragrunt run --all plan --config custom-config.hcl` skips a directory that has a `terragrunt.hcl` and no `custom-config.hcl`.
+
+</Since>

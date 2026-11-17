@@ -113,8 +113,10 @@ func TestSharedFlagsSetOptions(t *testing.T) {
 			name:     "config by name",
 			newFlags: configFlags,
 			args:     clihelper.Args{"--config", "custom.hcl"},
-			got:      func(opts *options.TerragruntOptions) any { return opts.TerragruntConfigPath },
-			want:     "custom.hcl",
+			got: func(opts *options.TerragruntOptions) any {
+				return []any{opts.TerragruntConfigPath, opts.TerragruntConfigPathExplicitlySet}
+			},
+			want: []any{"custom.hcl", true},
 		},
 		{
 			name:     "config by deprecated env var",

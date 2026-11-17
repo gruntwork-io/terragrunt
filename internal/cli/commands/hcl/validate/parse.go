@@ -205,7 +205,7 @@ type ComponentParser struct {
 	Options   ParserOptions
 }
 
-// Unit parses the unit configuration in unitDir.
+// Unit parses the unit configuration named configFile in unitDir.
 func (p ComponentParser) Unit(
 	ctx context.Context,
 	l log.Logger,
@@ -213,13 +213,14 @@ func (p ComponentParser) Unit(
 	s *rewrite.Store,
 	opts *options.TerragruntOptions,
 	unitDir string,
+	configFile string,
 ) error {
 	from := len(p.Collector.diags)
 	defer p.Collector.attribute(from, unitDir)
 
 	parseOpts := opts.Clone()
 	parseOpts.WorkingDir = unitDir
-	parseOpts.TerragruntConfigPath = filepath.Join(unitDir, unitConfigFilename(opts))
+	parseOpts.TerragruntConfigPath = filepath.Join(unitDir, configFile)
 	parseOpts.OriginalTerragruntConfigPath = parseOpts.TerragruntConfigPath
 
 	_, rootDownloadDir := util.DefaultWorkingAndDownloadDirs(opts.TerragruntConfigPath)

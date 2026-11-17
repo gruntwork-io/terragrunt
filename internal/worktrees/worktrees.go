@@ -375,7 +375,7 @@ func (wp *WorktreePair) Expand(toTree git.TreePaths) (filter.Filters, filter.Fil
 		dir := path.Dir(diffPath)
 
 		switch path.Base(diffPath) {
-		case config.DefaultTerragruntConfigPath:
+		case config.DefaultTerragruntConfigPath, config.DefaultTerragruntJSONConfigPath:
 			expr, err := filter.NewPathFilter(dir)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to create path filter for %s: %w", dir, err)
@@ -384,7 +384,7 @@ func (wp *WorktreePair) Expand(toTree git.TreePaths) (filter.Filters, filter.Fil
 			toExpressions = append(toExpressions, expr)
 		default:
 			// A changed file beside a unit means that unit was modified.
-			if toTree.Has(unitConfigBeside(diffPath)) {
+			if hasUnitConfigBeside(toTree, diffPath) {
 				expr, err := filter.NewPathFilter(dir)
 				if err != nil {
 					return nil, nil, fmt.Errorf("failed to create path filter for %s: %w", dir, err)
@@ -910,7 +910,7 @@ func expandDiffPaths(
 		dir := path.Dir(diffPath)
 
 		switch path.Base(diffPath) {
-		case config.DefaultTerragruntConfigPath:
+		case config.DefaultTerragruntConfigPath, config.DefaultTerragruntJSONConfigPath:
 			expr, err := filter.NewPathFilter(dir)
 			if err != nil {
 				return fmt.Errorf("failed to create path filter for %s: %w", dir, err)
@@ -930,7 +930,7 @@ func expandDiffPaths(
 
 			*primaryExprs = append(*primaryExprs, dirExpr, globExpr)
 		default:
-			if toTree.Has(unitConfigBeside(diffPath)) {
+			if hasUnitConfigBeside(toTree, diffPath) {
 				expr, err := filter.NewPathFilter(dir)
 				if err != nil {
 					return fmt.Errorf("failed to create path filter for %s: %w", dir, err)
@@ -957,12 +957,15 @@ func expandDiffPaths(
 	return nil
 }
 
-// unitConfigBeside returns the path a unit configuration would have in the same
-// directory as diffPath. Git reports paths with forward slashes on every
-// platform, and the result is compared against a tree listing, so it is built
-// in that form too.
-func unitConfigBeside(diffPath string) string {
-	return path.Join(path.Dir(diffPath), config.DefaultTerragruntConfigPath)
+// hasUnitConfigBeside reports whether toTree holds a unit configuration in the
+// same directory as diffPath. Git reports paths with forward slashes on every
+// platform, and the candidates are compared against a tree listing, so they are
+// built in that form too.
+func hasUnitConfigBeside(toTree git.TreePaths, diffPath string) bool {
+	dir := path.Dir(diffPath)
+
+	return toTree.Has(path.Join(dir, config.DefaultTerragruntConfigPath)) ||
+		toTree.Has(path.Join(dir, config.DefaultTerragruntJSONConfigPath))
 }
 
 // recordDiffTelemetry records telemetry metrics for git diff results.
