@@ -3,6 +3,8 @@ import { describe, expect, test } from "bun:test";
 import {
   addHyperfineExport,
   buildReport,
+  flaggedScenarios,
+  largestPerCommand,
   mannWhitneyP,
   median,
   parseGoBench,
@@ -178,6 +180,47 @@ describe("scenariosToConfirm", () => {
   });
 });
 
+describe("flaggedScenarios", () => {
+  test("lists a scenario that only a Go benchmark metric flags", () => {
+    const allocs = { base: [100, 100, 100, 100], head: [110, 110, 110, 110] };
+    const gobench = new Map([["find.flat.10", new Map([["allocs/op", allocs]])]]);
+    const built = buildReport({
+      comparison: "previous",
+      baseSha: "a".repeat(40),
+      headSha: "b".repeat(40),
+      thresholds,
+      results: new Map(),
+      gobench,
+    });
+
+    expect(scenariosToConfirm(built)).toEqual([]);
+    expect(flaggedScenarios(built)).toEqual(["find.flat.10"]);
+  });
+});
+
+describe("largestPerCommand", () => {
+  test("keeps the scenario with the most units of each command", () => {
+    const ids = ["find.deps.1", "find.deps.1000", "find.flat.100", "run-all-plan.flat.10", "run-all-plan.deps.1"];
+
+    expect(largestPerCommand(ids, 3)).toEqual(["find.deps.1000", "run-all-plan.flat.10"]);
+  });
+
+  test("keeps the first of two scenarios with the same units", () => {
+    expect(largestPerCommand(["find.deps.1000", "find.flat.1000"], 3)).toEqual(["find.deps.1000"]);
+  });
+
+  test("keeps an id that is not a scenario id", () => {
+    expect(largestPerCommand(["find.flat.10", "ParseConfig"], 3)).toEqual(["find.flat.10", "ParseConfig"]);
+  });
+
+  test("stops at the limit", () => {
+    expect(largestPerCommand(["find.flat.1", "find-dependencies.flat.1", "run-all-plan.flat.1"], 2)).toEqual([
+      "find.flat.1",
+      "find-dependencies.flat.1",
+    ]);
+  });
+});
+
 describe("parseGoBench", () => {
   const output = [
     "goos: linux",
@@ -251,14 +294,39 @@ describe("addHyperfineExport", () => {
 });
 
 describe("renderSummary", () => {
-  test("lists a flagged metric with its profile diff", () => {
+  test("lists a flagged metric with its profile diffs", () => {
     const summary = renderSummary(report(hyperfineSamples(steady, slower)), {
-      profileDiffs: new Map([["find.flat.10", "flat  flat%\n0.38s 0.88% runtime.scanObject"]]),
+      profileDiffs: new Map([
+        [
+          "find.flat.10",
+          { cpu: "flat  flat%\n0.38s 0.88% runtime.scanObject", mem: "flat  flat%\n7MB 5.45% regexp.compile" },
+        ],
+      ]),
     });
 
     expect(summary).toContain("1 regressed and 0 improved metrics across 1 scenarios");
     expect(summary).toContain("| `find.flat.10` | hyperfine time_wall_clock | 1.00 s | 1.20 s | +20.0% |");
+    expect(summary).toContain("<summary>CPU profile diff for <code>find.flat.10</code></summary>");
     expect(summary).toContain("runtime.scanObject");
+    expect(summary).toContain("<summary>Allocation profile diff for <code>find.flat.10</code></summary>");
+    expect(summary).toContain("regexp.compile");
+  });
+
+  test("leaves out the diff a scenario has no profile for", () => {
+    const summary = renderSummary(report(hyperfineSamples(steady, slower)), {
+      profileDiffs: new Map([["find.flat.10", { mem: "flat  flat%\n7MB 5.45% regexp.compile" }]]),
+    });
+
+    expect(summary).not.toContain("CPU profile diff");
+    expect(summary).toContain("Allocation profile diff");
+  });
+
+  test("shows no profile diff for a scenario that is not flagged", () => {
+    const summary = renderSummary(report(hyperfineSamples(steady, steady)), {
+      profileDiffs: new Map([["find.flat.10", { cpu: "flat  flat%\n0.38s 0.88% runtime.scanObject" }]]),
+    });
+
+    expect(summary).not.toContain("profile diff");
   });
 
   test("omits the flagged table when nothing is flagged", () => {

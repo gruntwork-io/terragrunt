@@ -4,14 +4,17 @@
  *
  * Usage:
  *   bun compare.ts --out <report.json> --summary <summary.md>
- *     [--results <dir>] [--flagged <ids.txt>] [--confirm <dir>] [--gobench <dir>]
- *     [--benchstat <file>] [--profiles <dir>] [--comment <comment.md>]
+ *     [--results <dir>] [--flagged <ids.txt>] [--to-profile <ids.txt>] [--confirm <dir>]
+ *     [--gobench <dir>] [--benchstat <file>] [--profiles <dir>] [--comment <comment.md>]
  *
- * --comment writes a shorter summary for notify-pr.ts to post on a pull request.
+ * --flagged lists the scenarios for run-hyperfine.sh to time again, and
+ * --to-profile the ones for capture-profiles.sh to profile. --comment writes a
+ * shorter summary for notify-pr.ts to post on a pull request.
  *
  * --results and --confirm hold <scenario>/<side>-<round>.json files written by
  * run-hyperfine.sh. --gobench holds base.txt and head.txt written by
- * run-go-bench.sh.
+ * run-go-bench.sh. --profiles holds <scenario>/cpu-diff.txt and mem-diff.txt
+ * written by capture-profiles.sh.
  *
  * Environment:
  *   BENCH_COMPARISON             Label for the report, such as `push, fast suite`.
@@ -63,6 +66,9 @@ export type Report = {
 /** Samples for one scenario, keyed by metric name. */
 export type ScenarioSamples = Map<string, Samples>;
 
+/** The `pprof -top` diffs of one scenario, head against base. */
+export type ProfileDiffs = { cpu?: string; mem?: string };
+
 /**
  * A change counts only when a rank test rejects "both sides draw from the same
  * distribution" at this level.
@@ -70,10 +76,12 @@ export type ScenarioSamples = Map<string, Samples>;
 export const SIGNIFICANCE = 0.05;
 
 /**
- * Profile diffs included in the pull request comment. A GitHub comment holds
- * 65,536 characters, and the run summary has the rest.
+ * Scenarios whose profile diffs go in the pull request comment. A GitHub
+ * comment holds 65,536 characters, and the run summary has the rest.
  */
-const COMMENT_PROFILE_DIFFS = 3;
+const COMMENT_PROFILE_SCENARIOS = 3;
+
+const SCENARIO_ID = /^([^.]+)\.([^.]+)\.(\d+)$/;
 
 export const HYPERFINE_METRICS: MetricSpec[] = [
   { name: "time_wall_clock", kind: "time", unit: "seconds", source: "hyperfine" },
@@ -258,6 +266,29 @@ export function flaggedScenarios(report: Report): string[] {
 }
 
 /**
+ * Picks the scenarios whose profile diffs go in the pull request comment, at
+ * most `limit` of them. Of the scenarios of one command it keeps the one with
+ * the most units, whose profile has the most samples. An id that is not
+ * `<command>.<shape>.<units>` stands for itself.
+ */
+export function largestPerCommand(ids: string[], limit: number): string[] {
+  const largest = new Map<string, { id: string; units: number }>();
+
+  for (const id of ids) {
+    const parts = SCENARIO_ID.exec(id);
+    const command = parts ? parts[1] : id;
+    const units = parts ? Number(parts[3]) : 0;
+    const kept = largest.get(command);
+
+    if (!kept || units > kept.units) {
+      largest.set(command, { id, units });
+    }
+  }
+
+  return [...largest.values()].slice(0, limit).map((entry) => entry.id);
+}
+
+/**
  * Parses `go test -bench` output into samples keyed by scenario id. A
  * BenchmarkScenario result such as `BenchmarkScenario/find/shape=flat/units=10-8`
  * becomes `find.flat.10`, and any other benchmark is keyed by its name without
@@ -339,7 +370,10 @@ export function addHyperfineExport(json: unknown, id: string, side: Side, into: 
   }
 }
 
-export function renderSummary(report: Report, extras: { benchstat?: string; profileDiffs?: Map<string, string> }): string {
+export function renderSummary(
+  report: Report,
+  extras: { benchstat?: string; profileDiffs?: Map<string, ProfileDiffs> },
+): string {
   const lines: string[] = [];
   const flagged = report.scenarios.flatMap((scenario) =>
     scenario.metrics
@@ -374,9 +408,14 @@ export function renderSummary(report: Report, extras: { benchstat?: string; prof
   }
 
   for (const id of new Set(flagged.map((entry) => entry.id))) {
-    const diff = extras.profileDiffs?.get(id);
-    if (diff) {
-      lines.push("<details>", `<summary>CPU profile diff for <code>${id}</code></summary>`, "", "```", diff, "```", "</details>", "");
+    const diffs = extras.profileDiffs?.get(id);
+
+    if (diffs?.cpu) {
+      lines.push(...collapsed(`CPU profile diff for <code>${id}</code>`, diffs.cpu));
+    }
+
+    if (diffs?.mem) {
+      lines.push(...collapsed(`Allocation profile diff for <code>${id}</code>`, diffs.mem));
     }
   }
 
@@ -408,10 +447,15 @@ export function renderSummary(report: Report, extras: { benchstat?: string; prof
   lines.push("", "</details>", "");
 
   if (extras.benchstat) {
-    lines.push("<details>", "<summary>benchstat</summary>", "", "```", extras.benchstat.trimEnd(), "```", "</details>", "");
+    lines.push(...collapsed("benchstat", extras.benchstat.trimEnd()));
   }
 
   return lines.join("\n");
+}
+
+/** The lines of a collapsed section holding preformatted text. */
+function collapsed(summary: string, text: string): string[] {
+  return ["<details>", `<summary>${summary}</summary>`, "", "```", text, "```", "</details>", ""];
 }
 
 function samplesFor(into: Map<string, ScenarioSamples>, id: string, metric: string): Samples {
@@ -435,8 +479,8 @@ function samplesFor(into: Map<string, ScenarioSamples>, id: string, metric: stri
  * count as a number, and any other id by name after them.
  */
 function compareScenarioIds(a: string, b: string): number {
-  const partsA = /^([^.]+)\.([^.]+)\.(\d+)$/.exec(a);
-  const partsB = /^([^.]+)\.([^.]+)\.(\d+)$/.exec(b);
+  const partsA = SCENARIO_ID.exec(a);
+  const partsB = SCENARIO_ID.exec(b);
 
   if (!partsA || !partsB) {
     return Number(!partsA) - Number(!partsB) || a.localeCompare(b);
@@ -523,17 +567,27 @@ function readGoBenchDir(dir: string | undefined): Map<string, ScenarioSamples> {
   return into;
 }
 
-function readProfileDiffs(dir: string, lineLimit: number): Map<string, string> {
-  const diffs = new Map<string, string>();
+function readProfileDiffs(dir: string, lineLimit: number): Map<string, ProfileDiffs> {
+  const diffs = new Map<string, ProfileDiffs>();
 
   for (const id of readdirSync(dir)) {
-    const file = join(dir, id, "cpu-diff.txt");
-    if (existsSync(file)) {
-      diffs.set(id, readFileSync(file, "utf8").split("\n").slice(0, lineLimit).join("\n").trimEnd());
+    const cpu = readFirstLines(join(dir, id, "cpu-diff.txt"), lineLimit);
+    const mem = readFirstLines(join(dir, id, "mem-diff.txt"), lineLimit);
+
+    if (cpu || mem) {
+      diffs.set(id, { cpu, mem });
     }
   }
 
   return diffs;
+}
+
+function readFirstLines(file: string, lineLimit: number): string | undefined {
+  if (!existsSync(file)) {
+    return undefined;
+  }
+
+  return readFileSync(file, "utf8").split("\n").slice(0, lineLimit).join("\n").trimEnd();
 }
 
 function thresholdFromEnv(name: string, fallback: number): number {
@@ -562,6 +616,7 @@ function main(): void {
       out: { type: "string" },
       summary: { type: "string" },
       flagged: { type: "string" },
+      "to-profile": { type: "string" },
     },
   });
 
@@ -592,7 +647,8 @@ function main(): void {
   writeFileSync(values.summary, renderSummary(report, { benchstat, profileDiffs }));
 
   if (values.comment) {
-    const shown = new Set(flaggedScenarios(report).slice(0, COMMENT_PROFILE_DIFFS));
+    const profiled = flaggedScenarios(report).filter((id) => profileDiffs?.has(id));
+    const shown = new Set(largestPerCommand(profiled, COMMENT_PROFILE_SCENARIOS));
     const commentDiffs = new Map([...(profileDiffs ?? [])].filter(([id]) => shown.has(id)));
 
     writeFileSync(values.comment, renderSummary(report, { profileDiffs: commentDiffs }));
@@ -600,6 +656,10 @@ function main(): void {
 
   if (values.flagged) {
     writeFileSync(values.flagged, scenariosToConfirm(report).map((id) => `${id}\n`).join(""));
+  }
+
+  if (values["to-profile"]) {
+    writeFileSync(values["to-profile"], flaggedScenarios(report).map((id) => `${id}\n`).join(""));
   }
 
   console.log(

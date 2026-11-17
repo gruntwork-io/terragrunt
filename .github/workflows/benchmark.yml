@@ -126,7 +126,7 @@ jobs:
       - name: Run Go benchmarks
         env:
           SUITE: ${{ inputs.suite }}
-          # The fast suite profiles each scenario on its own, in a later step.
+          # The fast suite profiles each flagged scenario on its own, in a later step.
           BENCH_GO_PROFILE_DIR: ${{ inputs.suite == 'integration' && format('{0}/benchmark/out/profiles', runner.temp) || '' }}
         run: ./.github/scripts/benchmark/run-go-bench.sh "$SUITE" "$BENCH_WORK_DIR" "${BENCH_OUT_DIR}/gobench"
 
@@ -140,7 +140,8 @@ jobs:
             --gobench "${BENCH_OUT_DIR}/gobench" \
             --out "${BENCH_OUT_DIR}/first-pass-report.json" \
             --summary "${BENCH_OUT_DIR}/first-pass-summary.md" \
-            --flagged "${BENCH_OUT_DIR}/flagged.txt"
+            --flagged "${BENCH_OUT_DIR}/flagged.txt" \
+            --to-profile "${BENCH_OUT_DIR}/to-profile.txt"
 
       - name: Time flagged scenarios again
         if: inputs.suite == 'fast'
@@ -148,7 +149,7 @@ jobs:
 
       - name: Capture profiles
         if: inputs.suite == 'fast'
-        run: ./.github/scripts/benchmark/capture-profiles.sh "$BENCH_WORK_DIR" "${BENCH_OUT_DIR}/profiles"
+        run: ./.github/scripts/benchmark/capture-profiles.sh "$BENCH_WORK_DIR" "${BENCH_OUT_DIR}/profiles" "${BENCH_OUT_DIR}/to-profile.txt"
 
       - name: Compare
         env:
