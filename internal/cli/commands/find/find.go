@@ -7,7 +7,6 @@ import (
 	"io"
 	"path/filepath"
 	"strings"
-	"time"
 
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
@@ -29,9 +28,6 @@ import (
 
 // Run runs the find command.
 func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, opts *Options) error {
-	// DO NOT MERGE: slows find down so the benchmark comment shows a regression.
-	time.Sleep(100 * time.Millisecond)
-
 	d, err := discovery.NewForDiscoveryCommand(l, v.FS, &discovery.DiscoveryCommandOptions{
 		WorkingDir:        opts.WorkingDir,
 		QueueConstructAs:  opts.QueueConstructAs,
