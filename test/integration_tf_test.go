@@ -996,6 +996,7 @@ func TestTFTerragruntWorksWithNonDefaultConfigNamesAlongsideDefaultsAndRunAllCom
 	// The default-named configs must never be parsed when --config names another file.
 	assert.NotContains(t, stderr, "app_default_hcl_should_not_run")
 	assert.NotContains(t, stderr, "dependency_default_json_should_not_run")
+	assert.NotContains(t, stderr, "default_only_hcl_should_not_run")
 }
 
 // TestTFTerragruntWorksWithNonDefaultConfigNamesAlongsideDefaults is the single-unit counterpart of

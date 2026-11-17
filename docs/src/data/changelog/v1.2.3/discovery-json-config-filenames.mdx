@@ -1,5 +1,5 @@
 ---
-version: "v1.2.0"
+version: "v1.2.3"
 category: "bug-fixes"
 ---
 
@@ -13,4 +13,4 @@ Discovery now reads `terragrunt.hcl.json` as well. A directory that holds both `
 Component "/repo/unit" has more than one Terragrunt configuration file (terragrunt.hcl and terragrunt.hcl.json). Only one may be present in a directory; remove one to disambiguate.
 ```
 
-Remove one of the two files to resolve it, or name the one you want with [`--config`](/reference/cli/commands/run#config). A filename supplied through `--config` takes precedence over both default filenames, so a directory holding the named file alongside a `terragrunt.hcl` or a `terragrunt.hcl.json` is unambiguous.
+Remove one of the two files to resolve it, or name the one you want with [`--config`](/reference/cli/commands/run#config). When `--config` names another file, such as `--config main.hcl`, discovery treats only files with that name as unit configurations. Files named `terragrunt.hcl` or `terragrunt.hcl.json` are ignored, including in directories that have no `main.hcl`.

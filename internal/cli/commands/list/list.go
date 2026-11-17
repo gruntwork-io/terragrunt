@@ -86,13 +86,11 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, opts
 		// components nil rather than partial. Surface them as command errors instead of
 		// silently reporting an empty/incomplete result; ordinary suppressed parse errors
 		// still just get logged so discovery of other components isn't blocked.
-		var coexistenceErr discovery.CoexistenceError
-		if errors.As(err, &coexistenceErr) {
+		if coexistenceErr, ok := errors.AsType[discovery.CoexistenceError](err); ok {
 			return coexistenceErr
 		}
 
-		var ambiguousErr discovery.AmbiguousConfigError
-		if errors.As(err, &ambiguousErr) {
+		if ambiguousErr, ok := errors.AsType[discovery.AmbiguousConfigError](err); ok {
 			return ambiguousErr
 		}
 
