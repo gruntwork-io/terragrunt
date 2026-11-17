@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io/fs"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -17,6 +18,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -133,6 +136,10 @@ func (d *Discovery) runPipeline(
 
 	collected := <-drained
 
+	if errors.As(walkErr, new(CoexistenceError)) {
+		return nil, walkErr
+	}
+
 	if span := trace.SpanFromContext(ctx); span.IsRecording() {
 		span.SetAttributes(
 			attribute.Int("walked", len(collected.walkedDiscovered)+len(collected.walkedCandidates)),
@@ -162,6 +169,9 @@ func (d *Discovery) runPipeline(
 
 // walk walks the working directory, reports each component it finds on events, and queues the ones that need a
 // parse on work.
+//
+// Returns a [CoexistenceError] when a component that needs a parse shares its directory with one of the other
+// kind, before either is parsed.
 func (p *pipeline) walk(ctx context.Context, l log.Logger, v *venv.Venv) error {
 	d := p.discovery
 	phase := NewFilesystemPhase(d.numWorkers)
@@ -200,6 +210,10 @@ func (p *pipeline) walk(ctx context.Context, l log.Logger, v *venv.Venv) error {
 			return nil
 		}
 
+		if err := coexistence(v.FS, phase, input, *result, path, filenames); err != nil {
+			return err
+		}
+
 		select {
 		case p.work <- *result:
 		case <-ctx.Done():
@@ -234,6 +248,39 @@ func (p *pipeline) walk(ctx context.Context, l log.Logger, v *venv.Venv) error {
 	}
 
 	return walk.run(ctx, v.FS, roots)
+}
+
+// coexistence returns a [CoexistenceError] when the directory of path, the config file of found, also holds the
+// config file of a component of the other kind that the walk classifies as it did found.
+func coexistence(
+	fsys vfs.FS,
+	phase *FilesystemPhase,
+	input *PhaseInput,
+	found DiscoveryResult,
+	path string,
+	filenames []string,
+) error {
+	foundIsStack := found.Component.Kind() == component.StackKind
+
+	for _, filename := range filenames {
+		if (filename == config.DefaultStackFile) == foundIsStack {
+			continue
+		}
+
+		sibling := filepath.Join(filepath.Dir(path), filename)
+		if !vfs.IsFile(fsys, sibling) {
+			continue
+		}
+
+		other := phase.processFile(input, sibling, filenames)
+		if other == nil || other.Status != found.Status {
+			continue
+		}
+
+		return NewCoexistenceError(found.Component, other.Component)
+	}
+
+	return nil
 }
 
 // needsParse reports whether the walk queues result for a parse: a candidate whose filters read its config, and

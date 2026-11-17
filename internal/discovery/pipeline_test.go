@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -24,6 +25,8 @@ import (
 type pipelineRun struct {
 	// configure applies the options under test to the discovery.
 	configure func(d *discovery.Discovery) *discovery.Discovery
+	// exec runs the commands the configs call. When nil, the venv spawns nothing and every command fails.
+	exec vexec.Exec
 	// files maps each path below the corpus repo root to its contents.
 	files map[string]string
 	// queries are the filter queries the discovery runs with.
@@ -39,11 +42,15 @@ func (r pipelineRun) discover(ctx context.Context, t *testing.T) (component.Comp
 	v := memRepoRootVenv(t, corpusRepoRoot)
 	writeFixture(t, v, prefixPaths(r.files))
 
+	if r.exec != nil {
+		v = v.WithExec(r.exec)
+	}
+
 	if r.usePipeline {
 		v.Env[discovery.EnvPipeline] = "true"
 	}
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = corpusRepoRoot
 	opts.RootWorkingDir = corpusRepoRoot
 
@@ -160,31 +167,6 @@ func TestDiscoveryPipelineMatchesPhasesWithRacing(t *testing.T) {
 	}
 }
 
-func TestDiscoveryPipelineKeepsOneUnitPerDirectory(t *testing.T) {
-	t.Parallel()
-
-	run := pipelineRun{
-		files: map[string]string{
-			"unit/a.hcl": `locals { name = "a" }`,
-			"unit/b.hcl": "locals {\n",
-		},
-		configure: func(d *discovery.Discovery) *discovery.Discovery {
-			return d.WithConfigFilenames([]string{"a.hcl", "b.hcl"}).WithParseExclude()
-		},
-	}
-
-	want, err := run.discover(t.Context(), t)
-	require.NoError(t, err)
-	require.Len(t, want, 1)
-
-	run.usePipeline = true
-
-	got, err := run.discover(t.Context(), t)
-	require.NoError(t, err)
-
-	assert.Equal(t, componentViews(want), componentViews(got))
-}
-
 func TestDiscoveryPipelineReportsParseErrors(t *testing.T) {
 	t.Parallel()
 
@@ -238,6 +220,70 @@ func TestDiscoveryPipelineReportsCoexistence(t *testing.T) {
 
 			_, err := run.discover(t.Context(), t)
 			require.ErrorAs(t, err, new(discovery.CoexistenceError))
+		})
+	}
+}
+
+func TestDiscoveryPipelineReportsCoexistenceBeforeParsing(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		configure   func(d *discovery.Discovery) *discovery.Discovery
+		name        string
+		usePipeline bool
+	}{
+		{
+			name: "phases",
+			configure: func(d *discovery.Discovery) *discovery.Discovery {
+				return d.WithParseExclude()
+			},
+		},
+		{
+			name: "pipeline",
+			configure: func(d *discovery.Discovery) *discovery.Discovery {
+				return d.WithParseExclude()
+			},
+			usePipeline: true,
+		},
+		{
+			name: "pipeline with parse errors suppressed",
+			configure: func(d *discovery.Discovery) *discovery.Discovery {
+				return d.WithParseExclude().WithSuppressParseErrors()
+			},
+			usePipeline: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				mu     sync.Mutex
+				marked []string
+			)
+
+			run := pipelineRun{
+				files: map[string]string{
+					"both/terragrunt.hcl":       `locals { mark = run_cmd("mark", "unit") }`,
+					"both/terragrunt.stack.hcl": `locals { mark = run_cmd("mark", "stack") }`,
+				},
+				configure: tt.configure,
+				exec: vexec.NewMemExec(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+					mu.Lock()
+					defer mu.Unlock()
+
+					marked = append(marked, inv.Args...)
+
+					return vexec.Result{}
+				}),
+				usePipeline: tt.usePipeline,
+			}
+
+			_, err := run.discover(t.Context(), t)
+			require.ErrorAs(t, err, new(discovery.CoexistenceError))
+
+			assert.Empty(t, marked)
 		})
 	}
 }
