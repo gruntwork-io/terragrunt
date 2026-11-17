@@ -1,4 +1,4 @@
-package runner
+package runner_test
 
 import (
 	"path/filepath"
@@ -7,14 +7,13 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
-// TestBuildConfigFilenames covers how `--config` interacts with the default config filenames.
-// A custom filename has to replace the default unit filenames rather than join them, otherwise a
-// directory holding both the custom file and a default one yields two unit components and
-// discovery rejects it as ambiguous.
+// TestBuildConfigFilenames pins that a custom `--config` filename replaces the default unit
+// filenames.
 func TestBuildConfigFilenames(t *testing.T) {
 	t.Parallel()
 
@@ -56,7 +55,7 @@ func TestBuildConfigFilenames(t *testing.T) {
 
 			opts := &options.TerragruntOptions{TerragruntConfigPath: tt.configPath}
 
-			assert.Equal(t, tt.expected, buildConfigFilenames(opts))
+			assert.Equal(t, tt.expected, runner.BuildConfigFilenames(opts))
 		})
 	}
 }

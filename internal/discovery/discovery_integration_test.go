@@ -9,6 +9,7 @@ import (
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -137,39 +138,35 @@ func TestDiscovery_StackHiddenDiscovered(t *testing.T) {
 	assert.Contains(t, components.Filter(component.UnitKind).Paths(), stackHiddenDir)
 }
 
-// TestDiscovery_JSONConfigUnit tests that units configured via terragrunt.hcl.json (rather than
-// terragrunt.hcl) are discovered, since --filter and friends rely on this same discovery to build
-// the component graph.
+// TestDiscovery_JSONConfigUnit pins that a unit configured with terragrunt.hcl.json is discovered.
 func TestDiscovery_JSONConfigUnit(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := helpers.TmpDirWOSymlinks(t)
-
-	jsonUnitDir := filepath.Join(tmpDir, "json-unit")
-	hclUnitDir := filepath.Join(tmpDir, "hcl-unit")
-
-	require.NoError(t, os.MkdirAll(jsonUnitDir, 0755))
-	require.NoError(t, os.MkdirAll(hclUnitDir, 0755))
-
-	require.NoError(t, os.WriteFile(filepath.Join(jsonUnitDir, "terragrunt.hcl.json"), []byte("{}"), 0644))
-	require.NoError(t, os.WriteFile(filepath.Join(hclUnitDir, "terragrunt.hcl"), []byte(""), 0644))
-
-	l := logger.CreateLogger()
-	opts := &options.TerragruntOptions{
-		WorkingDir: tmpDir,
-	}
-
-	ctx := config.WithCaches(t.Context())
-
-	d := discovery.NewDiscovery(tmpDir).WithDiscoveryContext(&component.DiscoveryContext{
-		WorkingDir: tmpDir,
+	root := venvtest.Root("/repo")
+	fsys := venvtest.NewFS(t, root, map[string]string{
+		"json-unit/terragrunt.hcl.json": "{}",
+		"hcl-unit/terragrunt.hcl":       "",
 	})
 
-	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
+	opts := &options.TerragruntOptions{WorkingDir: root}
+
+	d := discovery.NewDiscovery(root).
+		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: root})
+
+	components, err := d.Discover(
+		config.WithCaches(t.Context()),
+		logger.CreateLogger(),
+		venv.MemVenv().WithFS(fsys),
+		new(rewrite.Store),
+		opts,
+	)
 	require.NoError(t, err)
 
-	units := components.Filter(component.UnitKind).Paths()
-	assert.ElementsMatch(t, []string{jsonUnitDir, hclUnitDir}, units)
+	assert.ElementsMatch(
+		t,
+		[]string{filepath.Join(root, "json-unit"), filepath.Join(root, "hcl-unit")},
+		components.Filter(component.UnitKind).Paths(),
+	)
 }
 
 // TestDiscovery_WithDependencies tests dependency discovery and relationship building.
@@ -935,29 +932,20 @@ func TestDiscovery_ExternalDependencies(t *testing.T) {
 	}
 }
 
-// TestDiscovery_ExternalJSONDependency verifies that an external dependency configured only via
-// terragrunt.hcl.json (no terragrunt.hcl) gets that filename recorded on its Unit component,
-// rather than the terragrunt.hcl default. Unlike TestDiscovery_ExternalDependencies, the external
-// unit is never visited by the filesystem walk, so its component is synthesized by
-// componentFromDependencyPath -- the only place this default could otherwise leak through.
+// TestDiscovery_ExternalJSONDependency pins that an external dependency configured only with
+// terragrunt.hcl.json records that filename on its unit.
 func TestDiscovery_ExternalJSONDependency(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := helpers.TmpDirWOSymlinks(t)
-
-	internalDir := filepath.Join(tmpDir, "internal")
-	externalDir := filepath.Join(tmpDir, "external")
+	root := venvtest.Root("/repo")
+	internalDir := filepath.Join(root, "internal")
 	appDir := filepath.Join(internalDir, "app")
-	extApp := filepath.Join(externalDir, "app")
+	extApp := filepath.Join(root, "external", "app")
 
-	for _, d := range []string{appDir, extApp} {
-		require.NoError(t, os.MkdirAll(d, 0755))
-	}
-
-	require.NoError(t, os.WriteFile(filepath.Join(appDir, "terragrunt.hcl"), []byte(`
-	dependency "external" { config_path = "../../external/app" }
-	`), 0644))
-	require.NoError(t, os.WriteFile(filepath.Join(extApp, "terragrunt.hcl.json"), []byte("{}"), 0644))
+	fsys := venvtest.NewFS(t, root, map[string]string{
+		"internal/app/terragrunt.hcl":      `dependency "external" { config_path = "../../external/app" }`,
+		"external/app/terragrunt.hcl.json": "{}",
+	})
 
 	l := logger.CreateLogger()
 	opts := &options.TerragruntOptions{
@@ -974,7 +962,7 @@ func TestDiscovery_ExternalJSONDependency(t *testing.T) {
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: internalDir}).
 		WithFilters(filters)
 
-	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
+	components, err := d.Discover(ctx, l, venv.MemVenv().WithFS(fsys), new(rewrite.Store), opts)
 	require.NoError(t, err)
 
 	var appCfg *component.Unit

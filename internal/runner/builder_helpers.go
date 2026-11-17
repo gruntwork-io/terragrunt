@@ -28,6 +28,22 @@ const (
 	telemetryCreation  = "runner_pool_creation"
 )
 
+// BuildConfigFilenames returns the config filenames discovery looks for.
+//
+// A custom filename supplied via `--config` replaces the default unit filenames, so files named
+// `terragrunt.hcl` or `terragrunt.hcl.json` are not unit configurations while it is set. The stack
+// filename is always included.
+func BuildConfigFilenames(opts *options.TerragruntOptions) []string {
+	customConfigName := filepath.Base(opts.TerragruntConfigPath)
+	isCustom := !slices.Contains(discovery.DefaultConfigFilenames, customConfigName)
+
+	if !isCustom || customConfigName == "" || customConfigName == "." {
+		return append([]string{}, discovery.DefaultConfigFilenames...)
+	}
+
+	return []string{customConfigName, config.DefaultStackFile}
+}
+
 func doWithTelemetry(
 	ctx context.Context,
 	l log.Logger,
@@ -45,25 +61,6 @@ func resolveWorkingDir(opts *options.TerragruntOptions) string {
 	}
 
 	return opts.WorkingDir
-}
-
-// buildConfigFilenames returns the list of config filenames to consider.
-//
-// A custom unit config filename, supplied via `--config`, takes precedence over the default unit
-// filenames rather than being considered alongside them: the user named the file they want, so a
-// `terragrunt.hcl` or `terragrunt.hcl.json` sitting in the same directory must not compete with it.
-// Were both kept, a directory holding the custom file and a default one would hold two unit configs,
-// which discovery rejects as ambiguous. The stack filename is always kept, since a stack config is a
-// different component kind that `--config` does not name.
-func buildConfigFilenames(opts *options.TerragruntOptions) []string {
-	customConfigName := filepath.Base(opts.TerragruntConfigPath)
-	isCustom := !slices.Contains(discovery.DefaultConfigFilenames, customConfigName)
-
-	if !isCustom || customConfigName == "" || customConfigName == "." {
-		return append([]string{}, discovery.DefaultConfigFilenames...)
-	}
-
-	return []string{customConfigName, config.DefaultStackFile}
 }
 
 func extractWorktrees(opts []Option) *worktrees.Worktrees {
@@ -106,7 +103,7 @@ func prepareDiscovery(
 	runnerOpts ...Option,
 ) *discovery.Discovery {
 	workingDir := resolveWorkingDir(opts)
-	configFilenames := buildConfigFilenames(opts)
+	configFilenames := BuildConfigFilenames(opts)
 
 	d := newBaseDiscovery(opts, workingDir, configFilenames, runnerOpts...)
 

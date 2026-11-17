@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/tips"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -576,43 +577,33 @@ func TestDiscovery_BothHclAndStackFileInSameDir(t *testing.T) {
 	assert.Equal(t, subDir, coexistErr.ComponentPath)
 }
 
-// TestDiscovery_BothHclAndJSONInSameDir verifies that a directory containing both
-// terragrunt.hcl and terragrunt.hcl.json is rejected with an AmbiguousConfigError,
-// rather than silently picking one based on filesystem walk order -- which would
-// otherwise diverge from the single-unit config loader's own JSON-preferring
-// resolution (pkg/config.DefaultTerragruntConfigPaths).
+// TestDiscovery_BothHclAndJSONInSameDir pins that a directory holding both terragrunt.hcl and
+// terragrunt.hcl.json is rejected with an [discovery.AmbiguousConfigError].
 func TestDiscovery_BothHclAndJSONInSameDir(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	subDir := filepath.Join(tmpDir, "app")
-	require.NoError(t, os.MkdirAll(subDir, 0755))
+	root := venvtest.Root("/repo")
+	fsys := venvtest.NewFS(t, root, map[string]string{
+		"app/terragrunt.hcl":      "",
+		"app/terragrunt.hcl.json": "{}",
+	})
 
-	require.NoError(t, os.WriteFile(
-		filepath.Join(subDir, "terragrunt.hcl"),
-		[]byte("# empty unit config\n"),
-		0644,
-	))
-	require.NoError(t, os.WriteFile(
-		filepath.Join(subDir, "terragrunt.hcl.json"),
-		[]byte("{}"),
-		0644,
-	))
+	opts := &options.TerragruntOptions{WorkingDir: root}
 
-	l := logger.CreateLogger()
-	opts := &options.TerragruntOptions{
-		WorkingDir: tmpDir,
-	}
+	d := discovery.NewDiscovery(root).
+		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: root})
 
-	d := discovery.NewDiscovery(tmpDir).
-		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir})
-
-	_, err := d.Discover(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
-	require.Error(t, err)
+	_, err := d.Discover(
+		config.WithCaches(t.Context()),
+		logger.CreateLogger(),
+		venv.MemVenv().WithFS(fsys),
+		new(rewrite.Store),
+		opts,
+	)
 
 	var ambiguousErr discovery.AmbiguousConfigError
 	require.ErrorAs(t, err, &ambiguousErr)
-	assert.Equal(t, subDir, ambiguousErr.ComponentPath)
+	assert.Equal(t, filepath.Join(root, "app"), ambiguousErr.ComponentPath)
 }
 
 // TestDiscovery_SingleUnitNoDuplicateError verifies that a directory with only

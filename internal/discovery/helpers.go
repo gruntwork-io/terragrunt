@@ -248,7 +248,7 @@ func createComponentFromPath(
 // (pkg/config.DefaultTerragruntConfigPaths).
 //
 // A config filename the user named explicitly via `--config` is never half of an ambiguous pair:
-// buildConfigFilenames drops the default unit filenames when a custom one is supplied, so the
+// runner.BuildConfigFilenames drops the default unit filenames when a custom one is supplied, so the
 // custom filename is the only unit config discovery looks for. The check below is limited to the
 // default filenames so that a caller passing a custom filename alongside the defaults still
 // resolves rather than erroring.

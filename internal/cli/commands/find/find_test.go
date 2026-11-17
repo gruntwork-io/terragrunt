@@ -551,30 +551,32 @@ locals {
 	}
 }
 
-// TestRunPropagatesAmbiguousConfigError verifies that find returns a command error, rather than
-// silently succeeding with an empty result, when a directory has both terragrunt.hcl and
-// terragrunt.hcl.json.
+// TestRunPropagatesAmbiguousConfigError pins that Run returns the error for a directory holding
+// both terragrunt.hcl and terragrunt.hcl.json.
 func TestRunPropagatesAmbiguousConfigError(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := helpers.TmpDirWOSymlinks(t)
-	unitDir := filepath.Join(tmpDir, "dual-unit")
-	require.NoError(t, os.MkdirAll(unitDir, 0755))
-
-	require.NoError(t, os.WriteFile(filepath.Join(unitDir, "terragrunt.hcl"), []byte(""), 0644))
-	require.NoError(t, os.WriteFile(filepath.Join(unitDir, "terragrunt.hcl.json"), []byte("{}"), 0644))
+	root := venvtest.Root("/repo")
+	fsys := venvtest.NewFS(t, root, map[string]string{
+		"dual-unit/terragrunt.hcl":      "",
+		"dual-unit/terragrunt.hcl.json": "{}",
+	})
 
 	tgOpts := options.NewTerragruntOptions()
-	tgOpts.WorkingDir = tmpDir
+	tgOpts.WorkingDir = root
+	tgOpts.RootWorkingDir = root
 
-	opts := find.NewOptions(tgOpts)
-
-	err := find.Run(t.Context(), logger.CreateLogger(), venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
-	require.Error(t, err)
+	err := find.Run(
+		config.WithCaches(t.Context()),
+		logger.CreateLogger(),
+		venv.MemVenv().WithFS(fsys),
+		new(rewrite.Store),
+		find.NewOptions(tgOpts),
+	)
 
 	var ambiguousErr discovery.AmbiguousConfigError
 	require.ErrorAs(t, err, &ambiguousErr)
-	assert.Equal(t, unitDir, ambiguousErr.ComponentPath)
+	assert.Equal(t, filepath.Join(root, "dual-unit"), ambiguousErr.ComponentPath)
 }
 
 func TestRunWithGraphFilterAndDynamicDependencyConfigPath(t *testing.T) {
