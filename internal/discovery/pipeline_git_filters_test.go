@@ -359,6 +359,104 @@ func TestDiscoveryPipelineParsesComponentsFoundInWorktreesWithRacing(t *testing.
 	assert.Equal(t, want, discover("true"))
 }
 
+func TestDiscoveryPipelineReportsConfigConflictsInWorktreesWithRacing(t *testing.T) {
+	t.Parallel()
+
+	conflicts := []struct {
+		requireErr func(t *testing.T, err error)
+		name       string
+		sibling    string
+		contents   string
+	}{
+		{
+			name:    "unit and stack",
+			sibling: config.DefaultStackFile,
+			requireErr: func(t *testing.T, err error) {
+				t.Helper()
+
+				require.ErrorAs(t, err, new(discovery.CoexistenceError))
+			},
+		},
+		{
+			name:     "both default unit configs",
+			sibling:  config.DefaultTerragruntJSONConfigPath,
+			contents: "{}",
+			requireErr: func(t *testing.T, err error) {
+				t.Helper()
+
+				require.ErrorAs(t, err, new(config.AmbiguousConfigError))
+			},
+		},
+	}
+
+	flows := []struct {
+		configure func(d *discovery.Discovery) *discovery.Discovery
+		name      string
+	}{
+		{
+			name: "parse errors reported",
+			configure: func(d *discovery.Discovery) *discovery.Discovery {
+				return d
+			},
+		},
+		{
+			name: "parse errors suppressed",
+			configure: func(d *discovery.Discovery) *discovery.Discovery {
+				return d.WithSuppressParseErrors()
+			},
+		},
+	}
+
+	for _, conflict := range conflicts {
+		for _, flow := range flows {
+			t.Run(conflict.name+"/"+flow.name, func(t *testing.T) {
+				t.Parallel()
+
+				repo, runner := setupGitRepo(t)
+
+				createUnit(t, repo, "kept", "")
+
+				commitChanges(t, runner, "Initial commit")
+
+				both := createUnit(t, repo, "both", "")
+				require.NoError(t, os.WriteFile(filepath.Join(both, conflict.sibling), []byte(conflict.contents), 0o644))
+
+				commitChanges(t, runner, "Add a directory with two configs")
+
+				l := logger.CreateLogger()
+				ctx := config.WithCaches(t.Context())
+
+				gitExpr := filter.NewGitExpression("HEAD~1", "HEAD")
+
+				w, err := worktrees.NewWorktrees(ctx, l, venvtest.NewOSWithEmptyEnv(), worktrees.WorktreeOpts{
+					WorkingDir:     repo,
+					GitExpressions: filter.GitExpressions{gitExpr},
+				})
+				require.NoError(t, err)
+
+				t.Cleanup(func() {
+					require.NoError(t, w.Cleanup(context.WithoutCancel(ctx), l, venvtest.NewOSWithEmptyEnv()))
+				})
+
+				opts := options.NewTerragruntOptions()
+				opts.WorkingDir = repo
+				opts.RootWorkingDir = repo
+
+				d := flow.configure(discovery.NewDiscovery(repo).
+					WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: repo}).
+					WithWorktrees(w).
+					WithFilters(filter.Filters{filter.NewFilter(gitExpr, gitExpr.String())}))
+
+				v := venvtest.NewOSWithEmptyEnv()
+				v.Env[discovery.EnvPipeline] = "true"
+
+				_, err = d.Discover(ctx, l, v, new(rewrite.Store), opts)
+				conflict.requireErr(t, err)
+			})
+		}
+	}
+}
+
 // dependenciesByPath maps the path of each of components to the sorted paths of its dependencies.
 func dependenciesByPath(components component.Components) map[string][]string {
 	byPath := make(map[string][]string, len(components))
