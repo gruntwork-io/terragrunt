@@ -3,9 +3,7 @@ package runner
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"runtime"
-	"slices"
 
 	"golang.org/x/sync/errgroup"
 
@@ -27,22 +25,6 @@ const (
 	telemetryDiscovery = "runner_pool_discovery"
 	telemetryCreation  = "runner_pool_creation"
 )
-
-// BuildConfigFilenames returns the config filenames discovery looks for.
-//
-// A custom filename supplied via `--config` replaces the default unit filenames, so files named
-// `terragrunt.hcl` or `terragrunt.hcl.json` are not unit configurations while it is set. The stack
-// filename is always included.
-func BuildConfigFilenames(opts *options.TerragruntOptions) []string {
-	customConfigName := filepath.Base(opts.TerragruntConfigPath)
-	isCustom := !slices.Contains(discovery.DefaultConfigFilenames, customConfigName)
-
-	if !isCustom || customConfigName == "" || customConfigName == "." {
-		return append([]string{}, discovery.DefaultConfigFilenames...)
-	}
-
-	return []string{customConfigName, config.DefaultStackFile}
-}
 
 func doWithTelemetry(
 	ctx context.Context,
@@ -103,7 +85,7 @@ func prepareDiscovery(
 	runnerOpts ...Option,
 ) *discovery.Discovery {
 	workingDir := resolveWorkingDir(opts)
-	configFilenames := BuildConfigFilenames(opts)
+	configFilenames := discovery.ConfigFilenames(opts)
 
 	d := newBaseDiscovery(opts, workingDir, configFilenames, runnerOpts...)
 

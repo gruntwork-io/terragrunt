@@ -18,10 +18,15 @@ func NewConfigFlag(opts *options.TerragruntOptions, prefix flags.Prefix) *flags.
 
 	return flags.NewFlag(
 		&clihelper.GenericFlag[string]{
-			Name:        ConfigFlagName,
-			EnvVars:     tgPrefix.EnvVars(ConfigFlagName),
-			Destination: &opts.TerragruntConfigPath,
-			Usage:       "The path to the Terragrunt config file. Default is terragrunt.hcl.",
+			Name:    ConfigFlagName,
+			EnvVars: tgPrefix.EnvVars(ConfigFlagName),
+			Usage:   "The path to the Terragrunt config file. Default is terragrunt.hcl.",
+			Setter: func(value string) error {
+				opts.TerragruntConfigPath = value
+				opts.TerragruntConfigPathExplicitlySet = true
+
+				return nil
+			},
 		},
 		flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("config"), opts.StrictControls),
 	)

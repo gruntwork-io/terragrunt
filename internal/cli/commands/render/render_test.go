@@ -15,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -337,6 +338,39 @@ func TestRenderAllFilter(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "inputs = {\n  name = \"a\"\n}\n", outputBuffer.String())
+}
+
+// TestRenderAllReadsJSONUnits pins that render --all reads a unit from the config file it was
+// discovered with.
+func TestRenderAllReadsJSONUnits(t *testing.T) {
+	t.Parallel()
+
+	root := venvtest.Root("/repo")
+	fsys := venvtest.NewFS(t, root, map[string]string{
+		"json-unit/terragrunt.hcl.json": `{"inputs": {"name": "json"}}`,
+	})
+
+	tgOptions, err := options.NewTerragruntOptionsForTest(filepath.Join(root, "terragrunt.hcl"))
+	require.NoError(t, err)
+
+	tgOptions.WorkingDir = root
+	tgOptions.RunAll = true
+
+	opts := render.NewOptions(tgOptions)
+	opts.Format = render.FormatHCL
+
+	var outputBuffer bytes.Buffer
+
+	err = render.Run(
+		config.WithCaches(t.Context()),
+		logger.CreateLogger(),
+		venv.MemVenv().WithFS(fsys).WithWriter(&outputBuffer),
+		new(rewrite.Store),
+		opts,
+	)
+	require.NoError(t, err)
+
+	assert.Equal(t, "inputs = {\n  name = \"json\"\n}\n", outputBuffer.String())
 }
 
 func TestRenderAllDiscoveryBoundaryMustExist(t *testing.T) {

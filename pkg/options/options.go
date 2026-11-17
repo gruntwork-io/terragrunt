@@ -297,6 +297,9 @@ type TerragruntOptions struct {
 	NoRunHooks bool
 	// TFPathExplicitlySet is set to true if the user has explicitly set the TFPath via the --tf-path flag.
 	TFPathExplicitlySet bool
+	// TerragruntConfigPathExplicitlySet is set to true if the user has explicitly set TerragruntConfigPath via
+	// the --config flag.
+	TerragruntConfigPathExplicitlySet bool
 	// FailFast is a flag to stop execution on the first error in apply of units.
 	FailFast bool
 	// NoDependencyPrompt disables prompt requiring confirmation for base

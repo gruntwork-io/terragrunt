@@ -7,10 +7,14 @@ category: "bug-fixes"
 
 Discovery only looked for `terragrunt.hcl` and `terragrunt.stack.hcl`, so a unit configured with a `terragrunt.hcl.json` file and no `terragrunt.hcl` was silently left out of the component graph. Commands built on discovery, such as [`find`](/reference/cli/commands/find), [`list`](/reference/cli/commands/list), and [`--filter`](/features/filter), acted as though the unit did not exist, even though the config loader has always read JSON configuration files.
 
-Discovery now reads `terragrunt.hcl.json` as well. A directory that holds both `terragrunt.hcl` and `terragrunt.hcl.json` is an error, since which of the two applies would otherwise depend on the order in which the filesystem is walked:
+Discovery now reads `terragrunt.hcl.json` as well, including when a Git-based filter selects units by what changed.
+
+A directory that holds both `terragrunt.hcl` and `terragrunt.hcl.json` is now an error, whether Terragrunt runs in that directory or discovers it:
 
 ```
 Component "/repo/unit" has more than one Terragrunt configuration file (terragrunt.hcl and terragrunt.hcl.json). Only one may be present in a directory; remove one to disambiguate.
 ```
 
-Remove one of the two files to resolve it, or name the one you want with [`--config`](/reference/cli/commands/run#config). When `--config` names another file, such as `--config main.hcl`, discovery treats only files with that name as unit configurations. Files named `terragrunt.hcl` or `terragrunt.hcl.json` are ignored, including in directories that have no `main.hcl`.
+Remove one of the two files to resolve it, or name the one you want with [`--config`](/reference/cli/commands/run#config), e.g. `--config terragrunt.hcl`.
+
+With `--all`, only files with the name you pass to `--config` are now unit configurations. `terragrunt run --all plan --config main.hcl` skips a directory that has a `terragrunt.hcl` and no `main.hcl`.

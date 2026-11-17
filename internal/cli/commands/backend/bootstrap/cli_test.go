@@ -189,6 +189,7 @@ func TestRunUsesTheConfiguredConfigFilename(t *testing.T) {
 	}))
 
 	opts := newOpts(t, v, filepath.Join(memRoot, "custom.hcl"))
+	opts.TerragruntConfigPathExplicitlySet = true
 	opts.WorkingDir = memRoot
 	opts.RunAll = true
 

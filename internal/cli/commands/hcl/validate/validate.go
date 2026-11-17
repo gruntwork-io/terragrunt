@@ -160,7 +160,7 @@ func RunValidate(
 			continue
 		}
 
-		if err := parser.Unit(ctx, l, componentV, s, opts, c.Path()); err != nil {
+		if err := parser.Unit(ctx, l, componentV, s, opts, c.Path(), c.ConfigFile()); err != nil {
 			parseErrs = append(parseErrs, err)
 			unitErrs[c.Path()] = err
 		}
@@ -312,12 +312,7 @@ func RunValidateInputs(
 		unitOpts := opts.Clone()
 		unitOpts.WorkingDir = c.Path()
 
-		configFilename := config.DefaultTerragruntConfigPath
-		if len(opts.TerragruntConfigPath) > 0 {
-			configFilename = filepath.Base(opts.TerragruntConfigPath)
-		}
-
-		unitOpts.TerragruntConfigPath = filepath.Join(c.Path(), configFilename)
+		unitOpts.TerragruntConfigPath = filepath.Join(c.Path(), c.ConfigFile())
 		unitOpts.OriginalTerragruntConfigPath = unitOpts.TerragruntConfigPath
 
 		// Preparation writes obtained credentials into the env, so each unit

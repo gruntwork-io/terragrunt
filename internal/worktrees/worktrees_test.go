@@ -429,6 +429,18 @@ func TestExpressionExpansion(t *testing.T) {
 			expectedToReadings: []string{},
 		},
 		{
+			name: "added, changed, and removed terragrunt.hcl.json files select their units",
+			diffs: &git.Diffs{
+				Removed: []string{"app1/terragrunt.hcl.json"},
+				Added:   []string{"app2/terragrunt.hcl.json"},
+				Changed: []string{"app3/terragrunt.hcl.json"},
+			},
+			expectedFrom:       1,
+			expectedTo:         2,
+			expectedToPaths:    []string{"app2", "app3"},
+			expectedToReadings: []string{},
+		},
+		{
 			name: "added stack file selects the stack and everything under it",
 			diffs: &git.Diffs{
 				Added: []string{"stack/terragrunt.stack.hcl"},
@@ -767,6 +779,17 @@ func TestExpandWithUnitDirectoryDetection(t *testing.T) {
 				},
 			},
 			expectedToPaths:    []string{"unit1"},
+			expectedToReadings: []string{},
+			expectedFrom:       0,
+		},
+		{
+			name:   "files beside a terragrunt.hcl.json unit create path filters",
+			toTree: []string{"unit1/terragrunt.hcl.json", "unit2/terragrunt.hcl.json"},
+			diffs: &git.Diffs{
+				Added:   []string{"unit1/variables.tf"},
+				Changed: []string{"unit2/main.tf"},
+			},
+			expectedToPaths:    []string{"unit1", "unit2"},
 			expectedToReadings: []string{},
 			expectedFrom:       0,
 		},

@@ -46,6 +46,23 @@ var DefaultConfigFilenames = []string{
 	config.DefaultStackFile,
 }
 
+// ConfigFilenames returns the config filenames discovery looks for under opts.
+//
+// A filename supplied via `--config` replaces the default unit filenames, so no other filename
+// names a unit configuration while it is set. The stack filename is always included.
+func ConfigFilenames(opts *options.TerragruntOptions) []string {
+	if !opts.TerragruntConfigPathExplicitlySet {
+		return slices.Clone(DefaultConfigFilenames)
+	}
+
+	name := filepath.Base(opts.TerragruntConfigPath)
+	if name == config.DefaultStackFile {
+		return slices.Clone(DefaultConfigFilenames)
+	}
+
+	return []string{name, config.DefaultStackFile}
+}
+
 // walkDirFunc returns the tree walk the discovery phases use, bound to the
 // venv filesystem so discovery only sees what the venv exposes. The symlinks
 // experiment swaps in the walk that descends into symlinked directories.
@@ -248,7 +265,7 @@ func createComponentFromPath(
 // (pkg/config.DefaultTerragruntConfigPaths).
 //
 // A config filename the user named explicitly via `--config` is never half of an ambiguous pair:
-// runner.BuildConfigFilenames drops the default unit filenames when a custom one is supplied, so the
+// [ConfigFilenames] drops the default unit filenames when a custom one is supplied, so the
 // custom filename is the only unit config discovery looks for. The check below is limited to the
 // default filenames so that a caller passing a custom filename alongside the defaults still
 // resolves rather than erroring.

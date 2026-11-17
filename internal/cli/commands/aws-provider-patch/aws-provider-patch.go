@@ -21,7 +21,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -93,12 +92,7 @@ func runAll(
 		unitOpts := opts.Clone()
 		unitOpts.WorkingDir = unit.Path()
 
-		configFilename := config.DefaultTerragruntConfigPath
-		if len(opts.TerragruntConfigPath) > 0 {
-			configFilename = filepath.Base(opts.TerragruntConfigPath)
-		}
-
-		unitOpts.TerragruntConfigPath = filepath.Join(unit.Path(), configFilename)
+		unitOpts.TerragruntConfigPath = filepath.Join(unit.Path(), unit.ConfigFile())
 
 		// Preparation writes obtained credentials into the env, so each
 		// unit gets its own clone to keep them from leaking to siblings.
