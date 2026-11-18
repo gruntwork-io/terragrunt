@@ -69,6 +69,15 @@
 //     - [PhaseFinal]: Merge all discovered, deduplicate by path, apply final filter evaluation
 //     - Cycle detection and removal if configured via [Discovery.WithBreakCycles]
 //
+// # Pipeline
+//
+// [EnvPipeline] replaces phases 1 and 2 with a pipeline that parses components while the walk is still finding
+// them. The walk and the parse workers report to one collector, which hands the graph phase the same discovered
+// components and candidates the two phases would. A discovery with Git filters keeps the phases.
+//
+// The pipeline takes over one phase at a time. [EnvPipeline] and the phases are removed once it has replaced all
+// of them.
+//
 // # Filter Expressions
 //
 // The package supports several filter expression types:

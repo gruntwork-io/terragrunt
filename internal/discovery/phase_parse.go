@@ -199,7 +199,7 @@ func (p *ParsePhase) Run(
 
 	// When readFiles, parseExclude, or parseIncludes is enabled, also parse discovered components
 	// to populate the Reading field, Exclude configuration, or ProcessedIncludes even without filters
-	if discovery.readFiles || discovery.parseExclude || discovery.parseIncludes {
+	if discovery.parsesDiscovered() {
 		componentsToParse = slices.Grow(componentsToParse, len(input.Components))
 
 		for _, c := range input.Components {
