@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://docs.terragrunt.com/schemas/auth-provider-cmd/v3/schema.json",
+  "title": "Terragrunt Auth Provider Command Response Schema",
+  "description": "Schema for the JSON response expected from an auth provider command",
+  "type": "object",
+  "properties": {
+    "awsCredentials": {
+      "type": "object",
+      "description": "AWS credentials to set as environment variables",
+      "properties": {
+        "ACCESS_KEY_ID": {
+          "type": "string",
+          "description": "AWS access key ID"
+        },
+        "SECRET_ACCESS_KEY": {
+          "type": "string",
+          "description": "AWS secret access key"
+        },
+        "SESSION_TOKEN": {
+          "type": "string",
+          "description": "AWS session token"
+        }
+      },
+      "required": [
+        "ACCESS_KEY_ID",
+        "SECRET_ACCESS_KEY"
+      ],
+      "additionalProperties": false
+    },
+    "awsRole": {
+      "type": "object",
+      "description": "AWS role to assume",
+      "properties": {
+        "roleARN": {
+          "type": "string",
+          "description": "The ARN of the IAM role to assume"
+        },
+        "roleSessionName": {
+          "type": "string",
+          "description": "The session name for the assumed role"
+        },
+        "duration": {
+          "type": "integer",
+          "description": "Duration in seconds for the assumed role session",
+          "minimum": 0
+        },
+        "webIdentityToken": {
+          "type": "string",
+          "description": "Web identity token for OIDC-based role assumption"
+        }
+      },
+      "required": [
+        "roleARN"
+      ],
+      "additionalProperties": false
+    },
+    "envs": {
+      "type": "object",
+      "description": "Additional environment variables to set",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "cache": {
+      "type": "object",
+      "description": "Units that share this response and how long Terragrunt may reuse it",
+      "properties": {
+        "root": {
+          "type": "string",
+          "description": "Directory the globs are relative to. repo is the top level of the git repository that contains the unit",
+          "enum": [
+            "repo"
+          ]
+        },
+        "globs": {
+          "type": "array",
+          "description": "Patterns in the syntax of a --filter path, matched against the unit directory relative to root, with forward slashes",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "maxItems": 256
+        },
+        "ttl": {
+          "type": "integer",
+          "maximum": 86400,
+          "description": "Seconds the response may be reused. Zero disables caching. A negative value marks the response as a preflight"
+        }
+      },
+      "required": [
+        "root",
+        "globs",
+        "ttl"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

@@ -25,7 +25,8 @@ import (
 // repo-root, and run_cmd caches. RunAction installs those once on the action
 // context every call shares. Without this reset, a run_cmd output a refusal
 // stubbed on one call would be reused by later calls, degrading them without
-// the note that says so.
+// the note that says so. The auth provider response cache is not reset, so
+// calls reuse a response until its ttl expires.
 func freshCallContext(ctx context.Context) context.Context {
 	return cache.ContextWithCache(config.WithCaches(ctx))
 }

@@ -33,6 +33,36 @@ func TestValidateResponse(t *testing.T) {
 			expectError: false,
 		},
 		{
+			name: "valid cache",
+			input: `{
+				"cache": {"root": "repo", "globs": ["dev/**"], "ttl": 900}
+			}`,
+			expectError: false,
+		},
+		{
+			name: "valid preflight cache",
+			input: `{
+				"cache": {"root": "repo", "globs": ["dev/**"], "ttl": -1}
+			}`,
+			expectError: false,
+		},
+		{
+			name: "cache with a ttl over a day",
+			input: `{
+				"cache": {"root": "repo", "globs": ["dev/**"], "ttl": 86401}
+			}`,
+			expectError: true,
+			errorCount:  1,
+		},
+		{
+			name: "cache with unknown root, no globs, and no ttl",
+			input: `{
+				"cache": {"root": "workspace", "globs": []}
+			}`,
+			expectError: true,
+			errorCount:  3,
+		},
+		{
 			name: "valid awsCredentials with session token",
 			input: `{
 				"awsCredentials": {
