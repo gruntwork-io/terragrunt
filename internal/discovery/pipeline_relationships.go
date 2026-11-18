@@ -66,9 +66,8 @@ func readDependencyPaths(
 }
 
 // link adds the dependencies the pipeline read to components, which are the components discovery found. It first
-// reads the dependencies of each unit among them that no worker read, such as one the graph phase reached. A
-// dependency that is none of them becomes a unit that only its dependents reach, and link reads the dependencies of
-// each such unit in turn, once per path, until none is new or the dependency depth runs out.
+// reads the dependencies of each unit among them that no worker read. A dependency that is none of them becomes a
+// unit that only its dependents reach, and link never reads its config.
 //
 // Returns the errors of reading the dependencies, joined. Every component that could be read is linked either way.
 func (r *pipelineRelations) link(
@@ -78,11 +77,6 @@ func (r *pipelineRelations) link(
 	components component.Components,
 ) error {
 	d := r.discovery
-
-	maxDepth := d.maxDependencyDepth
-	if maxDepth <= 0 {
-		maxDepth = defaultMaxDependencyDepth
-	}
 
 	ctx = contextWithParsePhase(ctx, parsePhaseTagRelationship)
 
@@ -111,23 +105,6 @@ func (r *pipelineRelations) link(
 		}
 
 		linker.add(v, c, declared.paths)
-	}
-
-	baseDepth := parseDepthFromContext(ctx)
-
-	for depth := 1; depth < maxDepth && len(linker.unread) > 0; depth++ {
-		units := linker.unread
-		linker.unread = nil
-
-		for i, declared := range r.readAll(contextWithParseDepth(ctx, baseDepth+depth), l, v, units) {
-			if declared.err != nil {
-				errs = append(errs, declared.err)
-
-				continue
-			}
-
-			linker.add(v, units[i], declared.paths)
-		}
 	}
 
 	return errors.Join(errs...)
@@ -238,8 +215,6 @@ type dependencyLinker struct {
 	discovered map[string]component.Component
 	// reached maps the path of each dependency discovery did not find to the unit created for it.
 	reached map[string]*component.Unit
-	// unread is the units in reached whose dependencies have not been read, in the order they were reached.
-	unread []*component.Unit
 }
 
 // add links c to the component at each of paths, creating a unit for a path that has none.
@@ -276,7 +251,6 @@ func (k *dependencyLinker) dependency(v *venv.Venv, path string) component.Compo
 	}
 
 	k.reached[path] = dep
-	k.unread = append(k.unread, dep)
 
 	return dep
 }

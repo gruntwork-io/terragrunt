@@ -68,9 +68,9 @@ type pipelineEvent struct {
 // pipeline walks the working directory and parses the components that need it while the walk is still running.
 //
 // The walk classifies each component, reports it on events, and queues it on work when it needs a parse. Workers
-// parse what work holds, classify the component again, and report it on events. The walk also queues every component
-// whose dependencies discovery needs: the ones ready for filtering when it relates components, and the candidates as
-// well when a filter selects dependents. A worker reads the dependencies of such a component once it is done with it.
+// parse what work holds, classify the component again, and report it on events. When a filter selects dependents, the
+// walk also queues the components ready for filtering and the candidates its traversals can reach, and a worker reads
+// the dependencies of such a component once it is done with it.
 // One collector receives every event, so the results need no lock.
 //
 // The pipeline ends because its channels form a chain with no way back:
@@ -93,8 +93,6 @@ type pipeline struct {
 	work chan DiscoveryResult
 	// events carries what the walk and the workers report to the collector.
 	events chan pipelineEvent
-	// readPhase is the parse phase a worker reports when it reads the dependencies of a component.
-	readPhase string
 	// dependentBoundaries is the boundary of each filter that selects dependents, nil when any is unbounded.
 	dependentBoundaries []string
 	// parseRequested reports whether an option or a filter asked for a parse.
@@ -106,8 +104,9 @@ type pipeline struct {
 }
 
 // runPipeline walks the working directory and parses the components that need it, as the filesystem and parse
-// phases do one after the other. It also reads the dependencies of the components it finds when discovery relates
-// components or a filter selects dependents, and returns them unlinked. The relations are nil otherwise.
+// phases do one after the other. When a filter selects dependents, it also reads the dependencies of the components
+// that filter can reach and returns them unlinked. The relations are nil when discovery neither relates components
+// nor has such a filter.
 //
 // Returns the error of the walk when it fails, and otherwise the parse errors joined. suppressParseErrors drops
 // both, as it does for the phases. A [CoexistenceError] or an [AmbiguousConfigError] is returned either way.
@@ -127,7 +126,6 @@ func (d *Discovery) runPipeline(
 		store:           s,
 		work:            make(chan DiscoveryResult, workers*workQueuePerWorker),
 		events:          make(chan pipelineEvent, workers*workQueuePerWorker),
-		readPhase:       parsePhaseTagRelationship,
 		parseRequested:  parseRequested,
 		relates:         d.discoverRelationships,
 		findsDependents: d.classifier.HasDependentFilters(),
@@ -135,10 +133,6 @@ func (d *Discovery) runPipeline(
 
 	if p.findsDependents {
 		p.dependentBoundaries = d.dependentBoundaries(l, v.FS)
-	}
-
-	if !p.relates {
-		p.readPhase = parsePhaseTagDependencyGraph
 	}
 
 	var stages errgroup.Group
@@ -346,13 +340,13 @@ func (d *Discovery) parsesDiscovered() bool {
 	return d.readFiles || d.parseExclude || d.parseIncludes
 }
 
-// readsDependencies reports whether a worker reads the dependencies of result's component. It reads those of a
-// component ready for filtering when the pipeline relates components or a filter selects dependents, and those of a
-// candidate when a filter selects dependents and one of their traversals can reach it.
+// readsDependencies reports whether a worker reads the dependencies of result's component. It reads them only when a
+// filter selects dependents: for a component ready for filtering, and for a candidate one of that filter's traversals
+// can reach.
 func (p *pipeline) readsDependencies(fsys vfs.FS, result DiscoveryResult) bool {
 	switch result.Status {
 	case filter.StatusReadyForFilter:
-		return p.relates || p.findsDependents
+		return p.findsDependents
 	case filter.StatusCandidate:
 		return p.findsDependents && !outsideDependentBoundaries(fsys, p.dependentBoundaries, result)
 	case filter.StatusExcluded:
@@ -384,7 +378,13 @@ func (p *pipeline) parse(ctx context.Context, l log.Logger, v *venv.Venv) {
 
 		if event.err == nil && p.readsDependencies(v.FS, event.result) {
 			declared := readDependencyPaths(
-				contextWithParsePhase(ctx, p.readPhase), l, v, p.store, p.opts, p.discovery, event.result.Component,
+				contextWithParsePhase(ctx, parsePhaseTagDependencyGraph),
+				l,
+				v,
+				p.store,
+				p.opts,
+				p.discovery,
+				event.result.Component,
 			)
 			event.declared = &declared
 		}
