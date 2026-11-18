@@ -291,7 +291,7 @@ func TestRenderAllReadConfigUsesPerUnitAuthProviderCredentials(t *testing.T) {
 	helpers.RunTerragrunt(
 		t,
 		fmt.Sprintf(
-			"terragrunt render --all --json --write --non-interactive --parallelism 1 --working-dir %s "+
+			"terragrunt render --all --json --write --non-interactive --working-dir %s "+
 				"--auth-provider-cmd %s",
 			rootPath,
 			authProviderCmd,
