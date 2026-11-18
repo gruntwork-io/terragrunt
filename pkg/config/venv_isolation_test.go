@@ -121,7 +121,13 @@ func TestDependencyOutputDropsCallerAuthProviderEnv(t *testing.T) {
 	v.Env["SHARED"] = "from-caller-env"
 	l := logger.CreateLogger()
 
-	_, err := creds.ObtainCredsForParsing(ctx, l, v, pctx.AuthProviderCmd, shell.NewShellOptions(v.Env).WithWorkingDir(pctx.WorkingDir))
+	_, err := creds.ObtainCredsForParsing(
+		ctx,
+		l,
+		v,
+		pctx.AuthProviderCmd,
+		shell.NewShellOptions(v.Env).WithWorkingDir(pctx.WorkingDir),
+	)
 	require.NoError(t, err)
 	require.Equal(t, "only-for-consumer", v.Env["SECRET_CONSUMER"])
 	require.Equal(t, "auth-consumer", v.Env["SHARED"])
