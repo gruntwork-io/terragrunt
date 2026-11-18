@@ -131,7 +131,12 @@ func (dep *Dependency) unitTarget(fsys vfs.FS, pctx *ParsingContext) (string, bo
 		return "", false
 	}
 
-	targetConfig, err := getCleanedTargetConfigPath(fsys, configPath, pctx.TerragruntConfigPath)
+	targetConfig, err := getCleanedTargetConfigPath(
+		fsys,
+		configPath,
+		pctx.TerragruntConfigPath,
+		pctx.AmbiguousConfigCheck,
+	)
 	if err != nil || !vfs.Exists(fsys, targetConfig) {
 		return "", false
 	}

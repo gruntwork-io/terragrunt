@@ -802,6 +802,7 @@ func decodeDependencies(
 			v.FS,
 			dep.ConfigPath.AsString(),
 			pctx.TerragruntConfigPath,
+			pctx.AmbiguousConfigCheck,
 		)
 		if err != nil {
 			return &updatedDependencies, err
@@ -910,6 +911,7 @@ func checkForDependencyBlockCycles(
 			v.FS,
 			dependency.ConfigPath.AsString(),
 			cfgPath,
+			pctx.AmbiguousConfigCheck,
 		)
 		if err != nil {
 			return err
@@ -970,7 +972,7 @@ func checkForDependencyBlockCyclesUsingDFS(
 	}
 
 	for _, dependency := range dependencyPaths {
-		dependencyPath, err := getCleanedTargetConfigPath(v.FS, dependency, dependencyPath)
+		dependencyPath, err := getCleanedTargetConfigPath(v.FS, dependency, dependencyPath, pctx.AmbiguousConfigCheck)
 		if err != nil {
 			return err
 		}
@@ -1243,6 +1245,7 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(
 		v.FS,
 		configPath,
 		pctx.TerragruntConfigPath,
+		pctx.AmbiguousConfigCheck,
 	)
 	if err != nil {
 		return nil, err
@@ -1310,6 +1313,7 @@ func getTerragruntOutput(
 		v.FS,
 		dependencyConfig.ConfigPath.AsString(),
 		pctx.TerragruntConfigPath,
+		pctx.AmbiguousConfigCheck,
 	)
 	if err != nil {
 		return nil, false, err
@@ -3183,8 +3187,14 @@ func IsValidConfigPath(v cty.Value) bool {
 	return true
 }
 
-// ValidateDependencyConfigPaths reports each enabled dependency block whose config_path has no Terragrunt config.
-func ValidateDependencyConfigPaths(fsys vfs.FS, cfg *TerragruntConfig, configPath string) error {
+// ValidateDependencyConfigPaths reports each enabled dependency block whose config_path has no Terragrunt config,
+// and, when check is [RejectAmbiguousConfig], each whose config_path holds both default unit configs.
+func ValidateDependencyConfigPaths(
+	fsys vfs.FS,
+	cfg *TerragruntConfig,
+	configPath string,
+	check AmbiguousConfigCheck,
+) error {
 	var errs []error
 
 	for i := range cfg.TerragruntDependencies {
@@ -3195,7 +3205,7 @@ func ValidateDependencyConfigPaths(fsys vfs.FS, cfg *TerragruntConfig, configPat
 
 		rawPath := dep.ConfigPath.AsString()
 
-		targetConfigPath, err := getCleanedTargetConfigPath(fsys, rawPath, configPath)
+		targetConfigPath, err := getCleanedTargetConfigPath(fsys, rawPath, configPath, check)
 		if err != nil {
 			errs = append(errs, DependencyBlockError{Name: dep.Name, ConfigPath: configPath, Err: err})
 

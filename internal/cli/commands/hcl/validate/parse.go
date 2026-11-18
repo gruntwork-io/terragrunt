@@ -249,7 +249,7 @@ func (p ComponentParser) Unit(
 			v.FS,
 			unitDir,
 			dependencyConfigPaths(configPath, cfg),
-			config.ValidateDependencyConfigPaths(v.FS, cfg, configPath),
+			config.ValidateDependencyConfigPaths(v.FS, cfg, configPath, pctx.AmbiguousConfigCheck),
 		),
 	)
 }

@@ -10,6 +10,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
@@ -752,7 +753,12 @@ func (d *Discovery) buildComponentDependencies(
 	}
 
 	for _, depPath := range depPaths {
-		depComponent, err := componentFromDependencyPath(v.FS, depPath, d.configFilenames, threadSafeComponents)
+		depComponent, err := componentFromDependencyPath(
+			v.FS,
+			depPath,
+			configbridge.AmbiguousConfigCheck(opts),
+			threadSafeComponents,
+		)
 		if err != nil {
 			return err
 		}

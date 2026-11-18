@@ -1360,7 +1360,7 @@ func ParseTerragruntConfig(
 	// target config check: make sure the target config exists. If the file does not exist, and there is no default val,
 	// return an error. If the file does not exist but there is a default val, return the default val. Otherwise,
 	// proceed to parse the file as a terragrunt config file.
-	targetConfig, err := getCleanedTargetConfigPath(v.FS, cfgPath, pctx.TerragruntConfigPath)
+	targetConfig, err := getCleanedTargetConfigPath(v.FS, cfgPath, pctx.TerragruntConfigPath, pctx.AmbiguousConfigCheck)
 	if err != nil {
 		return cty.NilVal, err
 	}
@@ -1509,8 +1509,14 @@ func readTerragruntConfigAsFuncImpl(
 // paths correctly. This will automatically append `terragrunt.hcl` or `terragrunt.hcl.json` to the path if the target
 // path is a directory.
 //
-// Returns an [AmbiguousConfigError] when the target path is a directory that holds both files.
-func getCleanedTargetConfigPath(fsys vfs.FS, cfgPath string, workingPath string) (string, error) {
+// Returns an [AmbiguousConfigError] when the target path is a directory that holds both files and check is
+// [RejectAmbiguousConfig].
+func getCleanedTargetConfigPath(
+	fsys vfs.FS,
+	cfgPath string,
+	workingPath string,
+	check AmbiguousConfigCheck,
+) (string, error) {
 	cwd := filepath.Dir(workingPath)
 
 	targetConfig := cfgPath
@@ -1522,8 +1528,10 @@ func getCleanedTargetConfigPath(fsys vfs.FS, cfgPath string, workingPath string)
 		return filepath.Clean(targetConfig), nil
 	}
 
-	if err := RejectAmbiguousDefaultConfig(fsys, targetConfig); err != nil {
-		return "", err
+	if check == RejectAmbiguousConfig {
+		if err := RejectAmbiguousDefaultConfig(fsys, targetConfig); err != nil {
+			return "", err
+		}
 	}
 
 	return filepath.Clean(GetDefaultConfigPath(fsys, targetConfig)), nil

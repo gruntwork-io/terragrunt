@@ -93,17 +93,19 @@ type ParsingContext struct {
 	CASCloneDepth     int
 	CASProbeTTL       time.Duration
 
+	// AmbiguousConfigCheck says whether a unit directory holding both default unit configuration files fails to
+	// resolve. [AllowAmbiguousConfig] when the user named the config file with the --config flag.
+	AmbiguousConfigCheck AmbiguousConfigCheck
+
 	TFPathExplicitlySet bool
-	// TerragruntConfigPathExplicitlySet is true when the user named TerragruntConfigPath with the --config flag.
-	TerragruntConfigPathExplicitlySet bool
-	SkipOutput                        bool
-	ForwardTFStdout                   bool
-	JSONLogFormat                     bool
-	Debug                             bool
-	AutoInit                          bool
-	Headless                          bool
-	BackendBootstrap                  bool
-	CheckDependentUnits               bool
+	SkipOutput          bool
+	ForwardTFStdout     bool
+	JSONLogFormat       bool
+	Debug               bool
+	AutoInit            bool
+	Headless            bool
+	BackendBootstrap    bool
+	CheckDependentUnits bool
 
 	NoDependencyFetchOutputFromState bool
 	UsePartialParseConfigCache       bool

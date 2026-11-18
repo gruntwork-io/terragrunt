@@ -12,11 +12,13 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"golang.org/x/sync/errgroup"
@@ -400,7 +402,7 @@ func (p *GraphPhase) discoverDependencies(
 			}
 
 			depComponent, err := p.resolveDependency(
-				v.FS, c, depPath, state.discovery.configFilenames, state.threadSafeComponents,
+				v.FS, c, depPath, configbridge.AmbiguousConfigCheck(state.opts), state.threadSafeComponents,
 			)
 			if err != nil {
 				errMu.Lock()
@@ -828,7 +830,7 @@ func (p *GraphPhase) processUpstreamCandidate(
 		depComponent, err := componentFromDependencyPath(
 			v.FS,
 			dep,
-			graphState.discovery.configFilenames,
+			configbridge.AmbiguousConfigCheck(graphState.opts),
 			state.graphTraversalState.threadSafeComponents,
 		)
 		if err != nil {
@@ -903,7 +905,7 @@ func (p *GraphPhase) resolveDependency(
 	fsys vfs.FS,
 	parent component.Component,
 	depPath string,
-	filenames []string,
+	check config.AmbiguousConfigCheck,
 	threadSafeComponents *component.ThreadSafeComponents,
 ) (component.Component, error) {
 	parentCtx := parent.DiscoveryContext()
@@ -915,7 +917,7 @@ func (p *GraphPhase) resolveDependency(
 		return nil, NewMissingWorkingDirectoryError(parent.Path())
 	}
 
-	depComponent, err := componentFromDependencyPath(fsys, depPath, filenames, threadSafeComponents)
+	depComponent, err := componentFromDependencyPath(fsys, depPath, check, threadSafeComponents)
 	if err != nil {
 		return nil, err
 	}

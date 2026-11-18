@@ -184,12 +184,12 @@ func isExternal(fsys vfs.FS, workingDir string, componentPath string) bool {
 // terragrunt.hcl default, so a JSON-only dependency (terragrunt.hcl.json, no terragrunt.hcl)
 // doesn't get parsed against a config file that doesn't exist.
 //
-// Returns a [config.AmbiguousConfigError] when filenames, the config filenames discovery looks for, holds both
-// default unit filenames and the path holds both files.
+// Returns a [config.AmbiguousConfigError] when check is [config.RejectAmbiguousConfig] and the path holds both default
+// unit config files.
 func componentFromDependencyPath(
 	fsys vfs.FS,
 	path string,
-	filenames []string,
+	check config.AmbiguousConfigCheck,
 	components *component.ThreadSafeComponents,
 ) (component.Component, error) {
 	if existing := components.FindByPath(path); existing != nil {
@@ -200,7 +200,7 @@ func componentFromDependencyPath(
 		return component.NewStack(path), nil
 	}
 
-	if findsBothDefaultUnitConfigs(filenames) {
+	if check == config.RejectAmbiguousConfig {
 		if err := config.RejectAmbiguousDefaultConfig(fsys, path); err != nil {
 			return nil, err
 		}
@@ -210,13 +210,6 @@ func componentFromDependencyPath(
 	unit.SetConfigFile(unitConfigFilename(fsys, path))
 
 	return unit, nil
-}
-
-// findsBothDefaultUnitConfigs reports whether filenames holds both default unit config filenames, which it does
-// unless `--config` named one.
-func findsBothDefaultUnitConfigs(filenames []string) bool {
-	return slices.Contains(filenames, config.DefaultTerragruntConfigPath) &&
-		slices.Contains(filenames, config.DefaultTerragruntJSONConfigPath)
 }
 
 // unitConfigFilename returns the unit config filename that exists in dir, preferring

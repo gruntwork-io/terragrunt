@@ -57,7 +57,12 @@ func TestValidateDependencyConfigPaths(t *testing.T) {
 				"empty/main.tf":                              "",
 			})
 
-			err := config.ValidateDependencyConfigPaths(fsys, dependencyConfig(tc.configPath, tc.enabled), appConfigPath(repo))
+			err := config.ValidateDependencyConfigPaths(
+				fsys,
+				dependencyConfig(tc.configPath, tc.enabled),
+				appConfigPath(repo),
+				config.RejectAmbiguousConfig,
+			)
 			if tc.wantMissing == "" {
 				require.NoError(t, err)
 
@@ -83,7 +88,12 @@ func TestValidateDependencyConfigPathsStatError(t *testing.T) {
 		failPath: filepath.Join(repo, "dep"),
 	}
 
-	err := config.ValidateDependencyConfigPaths(fsys, dependencyConfig("../dep", nil), appConfigPath(repo))
+	err := config.ValidateDependencyConfigPaths(
+		fsys,
+		dependencyConfig("../dep", nil),
+		appConfigPath(repo),
+		config.RejectAmbiguousConfig,
+	)
 	require.ErrorIs(t, err, errStatFailed)
 
 	_, notFound := errors.AsType[config.DependencyConfigNotFound](err)

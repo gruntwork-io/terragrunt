@@ -1550,10 +1550,23 @@ func GetDefaultConfigPath(fsys vfs.FS, workingDir string) string {
 	return cfgPath
 }
 
-// RejectAmbiguousUnitConfig returns an [AmbiguousConfigError] when the config file of pctx was not named with
-// `--config` and its directory holds both default unit configuration files.
+// AmbiguousConfigCheck says whether resolving a unit directory fails when the directory holds both default unit
+// configuration files.
+type AmbiguousConfigCheck int
+
+const (
+	// RejectAmbiguousConfig fails with an [AmbiguousConfigError] on a directory holding both files.
+	RejectAmbiguousConfig AmbiguousConfigCheck = iota
+
+	// AllowAmbiguousConfig resolves a directory holding both files as [GetDefaultConfigPath] does. It applies when
+	// `--config` names the config file, as discovery then looks for that file alone.
+	AllowAmbiguousConfig
+)
+
+// RejectAmbiguousUnitConfig returns an [AmbiguousConfigError] when pctx rejects ambiguous configs and the directory
+// of its config file holds both default unit configuration files.
 func RejectAmbiguousUnitConfig(fsys vfs.FS, pctx *ParsingContext) error {
-	if pctx.TerragruntConfigPathExplicitlySet {
+	if pctx.AmbiguousConfigCheck == AllowAmbiguousConfig {
 		return nil
 	}
 
