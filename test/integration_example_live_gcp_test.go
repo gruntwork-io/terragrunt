@@ -17,7 +17,7 @@ const (
 	gcpLiveExampleRepo         = "https://github.com/gruntwork-io/terragrunt-infrastructure-live-gcp-example.git"
 	gcpLiveExampleBranch       = "main"
 	gcpLiveExampleRegion       = "us-east1"
-	gcpLiveExampleStack        = "non-prod/" + gcpLiveExampleRegion + "/app-foundation"
+	gcpLiveExampleStack        = "non-prod/us-east1/app-foundation"
 	gcpLiveExampleUnit         = "bucket"
 	gcpLiveExampleBucketSuffix = "-app-dev-data"
 )
