@@ -79,6 +79,27 @@ func TestAmbiguousDefaultConfig(t *testing.T) {
 			args:     []string{"find", "--filter", "...vpc", "--working-dir", filepath.Join(root, "svc")},
 			wantPath: filepath.Join(root, "dual"),
 		},
+		{
+			name: "generated unit of a stack dependency",
+			files: map[string]string{
+				"app/terragrunt.hcl":                            "dependency \"stack\" {\n  config_path = \"../stack\"\n}\n",
+				"stack/terragrunt.stack.hcl":                    "unit \"u\" {\n  source = \"../src\"\n  path = \"u\"\n}\n",
+				"stack/.terragrunt-stack/u/terragrunt.hcl":      "",
+				"stack/.terragrunt-stack/u/terragrunt.hcl.json": "{}",
+			},
+			args:     []string{"render", "--working-dir", filepath.Join(root, "app")},
+			wantPath: filepath.Join(root, "stack", ".terragrunt-stack", "u"),
+		},
+		{
+			name: "dependency outside the hcl validate walk",
+			files: map[string]string{
+				"live/app/terragrunt.hcl": "dependency \"dep\" {\n  config_path = \"../../dep\"\n}\n",
+				"dep/terragrunt.hcl":      "",
+				"dep/terragrunt.hcl.json": "{}",
+			},
+			args:     []string{"hcl", "validate", "--working-dir", filepath.Join(root, "live")},
+			wantPath: filepath.Join(root, "dep"),
+		},
 	}
 
 	for _, tt := range tests {

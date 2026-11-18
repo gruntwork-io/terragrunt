@@ -1544,6 +1544,10 @@ func collectUnitOutput(
 		return cty.NilVal, false, nil
 	}
 
+	if err := RejectAmbiguousDefaultConfig(v.FS, unit.GeneratedPath(stackDir), pctx.AmbiguousConfigCheck); err != nil {
+		return cty.NilVal, false, err
+	}
+
 	jsonBytes, err := getOutputJSONWithCaching(ctx, l, v, pctx, unitConfigPath)
 	if err != nil {
 		if !shouldFallBackToMockOutputs(pctx, err) ||

@@ -1528,10 +1528,8 @@ func getCleanedTargetConfigPath(
 		return filepath.Clean(targetConfig), nil
 	}
 
-	if check == RejectAmbiguousConfig {
-		if err := RejectAmbiguousDefaultConfig(fsys, targetConfig); err != nil {
-			return "", err
-		}
+	if err := RejectAmbiguousDefaultConfig(fsys, targetConfig, check); err != nil {
+		return "", err
 	}
 
 	return filepath.Clean(GetDefaultConfigPath(fsys, targetConfig)), nil

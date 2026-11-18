@@ -1566,16 +1566,16 @@ const (
 // RejectAmbiguousUnitConfig returns an [AmbiguousConfigError] when pctx rejects ambiguous configs and the directory
 // of its config file holds both default unit configuration files.
 func RejectAmbiguousUnitConfig(fsys vfs.FS, pctx *ParsingContext) error {
-	if pctx.AmbiguousConfigCheck == AllowAmbiguousConfig {
+	return RejectAmbiguousDefaultConfig(fsys, filepath.Dir(pctx.TerragruntConfigPath), pctx.AmbiguousConfigCheck)
+}
+
+// RejectAmbiguousDefaultConfig returns an [AmbiguousConfigError] when check is [RejectAmbiguousConfig] and dir holds
+// both default unit configuration files.
+func RejectAmbiguousDefaultConfig(fsys vfs.FS, dir string, check AmbiguousConfigCheck) error {
+	if check == AllowAmbiguousConfig {
 		return nil
 	}
 
-	return RejectAmbiguousDefaultConfig(fsys, filepath.Dir(pctx.TerragruntConfigPath))
-}
-
-// RejectAmbiguousDefaultConfig returns an [AmbiguousConfigError] when dir holds both default unit configuration
-// files.
-func RejectAmbiguousDefaultConfig(fsys vfs.FS, dir string) error {
 	for _, name := range DefaultTerragruntConfigPaths {
 		exists, err := vfs.FileExists(fsys, filepath.Join(dir, name))
 		if err != nil {

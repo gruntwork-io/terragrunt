@@ -606,6 +606,106 @@ func TestDiscovery_BothHclAndJSONInSameDir(t *testing.T) {
 	assert.Equal(t, filepath.Join(root, "app"), ambiguousErr.ComponentPath)
 }
 
+// TestDiscovery_SuppressedParseErrorsKeepAmbiguousConfigError pins that suppressing parse errors still reports
+// a dependency or dependent directory holding both terragrunt.hcl and terragrunt.hcl.json.
+func TestDiscovery_SuppressedParseErrorsKeepAmbiguousConfigError(t *testing.T) {
+	t.Parallel()
+
+	root := venvtest.Root("/repo")
+
+	tests := []struct {
+		files         map[string]string
+		name          string
+		walkDir       string
+		wantPath      string
+		filterQueries []string
+		relationships bool
+	}{
+		{
+			name: "dependency found while building relationships",
+			files: map[string]string{
+				"live/app/terragrunt.hcl": "dependency \"dep\" {\n  config_path = \"../../dep\"\n}\n",
+				"dep/terragrunt.hcl":      "",
+				"dep/terragrunt.hcl.json": "{}",
+			},
+			walkDir:       "live",
+			relationships: true,
+			wantPath:      filepath.Join(root, "dep"),
+		},
+		{
+			name: "dependency found through a dependency filter",
+			files: map[string]string{
+				"live/app/terragrunt.hcl": "dependency \"dep\" {\n  config_path = \"../../dep\"\n}\n",
+				"dep/terragrunt.hcl":      "",
+				"dep/terragrunt.hcl.json": "{}",
+			},
+			walkDir:       "live",
+			filterQueries: []string{"app..."},
+			wantPath:      filepath.Join(root, "dep"),
+		},
+		{
+			name: "dependent found above the walk",
+			files: map[string]string{
+				".git":                     "gitdir: /elsewhere/.git\n",
+				"svc/vpc/terragrunt.hcl":   "",
+				"dual/terragrunt.hcl":      "",
+				"dual/terragrunt.hcl.json": `{"dependency": {"vpc": {"config_path": "../svc/vpc"}}}`,
+			},
+			walkDir:       "svc",
+			filterQueries: []string{"...vpc"},
+			wantPath:      filepath.Join(root, "dual"),
+		},
+		{
+			name: "dependency found while linking dependents",
+			files: map[string]string{
+				"live/app/terragrunt.hcl": "dependency \"dep\" {\n  config_path = \"../../dep\"\n}\n",
+				"dep/terragrunt.hcl":      "",
+				"dep/terragrunt.hcl.json": "{}",
+			},
+			walkDir:       "live",
+			filterQueries: []string{"...app"},
+			wantPath:      filepath.Join(root, "dep"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			l := logger.CreateLogger()
+			walkDir := filepath.Join(root, tt.walkDir)
+			opts := &options.TerragruntOptions{WorkingDir: walkDir}
+
+			d := discovery.NewDiscovery(walkDir).
+				WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: walkDir}).
+				WithSuppressParseErrors()
+
+			if tt.relationships {
+				d = d.WithRelationships()
+			}
+
+			if len(tt.filterQueries) > 0 {
+				filters, err := filter.ParseFilterQueries(l, tt.filterQueries)
+				require.NoError(t, err)
+
+				d = d.WithFilters(filters)
+			}
+
+			_, err := d.Discover(
+				config.WithCaches(t.Context()),
+				l,
+				venv.MemVenv().WithFS(venvtest.NewFS(t, root, tt.files)),
+				new(rewrite.Store),
+				opts,
+			)
+
+			var ambiguousErr config.AmbiguousConfigError
+			require.ErrorAs(t, err, &ambiguousErr)
+			assert.Equal(t, tt.wantPath, ambiguousErr.ComponentPath)
+		})
+	}
+}
+
 // TestDiscovery_SingleUnitNoDuplicateError verifies that a directory with only
 // a single config file does not trigger a coexistence error.
 func TestDiscovery_SingleUnitNoDuplicateError(t *testing.T) {

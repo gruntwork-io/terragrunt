@@ -577,7 +577,7 @@ func (d *Discovery) runGraphPhase(
 				return errors.Join(d.buildDependencyGraph(childCtx, l, v, s, opts, allComponents, unparsed)...)
 			})
 
-		if buildErr != nil && !d.suppressParseErrors {
+		if d.returnsPhaseError(buildErr) {
 			return &PhaseResults{
 				Discovered: discovered,
 				Candidates: candidates,

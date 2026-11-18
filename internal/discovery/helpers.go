@@ -200,10 +200,8 @@ func componentFromDependencyPath(
 		return component.NewStack(path), nil
 	}
 
-	if check == config.RejectAmbiguousConfig {
-		if err := config.RejectAmbiguousDefaultConfig(fsys, path); err != nil {
-			return nil, err
-		}
+	if err := config.RejectAmbiguousDefaultConfig(fsys, path, check); err != nil {
+		return nil, err
 	}
 
 	unit := component.NewUnit(path)

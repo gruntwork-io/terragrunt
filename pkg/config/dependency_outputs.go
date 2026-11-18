@@ -88,9 +88,9 @@ func (dep *Dependency) readTarget(
 	v *venv.Venv,
 	pctx *ParsingContext,
 ) (dependencyTarget, error) {
-	configPath, ok := dep.unitTarget(v.FS, pctx)
-	if !ok {
-		return dependencyTarget{}, nil
+	target, err := dep.unitTarget(v.FS, pctx)
+	if err != nil || target.configPath == "" {
+		return dependencyTarget{}, err
 	}
 
 	single := TerragruntDependency{Dependencies: Dependencies{*dep}}
@@ -100,35 +100,35 @@ func (dep *Dependency) readTarget(
 
 	depCache := cache.ContextCache[*dependencyOutputCache](ctx, DependencyOutputCacheContextKey)
 
-	parsed, found := depCache.Get(ctx, filepath.Join(pctx.WorkingDir, configPath))
+	parsed, found := depCache.Get(ctx, filepath.Join(pctx.WorkingDir, target.configPath))
 	if !found {
 		return dependencyTarget{}, nil
 	}
 
-	target := dependencyTarget{configPath: configPath, outputs: parsed.Outputs}
+	target.outputs = parsed.Outputs
 	if parsed.Outputs == nil {
 		return target, nil
 	}
 
 	for _, output := range parsed.Outputs.Outputs {
 		if output.MockValue != nil && !output.MockValue.IsWhollyKnown() {
-			return dependencyTarget{}, UnknownMockValueError{ConfigPath: configPath, Output: output.Name}
+			return dependencyTarget{}, UnknownMockValueError{ConfigPath: target.configPath, Output: output.Name}
 		}
 	}
 
 	return target, nil
 }
 
-// unitTarget returns the config of the unit dep reads, false when dep is disabled or reads a stack, a missing unit,
-// or a directory holding both default unit configs.
-func (dep *Dependency) unitTarget(fsys vfs.FS, pctx *ParsingContext) (string, bool) {
+// unitTarget returns the unit config dep reads, without its outputs, or the zero value when dep is disabled or reads
+// a stack or a missing unit.
+func (dep *Dependency) unitTarget(fsys vfs.FS, pctx *ParsingContext) (dependencyTarget, error) {
 	if dep.isDisabled() {
-		return "", false
+		return dependencyTarget{}, nil
 	}
 
 	configPath, ok := dep.configPathString()
 	if !ok {
-		return "", false
+		return dependencyTarget{}, nil
 	}
 
 	targetConfig, err := getCleanedTargetConfigPath(
@@ -138,14 +138,14 @@ func (dep *Dependency) unitTarget(fsys vfs.FS, pctx *ParsingContext) (string, bo
 		pctx.AmbiguousConfigCheck,
 	)
 	if err != nil || !vfs.Exists(fsys, targetConfig) {
-		return "", false
+		return dependencyTarget{}, err
 	}
 
 	if stackFile, ok := resolveStackFilePath(configPath, targetConfig); ok && vfs.Exists(fsys, stackFile) {
-		return "", false
+		return dependencyTarget{}, nil
 	}
 
-	return targetConfig, true
+	return dependencyTarget{configPath: targetConfig}, nil
 }
 
 // UnitsWithoutOutputs returns the configs of the units that the dependencies of cfg read and that declare no outputs.
