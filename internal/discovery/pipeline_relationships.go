@@ -25,9 +25,12 @@ type dependencyPaths struct {
 // pipelineRelations is the dependencies the pipeline read from the components it discovered, before any of them is
 // linked to another component.
 type pipelineRelations struct {
+	// discovery is the discovery the relations are read for.
 	discovery *Discovery
-	opts      *options.TerragruntOptions
-	store     *rewrite.Store
+	// opts is the options every parse runs with.
+	opts *options.TerragruntOptions
+	// store memoizes the parses.
+	store *rewrite.Store
 	// declared maps each component whose dependencies have been read to the dependencies it declares.
 	declared map[component.Component]dependencyPaths
 }
@@ -67,7 +70,12 @@ func readDependencyPaths(
 
 // link adds the dependencies the pipeline read to components, which are the components discovery found. It first
 // reads the dependencies of each unit among them that no worker read. A dependency that is none of them becomes a
-// unit that only its dependents reach, and link never reads its config.
+// unit that only its dependents reach.
+//
+// link then walks from each discovered unit through the units only dependents reach, reading their dependencies as
+// it goes, so that two discovered units joined only through such units are related. A walk ends once it has reached
+// every other discovered unit, when it has nothing left to follow, or when the dependency depth runs out. A lone
+// discovered unit has nothing to relate to, so link reads nothing past its direct dependencies.
 //
 // Returns the errors of reading the dependencies, joined. Every component that could be read is linked either way.
 func (r *pipelineRelations) link(
@@ -77,6 +85,11 @@ func (r *pipelineRelations) link(
 	components component.Components,
 ) error {
 	d := r.discovery
+
+	maxDepth := d.maxDependencyDepth
+	if maxDepth <= 0 {
+		maxDepth = defaultMaxDependencyDepth
+	}
 
 	ctx = contextWithParsePhase(ctx, parsePhaseTagRelationship)
 
@@ -107,7 +120,129 @@ func (r *pipelineRelations) link(
 		linker.add(v, c, declared.paths)
 	}
 
+	walks := newTransientWalks(linker.discovered, components)
+	linked := map[component.Component]struct{}{}
+	baseDepth := parseDepthFromContext(ctx)
+
+	for depth := 1; depth < maxDepth && len(walks) > 0; depth++ {
+		var units component.Components
+
+		for _, w := range walks {
+			for _, unit := range w.next {
+				if _, ok := linked[unit]; ok {
+					continue
+				}
+
+				linked[unit] = struct{}{}
+				units = append(units, unit)
+			}
+		}
+
+		r.readUnread(contextWithParseDepth(ctx, baseDepth+depth), l, v, units, nil)
+
+		for _, unit := range units {
+			declared := r.declared[unit]
+			if declared.err != nil {
+				errs = append(errs, declared.err)
+
+				continue
+			}
+
+			linker.add(v, unit, declared.paths)
+		}
+
+		walks = slices.DeleteFunc(walks, func(w *transientWalk) bool {
+			w.advance(linker.discovered)
+
+			return w.done()
+		})
+	}
+
 	return errors.Join(errs...)
+}
+
+// transientWalk is the walk from one discovered unit through the units that only dependents reach.
+type transientWalk struct {
+	// reached is the paths of the discovered units the walk has reached, starting with its own.
+	reached map[string]struct{}
+	// visited is the paths of the units the walk has reached that discovery did not find.
+	visited map[string]struct{}
+	// next is the units the walk reached last that discovery did not find, whose dependencies it follows next.
+	next []*component.Unit
+	// units is how many units discovery found.
+	units int
+}
+
+// newTransientWalks returns a walk from each unit among components that still has a unit to follow and another
+// discovered unit to reach. discovered maps the path of each of components to the first component at it.
+func newTransientWalks(discovered map[string]component.Component, components component.Components) []*transientWalk {
+	units := 0
+
+	for _, c := range discovered {
+		if _, ok := c.(*component.Unit); ok {
+			units++
+		}
+	}
+
+	var walks []*transientWalk
+
+	for _, c := range components {
+		if _, ok := c.(*component.Unit); !ok || discovered[c.Path()] != c {
+			continue
+		}
+
+		w := &transientWalk{
+			reached: map[string]struct{}{c.Path(): {}},
+			visited: map[string]struct{}{},
+			units:   units,
+		}
+
+		w.follow(discovered, c.Dependencies())
+
+		if !w.done() {
+			walks = append(walks, w)
+		}
+	}
+
+	return walks
+}
+
+// advance follows the dependencies of the units the walk reached last.
+func (w *transientWalk) advance(discovered map[string]component.Component) {
+	following := w.next
+	w.next = nil
+
+	for _, unit := range following {
+		w.follow(discovered, unit.Dependencies())
+	}
+}
+
+// follow records that the walk reached deps. A discovered unit among them counts as reached, and the walk follows
+// the dependencies of any other unit it has not visited next.
+func (w *transientWalk) follow(discovered map[string]component.Component, deps component.Components) {
+	for _, dep := range deps {
+		if _, ok := discovered[dep.Path()]; ok {
+			w.reached[dep.Path()] = struct{}{}
+			continue
+		}
+
+		unit, ok := dep.(*component.Unit)
+		if !ok {
+			continue
+		}
+
+		if _, ok := w.visited[unit.Path()]; ok {
+			continue
+		}
+
+		w.visited[unit.Path()] = struct{}{}
+		w.next = append(w.next, unit)
+	}
+}
+
+// done reports whether the walk has reached every discovered unit or has nothing left to follow.
+func (w *transientWalk) done() bool {
+	return len(w.reached) >= w.units || len(w.next) == 0
 }
 
 // linkForDependents links each of components to the dependencies it declares, so a traversal can find the dependents
@@ -210,6 +345,7 @@ func (r *pipelineRelations) readAll(
 
 // dependencyLinker links components to their dependencies on one goroutine.
 type dependencyLinker struct {
+	// discovery is the discovery the components are linked for.
 	discovery *Discovery
 	// discovered maps the path of each component discovery found to it.
 	discovered map[string]component.Component
@@ -240,14 +376,12 @@ func (k *dependencyLinker) dependency(v *venv.Venv, path string) component.Compo
 
 	dep := component.NewUnit(path)
 
-	if k.discovery.discoveryContext != nil {
-		discoveryCtx := k.discovery.discoveryContext.Copy()
-		discoveryCtx.SuggestOrigin(component.OriginRelationshipDiscovery)
-		dep.SetDiscoveryContext(discoveryCtx)
+	discoveryCtx := k.discovery.discoveryContext.Copy()
+	discoveryCtx.SuggestOrigin(component.OriginRelationshipDiscovery)
+	dep.SetDiscoveryContext(discoveryCtx)
 
-		if isExternal(v.FS, discoveryCtx.WorkingDir, path) {
-			dep.SetExternal()
-		}
+	if isExternal(v.FS, discoveryCtx.WorkingDir, path) {
+		dep.SetExternal()
 	}
 
 	k.reached[path] = dep

@@ -623,12 +623,6 @@ func (rnr *Runner) Run(
 
 	// Emit report entries for early exit and failed units after controller completes
 	if r != nil {
-		// Build a quick lookup of queue entry status by path to avoid nested scans
-		statusByPath := make(map[string]queue.Status, len(rnr.queue.Entries))
-		for _, qe := range rnr.queue.Entries {
-			statusByPath[qe.Component.Path()] = qe.Status
-		}
-
 		for _, entry := range rnr.queue.Entries {
 			if entry.Status == queue.StatusEarlyExit || entry.Status == queue.StatusFailed {
 				unit := rnr.Stack.FindUnitByPath(entry.Component.Path())
@@ -662,15 +656,14 @@ func (rnr *Runner) Run(
 				// If a dependency failed, use it; otherwise if a dependency exited early, use it
 				var failedAncestor string
 
-				for _, dep := range entry.Component.Dependencies() {
-					status := statusByPath[dep.Path()]
-					if status == queue.StatusFailed {
-						failedAncestor = filepath.Base(dep.Path())
+				for _, dep := range entry.Dependencies() {
+					if dep.Status == queue.StatusFailed {
+						failedAncestor = filepath.Base(dep.Component.Path())
 						break
 					}
 
-					if status == queue.StatusEarlyExit && failedAncestor == "" {
-						failedAncestor = filepath.Base(dep.Path())
+					if dep.Status == queue.StatusEarlyExit && failedAncestor == "" {
+						failedAncestor = filepath.Base(dep.Component.Path())
 					}
 				}
 
@@ -819,12 +812,10 @@ func (rnr *Runner) ListStackDependentUnits() map[string][]string {
 	dependentUnits := make(map[string][]string)
 
 	for _, unit := range rnr.queue.Entries {
-		if len(unit.Component.Dependencies()) != 0 {
-			for _, dep := range unit.Component.Dependencies() {
-				dependentUnits[dep.Path()] = util.RemoveDuplicates(
-					append(dependentUnits[dep.Path()], unit.Component.Path()),
-				)
-			}
+		for _, dep := range unit.Dependencies() {
+			dependentUnits[dep.Component.Path()] = util.RemoveDuplicates(
+				append(dependentUnits[dep.Component.Path()], unit.Component.Path()),
+			)
 		}
 	}
 

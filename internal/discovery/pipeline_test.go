@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -257,10 +258,67 @@ func TestDiscoveryPipelineRelatesDependenciesOutsideTheFiltersWithRacing(t *test
 	assert.Contains(t, api.Dependencies(), web)
 	assert.Contains(t, api.Dependencies(), vpc)
 
-	assert.Empty(t, vpc.Dependencies())
+	assert.Equal(
+		t,
+		[]string{
+			filepath.Join(corpusRepoRoot, "infra", "vpc"),
+			filepath.Join(corpusRepoRoot, "infra", "network"),
+			filepath.Join(corpusRepoRoot, "infra", "account"),
+		},
+		dependencyChain(vpc),
+	)
 }
 
-func TestDiscoveryPipelineLeavesDependenciesOutsideTheFiltersUnread(t *testing.T) {
+func TestDiscoveryPipelineRelatesUnitsJoinedOutsideTheFiltersWithRacing(t *testing.T) {
+	t.Parallel()
+
+	for _, usePipeline := range []bool{false, true} {
+		t.Run("pipeline="+strconv.FormatBool(usePipeline), func(t *testing.T) {
+			t.Parallel()
+
+			run := pipelineRun{
+				files: map[string]string{
+					"live/a/terragrunt.hcl": dependenciesOn("../b"),
+					"live/b/terragrunt.hcl": dependenciesOn("../c"),
+					"live/c/terragrunt.hcl": "",
+				},
+				queries: []string{"./live/**", "!./live/b"},
+				configure: func(d *discovery.Discovery) *discovery.Discovery {
+					return d.WithRelationships()
+				},
+				usePipeline: usePipeline,
+			}
+
+			got, err := run.discover(t.Context(), t)
+			require.NoError(t, err)
+
+			byPath := make(map[string]component.Component, len(got))
+			for _, c := range got {
+				byPath[c.Path()] = c
+			}
+
+			a := byPath[filepath.Join(corpusRepoRoot, "live", "a")]
+			c := byPath[filepath.Join(corpusRepoRoot, "live", "c")]
+
+			require.NotNil(t, a)
+			require.NotNil(t, c)
+			require.Len(t, got, 2)
+
+			assert.Equal(
+				t,
+				[]string{
+					filepath.Join(corpusRepoRoot, "live", "a"),
+					filepath.Join(corpusRepoRoot, "live", "b"),
+					filepath.Join(corpusRepoRoot, "live", "c"),
+				},
+				dependencyChain(a),
+			)
+			assert.Same(t, c, a.Dependencies()[0].Dependencies()[0])
+		})
+	}
+}
+
+func TestDiscoveryPipelineLeavesDependenciesOfALoneUnitUnreadWithRacing(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -285,23 +343,13 @@ func TestDiscoveryPipelineLeavesDependenciesOutsideTheFiltersUnread(t *testing.T
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var (
-				mu     sync.Mutex
-				marked []string
-			)
+			marks := &markRecorder{}
 
 			run := pipelineRun{
-				files:     outsideTheFiltersFixture(),
-				queries:   []string{"./live/**"},
-				configure: tt.configure,
-				exec: vexec.NewMemExec(func(_ context.Context, inv vexec.Invocation) vexec.Result {
-					mu.Lock()
-					defer mu.Unlock()
-
-					marked = append(marked, inv.Args...)
-
-					return vexec.Result{}
-				}),
+				files:       outsideTheFiltersFixture(),
+				queries:     []string{"./live/**"},
+				configure:   tt.configure,
+				exec:        marks.exec(),
 				usePipeline: true,
 			}
 
@@ -318,18 +366,153 @@ func TestDiscoveryPipelineLeavesDependenciesOutsideTheFiltersUnread(t *testing.T
 
 			assert.Equal(t, filepath.Join(corpusRepoRoot, "ext", "e"), e.Path())
 			assert.Empty(t, e.Dependencies())
-			assert.Empty(t, marked)
+			assert.Empty(t, marks.marked())
 		})
 	}
 }
 
-func TestDiscoveryPipelineReadsDependenciesAGraphFilterTraverses(t *testing.T) {
+func TestDiscoveryPipelineReadsDependenciesOutsideTheFiltersToRelateUnitsWithRacing(t *testing.T) {
 	t.Parallel()
 
-	var (
-		mu     sync.Mutex
-		marked []string
+	for _, usePipeline := range []bool{false, true} {
+		t.Run("pipeline="+strconv.FormatBool(usePipeline), func(t *testing.T) {
+			t.Parallel()
+
+			marks := &markRecorder{}
+
+			files := outsideTheFiltersFixture()
+			files["live/b/terragrunt.hcl"] = ""
+
+			run := pipelineRun{
+				files:   files,
+				queries: []string{"./live/**"},
+				configure: func(d *discovery.Discovery) *discovery.Discovery {
+					return d.WithRelationships()
+				},
+				exec:        marks.exec(),
+				usePipeline: usePipeline,
+			}
+
+			_, err := run.discover(t.Context(), t)
+			require.ErrorAs(t, err, new(hcl.Diagnostics))
+			assert.Equal(t, []string{"e"}, marks.marked())
+		})
+	}
+}
+
+func TestDiscoveryPipelineStopsWalkingOnceEveryUnitIsReachedWithRacing(t *testing.T) {
+	t.Parallel()
+
+	for _, usePipeline := range []bool{false, true} {
+		t.Run("pipeline="+strconv.FormatBool(usePipeline), func(t *testing.T) {
+			t.Parallel()
+
+			run := pipelineRun{
+				files: map[string]string{
+					"live/a/terragrunt.hcl": dependenciesOn("../../ext/x"),
+					"live/c/terragrunt.hcl": "",
+					"ext/x/terragrunt.hcl":  dependenciesOn("../../live/c", "../y"),
+					"ext/y/terragrunt.hcl":  "locals {\n",
+				},
+				queries: []string{"./live/**"},
+				configure: func(d *discovery.Discovery) *discovery.Discovery {
+					return d.WithRelationships()
+				},
+				usePipeline: usePipeline,
+			}
+
+			got, err := run.discover(t.Context(), t)
+			require.NoError(t, err)
+
+			a := got.FilterByPath(filepath.Join(corpusRepoRoot, "live", "a"))
+			require.Len(t, a, 1)
+			require.Len(t, a[0].Dependencies(), 1)
+
+			x := a[0].Dependencies()[0]
+
+			assert.ElementsMatch(
+				t,
+				[]string{filepath.Join(corpusRepoRoot, "live", "c"), filepath.Join(corpusRepoRoot, "ext", "y")},
+				x.Dependencies().Paths(),
+			)
+		})
+	}
+}
+
+func TestDiscoveryPipelineRelatesDependencyCyclesOutsideTheFiltersWithRacing(t *testing.T) {
+	t.Parallel()
+
+	run := pipelineRun{
+		files: map[string]string{
+			"live/a/terragrunt.hcl": dependenciesOn("../../ext/x"),
+			"live/b/terragrunt.hcl": "",
+			"ext/x/terragrunt.hcl":  dependenciesOn("../y"),
+			"ext/y/terragrunt.hcl":  dependenciesOn("../x"),
+		},
+		queries: []string{"./live/**"},
+		configure: func(d *discovery.Discovery) *discovery.Discovery {
+			return d.WithRelationships()
+		},
+		usePipeline: true,
+	}
+
+	got, err := run.discover(t.Context(), t)
+	require.NoError(t, err)
+
+	a := got.FilterByPath(filepath.Join(corpusRepoRoot, "live", "a"))
+	require.Len(t, a, 1)
+	require.Len(t, a[0].Dependencies(), 1)
+
+	x := a[0].Dependencies()[0]
+
+	require.Len(t, x.Dependencies(), 1)
+	assert.Equal(t, component.Components{x}, x.Dependencies()[0].Dependencies())
+}
+
+func TestDiscoveryPipelineReportsDependenciesWithoutAConfigWithRacing(t *testing.T) {
+	t.Parallel()
+
+	run := pipelineRun{
+		files: map[string]string{
+			"live/a/terragrunt.hcl": dependenciesOn("../../ext/x"),
+			"live/b/terragrunt.hcl": "",
+			"ext/x/terragrunt.hcl":  dependenciesOn("../missing"),
+		},
+		queries: []string{"./live/**"},
+		configure: func(d *discovery.Discovery) *discovery.Discovery {
+			return d.WithRelationships()
+		},
+		usePipeline: true,
+	}
+
+	_, err := run.discover(t.Context(), t)
+	require.ErrorAs(t, err, new(config.TerragruntConfigNotFoundError))
+
+	run.configure = func(d *discovery.Discovery) *discovery.Discovery {
+		return d.WithRelationships().WithSuppressParseErrors()
+	}
+
+	got, err := run.discover(t.Context(), t)
+	require.NoError(t, err)
+
+	a := got.FilterByPath(filepath.Join(corpusRepoRoot, "live", "a"))
+	require.Len(t, a, 1)
+
+	assert.Equal(
+		t,
+		[]string{
+			filepath.Join(corpusRepoRoot, "live", "a"),
+			filepath.Join(corpusRepoRoot, "ext", "x"),
+			filepath.Join(corpusRepoRoot, "ext", "missing"),
+		},
+		dependencyChain(a[0]),
 	)
+}
+
+func TestDiscoveryPipelineReadsDependenciesAGraphFilterTraversesWithRacing(t *testing.T) {
+	t.Parallel()
+
+	marks := &markRecorder{}
 
 	run := pipelineRun{
 		files:   outsideTheFiltersFixture(),
@@ -337,20 +520,13 @@ func TestDiscoveryPipelineReadsDependenciesAGraphFilterTraverses(t *testing.T) {
 		configure: func(d *discovery.Discovery) *discovery.Discovery {
 			return d.WithRelationships()
 		},
-		exec: vexec.NewMemExec(func(_ context.Context, inv vexec.Invocation) vexec.Result {
-			mu.Lock()
-			defer mu.Unlock()
-
-			marked = append(marked, inv.Args...)
-
-			return vexec.Result{}
-		}),
+		exec:        marks.exec(),
 		usePipeline: true,
 	}
 
 	_, err := run.discover(t.Context(), t)
 	require.ErrorAs(t, err, new(hcl.Diagnostics))
-	assert.Contains(t, marked, "e")
+	assert.Contains(t, marks.marked(), "e")
 
 	run.files["ext/f/terragrunt.hcl"] = ""
 
@@ -376,6 +552,32 @@ func outsideTheFiltersFixture() map[string]string {
 		"ext/e/terragrunt.hcl":  "locals {\n  mark = run_cmd(\"mark\", \"e\")\n}\n" + dependenciesOn("../f"),
 		"ext/f/terragrunt.hcl":  "locals {\n",
 	}
+}
+
+// markRecorder records the arguments of every command the configs of a discovery run.
+type markRecorder struct {
+	args []string
+	mu   sync.Mutex
+}
+
+// exec returns an executor that records the arguments of each command it runs.
+func (m *markRecorder) exec() vexec.Exec {
+	return vexec.NewMemExec(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+		m.mu.Lock()
+		defer m.mu.Unlock()
+
+		m.args = append(m.args, inv.Args...)
+
+		return vexec.Result{}
+	})
+}
+
+// marked returns the arguments recorded so far.
+func (m *markRecorder) marked() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	return slices.Clone(m.args)
 }
 
 func TestDiscoveryPipelineSkipsUnitsOutsideTheDependentBoundary(t *testing.T) {
@@ -422,6 +624,23 @@ func dependenciesOn(paths ...string) string {
 	}
 
 	return "dependencies {\n  paths = [" + strings.Join(quoted, ", ") + "]\n}\n"
+}
+
+// dependencyChain returns the path of c and of each component after it on a chain of single dependencies.
+func dependencyChain(c component.Component) []string {
+	var chain []string
+
+	for range 16 {
+		chain = append(chain, c.Path())
+
+		if len(c.Dependencies()) != 1 {
+			break
+		}
+
+		c = c.Dependencies()[0]
+	}
+
+	return chain
 }
 
 func TestDiscoveryPipelineReportsParseErrors(t *testing.T) {

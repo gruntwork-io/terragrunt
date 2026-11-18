@@ -77,10 +77,9 @@
 //
 // The pipeline also replaces phase 4. After the graph phase, it reads the dependencies of each discovered unit no
 // worker read, and links the components on one goroutine. A dependency that is not a discovered component becomes a
-// transient unit that is linked but never parsed. Discovery reads past the direct dependencies of what it found only
-// when a filter traverses dependencies, which makes the units that traversal reaches discovered components in phase 3.
-// Phase 4 instead reads transient units in turn until a traversal has reached every discovered component, so it can
-// report errors from configs the pipeline never reads.
+// transient unit. Each discovered unit then walks the transient units it reaches, reading their dependencies, until
+// it has reached every other discovered unit or has nothing left to follow, so units joined only through transient
+// units are related. The walks share their reads, so each transient unit is parsed at most once.
 //
 // When a filter selects dependents, the workers also read the dependencies of every candidate a dependent traversal
 // can reach, and the pre-graph step of phase 3 links them on one goroutine without parsing anything again.
