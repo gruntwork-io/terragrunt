@@ -57,6 +57,31 @@ jobs:
       contents: read
     secrets: inherit
 
+  # Compare the commit being released with the latest published release. No
+  # other job needs this one, so it never holds up the upload.
+  benchmark:
+    name: Benchmark Against Latest Release
+    needs: validate
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [fast, integration]
+    uses: ./.github/workflows/benchmark.yml
+    with:
+      comparison: release
+      suite: ${{ matrix.suite }}
+      ref: ${{ needs.validate.outputs.ref }}
+      # One pass of the integration suite takes about ten minutes a side.
+      go_count: ${{ matrix.suite == 'integration' && '4' || '6' }}
+      time_threshold_pct: ${{ vars.BENCH_TIME_THRESHOLD_PCT || '5' }}
+      memory_threshold_pct: ${{ vars.BENCH_MEMORY_THRESHOLD_PCT || '10' }}
+      alloc_threshold_pct: ${{ vars.BENCH_ALLOC_THRESHOLD_PCT || '2' }}
+      notify_slack: ${{ vars.BENCH_NOTIFY_SLACK == 'true' }}
+    permissions:
+      contents: read
+    secrets:
+      COVERAGE_SLACK_WEBHOOK_URL: ${{ secrets.COVERAGE_SLACK_WEBHOOK_URL }}
+
   # Upload binaries to the draft GitHub release
   upload-assets:
     name: Upload Release Assets
