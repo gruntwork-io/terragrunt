@@ -156,7 +156,7 @@ func TestConfigFlagSelectsOneOfBothDefaultConfigs(t *testing.T) {
 }
 
 // TestConfigFlagAllowsDependencyWithBothDefaultConfigs pins that a unit loaded with --config may depend on a
-// directory holding both terragrunt.hcl and terragrunt.hcl.json, as discovery then looks for the named file alone.
+// directory holding both terragrunt.hcl and terragrunt.hcl.json.
 func TestConfigFlagAllowsDependencyWithBothDefaultConfigs(t *testing.T) {
 	t.Parallel()
 

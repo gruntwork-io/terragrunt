@@ -1510,7 +1510,7 @@ func readTerragruntConfigAsFuncImpl(
 // path is a directory.
 //
 // Returns an [AmbiguousConfigError] when the target path is a directory that holds both files and check is
-// [RejectAmbiguousConfig].
+// [RejectAmbiguousConfig], even when the directory also holds terragrunt.stack.hcl.
 func getCleanedTargetConfigPath(
 	fsys vfs.FS,
 	cfgPath string,

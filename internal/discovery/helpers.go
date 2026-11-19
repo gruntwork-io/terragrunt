@@ -185,7 +185,7 @@ func isExternal(fsys vfs.FS, workingDir string, componentPath string) bool {
 // doesn't get parsed against a config file that doesn't exist.
 //
 // Returns a [config.AmbiguousConfigError] when check is [config.RejectAmbiguousConfig] and the path holds both default
-// unit config files.
+// unit config files, even when it also holds a stack file.
 func componentFromDependencyPath(
 	fsys vfs.FS,
 	path string,
@@ -196,12 +196,12 @@ func componentFromDependencyPath(
 		return existing, nil
 	}
 
-	if _, err := fsys.Stat(filepath.Join(path, config.DefaultStackFile)); err == nil {
-		return component.NewStack(path), nil
-	}
-
 	if err := config.RejectAmbiguousDefaultConfig(fsys, path, check); err != nil {
 		return nil, err
+	}
+
+	if _, err := fsys.Stat(filepath.Join(path, config.DefaultStackFile)); err == nil {
+		return component.NewStack(path), nil
 	}
 
 	unit := component.NewUnit(path)
@@ -484,6 +484,9 @@ func storeStackConfigs(
 // stackDependencyPaths expands stack directory dependency paths into their constituent unit paths.
 // Autoinclude-declared dependencies are already folded into the parsed config by the partial-parse
 // merge (which honors enabled/disabled and same-name override), so they arrive via depPaths here.
+//
+// Returns a [config.AmbiguousConfigError] when the check opts asks for is [config.RejectAmbiguousConfig] and a
+// dependency directory holds both default unit config files, even when it also holds a stack file.
 func stackDependencyPaths(
 	ctx context.Context,
 	l log.Logger,
@@ -492,6 +495,7 @@ func stackDependencyPaths(
 	depPaths []string,
 ) ([]string, error) {
 	pctx := configbridge.NewParsingContext(opts)
+	check := configbridge.AmbiguousConfigCheck(opts)
 
 	// Factory builds the dir-scoped function map for each stack dir visited during expansion.
 	funcsFor := inthclparse.StackFuncFactory(
@@ -517,6 +521,10 @@ func stackDependencyPaths(
 		if statErr != nil || !info.IsDir() {
 			expanded = append(expanded, depPath)
 			continue
+		}
+
+		if err := config.RejectAmbiguousDefaultConfig(v.FS, depPath, check); err != nil {
+			return nil, err
 		}
 
 		unitPaths, err := inthclparse.UnitPathsFromStackDir(

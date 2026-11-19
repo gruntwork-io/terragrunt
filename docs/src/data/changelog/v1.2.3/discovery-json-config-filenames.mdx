@@ -9,12 +9,12 @@ Discovery only looked for `terragrunt.hcl` and `terragrunt.stack.hcl`, so a unit
 
 Discovery now reads `terragrunt.hcl.json` as well, including when a Git-based filter selects units by what changed.
 
-A directory that holds both `terragrunt.hcl` and `terragrunt.hcl.json` is now an error, whether Terragrunt runs a unit in that directory, discovers it, or reads it as a dependency:
+A directory that holds both `terragrunt.hcl` and `terragrunt.hcl.json` is now an error, whether Terragrunt runs a unit in that directory, discovers it, reads it as a dependency, or reads it with [`read_terragrunt_config`](/reference/hcl/functions/read_terragrunt_config):
 
 ```
 Component "/repo/unit" has more than one Terragrunt configuration file (terragrunt.hcl and terragrunt.hcl.json). Only one may be present in a directory; remove one to disambiguate.
 ```
 
-Remove one of the two files to resolve it, or name the one you want with [`--config`](/reference/cli/commands/run#config), e.g. `--config terragrunt.hcl`.
+Remove one of the two files to resolve it, or name the unit's file with [`--config`](/reference/cli/commands/run#config), e.g. `--config terragrunt.hcl`. With `--config` set, a dependency or `read_terragrunt_config` call on a directory holding both files reads `terragrunt.hcl.json`.
 
 With `--all`, only files with the name you pass to `--config` are now unit configurations. `terragrunt run --all plan --config main.hcl` skips a directory that has a `terragrunt.hcl` and no `main.hcl`.

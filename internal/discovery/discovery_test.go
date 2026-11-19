@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/tips"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -644,6 +645,42 @@ func TestDiscovery_SuppressedParseErrorsKeepAmbiguousConfigError(t *testing.T) {
 			wantPath:      filepath.Join(root, "dep"),
 		},
 		{
+			name: "dependency also holding a stack file",
+			files: map[string]string{
+				"live/app/terragrunt.hcl":  "dependency \"dep\" {\n  config_path = \"../../dep\"\n}\n",
+				"dep/terragrunt.hcl":       "",
+				"dep/terragrunt.hcl.json":  "{}",
+				"dep/terragrunt.stack.hcl": "unit \"u\" {\n  source = \"../src\"\n  path   = \"u\"\n}\n",
+			},
+			walkDir:       "live",
+			filterQueries: []string{"app..."},
+			wantPath:      filepath.Join(root, "dep"),
+		},
+		{
+			name: "dependency also holding a stack file found while building relationships",
+			files: map[string]string{
+				"live/app/terragrunt.hcl":  "dependency \"dep\" {\n  config_path = \"../../dep\"\n}\n",
+				"dep/terragrunt.hcl":       "",
+				"dep/terragrunt.hcl.json":  "{}",
+				"dep/terragrunt.stack.hcl": "unit \"u\" {\n  source = \"../src\"\n  path   = \"u\"\n}\n",
+			},
+			walkDir:       "live",
+			relationships: true,
+			wantPath:      filepath.Join(root, "dep"),
+		},
+		{
+			name: "dependency also holding a stack file found while linking dependents",
+			files: map[string]string{
+				"live/app/terragrunt.hcl":  "dependency \"dep\" {\n  config_path = \"../../dep\"\n}\n",
+				"dep/terragrunt.hcl":       "",
+				"dep/terragrunt.hcl.json":  "{}",
+				"dep/terragrunt.stack.hcl": "unit \"u\" {\n  source = \"../src\"\n  path   = \"u\"\n}\n",
+			},
+			walkDir:       "live",
+			filterQueries: []string{"...app"},
+			wantPath:      filepath.Join(root, "dep"),
+		},
+		{
 			name: "dependent found above the walk",
 			files: map[string]string{
 				".git":                     "gitdir: /elsewhere/.git\n",
@@ -704,6 +741,41 @@ func TestDiscovery_SuppressedParseErrorsKeepAmbiguousConfigError(t *testing.T) {
 			assert.Equal(t, tt.wantPath, ambiguousErr.ComponentPath)
 		})
 	}
+}
+
+// TestDiscovery_RelationshipsAcceptDependencyNamingConfigFile pins that discovering relationships accepts a
+// dependency whose config_path names a terragrunt.hcl file.
+func TestDiscovery_RelationshipsAcceptDependencyNamingConfigFile(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+	appDir := filepath.Join(tmpDir, "app")
+	dbDir := filepath.Join(tmpDir, "db")
+
+	for path, content := range map[string]string{
+		filepath.Join(appDir, "terragrunt.hcl"): "dependency \"db\" {\n  config_path = \"../db/terragrunt.hcl\"\n}\n",
+		filepath.Join(dbDir, "terragrunt.hcl"):  "",
+	} {
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0755))
+		require.NoError(t, os.WriteFile(path, []byte(content), 0644))
+	}
+
+	d := discovery.NewDiscovery(tmpDir).
+		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
+		WithRelationships()
+
+	components, err := d.Discover(
+		config.WithCaches(t.Context()),
+		logger.CreateLogger(),
+		venvtest.NewOSWithEmptyEnv(),
+		new(rewrite.Store),
+		&options.TerragruntOptions{WorkingDir: tmpDir, StrictControls: controls.New()},
+	)
+	require.NoError(t, err)
+
+	app := components.FilterByPath(appDir)
+	require.Len(t, app, 1)
+	assert.Len(t, app[0].Dependencies(), 1)
 }
 
 // TestDiscovery_SingleUnitNoDuplicateError verifies that a directory with only

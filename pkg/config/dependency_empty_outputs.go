@@ -185,7 +185,8 @@ func (address dependencyAddress) hasEmptyOutputs(dependencies cty.Value) bool {
 }
 
 // noOutputsError returns the [TerragruntOutputTargetNoOutputs] error for the dependency block at this
-// address, and false when the config being parsed has no such block.
+// address, or the error resolving the block's config_path, and false when the config being parsed has no such
+// block.
 func (address dependencyAddress) noOutputsError(v *venv.Venv, pctx *ParsingContext) (error, bool) {
 	for i := range pctx.DependencyBlocks {
 		dep := &pctx.DependencyBlocks[i]

@@ -1527,8 +1527,9 @@ func adjustSourceWithMap(
 	return util.JoinTerraformModulePath(sourcePath, moduleSubdir), nil
 }
 
-// GetDefaultConfigPath returns the default path to use for the Terragrunt configuration
-// that exists within the path giving preference to `terragrunt.hcl`
+// GetDefaultConfigPath returns the path of the Terragrunt configuration file in workingDir, preferring
+// terragrunt.hcl.json over terragrunt.hcl. It returns workingDir itself when that names a file, and the
+// terragrunt.hcl path when workingDir holds neither.
 func GetDefaultConfigPath(fsys vfs.FS, workingDir string) string {
 	// check if a configuration file was passed as `workingDir`.
 	if vfs.IsFile(fsys, workingDir) {
@@ -1558,8 +1559,8 @@ const (
 	// RejectAmbiguousConfig fails with an [AmbiguousConfigError] on a directory holding both files.
 	RejectAmbiguousConfig AmbiguousConfigCheck = iota
 
-	// AllowAmbiguousConfig resolves a directory holding both files as [GetDefaultConfigPath] does. It applies when
-	// `--config` names the config file, as discovery then looks for that file alone.
+	// AllowAmbiguousConfig resolves a directory holding both files as [GetDefaultConfigPath] does, to
+	// terragrunt.hcl.json. It applies when `--config` names the config file.
 	AllowAmbiguousConfig
 )
 
@@ -1569,10 +1570,23 @@ func RejectAmbiguousUnitConfig(fsys vfs.FS, pctx *ParsingContext) error {
 	return RejectAmbiguousDefaultConfig(fsys, filepath.Dir(pctx.TerragruntConfigPath), pctx.AmbiguousConfigCheck)
 }
 
-// RejectAmbiguousDefaultConfig returns an [AmbiguousConfigError] when check is [RejectAmbiguousConfig] and dir holds
-// both default unit configuration files.
+// RejectAmbiguousDefaultConfig returns an [AmbiguousConfigError] when check is [RejectAmbiguousConfig] and dir is a
+// directory holding both default unit configuration files.
 func RejectAmbiguousDefaultConfig(fsys vfs.FS, dir string, check AmbiguousConfigCheck) error {
 	if check == AllowAmbiguousConfig {
+		return nil
+	}
+
+	info, err := fsys.Stat(dir)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+
+	if err != nil {
+		return err
+	}
+
+	if !info.IsDir() {
 		return nil
 	}
 
