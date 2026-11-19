@@ -1276,6 +1276,35 @@ func TestParseContextStoreContextCoversEachInput(t *testing.T) {
 	}
 }
 
+func TestParseContextStoreContextKeysTheSectionsOfTheDecodeList(t *testing.T) {
+	t.Parallel()
+
+	cfgPath := filepath.Join(t.TempDir(), pkgconfig.DefaultTerragruntConfigPath)
+	v := venv.MemVenv().WithWriter(new(bytes.Buffer))
+
+	key := func(t *testing.T, sections ...pkgconfig.PartialDecodeSectionType) string {
+		t.Helper()
+
+		_, run := newTestParsingContext(t, cfgPath)
+		run.PartialParseDecodeList = sections
+
+		key, memoized := config.NewParseContext(v, run).StoreContext()
+		require.True(t, memoized)
+
+		return key
+	}
+
+	excludeOnly := key(t, pkgconfig.ExcludeBlock)
+
+	assert.NotEqual(t, excludeOnly, key(t, pkgconfig.RemoteStateBlock))
+	assert.NotEqual(t, excludeOnly, key(t, pkgconfig.ExcludeBlock, pkgconfig.RemoteStateBlock))
+	assert.Equal(
+		t,
+		key(t, pkgconfig.ExcludeBlock, pkgconfig.RemoteStateBlock),
+		key(t, pkgconfig.RemoteStateBlock, pkgconfig.ExcludeBlock, pkgconfig.ExcludeBlock),
+	)
+}
+
 func TestParityFixturesSharedStoreWithRacing(t *testing.T) {
 	t.Parallel()
 

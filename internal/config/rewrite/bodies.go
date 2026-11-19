@@ -180,7 +180,8 @@ func (e *ExcludeHCL) readsDependency() bool {
 }
 
 // withRequestedRunParts returns a copy of c with only the run parts that a section of decodeList decodes, as
-// [pkgconfig.PartialParseConfig] does, and that read no `dependency`.
+// [pkgconfig.PartialParseConfig] does, and that read no `dependency`. It keeps the engine block, which the queue
+// decodes with `dependency` unknown whatever the decode list.
 func (c *UnitConfig) withRequestedRunParts(decodeList []pkgconfig.PartialDecodeSectionType) *UnitConfig {
 	requested := *c
 	requested.Inputs = nil

@@ -2245,11 +2245,11 @@ func CompleteTerragruntConfigFile(
 //
 // Returns [DependencyDirNotFoundError] naming every path that is not a directory.
 func ValidateDependencies(v *venv.Venv, pctx *ParsingContext, dependencies *ModuleDependencies) error {
-	var missingDependencies []string
-
 	if dependencies == nil || pctx.catalogOnly {
 		return nil
 	}
+
+	var missingDependencies []string
 
 	for _, dependencyPath := range dependencies.Paths {
 		fullPath := filepath.FromSlash(dependencyPath)

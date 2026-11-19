@@ -242,9 +242,9 @@ func (s *Store) hasDependencyBlock(ctx context.Context, fsys vfs.FS, path string
 	})
 }
 
-// memoizeStamped returns the value and error of k as [Store.Memoize] does, which fn reads from the file info
-// describes. A retained value read from another version of the file is dropped first. A call that joined a run which
-// read another version runs fn again outside s, whether that run succeeded or failed.
+// memoizeStamped returns the value and error of k as [Store.Memoize] does, where fn reads the value from the file
+// that info describes. A retained value read from another version of the file is dropped first. A call that joined a
+// run which read another version runs fn again outside s, whether that run succeeded or failed.
 func (s *Store) memoizeStamped[T any](
 	ctx context.Context,
 	k Key,
