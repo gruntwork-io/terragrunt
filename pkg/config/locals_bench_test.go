@@ -62,7 +62,7 @@ func BenchmarkEvaluateLocalsBlock(b *testing.B) {
 				ctx, pctx := newTestParsingContext(b, config.DefaultTerragruntConfigPath)
 
 				for b.Loop() {
-					locals, err := config.EvaluateLocalsBlock(ctx, l, v, pctx, file)
+					locals, err := config.EvaluateLocalsBlock(ctx, l, v, pctx, file, config.ParsedExposedInclude(v))
 					require.NoError(b, err)
 					require.Len(b, locals, n)
 				}

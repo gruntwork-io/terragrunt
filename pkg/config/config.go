@@ -9,7 +9,6 @@ import (
 	"io/fs"
 	"maps"
 	"net/url"
-	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -1858,6 +1857,7 @@ func ParseConfig(
 		file,
 		includeFromChild,
 		parsedIncludeFeatureFlags(v, pctx, IncludeParseFeatureFlags),
+		ParsedExposedInclude(v),
 	)
 	if err != nil {
 		// Surface the error here so it reaches stderr; the multi-error returned at
@@ -1916,6 +1916,10 @@ func ParseConfig(
 
 	config, err := ConvertToTerragruntConfig(v, pctx, file.ConfigPath, cfgFile)
 	if err != nil {
+		errs = append(errs, err)
+	}
+
+	if err := ValidateDependencies(v, pctx, cfgFile.Dependencies); err != nil {
 		errs = append(errs, err)
 	}
 
@@ -2156,7 +2160,17 @@ func ResolveIAMRoleOptions(
 		iamRoleCache.Put(ctx, key, config)
 	}
 
-	return iam.MergeRoleOptions(config, pctx.OriginalIAMRoleOptions), nil
+	return FileIAMRoleOptions(pctx, config), nil
+}
+
+// FileIAMRoleOptions returns the IAM role options a parse with pctx evaluates a file with when the file's config sets
+// fileOptions. A role ARN passed on the CLI wins outright, and otherwise the CLI options merge on top of fileOptions.
+func FileIAMRoleOptions(pctx *ParsingContext, fileOptions iam.RoleOptions) iam.RoleOptions {
+	if pctx.OriginalIAMRoleOptions.RoleARN != "" {
+		return pctx.OriginalIAMRoleOptions
+	}
+
+	return iam.MergeRoleOptions(fileOptions, pctx.OriginalIAMRoleOptions)
 }
 
 // CompleteTerragruntConfigFile finishes decoding file into cfgFile once its body has been decoded with evalContext.
@@ -2224,6 +2238,38 @@ func CompleteTerragruntConfigFile(
 	}
 
 	return cfgFile, nil
+}
+
+// ValidateDependencies checks that each path of a dependencies block is a directory, resolving a relative path
+// against the working dir of pctx. It checks nothing in a catalog-only parse, which keeps no dependencies.
+//
+// Returns [DependencyDirNotFoundError] naming every path that is not a directory.
+func ValidateDependencies(v *venv.Venv, pctx *ParsingContext, dependencies *ModuleDependencies) error {
+	if dependencies == nil || pctx.catalogOnly {
+		return nil
+	}
+
+	var missingDependencies []string
+
+	for _, dependencyPath := range dependencies.Paths {
+		fullPath := filepath.FromSlash(dependencyPath)
+		if !filepath.IsAbs(fullPath) {
+			fullPath = filepath.Join(pctx.WorkingDir, fullPath)
+		}
+
+		if !vfs.IsDir(v.FS, fullPath) {
+			missingDependencies = append(
+				missingDependencies,
+				fmt.Sprintf("%s (%s)", dependencyPath, fullPath),
+			)
+		}
+	}
+
+	if len(missingDependencies) > 0 {
+		return DependencyDirNotFoundError{missingDependencies}
+	}
+
+	return nil
 }
 
 // decodeAsTerragruntConfigFile decodes file with evalContext into a [TerragruntConfigFile], then completes it with
@@ -2368,10 +2414,6 @@ func ConvertToTerragruntConfig(
 				errs = append(errs, err)
 			}
 		}
-	}
-
-	if err := validateDependencies(v, pctx, cfgFromFile.Dependencies); err != nil {
-		errs = append(errs, err)
 	}
 
 	cfg.Dependencies = cfgFromFile.Dependencies
@@ -2697,35 +2739,6 @@ func moduleSourceFileExtension(name string) string {
 	}
 
 	return filepath.Ext(name)
-}
-
-// Iterate over dependencies paths and check if directories exists, return error with all missing dependencies
-func validateDependencies(v *venv.Venv, ctx *ParsingContext, dependencies *ModuleDependencies) error {
-	var missingDependencies []string
-
-	if dependencies == nil {
-		return nil
-	}
-
-	for _, dependencyPath := range dependencies.Paths {
-		fullPath := filepath.FromSlash(dependencyPath)
-		if !filepath.IsAbs(fullPath) {
-			fullPath = path.Join(ctx.WorkingDir, fullPath)
-		}
-
-		if !vfs.IsDir(v.FS, fullPath) {
-			missingDependencies = append(
-				missingDependencies,
-				fmt.Sprintf("%s (%s)", dependencyPath, fullPath),
-			)
-		}
-	}
-
-	if len(missingDependencies) > 0 {
-		return DependencyDirNotFoundError{missingDependencies}
-	}
-
-	return nil
 }
 
 // Iterate over generate blocks and detect duplicate names, return error with list of duplicated names

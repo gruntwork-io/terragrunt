@@ -123,6 +123,65 @@ jobs:
             const { default: notify } = require('./.github/scripts/tip-build-notify-issues.ts');
             await notify({ github, context, core });
 
+  # Nothing needs this job, so it never delays another one. It fails only when
+  # the benchmarks cannot run, never because a metric moved. It runs the fast
+  # suite; the benchmarks that run a real tofu take about two hours and run
+  # nightly, in benchmark-nightly.yml.
+  benchmark:
+    needs: [changes]
+    if: needs.changes.outputs.code == 'true'
+    uses: ./.github/workflows/benchmark.yml
+    with:
+      comparison: push
+      before_sha: ${{ github.event.before }}
+      # Wider than the nightly thresholds, to keep runner noise off pull requests.
+      time_threshold_pct: ${{ vars.BENCH_PUSH_TIME_THRESHOLD_PCT || '10' }}
+      memory_threshold_pct: ${{ vars.BENCH_PUSH_MEMORY_THRESHOLD_PCT || '10' }}
+      alloc_threshold_pct: ${{ vars.BENCH_PUSH_ALLOC_THRESHOLD_PCT || '3' }}
+      go_count: "5"
+      # A branch reports on its pull request instead, in benchmark_comment.
+      notify_slack: ${{ github.ref == 'refs/heads/main' && vars.BENCH_NOTIFY_SLACK == 'true' }}
+    permissions:
+      contents: read
+    secrets:
+      COVERAGE_SLACK_WEBHOOK_URL: ${{ secrets.COVERAGE_SLACK_WEBHOOK_URL }}
+
+  # Runs apart from the benchmark job so that the job building and running the
+  # pushed code has no write access.
+  benchmark_comment:
+    needs: [benchmark]
+    if: github.ref != 'refs/heads/main'
+    runs-on: ubuntu-slim
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+
+      - name: Download benchmark report
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: benchmark-push-fast
+          path: benchmark-report
+
+      - name: Update the pull request comment
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        with:
+          script: |
+            const fs = require('node:fs');
+            const { default: notify } = require('./.github/scripts/benchmark/notify-pr.ts');
+            await notify({
+              github,
+              context,
+              core,
+              report: JSON.parse(fs.readFileSync('benchmark-report/report.json', 'utf8')),
+              summary: fs.readFileSync('benchmark-report/comment.md', 'utf8'),
+            });
+
   build_no_proxy:
     # Only run no_proxy builds on main branch to save CI time
     if: github.ref == 'refs/heads/main'
@@ -163,7 +222,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
 
       - name: Use mise to install dependencies
-        uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+        uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
         with:
           version: 2026.11.0
           cache_save: ${{ github.ref == 'refs/heads/main' }}

@@ -23,7 +23,8 @@ const (
 
 // NewCommand returns the `terragrunt dag graph` command.
 func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *rewrite.Store) *clihelper.Command {
-	sharedFlags := shared.NewQueueFlags(opts, nil)
+	sharedFlags := shared.NewQueueRunFlags(opts, nil)
+	sharedFlags = append(sharedFlags, shared.NewQueueSelectionFlags(opts, nil)...)
 	sharedFlags = append(sharedFlags, shared.NewBackendFlags(opts, nil)...)
 	sharedFlags = append(sharedFlags, shared.NewFeatureFlags(opts, nil)...)
 	sharedFlags = append(sharedFlags, shared.NewFilterFlags(l, opts, v)...)

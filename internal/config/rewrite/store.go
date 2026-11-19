@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"maps"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	pkgconfig "github.com/gruntwork-io/terragrunt/pkg/config"
 	pkghclparse "github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 )
 
@@ -26,6 +28,8 @@ const (
 	StageBase
 	// StageQueue is a file decoded with no dependency outputs in scope, once per [Key.Context].
 	StageQueue
+	// StageDependencyScan is a file scanned for dependency and dependencies blocks, whose [Key] has no Context.
+	StageDependencyScan
 )
 
 // Key identifies one memoized result.
@@ -49,7 +53,7 @@ type Key struct {
 // the next caller, and a body that outlives its caller's context stops nobody, as the waiters run the body again under
 // their own.
 //
-// Only [Store.ParseUnitAST] notices a file changing on disk. Every other stage serves its result until
+// Only [Store.ParseUnitAST] and the scan of [StageDependencyScan] notice a file changing on disk. Every other stage serves its result until
 // [Store.Invalidate] or [Store.InvalidateUnder] drops it, so whatever writes a config file a Store may hold has to
 // call one of them.
 //
@@ -202,21 +206,71 @@ func (s *Store) ParseUnitAST(
 ) (*pkghclparse.File, error) {
 	k := Key{Path: filepath.Clean(path), Stage: StageAST}
 
-	s.dropStale(k, info)
-
-	res, err := s.Memoize(ctx, k, func(context.Context) (*astFile, error) {
+	file, err := s.memoizeStamped(ctx, k, info, func(context.Context) (*pkghclparse.File, error) {
 		file, err := parser.ParseFromFile(fsys, path)
 		if err != nil {
 			return nil, err
 		}
 
-		return &astFile{file: withoutParser(file), modTime: info.ModTime(), size: info.Size()}, nil
+		return withoutParser(file), nil
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	return res.Value.file.Rebind(parser), nil
+	return file.Rebind(parser), nil
+}
+
+// hasDependencyBlock reports whether the file at path declares a dependency or dependencies block. The first caller
+// scans the file, and it is scanned again when its size or modification time changes.
+//
+// Returns [pkgconfig.DependencyFileNotFoundError] when the file does not exist.
+func (s *Store) hasDependencyBlock(ctx context.Context, fsys vfs.FS, path string) (bool, error) {
+	info, err := fsys.Stat(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return false, pkgconfig.DependencyFileNotFoundError{Path: path}
+	}
+
+	if err != nil {
+		return false, err
+	}
+
+	k := Key{Path: filepath.Clean(path), Stage: StageDependencyScan}
+
+	return s.memoizeStamped(ctx, k, info, func(context.Context) (bool, error) {
+		return pkgconfig.ConfigFileHasDependencyBlock(fsys, path)
+	})
+}
+
+// memoizeStamped returns the value and error of k as [Store.Memoize] does, where fn reads the value from the file
+// that info describes. A retained value read from another version of the file is dropped first. A call that joined a
+// run which read another version runs fn again outside s, whether that run succeeded or failed.
+func (s *Store) memoizeStamped[T any](
+	ctx context.Context,
+	k Key,
+	info fs.FileInfo,
+	fn func(context.Context) (T, error),
+) (T, error) {
+	s.dropStale(k, info)
+
+	stamp := stampOf(info)
+
+	res, err := s.Memoize(ctx, k, func(ctx context.Context) (*stampedValue[T], error) {
+		val, err := fn(ctx)
+
+		return &stampedValue[T]{value: val, stamp: stamp}, err
+	})
+	if res.Value == nil {
+		var zero T
+
+		return zero, err
+	}
+
+	if !res.Value.stamp.matches(info) {
+		return fn(ctx)
+	}
+
+	return res.Value.value, err
 }
 
 // Invalidate drops every retained result of the file at path and of every result whose run parsed it through
@@ -286,11 +340,36 @@ func NoteFiles(ctx context.Context, paths ...string) {
 	}
 }
 
-// astFile is a [StageAST] value with the metadata of the file it was parsed from.
-type astFile struct {
-	file    *pkghclparse.File
+// fileStamp is the metadata of the file a value was read from.
+type fileStamp struct {
 	modTime time.Time
 	size    int64
+}
+
+// stampOf returns the stamp of the file info describes.
+func stampOf(info fs.FileInfo) fileStamp {
+	return fileStamp{modTime: info.ModTime(), size: info.Size()}
+}
+
+// matches reports whether info describes the file as it was when the stamp was taken.
+func (stamp fileStamp) matches(info fs.FileInfo) bool {
+	return stamp.size == info.Size() && stamp.modTime.Equal(info.ModTime())
+}
+
+// stamped is a value that goes stale when the file it was read from changes.
+type stamped interface {
+	// readFrom returns the stamp of the file the value was read from.
+	readFrom() fileStamp
+}
+
+// stampedValue is a value read from a file, with the stamp of the file it was read from.
+type stampedValue[T any] struct {
+	value T
+	stamp fileStamp
+}
+
+func (v *stampedValue[T]) readFrom() fileStamp {
+	return v.stamp
 }
 
 // join returns the entry of k and whether the caller has to run its body.
@@ -373,7 +452,7 @@ func (s *Store) finish(k Key, e *entry, val any, err error, end flightEnd) {
 	close(e.done)
 }
 
-// dropStale drops the retained tree of k when info no longer matches the file it was parsed from. A run in
+// dropStale drops the retained value of k when info no longer matches the file it was read from. A run in
 // progress is left alone.
 func (s *Store) dropStale(k Key, info fs.FileInfo) {
 	s.mu.Lock()
@@ -390,12 +469,12 @@ func (s *Store) dropStale(k Key, info fs.FileInfo) {
 		return
 	}
 
-	parsed, ok := e.val.(*astFile)
+	val, ok := e.val.(stamped)
 	if !ok {
 		return
 	}
 
-	if parsed.size != info.Size() || !parsed.modTime.Equal(info.ModTime()) {
+	if !val.readFrom().matches(info) {
 		delete(s.entries, k)
 	}
 }

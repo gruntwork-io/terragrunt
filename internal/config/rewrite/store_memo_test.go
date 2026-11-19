@@ -11,6 +11,7 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/hashicorp/hcl/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -453,7 +454,7 @@ func TestStoreParseUnitASTSharesOneParse(t *testing.T) {
 	t.Parallel()
 
 	fsys := vfs.NewMemMapFS()
-	path := filepath.Join(t.TempDir(), "root.hcl")
+	path := filepath.Join(vfs.MemRoot, "root.hcl")
 	require.NoError(t, vfs.WriteFile(fsys, path, []byte(`locals { a = 1 }`), 0o644))
 
 	s := &config.Store{}
@@ -482,7 +483,7 @@ func TestStoreParseUnitASTParsesAgainWhenTheFileChanges(t *testing.T) {
 	t.Parallel()
 
 	fsys := vfs.NewMemMapFS()
-	path := filepath.Join(t.TempDir(), "root.hcl")
+	path := filepath.Join(vfs.MemRoot, "root.hcl")
 	require.NoError(t, vfs.WriteFile(fsys, path, []byte(`locals { a = 1 }`), 0o644))
 
 	s := &config.Store{}
@@ -512,11 +513,79 @@ func TestStoreParseUnitASTParsesAgainWhenTheFileChanges(t *testing.T) {
 	assert.Equal(t, config.Stats{Hits: 0, Misses: 2}, s.Stats())
 }
 
+func TestStoreParseUnitASTParsesAgainAfterJoiningAParseOfAnOlderVersionWithRacing(t *testing.T) {
+	t.Parallel()
+
+	tcs := []struct {
+		name      string
+		old       string
+		oldFailed bool
+	}{
+		{name: "older version parsed", old: `locals { a = 1 }`},
+		{name: "older version failed to parse", old: `locals {`, oldFailed: true},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			synctest.Test(t, func(t *testing.T) {
+				mem := vfs.NewMemMapFS()
+				path := filepath.Join(vfs.MemRoot, "root.hcl")
+				require.NoError(t, vfs.WriteFile(mem, path, []byte(tc.old), 0o644))
+
+				release := make(chan struct{})
+				fsys := &gatedFS{FS: mem, gated: path, release: release}
+				s := &config.Store{}
+
+				oldInfo := stat(t, mem, path)
+				oldDone := make(chan error, 1)
+
+				go func() {
+					_, err := s.ParseUnitAST(t.Context(), fsys, path, oldInfo, pkghclparse.NewParser())
+					oldDone <- err
+				}()
+
+				synctest.Wait()
+
+				require.NoError(t, vfs.WriteFile(mem, path, []byte(`locals { a = 12 }`), 0o644))
+
+				type parsed struct {
+					err  error
+					file *pkghclparse.File
+				}
+
+				newInfo := stat(t, mem, path)
+				newDone := make(chan parsed, 1)
+
+				go func() {
+					file, err := s.ParseUnitAST(t.Context(), fsys, path, newInfo, pkghclparse.NewParser())
+					newDone <- parsed{file: file, err: err}
+				}()
+
+				synctest.Wait()
+				close(release)
+
+				oldErr := <-oldDone
+				if tc.oldFailed {
+					require.ErrorAs(t, oldErr, new(hcl.Diagnostics))
+				} else {
+					require.NoError(t, oldErr)
+				}
+
+				got := <-newDone
+				require.NoError(t, got.err)
+				assert.Equal(t, `locals { a = 12 }`, got.file.Content())
+			})
+		})
+	}
+}
+
 func TestStoreParseUnitASTDoesNotRetainParseErrors(t *testing.T) {
 	t.Parallel()
 
 	fsys := vfs.NewMemMapFS()
-	path := filepath.Join(t.TempDir(), "root.hcl")
+	path := filepath.Join(vfs.MemRoot, "root.hcl")
 	require.NoError(t, vfs.WriteFile(fsys, path, []byte(`locals {`), 0o644))
 
 	s := &config.Store{}
@@ -534,7 +603,7 @@ func TestStoreParseUnitASTJoinsTheEnclosingRun(t *testing.T) {
 	t.Parallel()
 
 	fsys := vfs.NewMemMapFS()
-	path := filepath.Join(t.TempDir(), "root.hcl")
+	path := filepath.Join(vfs.MemRoot, "root.hcl")
 	require.NoError(t, vfs.WriteFile(fsys, path, []byte(`locals { a = 1 }`), 0o644))
 
 	s := &config.Store{}
@@ -574,7 +643,7 @@ func BenchmarkStoreResolveHit(b *testing.B) {
 
 func BenchmarkStoreASTHit(b *testing.B) {
 	fsys := vfs.NewMemMapFS()
-	path := filepath.Join(b.TempDir(), "root.hcl")
+	path := filepath.Join(vfs.MemRoot, "root.hcl")
 	require.NoError(b, vfs.WriteFile(fsys, path, []byte(`locals { a = 1 }`), 0o644))
 
 	s := &config.Store{}
@@ -621,11 +690,57 @@ func TestStoreInvalidateUnderDropsWhatReadBelowTheDirectory(t *testing.T) {
 	assert.True(t, hit(sibling), "a directory that only shares the name's prefix is kept")
 }
 
+// stat returns the info of the file at path with its size and modification time fixed at the call, as the info of an
+// OS file has them. The info a [vfs.NewMemMapFS] returns reads them from the file each time.
 func stat(tb testing.TB, fsys vfs.FS, path string) fs.FileInfo {
 	tb.Helper()
 
 	info, err := fsys.Stat(path)
 	require.NoError(tb, err)
 
-	return info
+	return frozenInfo{FileInfo: info, size: info.Size(), modTime: info.ModTime()}
+}
+
+// frozenInfo is file info whose size and modification time stay as they were when it was taken.
+type frozenInfo struct {
+	fs.FileInfo
+	modTime time.Time
+	size    int64
+}
+
+func (f frozenInfo) Size() int64 {
+	return f.size
+}
+
+func (f frozenInfo) ModTime() time.Time {
+	return f.modTime
+}
+
+// gatedFS is a filesystem whose first Open of gated reads the file, then waits until release closes and returns what
+// it read.
+type gatedFS struct {
+	vfs.FS
+	release <-chan struct{}
+	gated   string
+	opened  atomic.Bool
+}
+
+func (g *gatedFS) Open(name string) (vfs.File, error) {
+	if filepath.Clean(name) != g.gated || g.opened.Swap(true) {
+		return g.FS.Open(name)
+	}
+
+	content, err := vfs.ReadFile(g.FS, name)
+	if err != nil {
+		return nil, err
+	}
+
+	<-g.release
+
+	snapshot := vfs.NewMemMapFS()
+	if err := vfs.WriteFile(snapshot, name, content, 0o644); err != nil {
+		return nil, err
+	}
+
+	return snapshot.Open(name)
 }

@@ -4,7 +4,9 @@ package helpers
 import (
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"testing"
 	"time"
@@ -13,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
+	"github.com/gruntwork-io/terragrunt/test/benchmarks/fixture"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/require"
 )
@@ -180,4 +183,36 @@ func ApplyWithRunnerPool(b *testing.B, dir string) {
 	applyDuration := time.Since(applyStart)
 
 	b.ReportMetric(float64(applyDuration.Seconds()), "apply_s/op")
+}
+
+// WriteFixture fills dir with a benchmark fixture of the given shape and unit count.
+func WriteFixture(b *testing.B, dir string, shape fixture.Shape, units int) {
+	b.Helper()
+
+	require.NoError(b, fixture.Write(dir, shape, units))
+}
+
+// UseFakeTofu builds faketofu as `tofu` and puts it first on PATH for the rest of the benchmark, so
+// every tofu process Terragrunt starts exits at once and the benchmark measures only Terragrunt.
+func UseFakeTofu(b *testing.B) {
+	b.Helper()
+
+	binDir := b.TempDir()
+
+	name := "tofu"
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+
+	cmd := exec.CommandContext(
+		b.Context(),
+		"go", "build",
+		"-o", filepath.Join(binDir, name),
+		"github.com/gruntwork-io/terragrunt/test/benchmarks/cmd/faketofu",
+	)
+
+	out, err := cmd.CombinedOutput()
+	require.NoError(b, err, string(out))
+
+	b.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 }
