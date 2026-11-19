@@ -10,6 +10,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
@@ -17,6 +18,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 
@@ -132,7 +134,7 @@ func (d *Discovery) Discover(
 
 		logPhaseComplete(l, "graph", results, err)
 
-		if err != nil && !d.suppressParseErrors {
+		if d.returnsPhaseError(err) {
 			return nil, d.markDeletedDependency(v.FS, err, resultsToComponents(slices.Concat(discovered, candidates)))
 		}
 
@@ -164,7 +166,7 @@ func (d *Discovery) Discover(
 			err,
 		)
 
-		if err != nil && !d.suppressParseErrors {
+		if d.returnsPhaseError(err) {
 			return components, d.markDeletedDependency(v.FS, err, components)
 		}
 	}
@@ -327,9 +329,7 @@ func (d *Discovery) runWalkAndParsePhases(
 
 	logPhaseComplete(l, "filesystem", results, err)
 
-	if err != nil && (!d.suppressParseErrors ||
-		errors.As(err, new(CoexistenceError)) ||
-		errors.As(err, new(AmbiguousConfigError))) {
+	if d.returnsPhaseError(err) {
 		return nil, nil, err
 	}
 
@@ -577,7 +577,7 @@ func (d *Discovery) runGraphPhase(
 				return errors.Join(d.buildDependencyGraph(childCtx, l, v, s, opts, allComponents, unparsed)...)
 			})
 
-		if buildErr != nil && !d.suppressParseErrors {
+		if d.returnsPhaseError(buildErr) {
 			return &PhaseResults{
 				Discovered: discovered,
 				Candidates: candidates,
@@ -693,6 +693,18 @@ func (d *Discovery) buildDependencyGraph(
 	return errs
 }
 
+// returnsPhaseError reports whether Discover returns err from a phase: any error unless parse errors are suppressed,
+// and a [CoexistenceError] or a [config.AmbiguousConfigError] either way.
+func (d *Discovery) returnsPhaseError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	return !d.suppressParseErrors ||
+		errors.As(err, new(CoexistenceError)) ||
+		errors.As(err, new(config.AmbiguousConfigError))
+}
+
 // buildComponentDependencies parses a single component and builds its dependency links.
 func (d *Discovery) buildComponentDependencies(
 	ctx context.Context,
@@ -741,7 +753,15 @@ func (d *Discovery) buildComponentDependencies(
 	}
 
 	for _, depPath := range depPaths {
-		depComponent := componentFromDependencyPath(v.FS, depPath, threadSafeComponents)
+		depComponent, err := componentFromDependencyPath(
+			v.FS,
+			depPath,
+			configbridge.AmbiguousConfigCheck(opts),
+			threadSafeComponents,
+		)
+		if err != nil {
+			return err
+		}
 
 		if dctx := depComponent.DiscoveryContext(); dctx == nil || dctx.WorkingDir == "" {
 			depComponent.SetDiscoveryContext(

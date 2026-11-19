@@ -85,7 +85,7 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, opts
 			return coexistenceErr
 		}
 
-		if ambiguousErr, ok := errors.AsType[discovery.AmbiguousConfigError](telemetryErr); ok {
+		if ambiguousErr, ok := errors.AsType[config.AmbiguousConfigError](telemetryErr); ok {
 			return ambiguousErr
 		}
 

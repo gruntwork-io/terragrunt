@@ -389,7 +389,9 @@ func TestPathVariableInStackFileEvalVariables(t *testing.T) {
 				require.NoError(t, pctx.Experiments.EnableExperiment(name))
 			}
 
-			vars, err := config.TerragruntEvalVariables(ctx, logger.CreateLogger(), venv.MemVenv(), pctx, stackPath)
+			exposed := config.ParsedExposedInclude(venv.MemVenv())
+
+			vars, err := config.TerragruntEvalVariables(ctx, logger.CreateLogger(), pctx, stackPath, exposed)
 			require.NoError(t, err)
 
 			assert.Equal(t, tc.want, vars)

@@ -55,6 +55,13 @@ var knownBadFiles = []string{
 	"fixtures/get-aws-account-alias/terragrunt.hcl",
 	"fixtures/get-aws-caller-identity/terragrunt.hcl",
 	"fixtures/read-config/iam_role_in_file/terragrunt.hcl",
+	// Files that need a unit config path to resolve `path.module`
+	"fixtures/path-variable/autoinclude/live/terragrunt.stack.hcl",
+	"fixtures/path-variable/autoinclude/unit/terragrunt.autoinclude.hcl",
+	"fixtures/path-variable/module/local/terragrunt.hcl",
+	"fixtures/path-variable/module/remote/terragrunt.hcl",
+	"fixtures/path-variable/stack-values/terragrunt.stack.hcl",
+	"fixtures/path-variable/stack/live/terragrunt.stack.hcl",
 }
 
 func TestParseAllFixtureFiles(t *testing.T) {

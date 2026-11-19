@@ -138,6 +138,10 @@ func (s *Store) ReadTerragruntConfig(
 		return pkgconfig.ReadTerragruntConfig(ctx, l, v, run)
 	}
 
+	if err := pkgconfig.RejectAmbiguousUnitConfig(v.FS, run); err != nil {
+		return nil, err
+	}
+
 	l.Debugf(
 		"Reading Terragrunt config file at %s",
 		util.RelPathForLog(run.RootWorkingDir, run.TerragruntConfigPath, run.LogShowAbsPaths),
@@ -400,7 +404,7 @@ func (s *Store) prepareBase(
 
 	var errs []error
 
-	pc, err := withFileIAMRole(ctx, l, v, pc, file)
+	pc, err = withFileIAMRole(ctx, l, v, pc, file)
 	if err != nil {
 		errs = append(errs, err)
 	}
