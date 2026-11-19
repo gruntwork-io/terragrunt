@@ -138,7 +138,7 @@ func partialEvalByType(expr hclsyntax.Expression, args *EvalArgs) ([]byte, error
 func partialEvalFor(e *hclsyntax.ForExpr, args *EvalArgs) ([]byte, error) {
 	collEnd := e.CollExpr.Range().End
 
-	head, headErr := partialEvalChildren(
+	prefix, prefixErr := partialEvalChildren(
 		args,
 		hcl.Range{Start: e.Range().Start, End: collEnd},
 		[]hclsyntax.Expression{e.CollExpr},
@@ -150,17 +150,17 @@ func partialEvalFor(e *hclsyntax.ForExpr, args *EvalArgs) ([]byte, error) {
 
 	defer func() { args.Deferred, args.iterators = deferred, iterators }()
 
-	tail, tailErr := partialEvalChildren(
+	suffix, suffixErr := partialEvalChildren(
 		args,
 		hcl.Range{Start: collEnd, End: e.Range().End},
 		[]hclsyntax.Expression{e.KeyExpr, e.ValExpr, e.CondExpr},
 	)
 
-	if headErr != nil {
-		return append(head, tail...), headErr
+	if prefixErr != nil {
+		return append(prefix, suffix...), prefixErr
 	}
 
-	return append(head, tail...), tailErr
+	return append(prefix, suffix...), suffixErr
 }
 
 func partialEvalTraversal(e *hclsyntax.ScopeTraversalExpr, args *EvalArgs) ([]byte, error) {
