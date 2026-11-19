@@ -8,6 +8,7 @@ import (
 
 	config "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	pkgconfig "github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
@@ -19,7 +20,7 @@ func TestResolveRunConfigChecksTheDependenciesDirsOfEachFileItParses(t *testing.
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			root := t.TempDir()
+			root := vfs.MemRoot
 			path := filepath.Join(root, "unit", pkgconfig.DefaultTerragruntConfigPath)
 			v := venv.MemVenv().WithFS(memFS(root, tc.files)(t))
 			l := logger.CreateLogger()
@@ -38,7 +39,7 @@ func TestResolveUnitQueueConfigChecksNoDependenciesDir(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			root := t.TempDir()
+			root := vfs.MemRoot
 			path := filepath.Join(root, "unit", pkgconfig.DefaultTerragruntConfigPath)
 			v := venv.MemVenv().WithFS(memFS(root, tc.files)(t))
 			l := logger.CreateLogger()

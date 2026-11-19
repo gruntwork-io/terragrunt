@@ -454,7 +454,7 @@ func TestStoreParseUnitASTSharesOneParse(t *testing.T) {
 	t.Parallel()
 
 	fsys := vfs.NewMemMapFS()
-	path := filepath.Join(t.TempDir(), "root.hcl")
+	path := filepath.Join(vfs.MemRoot, "root.hcl")
 	require.NoError(t, vfs.WriteFile(fsys, path, []byte(`locals { a = 1 }`), 0o644))
 
 	s := &config.Store{}
@@ -483,7 +483,7 @@ func TestStoreParseUnitASTParsesAgainWhenTheFileChanges(t *testing.T) {
 	t.Parallel()
 
 	fsys := vfs.NewMemMapFS()
-	path := filepath.Join(t.TempDir(), "root.hcl")
+	path := filepath.Join(vfs.MemRoot, "root.hcl")
 	require.NoError(t, vfs.WriteFile(fsys, path, []byte(`locals { a = 1 }`), 0o644))
 
 	s := &config.Store{}
@@ -531,7 +531,7 @@ func TestStoreParseUnitASTParsesAgainAfterJoiningAParseOfAnOlderVersionWithRacin
 
 			synctest.Test(t, func(t *testing.T) {
 				mem := vfs.NewMemMapFS()
-				path := filepath.Join(t.TempDir(), "root.hcl")
+				path := filepath.Join(vfs.MemRoot, "root.hcl")
 				require.NoError(t, vfs.WriteFile(mem, path, []byte(tc.old), 0o644))
 
 				release := make(chan struct{})
@@ -585,7 +585,7 @@ func TestStoreParseUnitASTDoesNotRetainParseErrors(t *testing.T) {
 	t.Parallel()
 
 	fsys := vfs.NewMemMapFS()
-	path := filepath.Join(t.TempDir(), "root.hcl")
+	path := filepath.Join(vfs.MemRoot, "root.hcl")
 	require.NoError(t, vfs.WriteFile(fsys, path, []byte(`locals {`), 0o644))
 
 	s := &config.Store{}
@@ -603,7 +603,7 @@ func TestStoreParseUnitASTJoinsTheEnclosingRun(t *testing.T) {
 	t.Parallel()
 
 	fsys := vfs.NewMemMapFS()
-	path := filepath.Join(t.TempDir(), "root.hcl")
+	path := filepath.Join(vfs.MemRoot, "root.hcl")
 	require.NoError(t, vfs.WriteFile(fsys, path, []byte(`locals { a = 1 }`), 0o644))
 
 	s := &config.Store{}
@@ -643,7 +643,7 @@ func BenchmarkStoreResolveHit(b *testing.B) {
 
 func BenchmarkStoreASTHit(b *testing.B) {
 	fsys := vfs.NewMemMapFS()
-	path := filepath.Join(b.TempDir(), "root.hcl")
+	path := filepath.Join(vfs.MemRoot, "root.hcl")
 	require.NoError(b, vfs.WriteFile(fsys, path, []byte(`locals { a = 1 }`), 0o644))
 
 	s := &config.Store{}

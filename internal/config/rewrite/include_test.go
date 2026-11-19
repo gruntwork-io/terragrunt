@@ -15,6 +15,7 @@ import (
 	config "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	pkgconfig "github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -23,7 +24,7 @@ import (
 func TestResolveUnitQueueConfigExposesAnIncludeWithAMissingDependenciesDir(t *testing.T) {
 	t.Parallel()
 
-	root := t.TempDir()
+	root := vfs.MemRoot
 	path := filepath.Join(root, "unit", pkgconfig.DefaultTerragruntConfigPath)
 
 	fsys := memFS(root, map[string]string{
@@ -69,7 +70,7 @@ exclude {
 func TestResolveUnitQueueConfigDecodesNoUnrequestedRunPartOfAnExposedInclude(t *testing.T) {
 	t.Parallel()
 
-	root := t.TempDir()
+	root := vfs.MemRoot
 	path := filepath.Join(root, "unit", pkgconfig.DefaultTerragruntConfigPath)
 
 	fsys := memFS(root, map[string]string{
@@ -117,7 +118,7 @@ locals {
 func TestResolveUnitQueueConfigExposesTheRequestedRemoteState(t *testing.T) {
 	t.Parallel()
 
-	root := t.TempDir()
+	root := vfs.MemRoot
 	path := filepath.Join(root, "unit", pkgconfig.DefaultTerragruntConfigPath)
 
 	fsys := memFS(root, map[string]string{
@@ -165,7 +166,7 @@ locals {
 func TestResolveUnitQueueConfigEvaluatesAnExposedIncludeWithTheIAMRoleItSets(t *testing.T) {
 	t.Parallel()
 
-	root := t.TempDir()
+	root := vfs.MemRoot
 	path := filepath.Join(root, "unit", pkgconfig.DefaultTerragruntConfigPath)
 
 	fsys := memFS(root, map[string]string{
