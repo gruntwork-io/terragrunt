@@ -12,11 +12,13 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"golang.org/x/sync/errgroup"
@@ -400,7 +402,7 @@ func (p *GraphPhase) discoverDependencies(
 			}
 
 			depComponent, err := p.resolveDependency(
-				v.FS, c, depPath, state.threadSafeComponents,
+				v.FS, c, depPath, configbridge.AmbiguousConfigCheck(state.opts), state.threadSafeComponents,
 			)
 			if err != nil {
 				errMu.Lock()
@@ -637,6 +639,10 @@ func (p *GraphPhase) discoverDependentsUpstream(
 		return err
 	}
 
+	if err := rejectAmbiguousUnits(candidates); err != nil {
+		return err
+	}
+
 	var (
 		discoveredDependents []component.Component
 		dependentsMu         sync.Mutex
@@ -821,11 +827,19 @@ func (p *GraphPhase) processUpstreamCandidate(
 	parentCtx := canonicalCandidate.DiscoveryContext()
 
 	for _, dep := range deps {
-		depComponent := componentFromDependencyPath(
+		depComponent, err := componentFromDependencyPath(
 			v.FS,
 			dep,
+			configbridge.AmbiguousConfigCheck(graphState.opts),
 			state.graphTraversalState.threadSafeComponents,
 		)
+		if err != nil {
+			state.errMu.Lock()
+			*state.errs = append(*state.errs, err)
+			state.errMu.Unlock()
+
+			return nil
+		}
 
 		if parentCtx != nil {
 			assignGraphDiscoveryContext(v.FS, depComponent, parentCtx, dep)
@@ -891,6 +905,7 @@ func (p *GraphPhase) resolveDependency(
 	fsys vfs.FS,
 	parent component.Component,
 	depPath string,
+	check config.AmbiguousConfigCheck,
 	threadSafeComponents *component.ThreadSafeComponents,
 ) (component.Component, error) {
 	parentCtx := parent.DiscoveryContext()
@@ -902,7 +917,10 @@ func (p *GraphPhase) resolveDependency(
 		return nil, NewMissingWorkingDirectoryError(parent.Path())
 	}
 
-	depComponent := componentFromDependencyPath(fsys, depPath, threadSafeComponents)
+	depComponent, err := componentFromDependencyPath(fsys, depPath, check, threadSafeComponents)
+	if err != nil {
+		return nil, err
+	}
 
 	assignGraphDiscoveryContext(fsys, depComponent, parentCtx, depPath)
 

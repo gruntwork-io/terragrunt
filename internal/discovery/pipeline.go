@@ -89,7 +89,7 @@ type pipeline struct {
 // phases do one after the other.
 //
 // Returns the error of the walk when it fails, and otherwise the parse errors joined. suppressParseErrors drops
-// both, as it does for the phases. A [CoexistenceError] or an [AmbiguousConfigError] is returned either way.
+// both, as it does for the phases. A [CoexistenceError] or a [config.AmbiguousConfigError] is returned either way.
 func (d *Discovery) runPipeline(
 	ctx context.Context,
 	l log.Logger,
@@ -377,8 +377,8 @@ func (c *collected) add(event pipelineEvent) {
 // results returns the discovered components and candidates the filesystem and parse phases would hand the graph
 // phase, and the parse failures. The parse of a component that lost to another at its path is left out.
 //
-// Returns a [CoexistenceError] when a directory holds both a unit and a stack, and an [AmbiguousConfigError] when it
-// holds both terragrunt.hcl and terragrunt.hcl.json.
+// Returns a [CoexistenceError] when a directory holds both a unit and a stack, and a [config.AmbiguousConfigError]
+// when it holds both terragrunt.hcl and terragrunt.hcl.json.
 func (c *collected) results(d *Discovery) (*PhaseResults, []error, error) {
 	if err := validateNoCoexistence(c.walkedDiscovered); err != nil {
 		return nil, nil, err

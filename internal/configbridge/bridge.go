@@ -29,6 +29,17 @@ func NewParsingContext(opts *options.TerragruntOptions) *config.ParsingContext {
 	return pctx
 }
 
+// AmbiguousConfigCheck returns the check opts asks for on a unit directory holding both default unit configuration
+// files: [config.AllowAmbiguousConfig] when `--config` named the config file, [config.RejectAmbiguousConfig]
+// otherwise.
+func AmbiguousConfigCheck(opts *options.TerragruntOptions) config.AmbiguousConfigCheck {
+	if opts.TerragruntConfigPathExplicitlySet {
+		return config.AllowAmbiguousConfig
+	}
+
+	return config.RejectAmbiguousConfig
+}
+
 // StackFuncFactory returns a dir-scoped HCL function factory for early stack
 // discovery parsing, built from TerragruntOptions. Each call rebuilds the
 // function map for the given stack dir so dir-sensitive functions resolve there.
@@ -91,6 +102,7 @@ func populateFromOpts(pctx *config.ParsingContext, opts *options.TerragruntOptio
 	pctx.TerragruntStackConfigPath = opts.TerragruntStackConfigPath
 	pctx.ProviderCacheOptions = opts.ProviderCacheOptions
 	pctx.VersionManagerFileName = opts.VersionManagerFileName
+	pctx.AmbiguousConfigCheck = AmbiguousConfigCheck(opts)
 }
 
 // ShellRunOptsFromOpts constructs shell.ShellOptions from TerragruntOptions.

@@ -93,6 +93,10 @@ type ParsingContext struct {
 	CASCloneDepth     int
 	CASProbeTTL       time.Duration
 
+	// AmbiguousConfigCheck says whether a unit directory holding both default unit configuration files fails to
+	// resolve. [AllowAmbiguousConfig] when the user named the config file with the --config flag.
+	AmbiguousConfigCheck AmbiguousConfigCheck
+
 	TFPathExplicitlySet bool
 	SkipOutput          bool
 	ForwardTFStdout     bool
