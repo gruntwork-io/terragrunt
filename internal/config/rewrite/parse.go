@@ -390,6 +390,10 @@ func (s *Store) prepareBase(
 		return nil, err
 	}
 
+	if err := pkgconfig.ValidateVersionAttributeReferences(file); err != nil {
+		return nil, err
+	}
+
 	include := absInclude(pc)
 
 	pc = pc.withInclude(include)
@@ -523,8 +527,7 @@ func (s *Store) prepare(
 		errs = append(errs, base.evalErr)
 	}
 
-	pctx := pc.parsingContext()
-	evalCtx := c.evalContext(ctx, l, v, pctx)
+	evalCtx := c.evalContext(ctx, l, v, pc.parsingContext())
 	c.prepErrs = errs
 
 	c.decodeErr = file.ApplyFileUpdate()
@@ -537,12 +540,7 @@ func (s *Store) prepare(
 		var queueDiags hcl.Diagnostics
 
 		c.Queue, queueDiags = c.decodeQueue(evalCtx)
-		c.Queue.Engine, c.queueUnknownDiags = c.decodeQueueEngine(evalCtx)
-
-		if pctx.SkipOutputsResolution {
-			c.queueUnknownDiags = append(c.queueUnknownDiags, c.decodeQueueAttributes(evalCtx)...)
-		}
-
+		c.Queue.Engine, c.queueEngineDiags = c.decodeQueueEngine(evalCtx)
 		c.decodeErr = file.HandleDiagnostics(append(diags, queueDiags...))
 	}
 

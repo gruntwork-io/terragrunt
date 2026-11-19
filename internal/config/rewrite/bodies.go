@@ -32,24 +32,21 @@ type QueueBodies struct {
 // aligns by index with the HCL slice it decodes. Exclude is set only for an exclude block that reads `dependency`,
 // and so is each of the top-level attributes, which the tagged field of [UnitConfig] holds otherwise.
 type RunBodies struct {
-	Exclude                     *ExcludeBody
-	Inputs                      *cty.Value
-	GenerateAttrs               *cty.Value
-	RemoteStateAttr             *cty.Value
-	Engine                      *EngineBody
-	RemoteState                 *RemoteStateBody
-	TerraformBinary             *string
-	TerraformVersionConstraint  *string
-	TerragruntVersionConstraint *string
-	DownloadDir                 *string
-	IamAssumeRoleDuration       *int64
-	IamAssumeRoleSessionName    *string
-	ExtraArgs                   []ExtraArgumentsBody
-	BeforeHooks                 []HookBody
-	AfterHooks                  []HookBody
-	ErrorHooks                  []ErrorHookBody
-	Generate                    []GenerateBody
-	Variables                   []VariablesBody
+	Exclude                  *ExcludeBody
+	Inputs                   *cty.Value
+	GenerateAttrs            *cty.Value
+	RemoteStateAttr          *cty.Value
+	Engine                   *EngineBody
+	RemoteState              *RemoteStateBody
+	DownloadDir              *string
+	IamAssumeRoleDuration    *int64
+	IamAssumeRoleSessionName *string
+	ExtraArgs                []ExtraArgumentsBody
+	BeforeHooks              []HookBody
+	AfterHooks               []HookBody
+	ErrorHooks               []ErrorHookBody
+	Generate                 []GenerateBody
+	Variables                []VariablesBody
 }
 
 // decodeQueue decodes the queue parts of c with evalCtx, which defines no `dependency` variable in the parse.

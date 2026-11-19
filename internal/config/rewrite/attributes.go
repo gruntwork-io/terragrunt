@@ -12,30 +12,16 @@ import (
 // The top-level attributes that [pkgconfig.ParseConfig] decodes after it resolves the dependency outputs, so each
 // can read `dependency`.
 const (
-	attrTerraformBinary             = "terraform_binary"
-	attrTerraformVersionConstraint  = "terraform_version_constraint"
-	attrTerragruntVersionConstraint = "terragrunt_version_constraint"
-	attrDownloadDir                 = "download_dir"
-	attrIamAssumeRoleDuration       = "iam_assume_role_duration"
-	attrIamAssumeRoleSessionName    = "iam_assume_role_session_name"
+	attrDownloadDir              = "download_dir"
+	attrIamAssumeRoleDuration    = "iam_assume_role_duration"
+	attrIamAssumeRoleSessionName = "iam_assume_role_session_name"
 )
 
 // runAttributeNames is the attributes that become a run part when they read `dependency`.
 var runAttributeNames = []string{
-	attrTerraformBinary,
-	attrTerraformVersionConstraint,
-	attrTerragruntVersionConstraint,
 	attrDownloadDir,
 	attrIamAssumeRoleDuration,
 	attrIamAssumeRoleSessionName,
-}
-
-// queueAttributeNames is the run attributes discovery reads. A queue assembly reports that one of them reads
-// `dependency`, as [pkgconfig.PartialParseConfigFile] does when it skips resolving outputs.
-var queueAttributeNames = []string{
-	attrTerraformBinary,
-	attrTerraformVersionConstraint,
-	attrTerragruntVersionConstraint,
 }
 
 // dependencyAttributes returns the attributes of body among runAttributeNames that read `dependency`, by name. It
@@ -99,38 +85,14 @@ func (b withoutAttributes) hide(attrs hcl.Attributes) {
 	}
 }
 
-// decodeQueueAttributes returns the diagnostics of decoding, with `dependency` unknown, the attributes of c that
-// read `dependency` and that discovery reads.
-func (c *UnitConfig) decodeQueueAttributes(evalCtx *hcl.EvalContext) hcl.Diagnostics {
-	var diags hcl.Diagnostics
-
-	unknown := withUnknownDependency(evalCtx)
-
-	for _, name := range queueAttributeNames {
-		attr, ok := c.dependencyAttrs[name]
-		if !ok {
-			continue
-		}
-
-		var value *string
-
-		diags = append(diags, gohcl.DecodeExpression(attr.Expr, unknown, &value)...)
-	}
-
-	return diags
-}
-
 // decodeRunAttributes decodes the attributes of c that read `dependency` into r with evalCtx.
 func (c *UnitConfig) decodeRunAttributes(evalCtx *hcl.EvalContext, r *RunBodies) hcl.Diagnostics {
 	var diags hcl.Diagnostics
 
 	targets := map[string]any{
-		attrTerraformBinary:             &r.TerraformBinary,
-		attrTerraformVersionConstraint:  &r.TerraformVersionConstraint,
-		attrTerragruntVersionConstraint: &r.TerragruntVersionConstraint,
-		attrDownloadDir:                 &r.DownloadDir,
-		attrIamAssumeRoleDuration:       &r.IamAssumeRoleDuration,
-		attrIamAssumeRoleSessionName:    &r.IamAssumeRoleSessionName,
+		attrDownloadDir:              &r.DownloadDir,
+		attrIamAssumeRoleDuration:    &r.IamAssumeRoleDuration,
+		attrIamAssumeRoleSessionName: &r.IamAssumeRoleSessionName,
 	}
 
 	for _, name := range runAttributeNames {
@@ -149,12 +111,6 @@ func (c *UnitConfig) decodeRunAttributes(evalCtx *hcl.EvalContext, r *RunBodies)
 func (c *UnitConfig) fillRunAttributes(r *RunBodies, file *pkgconfig.TerragruntConfigFile) {
 	for name := range c.dependencyAttrs {
 		switch name {
-		case attrTerraformBinary:
-			file.TerraformBinary = r.TerraformBinary
-		case attrTerraformVersionConstraint:
-			file.TerraformVersionConstraint = r.TerraformVersionConstraint
-		case attrTerragruntVersionConstraint:
-			file.TerragruntVersionConstraint = r.TerragruntVersionConstraint
 		case attrDownloadDir:
 			file.DownloadDir = r.DownloadDir
 		case attrIamAssumeRoleDuration:

@@ -66,7 +66,7 @@ func (p includeResolver) file(
 	c *UnitConfig,
 	evalCtx *hcl.EvalContext,
 ) (*pkgconfig.TerragruntConfigFile, hcl.Diagnostics) {
-	return c.queueFile(&c.Queue), c.queueUnknownDiags
+	return c.queueFile(&c.Queue), c.queueEngineDiags
 }
 
 func (p includeResolver) dependencies(
@@ -199,7 +199,7 @@ func (q keptQueue) file(
 	c *UnitConfig,
 	_ *hcl.EvalContext,
 ) (*pkgconfig.TerragruntConfigFile, hcl.Diagnostics) {
-	return c.queueFile(&c.Queue), c.queueUnknownDiags
+	return c.queueFile(&c.Queue), c.queueEngineDiags
 }
 
 func (q keptQueue) dependencies(
