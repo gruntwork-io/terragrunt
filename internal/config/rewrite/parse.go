@@ -527,22 +527,46 @@ func (s *Store) prepare(
 	c.prepErrs = errs
 
 	c.decodeErr = file.ApplyFileUpdate()
-	if c.decodeErr == nil {
-		dependencyAttrs := dependencyAttributes(file.Body)
+	c.queueDecodeErr = c.decodeErr
 
-		diags := gohcl.DecodeBody(withoutAttributes{Body: file.Body, hidden: dependencyAttrs}, evalCtx, c)
-		c.dependencyAttrs = dependencyAttrs
+	if c.decodeErr == nil {
+		runAttrs := runAttributes(file.Body)
+
+		hidden := map[string]*hcl.Attribute{}
+		maps.Copy(hidden, runAttrs)
+		maps.Copy(hidden, dependencyVersionAttributes(file.Body))
+
+		diags := gohcl.DecodeBody(withoutAttributes{Body: file.Body, hidden: hidden}, evalCtx, c)
+		c.runAttrs = runAttrs
 
 		var queueDiags hcl.Diagnostics
 
 		c.Queue, queueDiags = c.decodeQueue(evalCtx)
 		c.Queue.Engine, c.queueEngineDiags = c.decodeQueueEngine(evalCtx)
-		c.decodeErr = file.HandleDiagnostics(append(diags, queueDiags...))
+
+		diags = append(diags, queueDiags...)
+		c.decodeErr = file.HandleDiagnostics(diags)
+		c.queueDecodeErr = c.decodeErr
+
+		if diags.HasErrors() {
+			c.queueDecodeErr = withoutDiagnostics(c.decodeErr, unsupportedContent(file.Body, c))
+		}
 	}
 
 	c.file = withoutParser(file)
 
 	return c
+}
+
+// unsupportedContent returns the diagnostics that decoding body into c reports for the top-level arguments and blocks
+// the schema of c does not name.
+func unsupportedContent(body hcl.Body, c *UnitConfig) hcl.Diagnostics {
+	schema, _ := gohcl.ImpliedBodySchema(c)
+
+	_, all := body.Content(schema)
+	_, _, partial := body.PartialContent(schema)
+
+	return excludeDiagnostics(all, partial)
 }
 
 // withoutParser returns file with no parser, for keeping in a stage's result. Using it before [pkghclparse.File.Rebind]

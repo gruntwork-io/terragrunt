@@ -29,8 +29,7 @@ type QueueBodies struct {
 
 // RunBodies is the parts of a [UnitConfig] that only the run reads, decoded. [UnitConfig.ToV1] decodes them with
 // the `dependency` outputs resolved, and the parse never does. A nil pointer is an absent part, and each slice
-// aligns by index with the HCL slice it decodes. Exclude is set only for an exclude block that reads `dependency`,
-// and so is each of the top-level attributes, which the tagged field of [UnitConfig] holds otherwise.
+// aligns by index with the HCL slice it decodes. Exclude is set only for an exclude block that reads `dependency`.
 type RunBodies struct {
 	Exclude                  *ExcludeBody
 	Inputs                   *cty.Value

@@ -1971,7 +1971,7 @@ func ParseConfig(
 	// Decode the rest of the config, passing in this config's `include` block or the child's `include` block, whichever
 	// is appropriate
 	cfgFile, err := decodeAsTerragruntConfigFile(ctx, l, v, pctx, file, evalContext)
-	err = withNoOutputsError(v, pctx, err)
+	err = WithNoOutputsError(v, pctx, err)
 	// The dependency blocks are decoded again here, so a dependency error already in errs
 	// comes back a second time.
 	if err != nil && !slices.ContainsFunc(errs, func(seen error) bool { return errors.Is(err, seen) }) {

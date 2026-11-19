@@ -11,6 +11,21 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
+// resolvedDependencies is the value of the `dependency` variable and the blocks it was resolved from.
+type resolvedDependencies struct {
+	value  *cty.Value
+	blocks pkgconfig.Dependencies
+}
+
+// runDependencies returns the `dependency` value run supplied with its blocks, and nil when run supplied none.
+func runDependencies(run *pkgconfig.ParsingContext) *resolvedDependencies {
+	if run.DecodedDependencies == nil {
+		return nil
+	}
+
+	return &resolvedDependencies{value: run.DecodedDependencies, blocks: run.DependencyBlocks}
+}
+
 // dependencySet is the dependency blocks of a file that resolves its own dependencies.
 type dependencySet struct {
 	// included maps the name of each include block of the file to the dependency blocks of the file it names.
@@ -84,7 +99,7 @@ func (c *UnitConfig) newDependencySet(
 }
 
 // resolve loads the config of every dependency of the file, fetches the outputs of every block with pctx, and
-// returns the value of the `dependency` variable.
+// returns the value of the `dependency` variable with the blocks it was resolved from.
 //
 // Returns [cty.DynamicVal] with the error when resolution fails without a value.
 func (s *dependencySet) resolve(
@@ -92,10 +107,10 @@ func (s *dependencySet) resolve(
 	l log.Logger,
 	v *venv.Venv,
 	pctx *pkgconfig.ParsingContext,
-) (*cty.Value, error) {
+) (*resolvedDependencies, error) {
 	blocks, err := s.loaded(ctx, l, v, pctx)
 	if err != nil {
-		return failedDependencyValue(nil), err
+		return &resolvedDependencies{value: failedDependencyValue(nil)}, err
 	}
 
 	names := make([]string, 0, len(blocks))
@@ -121,10 +136,10 @@ func (s *dependencySet) resolve(
 		},
 	)
 	if err != nil {
-		return failedDependencyValue(result), err
+		return &resolvedDependencies{value: failedDependencyValue(result), blocks: blocks}, err
 	}
 
-	return result, nil
+	return &resolvedDependencies{value: result, blocks: blocks}, nil
 }
 
 // loaded returns the blocks of s with the config of each of the file's own dependencies loaded, merged with the
@@ -151,10 +166,10 @@ func (s *dependencySet) loaded(
 	return pkgconfig.MergeIncludedDependencies(ctx, l, pctx, own, kept)
 }
 
-// dependencyValue returns the `dependency` value ToV1 decodes c with: the run's when it supplied
-// one, and otherwise the outputs of c's dependency blocks, fetched now. An included file whose including file
-// resolved none decodes its own blocks first, as pkg/config does. It reports the files the parse read decoding the
-// blocks to pc's sinks.
+// dependencyValue returns the `dependency` value ToV1 decodes c with, and the blocks it was resolved from: the
+// run's when it supplied one, and otherwise the outputs of c's dependency blocks, fetched now. An included file
+// whose including file resolved none decodes its own blocks first, as pkg/config does. It reports the files the
+// parse read decoding the blocks to pc's sinks.
 //
 // Returns the value pkg/config falls back to with the error when the fetch fails. When the parse already reported
 // that the blocks failed to decode, it returns that value and no error.
@@ -163,7 +178,7 @@ func (c *UnitConfig) dependencyValue(
 	l log.Logger,
 	v *venv.Venv,
 	pc *ParseContext,
-) (*cty.Value, error) {
+) (*resolvedDependencies, error) {
 	if pc.file.decodedDeps != nil {
 		return pc.file.decodedDeps, nil
 	}
@@ -187,12 +202,12 @@ func (c *UnitConfig) dependencyValue(
 			pkgconfig.ParsedIncludeDependencies(v, pctx),
 		)
 		if err != nil {
-			return failedDependencyValue(nil), err
+			return &resolvedDependencies{value: failedDependencyValue(nil)}, err
 		}
 	}
 
 	if set == nil {
-		return failedDependencyValue(nil), nil
+		return &resolvedDependencies{value: failedDependencyValue(nil)}, nil
 	}
 
 	return set.resolve(ctx, l, v, pctx)

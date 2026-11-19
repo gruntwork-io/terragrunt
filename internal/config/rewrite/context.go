@@ -45,8 +45,9 @@ type fileScope struct {
 	features *cty.Value
 	// locals is the file's evaluated locals.
 	locals *cty.Value
-	// decodedDeps is the `dependency` value the run supplied, nil when the parse resolves it.
-	decodedDeps *cty.Value
+	// decodedDeps is the file's `dependency` value and the blocks it was resolved from, nil when the parse resolves
+	// them.
+	decodedDeps *resolvedDependencies
 	// iamRole overrides the run's IAM role options when set.
 	iamRole *iam.RoleOptions
 	// parser configures the parsers that read the file.
@@ -78,7 +79,7 @@ func NewParseContext(v *venv.Venv, run *pkgconfig.ParsingContext) *ParseContext 
 			values:               run.Values,
 			features:             run.Features,
 			locals:               run.Locals,
-			decodedDeps:          run.DecodedDependencies,
+			decodedDeps:          runDependencies(run),
 			parser:               settings.Parser,
 			depth:                run.ParseDepth,
 			skipAutoIncludeMerge: run.SkipAutoIncludeMerge,
@@ -179,8 +180,9 @@ func (pc *ParseContext) withValues(values *cty.Value) *ParseContext {
 	return &c
 }
 
-// withDecodedDependencies returns a copy of pc with the file's `dependency` value.
-func (pc *ParseContext) withDecodedDependencies(decodedDeps *cty.Value) *ParseContext {
+// withDecodedDependencies returns a copy of pc with the file's `dependency` value and the blocks it was resolved
+// from.
+func (pc *ParseContext) withDecodedDependencies(decodedDeps *resolvedDependencies) *ParseContext {
 	c := *pc
 	c.file.decodedDeps = decodedDeps
 
@@ -262,10 +264,16 @@ func (pc *ParseContext) parsingContext() *pkgconfig.ParsingContext {
 	c.Values = pc.file.values
 	c.Features = pc.file.features
 	c.Locals = pc.file.locals
-	c.DecodedDependencies = pc.file.decodedDeps
 	c.Parser = pc.parserSettings()
 	c.ParseDepth = pc.file.depth
 	c.SkipAutoIncludeMerge = pc.file.skipAutoIncludeMerge
+	c.DecodedDependencies = nil
+	c.DependencyBlocks = nil
+
+	if deps := pc.file.decodedDeps; deps != nil {
+		c.DecodedDependencies = deps.value
+		c.DependencyBlocks = deps.blocks
+	}
 
 	if pc.file.iamRole != nil {
 		c.IAMRoleOptions = *pc.file.iamRole

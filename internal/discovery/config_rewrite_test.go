@@ -240,7 +240,24 @@ func TestDiscoveryReusesTheParsesOfAnEarlierDiscovery(t *testing.T) {
 	store := new(rewrite.Store)
 
 	want := discoverCorpus(t, store)
-	require.NotEmpty(t, want)
+
+	dependencies := map[string][]string{}
+
+	for _, view := range want {
+		if view.Kind == component.UnitKind {
+			dependencies[view.Path] = view.Dependencies
+		}
+	}
+
+	assert.Equal(t, map[string][]string{
+		repoPath("apps/broken"):          nil,
+		repoPath("apps/db"):              {repoPath("infra/vpc")},
+		repoPath("apps/inherits-engine"): nil,
+		repoPath("apps/job"):             {repoPath("apps/db")},
+		repoPath("apps/web"):             {repoPath("apps/db")},
+		repoPath("apps/worker"):          {repoPath("apps/db")},
+		repoPath("infra/vpc"):            nil,
+	}, dependencies)
 
 	misses := store.Stats().Misses
 	require.Positive(t, misses, "the discovery parsed through the store")

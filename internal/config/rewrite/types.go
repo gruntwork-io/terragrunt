@@ -13,9 +13,9 @@ import (
 //
 // The tagged fields decode in the parse, which fetches no dependency outputs, so an attribute among them cannot
 // read `dependency`. The exceptions are the top-level attributes [pkgconfig.ParseConfig] decodes after it resolves
-// the outputs: one of those that reads `dependency` is a run part. The Remain of each block, and each [hcl.Attribute]
-// field, is a queue part or a run part. The parse decodes the queue parts, which [QueueBodies] names, into Queue,
-// with no `dependency` variable in scope, or an unknown one for the engine block.
+// the outputs, which discovery never reads: each of those is a run part. The Remain of each block, and each
+// [hcl.Attribute] field, is a queue part or a run part. The parse decodes the queue parts, which [QueueBodies] names,
+// into Queue, with no `dependency` variable in scope, or an unknown one for the engine block.
 // ToV1 decodes the run parts, which [RunBodies] names, with the outputs resolved. An exclude block that reads
 // `dependency` is a run part. A nil block field means the file has no such block.
 //
@@ -98,9 +98,11 @@ type UnitConfig struct {
 	// decodeErr is the error of the file update before the decode, which leaves the blocks empty, or of the
 	// parse's decode diagnostics.
 	decodeErr error
-	// dependencyAttrs is the top-level attributes that read `dependency` among those ToV1 decodes with the outputs,
-	// by name. The tagged field of each stays nil.
-	dependencyAttrs map[string]*hcl.Attribute
+	// queueDecodeErr is decodeErr without the diagnostics of the top-level arguments and blocks the schema does not
+	// name, which [pkgconfig.PartialParseConfig] does not report.
+	queueDecodeErr error
+	// runAttrs is the top-level attributes ToV1 decodes with the outputs, by name. The tagged field of each stays nil.
+	runAttrs map[string]*hcl.Attribute
 	// queueEngineDiags is the diagnostics of decoding Queue.Engine, which only a queue assembly reports. ToV1 decodes
 	// the block again with the outputs and reports its own.
 	queueEngineDiags hcl.Diagnostics

@@ -1,7 +1,6 @@
 // Package config is a rewrite of Terragrunt's config parsing that will replace the orchestration in pkg/config. It
 // decodes files into block structs of its own and converts them to pkg/config types, reusing pkg/config's merge
-// logic and helpers. Discovery parses units with it, and the run, the runner, and the graph command read a unit's
-// config with it.
+// logic and helpers. Discovery parses units with it, and [Store.ReadTerragruntConfig] reads a unit's config with it.
 //
 // A parse fetches no dependency outputs. It decodes the tagged fields of each block struct and the queue parts,
 // which [QueueBodies] names, with no `dependency` variable in scope, and keeps both. [UnitConfig.ToV1] fetches the
