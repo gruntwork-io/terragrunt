@@ -407,7 +407,7 @@ func (s *Store) prepareBase(
 	pc = pc.withValues(unitValues)
 	pctx = pc.parsingContext()
 
-	exposed := s.exposedInclude(v, pc)
+	exposed, exposedErr := s.exposedInclude(v, pc)
 
 	baseBlocks, err := pkgconfig.DecodeBaseBlocks(
 		ctx,
@@ -439,6 +439,13 @@ func (s *Store) prepareBase(
 		file.ConfigPath,
 		exposed,
 	)
+
+	if len(pc.settings.PartialParseDecodeList) > 0 {
+		if err := exposedErr(); err != nil {
+			base.errs = append(base.errs, err)
+		}
+	}
+
 	base.scope = pc.file
 
 	return base, nil

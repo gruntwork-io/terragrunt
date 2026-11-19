@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 
+	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	pkgconfig "github.com/gruntwork-io/terragrunt/pkg/config"
 	pkghclparse "github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
@@ -621,15 +622,19 @@ func (s *Store) includedDependencies(v *venv.Venv, pc *ParseContext) pkgconfig.I
 // parse fetches no outputs of a file with a dependency or dependencies block, and decodes only the run parts of that
 // file that a requested section decodes and that read no `dependency`. A partial parse of a file without such a
 // block evaluates it with the IAM role options the file sets.
-func (s *Store) exposedInclude(v *venv.Venv, pc *ParseContext) pkgconfig.ExposedInclude {
+//
+// The second function returns the errors of the blocks that failed to resolve, in name order, each annotated by
+// [pkgconfig.ExposedIncludeError].
+func (s *Store) exposedInclude(v *venv.Venv, pc *ParseContext) (pkgconfig.ExposedInclude, func() error) {
 	type exposedValue struct {
-		err   error
-		value cty.Value
+		err     error
+		include *pkgconfig.IncludeConfig
+		value   cty.Value
 	}
 
 	resolved := map[string]exposedValue{}
 
-	return func(
+	exposed := func(
 		ctx context.Context,
 		l log.Logger,
 		_ *pkgconfig.ParsingContext,
@@ -640,10 +645,24 @@ func (s *Store) exposedInclude(v *venv.Venv, pc *ParseContext) pkgconfig.Exposed
 		}
 
 		value, err := s.resolveExposedInclude(ctx, l, v, pc, include)
-		resolved[include.Name] = exposedValue{value: value, err: err}
+		resolved[include.Name] = exposedValue{err: err, include: include, value: value}
 
 		return value, err
 	}
+
+	failed := func() error {
+		var errs []error
+
+		for _, name := range slices.Sorted(maps.Keys(resolved)) {
+			if kept := resolved[name]; kept.err != nil {
+				errs = append(errs, pkgconfig.ExposedIncludeError(kept.include, kept.err))
+			}
+		}
+
+		return errors.Join(errs...)
+	}
+
+	return exposed, failed
 }
 
 // resolveExposedInclude resolves the file include names from pc and converts its config for the `include` variable.
@@ -692,7 +711,8 @@ func (s *Store) resolveExposedInclude(
 }
 
 // resolveWithFileIAMRole resolves the file at cfgPath with pc, evaluating it with the IAM role options its config
-// sets, as [pkgconfig.ParseConfig] resolves them. The resolution with the role options of pc serves when they match.
+// sets, as [pkgconfig.ParseConfig] resolves them: from its iam_role and iam_web_identity_token, the attributes
+// [pkgconfig.ResolveIAMRoleOptions] reads. The resolution with the role options of pc serves when they match.
 //
 // Returns no parse with the error when the resolution with the role options of pc produced no config.
 func (s *Store) resolveWithFileIAMRole(
@@ -709,7 +729,9 @@ func (s *Store) resolveWithFileIAMRole(
 
 	pctx := pc.parsingContext()
 
-	iamRole := pkgconfig.FileIAMRoleOptions(pctx, cfg.GetIAMRoleOptions())
+	fileOptions := iam.RoleOptions{RoleARN: cfg.IamRole, WebIdentityToken: cfg.IamWebIdentityToken}
+
+	iamRole := pkgconfig.FileIAMRoleOptions(pctx, fileOptions)
 	if iamRole == pctx.IAMRoleOptions {
 		return c, nil
 	}

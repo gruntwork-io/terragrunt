@@ -436,15 +436,16 @@ func includeConfigAsCtyVal(
 	// carry no source location of their own.
 	value, err := exposed(ctx, l, pctx.WithTrackInclude(nil), &includeConfig)
 	if err != nil {
-		return cty.NilVal, fmt.Errorf(
-			"exposed include %s (%s): %w",
-			includeBlockLabel(includeConfig),
-			includeConfig.Path,
-			err,
-		)
+		return cty.NilVal, ExposedIncludeError(&includeConfig, err)
 	}
 
 	return value, nil
+}
+
+// ExposedIncludeError annotates err, the failure to resolve the value of include for the `include` variable, with the
+// name of include and the path of the file it names.
+func ExposedIncludeError(include *IncludeConfig, err error) error {
+	return fmt.Errorf("exposed include %s (%s): %w", includeBlockLabel(*include), include.Path, err)
 }
 
 // ParsedExposedInclude returns an [ExposedInclude] that parses the included config with the context it is given. It
