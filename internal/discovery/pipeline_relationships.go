@@ -9,7 +9,9 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -37,6 +39,9 @@ type pipelineRelations struct {
 
 // readDependencyPaths parses c when nothing has yet and returns the dependencies it declares. A component that is
 // not a unit declares none. The caller sets the parse phase on ctx.
+//
+// The paths are empty and err holds a [config.AmbiguousConfigError] when the check opts asks for is
+// [config.RejectAmbiguousConfig] and a dependency directory holds both default unit config files.
 func readDependencyPaths(
 	ctx context.Context,
 	l log.Logger,
@@ -63,6 +68,14 @@ func readDependencyPaths(
 	paths, err = stackDependencyPaths(ctx, l, v, opts, paths)
 	if err != nil {
 		return dependencyPaths{err: err}
+	}
+
+	check := configbridge.AmbiguousConfigCheck(opts)
+
+	for _, path := range paths {
+		if err := config.RejectAmbiguousDefaultConfig(v.FS, path, check); err != nil {
+			return dependencyPaths{err: err}
+		}
 	}
 
 	return dependencyPaths{paths: paths}
@@ -286,7 +299,15 @@ func (r *pipelineRelations) linkForDependents(
 			continue
 		}
 
-		linkGraphDependencies(v.FS, c, declared.paths, shared)
+		if err := linkGraphDependencies(
+			v.FS,
+			c,
+			declared.paths,
+			configbridge.AmbiguousConfigCheck(r.opts),
+			shared,
+		); err != nil {
+			errs = append(errs, err)
+		}
 	}
 
 	return errs

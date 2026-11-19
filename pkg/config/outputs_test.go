@@ -1784,6 +1784,34 @@ outputs {
 	assert.True(t, mockValue.IsMarked(), "the value read_terragrunt_config exposes keeps the mark")
 }
 
+// TestDeclaredOutputsRejectsDependencyWithBothDefaultConfigs expects DeclaredOutputs to reject a dependency on a
+// directory holding both terragrunt.hcl and terragrunt.hcl.json.
+func TestDeclaredOutputsRejectsDependencyWithBothDefaultConfigs(t *testing.T) {
+	t.Parallel()
+
+	root := venvtest.Root("/fixture")
+	vpcDir := filepath.Join(root, "vpc")
+	appConfigPath := filepath.Join(root, "app", config.DefaultTerragruntConfigPath)
+
+	fsys := vfs.NewMemMapFS()
+	for path, content := range map[string]string{
+		filepath.Join(vpcDir, config.DefaultTerragruntConfigPath):     "",
+		filepath.Join(vpcDir, config.DefaultTerragruntJSONConfigPath): "{}",
+		appConfigPath: "",
+	} {
+		require.NoError(t, vfs.WriteFile(fsys, path, []byte(content), 0o644))
+	}
+
+	ctx, pctx := newDependentParsingContext(t, appConfigPath, "plan")
+	dep := config.Dependency{Name: "vpc", ConfigPath: cty.StringVal("../vpc")}
+
+	_, err := dep.DeclaredOutputs(ctx, createLogger(), venv.MemVenv().WithFS(fsys), pctx)
+
+	var ambiguousErr config.AmbiguousConfigError
+	require.ErrorAs(t, err, &ambiguousErr)
+	assert.Equal(t, vpcDir, ambiguousErr.ComponentPath)
+}
+
 // parseOutputsConfig parses content as a unit config, with the outputs-block experiment on when enabled.
 func parseOutputsConfig(t *testing.T, content string, enabled bool) *config.TerragruntConfig {
 	t.Helper()

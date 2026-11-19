@@ -255,6 +255,22 @@ func (err ConflictingRunCmdCacheOptionsError) Error() string {
 	return "The --terragrunt-global-cache and --terragrunt-no-cache options cannot be used together. Choose one caching option for run_cmd."
 }
 
+// AmbiguousConfigError reports a directory that holds both default unit configuration files, terragrunt.hcl and
+// terragrunt.hcl.json.
+type AmbiguousConfigError struct {
+	ComponentPath string
+	ConfigFileA   string
+	ConfigFileB   string
+}
+
+func (err AmbiguousConfigError) Error() string {
+	return fmt.Sprintf(
+		"Component %q has more than one Terragrunt configuration file (%s and %s). "+
+			"Only one may be present in a directory; remove one to disambiguate.",
+		err.ComponentPath, err.ConfigFileA, err.ConfigFileB,
+	)
+}
+
 // TerragruntConfigNotFoundError reports a Terragrunt config file that does not exist.
 type TerragruntConfigNotFoundError struct {
 	Path string

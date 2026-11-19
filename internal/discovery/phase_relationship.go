@@ -9,8 +9,10 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"golang.org/x/sync/errgroup"
@@ -189,6 +191,14 @@ func (p *RelationshipPhase) discoverRelationships(
 	depsToDiscover := make(component.Components, 0, len(paths))
 
 	for _, path := range paths {
+		if err := config.RejectAmbiguousDefaultConfig(
+			v.FS,
+			path,
+			configbridge.AmbiguousConfigCheck(state.opts),
+		); err != nil {
+			return err
+		}
+
 		// The boundary is deliberately not applied here: a dependency outside it
 		// is still read and linked, so the units that do run can order against
 		// it and fetch its outputs. [Discovery.dropOutsideBoundary] decides what

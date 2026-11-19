@@ -3,6 +3,7 @@ package config_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -1896,6 +1897,61 @@ func TestTerraformOutputJsonToCtyValueMap(t *testing.T) {
 		for k, v := range converted {
 			assert.True(t, v.Equals(tc.expected[k]).True())
 		}
+	}
+}
+
+// TestParseTerragruntConfigDirectoryWithBothDefaultConfigs pins how read_terragrunt_config resolves a directory
+// holding both terragrunt.hcl and terragrunt.hcl.json.
+func TestParseTerragruntConfigDirectoryWithBothDefaultConfigs(t *testing.T) {
+	t.Parallel()
+
+	root := venvtest.Root("/repo")
+
+	tcs := []struct {
+		name          string
+		wantFrom      string
+		check         config.AmbiguousConfigCheck
+		wantAmbiguous bool
+	}{
+		{
+			name:          "ambiguity rejected",
+			check:         config.RejectAmbiguousConfig,
+			wantAmbiguous: true,
+		},
+		{
+			name:     "ambiguity allowed",
+			check:    config.AllowAmbiguousConfig,
+			wantFrom: "json",
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v := venv.MemVenv().WithFS(venvtest.NewFS(t, root, map[string]string{
+				"app/terragrunt.hcl":       "",
+				"dual/terragrunt.hcl":      "inputs = {\n  from = \"hcl\"\n}\n",
+				"dual/terragrunt.hcl.json": `{"inputs": {"from": "json"}}`,
+			}))
+			ctx, pctx := newTestParsingContext(t, filepath.Join(root, "app", config.DefaultTerragruntConfigPath))
+			pctx.AmbiguousConfigCheck = tc.check
+
+			got, err := config.ParseTerragruntConfig(ctx, logger.CreateLogger(), v, pctx, "../dual", nil)
+			if tc.wantAmbiguous {
+				ambiguousErr, ok := errors.AsType[config.AmbiguousConfigError](err)
+				require.True(t, ok, "unexpected error %v", err)
+				assert.Equal(t, filepath.Join(root, "dual"), ambiguousErr.ComponentPath)
+
+				return
+			}
+
+			require.NoError(t, err)
+
+			gotMap, err := ctyhelper.ParseCtyValueToMap(got)
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantFrom, gotMap["inputs"].(map[string]any)["from"])
+		})
 	}
 }
 

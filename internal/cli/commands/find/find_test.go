@@ -13,7 +13,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/find"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
-	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -574,7 +573,7 @@ func TestRunPropagatesAmbiguousConfigError(t *testing.T) {
 		find.NewOptions(tgOpts),
 	)
 
-	var ambiguousErr discovery.AmbiguousConfigError
+	var ambiguousErr config.AmbiguousConfigError
 	require.ErrorAs(t, err, &ambiguousErr)
 	assert.Equal(t, filepath.Join(root, "dual-unit"), ambiguousErr.ComponentPath)
 }

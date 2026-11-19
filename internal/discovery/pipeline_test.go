@@ -819,7 +819,7 @@ func TestDiscoveryReportsConfigConflictsBeforeParsingWithRacing(t *testing.T) {
 			requireErr: func(t *testing.T, err error) {
 				t.Helper()
 
-				require.ErrorAs(t, err, new(discovery.AmbiguousConfigError))
+				require.ErrorAs(t, err, new(config.AmbiguousConfigError))
 			},
 		},
 	}
