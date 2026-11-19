@@ -12,6 +12,8 @@ shfmt = "3.13.1"
 jq = "1.8.1"
 bun = "1.4.4"
 gotestsum = "1.13.0"
+hyperfine = "2.0.0"
+"go:golang.org/x/perf/cmd/benchstat" = "0.0.0-20261009192801-be2c69fb417e"
 pre-commit = { version = "4.6.2", os = ["macos", "linux"] }
 pipx = { version = "1.8.0", os = ["macos", "linux"] }
 "pipx:codespell" = { version = "2.4.1", os = ["macos", "linux"] }

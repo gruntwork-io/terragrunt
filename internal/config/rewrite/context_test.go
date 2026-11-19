@@ -20,7 +20,7 @@ func TestResolveUnitConfigLeavesParseContextUnchanged(t *testing.T) {
 	t.Parallel()
 
 	v := venv.MemVenv()
-	root := t.TempDir()
+	root := vfs.MemRoot
 	cfgPath := filepath.Join(root, "unit", pkgconfig.DefaultTerragruntConfigPath)
 
 	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(root, "root.hcl"), []byte(`
@@ -85,7 +85,7 @@ func TestResolveUnitConfigAppliesRunScopedValues(t *testing.T) {
 	t.Parallel()
 
 	v := venv.MemVenv()
-	cfgPath := filepath.Join(t.TempDir(), pkgconfig.DefaultTerragruntConfigPath)
+	cfgPath := filepath.Join(vfs.MemRoot, pkgconfig.DefaultTerragruntConfigPath)
 
 	require.NoError(t, vfs.WriteFile(v.FS, cfgPath, []byte(`
 inputs = {

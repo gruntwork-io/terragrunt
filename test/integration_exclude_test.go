@@ -18,9 +18,10 @@ import (
 )
 
 const (
-	testExcludeComprehensive    = "fixtures/exclude/comprehensive"
-	testExcludeNullString       = "fixtures/exclude/null-string"
-	testExcludeDependencyOutput = "fixtures/exclude/dependency-output"
+	testExcludeComprehensive                     = "fixtures/exclude/comprehensive"
+	testExcludeNullString                        = "fixtures/exclude/null-string"
+	testExcludeDependencyOutput                  = "fixtures/exclude/dependency-output"
+	testExcludeExposedIncludeMissingDependencies = "fixtures/exclude/exposed-include-missing-dependencies"
 )
 
 // expectedResult defines the expected outcome for a unit in a test case.
@@ -423,6 +424,32 @@ func TestTFExcludeBlockNullStringRunAll(t *testing.T) {
 	runs, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFile)
 	require.NoError(t, err)
 	assert.Empty(t, runs, "Found: %v", runs.Names())
+}
+
+func TestTFExcludeBlockReadsExposedIncludeWithMissingDependenciesDir(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testExcludeExposedIncludeMissingDependencies)
+	tmpEnvPath := helpers.CopyEnvironment(t, testExcludeExposedIncludeMissingDependencies)
+	rootPath := filepath.Join(tmpEnvPath, testExcludeExposedIncludeMissingDependencies)
+
+	reportFile := filepath.Join(t.TempDir(), "report.json")
+
+	cmd := fmt.Sprintf(
+		"terragrunt run --all --non-interactive --working-dir %s --report-file %s --report-format json -- plan",
+		rootPath,
+		reportFile,
+	)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+	require.NoError(t, err)
+
+	runs, err := report.ParseJSONRunsFromFile(vfs.NewOSFS(), reportFile)
+	require.NoError(t, err)
+
+	run := runs.FindByName("unit")
+	require.NotNil(t, run, "Found: %v", runs.Names())
+	assert.Equal(t, string(report.ResultExcluded), run.Result)
 }
 
 // TestTFExcludeBlockDependencyOutputErrors tests that run --all and single unit runs reject an exclude block that reads a dependency output.

@@ -1,9 +1,9 @@
 ---
-import { render } from "astro:content";
-import { groupByCategory, type ChangelogEntry } from "@lib/changelog";
+import { render, type CollectionEntry } from "astro:content";
+import { groupByCategory } from "@lib/changelog";
 
 interface Props {
-  entries: ChangelogEntry[];
+  entries: CollectionEntry<"changelog">[];
 }
 
 const { entries } = Astro.props;

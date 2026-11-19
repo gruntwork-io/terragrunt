@@ -35,8 +35,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
-const splitCount = 2
-
 // Run runs [RunValidateInputs] when opts.HCLValidateInputs is set, and
 // [RunValidate] otherwise.
 //
@@ -574,28 +572,38 @@ func getTerraformInputNamesFromVarFiles(
 // getTerraformInputNamesFromCLIArgs will return the list of names of variables configured by -var and -var-file CLI
 // args that are passed in via the configured arguments attribute in the extra_arguments block of the given terragrunt
 // config and those that are directly passed in via the CLI.
+//
+// The arguments of the extra_arguments blocks are read as one list with the CLI flags after them, the order a run
+// passes them in, so a flag can take its value from the next block or from the CLI.
+//
+// A relative -var-file path resolves against opts.WorkingDir, the directory tofu runs in.
 func getTerraformInputNamesFromCLIArgs(
 	l log.Logger,
 	fsys vfs.FS,
 	opts *options.TerragruntOptions,
 	terragruntConfig *config.TerragruntConfig,
 ) ([]string, error) {
-	inputNames, varFiles, err := GetVarFlagsFromArgList(opts.TerraformCliArgs.Slice())
-	if err != nil {
-		return inputNames, err
-	}
+	args := []string{}
 
 	if terragruntConfig.Terraform != nil {
 		for _, arg := range terragruntConfig.Terraform.ExtraArgs {
 			if arg.Arguments != nil {
-				vars, rawVarFiles, getArgsErr := GetVarFlagsFromArgList(*arg.Arguments)
-				if getArgsErr != nil {
-					return inputNames, getArgsErr
-				}
-
-				inputNames = append(inputNames, vars...)
-				varFiles = append(varFiles, rawVarFiles...)
+				args = append(args, *arg.Arguments...)
 			}
+		}
+	}
+
+	args = append(args, opts.TerraformCliArgs.Flags...)
+	args = append(args, opts.TerraformCliArgs.Arguments...)
+
+	inputNames, varFiles, err := GetVarFlagsFromArgList(args)
+	if err != nil {
+		return inputNames, err
+	}
+
+	for i, varFile := range varFiles {
+		if !filepath.IsAbs(varFile) {
+			varFiles[i] = filepath.Join(opts.WorkingDir, varFile)
 		}
 	}
 
@@ -687,32 +695,65 @@ func getVarNamesFromVarFile(l log.Logger, fsys vfs.FS, varFile string) ([]string
 	return out, nil
 }
 
-// GetVarFlagsFromArgList returns the CLI flags defined on the provided arguments list that correspond to -var and -var-file.
-// Returns two slices, one for `-var` args (the first one) and one for `-var-file` args (the second one).
+// GetVarFlagsFromArgList returns the variable names that the -var flags in argList set and the paths that its
+// -var-file flags name.
+//
+// It reads -var, --var, -var-file and --var-file, with the value after an equals sign or in the next argument.
+//
+// Returns [MissingVarFlagValueError] when a flag ends argList without a value, and [ErrMalformedVarFlag] when the
+// argument of a -var flag has no equals sign.
 func GetVarFlagsFromArgList(argList []string) ([]string, []string, error) {
 	vars := []string{}
 	varFiles := []string{}
 
-	for _, arg := range argList {
-		if strings.HasPrefix(arg, "-var=") {
-			// -var is passed in the format -var=VARNAME=VALUE, so we split on '=' and take the middle value.
-			splitArg := strings.Split(arg, "=")
-			if len(splitArg) < splitCount {
-				return vars, varFiles, fmt.Errorf(
-					"unexpected -var arg format in terraform.extra_arguments.arguments. Expected '-var=VARNAME=VALUE', got %s",
-					arg,
-				)
+	for i := 0; i < len(argList); i++ {
+		flag, ok := strings.CutPrefix(argList[i], "-")
+		if !ok {
+			continue
+		}
+
+		flag, value, inline := strings.Cut(strings.TrimPrefix(flag, "-"), "=")
+		if flag != "var" && flag != "var-file" {
+			continue
+		}
+
+		if !inline {
+			i++
+			if i == len(argList) {
+				return vars, varFiles, MissingVarFlagValueError{Flag: flag}
 			}
 
-			vars = append(vars, splitArg[1])
+			value = argList[i]
 		}
 
-		if after, ok := strings.CutPrefix(arg, "-var-file="); ok {
-			varFiles = append(varFiles, after)
+		if flag == "var-file" {
+			varFiles = append(varFiles, value)
+
+			continue
 		}
+
+		name, _, ok := strings.Cut(value, "=")
+		if !ok {
+			return vars, varFiles, ErrMalformedVarFlag
+		}
+
+		vars = append(vars, name)
 	}
 
 	return vars, varFiles, nil
+}
+
+// ErrMalformedVarFlag reports a -var flag whose argument is not NAME=VALUE.
+var ErrMalformedVarFlag = errors.New("unexpected -var argument: expected NAME=VALUE")
+
+// MissingVarFlagValueError reports a -var or -var-file flag that is the last argument and so has no value.
+type MissingVarFlagValueError struct {
+	// Flag is the name of the flag without its leading dashes.
+	Flag string
+}
+
+func (err MissingVarFlagValueError) Error() string {
+	return "flag needs an argument: -" + err.Flag
 }
 
 // newDiscovery returns the discovery that hcl commands run over the working directory, the filters and

@@ -23,17 +23,26 @@ type dependencySet struct {
 	blocks pkgconfig.Dependencies
 }
 
-// newDependencySet decodes the dependency blocks of file with pctx and merges in the blocks included gives for each
-// file it includes. It reads no dependency's config and fetches no outputs.
-func newDependencySet(
+// newDependencySet decodes the dependency blocks of file, which holds c's syntax tree, with pc and the variables
+// c's blocks decoded with. It merges in the blocks included gives for each file c includes, reads no dependency's
+// config, and fetches no outputs.
+//
+// Returns the error of building the eval context when the parse failed to build one.
+func (c *UnitConfig) newDependencySet(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	pctx *pkgconfig.ParsingContext,
+	pc *ParseContext,
 	file *pkghclparse.File,
 	included pkgconfig.IncludedDependencies,
 ) (*dependencySet, error) {
-	own, err := pkgconfig.DecodeOwnDependencies(ctx, l, v, pctx, file)
+	if c.evalVars == nil {
+		return nil, c.evalErr
+	}
+
+	pctx := pc.parsingContext()
+
+	own, err := pkgconfig.DecodeOwnDependencies(ctx, l, v, pctx, file, c.evalContext(ctx, l, v, pctx))
 	if err != nil {
 		return nil, err
 	}
@@ -167,11 +176,11 @@ func (c *UnitConfig) dependencyValue(
 	if pc.file.inheritsDependencies {
 		var err error
 
-		set, err = newDependencySet(
+		set, err = c.newDependencySet(
 			ctx,
 			l,
 			v,
-			pctx,
+			pc,
 			c.boundFile(l, v, pc),
 			pkgconfig.ParsedIncludeDependencies(v, pctx),
 		)

@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to build (must match an existing draft release, e.g., v1.0.2)'
+        description: 'Version to build, e.g., v1.0.2 or v1.1.0-rc1 (a draft release is created if none exists)'
         required: true
         type: string
 
@@ -12,8 +12,8 @@ permissions:
   contents: read
 
 jobs:
-  # Validate the release is a draft with a valid semver tag,
-  # targeting an explicit commit SHA.
+  # Validate the version is valid semver, create a draft release for it
+  # if none exists, and check the release targets an explicit commit SHA.
   validate:
     name: Validate Release
     runs-on: ubuntu-latest
@@ -27,17 +27,57 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
 
+      - name: Validate semver
+        env:
+          VERSION: ${{ inputs.version }}
+        run: .github/scripts/release/validate-semver.sh "$VERSION"
+
+      - name: Check if release exists
+        id: check_release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ inputs.version }}
+        run: .github/scripts/release/check-release-exists.sh
+
+      - name: Use mise to install bun
+        if: steps.check_release.outputs.exists == 'false'
+        uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+        with:
+          version: 2026.11.0
+          install_args: bun
+          cache: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install docs dependencies
+        if: steps.check_release.outputs.exists == 'false'
+        working-directory: docs
+        run: mise x bun -- bun install --frozen-lockfile --ignore-scripts
+
+      - name: Build release notes from the docs changelog
+        if: steps.check_release.outputs.exists == 'false'
+        working-directory: docs
+        env:
+          VERSION: ${{ inputs.version }}
+          HEAD_SHA: ${{ github.sha }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: mise x bun -- bun run release-notes "$VERSION" > "$RUNNER_TEMP/release-notes.md"
+
+      - name: Create draft release
+        if: steps.check_release.outputs.exists == 'false'
+        env:
+          VERSION: ${{ inputs.version }}
+          TARGET: ${{ github.sha }}
+          NOTES_FILE: ${{ runner.temp }}/release-notes.md
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: .github/scripts/release/create-draft-release.sh
+
       - name: Resolve version and ref
         id: resolve
         env:
           INPUT_VERSION: ${{ inputs.version }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: .github/scripts/release/resolve-version-ref.sh
-
-      - name: Validate semver
-        env:
-          VERSION: ${{ steps.resolve.outputs.version }}
-        run: .github/scripts/release/validate-semver.sh "$VERSION"
 
       - name: Enforce commit SHA target
         env:
@@ -56,6 +96,31 @@ jobs:
     permissions:
       contents: read
     secrets: inherit
+
+  # Compare the commit being released with the latest published release. No
+  # other job needs this one, so it never holds up the upload.
+  benchmark:
+    name: Benchmark Against Latest Release
+    needs: validate
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [fast, integration]
+    uses: ./.github/workflows/benchmark.yml
+    with:
+      comparison: release
+      suite: ${{ matrix.suite }}
+      ref: ${{ needs.validate.outputs.ref }}
+      # One pass of the integration suite takes about ten minutes a side.
+      go_count: ${{ matrix.suite == 'integration' && '4' || '6' }}
+      time_threshold_pct: ${{ vars.BENCH_TIME_THRESHOLD_PCT || '5' }}
+      memory_threshold_pct: ${{ vars.BENCH_MEMORY_THRESHOLD_PCT || '10' }}
+      alloc_threshold_pct: ${{ vars.BENCH_ALLOC_THRESHOLD_PCT || '2' }}
+      notify_slack: ${{ vars.BENCH_NOTIFY_SLACK == 'true' }}
+    permissions:
+      contents: read
+    secrets:
+      COVERAGE_SLACK_WEBHOOK_URL: ${{ secrets.COVERAGE_SLACK_WEBHOOK_URL }}
 
   # Upload binaries to the draft GitHub release
   upload-assets:

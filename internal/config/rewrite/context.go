@@ -194,6 +194,20 @@ func (pc *ParseContext) withIAMRole(iamRole iam.RoleOptions) *ParseContext {
 	return &c
 }
 
+// forIAMRole returns a copy of pc whose file evaluates with iamRole and memoizes apart from its resolution with pc.
+// A partial parse of the file keeps iamRole and resolves no role of its own.
+func (pc *ParseContext) forIAMRole(iamRole iam.RoleOptions) *ParseContext {
+	c := pc.withIAMRole(iamRole)
+
+	d := newDigest()
+	d.str(c.file.key)
+	d.str("iam-role")
+	d.roleOptions(iamRole)
+	c.file.key = d.sum()
+
+	return c
+}
+
 // withDiagnosticsSuppressed returns a copy of pc whose parsers report no diagnostics.
 func (pc *ParseContext) withDiagnosticsSuppressed() *ParseContext {
 	c := *pc

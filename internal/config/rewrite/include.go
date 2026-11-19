@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 
+	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	pkgconfig "github.com/gruntwork-io/terragrunt/pkg/config"
 	pkghclparse "github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
@@ -41,6 +42,9 @@ type includeSource interface {
 		i int,
 		deps *cty.Value,
 	) (*pkgconfig.TerragruntConfig, error)
+	// checksDependencyDirs reports whether the assembly checks that the dependencies paths of each file are
+	// directories, as [pkgconfig.ParseConfig] does.
+	checksDependencyDirs() bool
 	// autoIncluded returns the config of c's autoinclude at path.
 	autoIncluded(
 		ctx context.Context,
@@ -90,6 +94,10 @@ func (p includeResolver) included(
 	p.kept.included[i] = newIncludedFile(included, err)
 
 	return cfg, err
+}
+
+func (p includeResolver) checksDependencyDirs() bool {
+	return false
 }
 
 func (p includeResolver) autoIncluded(
@@ -163,6 +171,10 @@ func (k keptIncludes) included(
 	return cfg, nil
 }
 
+func (k keptIncludes) checksDependencyDirs() bool {
+	return true
+}
+
 func (k keptIncludes) autoIncluded(
 	ctx context.Context,
 	l log.Logger,
@@ -224,6 +236,10 @@ func (q keptQueue) included(
 	return cfg, nil
 }
 
+func (q keptQueue) checksDependencyDirs() bool {
+	return false
+}
+
 func (q keptQueue) autoIncluded(
 	ctx context.Context,
 	l log.Logger,
@@ -238,6 +254,81 @@ func (q keptQueue) autoIncluded(
 	}
 
 	return autoInclude.assemble(ctx, l, v, pc, keptQueue{})
+}
+
+// keptUnknownOutputs assembles the files a parse kept with `dependency` unknown, fetching no outputs. It decodes the
+// run parts that a section of decodeList decodes and that read no `dependency`, and leaves out the rest. An assembly
+// that gets further than the parse did returns [UnparsedIncludeError].
+type keptUnknownOutputs struct {
+	decodeList []pkgconfig.PartialDecodeSectionType
+}
+
+func (k keptUnknownOutputs) file(
+	c *UnitConfig,
+	evalCtx *hcl.EvalContext,
+) (*pkgconfig.TerragruntConfigFile, hcl.Diagnostics) {
+	c = c.withRequestedRunParts(k.decodeList)
+
+	run, diags := c.decodeRun(evalCtx)
+
+	file := c.queueFile(&c.Queue)
+	run.fill(c, file)
+
+	return file, diags
+}
+
+func (k keptUnknownOutputs) dependencies(
+	_ context.Context,
+	_ log.Logger,
+	_ *venv.Venv,
+	_ *ParseContext,
+	_ *UnitConfig,
+) (*cty.Value, error) {
+	return new(cty.DynamicVal), nil
+}
+
+func (k keptUnknownOutputs) included(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pc *ParseContext,
+	c *UnitConfig,
+	i int,
+	_ *cty.Value,
+) (*pkgconfig.TerragruntConfig, error) {
+	included, err := c.keptInclude(pc, i)
+	if err != nil {
+		return nil, err
+	}
+
+	cfg, err := included.assemble(ctx, l, v, pc, k)
+	if err != nil {
+		include := pc.file.includes.List[i]
+
+		return nil, includeParseError(err, &include, pc)
+	}
+
+	return cfg, nil
+}
+
+func (k keptUnknownOutputs) checksDependencyDirs() bool {
+	return false
+}
+
+func (k keptUnknownOutputs) autoIncluded(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pc *ParseContext,
+	c *UnitConfig,
+	path string,
+) (*pkgconfig.TerragruntConfig, error) {
+	autoInclude, err := c.keptAutoInclude(path)
+	if err != nil {
+		return nil, err
+	}
+
+	return autoInclude.assemble(ctx, l, v, pc, k)
 }
 
 // keptInclude returns the parse of the file c's include block i names.
@@ -358,12 +449,12 @@ func (c *UnitConfig) resolveIncludedConfig(
 	s *Store,
 	include *pkgconfig.IncludeConfig,
 ) (*UnitConfig, *pkgconfig.TerragruntConfig, error) {
-	includedPC, err := includedContext(v, pc, include)
+	includedCtx, err := s.includedContext(ctx, v, pc, include)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	included, cfg, err := s.resolveFile(ctx, l, v, includedPC, include.Path)
+	included, cfg, err := s.resolveFile(ctx, l, v, includedCtx.pc, include.Path)
 	if err != nil {
 		return included, nil, includeParseError(err, include, pc)
 	}
@@ -371,27 +462,38 @@ func (c *UnitConfig) resolveIncludedConfig(
 	return included, cfg, nil
 }
 
-// includedContext returns the context the file include names is parsed with from pc, the context of the including
-// file. A file with a dependency block parses with its diagnostics suppressed.
+// includedFileContext is how the file an include block names is parsed.
+type includedFileContext struct {
+	pc                 *ParseContext
+	hasDependencyBlock bool
+}
+
+// includedContext returns how the file include names is parsed from pc, the context of the including file. A file
+// with a dependency block parses with its diagnostics suppressed.
 //
 // Returns [pkgconfig.IncludedConfigMissingPathError] when include has no path.
-func includedContext(v *venv.Venv, pc *ParseContext, include *pkgconfig.IncludeConfig) (*ParseContext, error) {
+func (s *Store) includedContext(
+	ctx context.Context,
+	v *venv.Venv,
+	pc *ParseContext,
+	include *pkgconfig.IncludeConfig,
+) (includedFileContext, error) {
 	if include.Path == "" {
-		return nil, pkgconfig.IncludedConfigMissingPathError(pc.settings.TerragruntConfigPath)
+		return includedFileContext{}, pkgconfig.IncludedConfigMissingPathError(pc.settings.TerragruntConfigPath)
 	}
 
-	hasDependency, err := pkgconfig.ConfigFileHasDependencyBlock(v.FS, include.Path)
+	hasDependencyBlock, err := s.hasDependencyBlock(ctx, v.FS, include.Path)
 	if err != nil {
-		return nil, err
+		return includedFileContext{}, err
 	}
 
 	includedPC := pc.forIncluded(include)
 
-	if hasDependency {
-		return includedPC.withDiagnosticsSuppressed(), nil
+	if hasDependencyBlock {
+		includedPC = includedPC.withDiagnosticsSuppressed()
 	}
 
-	return includedPC, nil
+	return includedFileContext{pc: includedPC, hasDependencyBlock: hasDependencyBlock}, nil
 }
 
 // includedBase is the file an include block names, evaluated through its base blocks.
@@ -424,12 +526,12 @@ func (s *Store) resolveIncludedBase(
 		return nil, includeParseError(err, include, pc)
 	}
 
-	includedPC, err := includedContext(v, pc, include)
+	includedCtx, err := s.includedContext(ctx, v, pc, include)
 	if err != nil {
 		return nil, err
 	}
 
-	includedPC, err = includedPC.incrementDepth()
+	includedPC, err := includedCtx.pc.incrementDepth()
 	if err != nil {
 		return nil, err
 	}
@@ -511,6 +613,132 @@ func (s *Store) includedDependencies(v *venv.Venv, pc *ParseContext) pkgconfig.I
 
 		return included.dependencyBlocks(ctx, l, v)
 	}
+}
+
+// exposedInclude returns the value of the `include` variable for each exposed include block of a parse with pc,
+// converted from the config of the file the block names. Each block resolves once.
+//
+// The file resolves as merging it does, with its dependency outputs fetched and every run part decoded. A partial
+// parse fetches no outputs of a file with a dependency or dependencies block, and decodes only the run parts of that
+// file that a requested section decodes and that read no `dependency`. A partial parse of a file without such a
+// block evaluates it with the IAM role options the file sets.
+//
+// The second function returns the errors of the blocks that failed to resolve, in name order, each annotated by
+// [pkgconfig.ExposedIncludeError].
+func (s *Store) exposedInclude(v *venv.Venv, pc *ParseContext) (pkgconfig.ExposedInclude, func() error) {
+	type exposedValue struct {
+		err     error
+		include *pkgconfig.IncludeConfig
+		value   cty.Value
+	}
+
+	resolved := map[string]exposedValue{}
+
+	exposed := func(
+		ctx context.Context,
+		l log.Logger,
+		_ *pkgconfig.ParsingContext,
+		include *pkgconfig.IncludeConfig,
+	) (cty.Value, error) {
+		if kept, ok := resolved[include.Name]; ok {
+			return kept.value, kept.err
+		}
+
+		value, err := s.resolveExposedInclude(ctx, l, v, pc, include)
+		resolved[include.Name] = exposedValue{err: err, include: include, value: value}
+
+		return value, err
+	}
+
+	failed := func() error {
+		var errs []error
+
+		for _, name := range slices.Sorted(maps.Keys(resolved)) {
+			if kept := resolved[name]; kept.err != nil {
+				errs = append(errs, pkgconfig.ExposedIncludeError(kept.include, kept.err))
+			}
+		}
+
+		return errors.Join(errs...)
+	}
+
+	return exposed, failed
+}
+
+// resolveExposedInclude resolves the file include names from pc and converts its config for the `include` variable.
+//
+// Returns [pkgconfig.IncludedConfigMissingPathError] when include has no path.
+func (s *Store) resolveExposedInclude(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pc *ParseContext,
+	include *pkgconfig.IncludeConfig,
+) (cty.Value, error) {
+	includedCtx, err := s.includedContext(ctx, v, pc, include)
+	if err != nil {
+		return cty.NilVal, err
+	}
+
+	includedPC := includedCtx.pc
+	partial := len(pc.settings.PartialParseDecodeList) > 0
+
+	var (
+		included *UnitConfig
+		src      includeSource = keptIncludes{}
+	)
+
+	switch {
+	case partial && includedCtx.hasDependencyBlock:
+		included, _, err = s.resolveFile(ctx, l, v, includedPC, include.Path)
+		src = keptUnknownOutputs{decodeList: pc.settings.PartialParseDecodeList}
+	case partial:
+		included, err = s.resolveWithFileIAMRole(ctx, l, v, includedPC, include.Path)
+	default:
+		included, _, err = s.resolveFile(ctx, l, v, includedPC, include.Path)
+	}
+
+	if included == nil {
+		return cty.NilVal, includeParseError(err, include, pc)
+	}
+
+	cfg, err := included.assemble(ctx, l, v, includedPC, src)
+	if err != nil {
+		return cty.NilVal, includeParseError(err, include, pc)
+	}
+
+	return pkgconfig.TerragruntConfigAsCty(cfg)
+}
+
+// resolveWithFileIAMRole resolves the file at cfgPath with pc, evaluating it with the IAM role options its config
+// sets, as [pkgconfig.ParseConfig] resolves them: from its iam_role and iam_web_identity_token, the attributes
+// [pkgconfig.ResolveIAMRoleOptions] reads. The resolution with the role options of pc serves when they match.
+//
+// Returns no parse with the error when the resolution with the role options of pc produced no config.
+func (s *Store) resolveWithFileIAMRole(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pc *ParseContext,
+	cfgPath string,
+) (*UnitConfig, error) {
+	c, cfg, err := s.resolveFile(ctx, l, v, pc, cfgPath)
+	if cfg == nil {
+		return nil, err
+	}
+
+	pctx := pc.parsingContext()
+
+	fileOptions := iam.RoleOptions{RoleARN: cfg.IamRole, WebIdentityToken: cfg.IamWebIdentityToken}
+
+	iamRole := pkgconfig.FileIAMRoleOptions(pctx, fileOptions)
+	if iamRole == pctx.IAMRoleOptions {
+		return c, nil
+	}
+
+	c, _, err = s.resolveFile(ctx, l, v, pc.forIAMRole(iamRole), cfgPath)
+
+	return c, err
 }
 
 // includeParseError reports a missing included file as [pkgconfig.IncludeConfigNotFoundError].

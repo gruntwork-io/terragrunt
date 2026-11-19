@@ -176,16 +176,84 @@ func decodeEach[T, B any](
 
 // readsDependency reports whether an attribute of e reads the `dependency` variable.
 func (e *ExcludeHCL) readsDependency() bool {
-	schema, _ := gohcl.ImpliedBodySchema(new(ExcludeBody))
+	return bodyReadsDependency[ExcludeBody](e.Remain)
+}
+
+// withRequestedRunParts returns a copy of c with only the run parts that a section of decodeList decodes, as
+// [pkgconfig.PartialParseConfig] does, and that read no `dependency`. It keeps the engine block, which the queue
+// decodes with `dependency` unknown whatever the decode list.
+func (c *UnitConfig) withRequestedRunParts(decodeList []pkgconfig.PartialDecodeSectionType) *UnitConfig {
+	requested := *c
+	requested.Inputs = nil
+	requested.GenerateAttrs = nil
+	requested.GenerateBlocks = nil
+	requested.VariablesBlocks = nil
+
+	if !slices.Contains(decodeList, pkgconfig.RemoteStateBlock) || attrReadsDependency(c.RemoteStateAttr) {
+		requested.RemoteStateAttr = nil
+	}
+
+	if !slices.Contains(decodeList, pkgconfig.RemoteStateBlock) ||
+		c.RemoteState != nil && bodyReadsDependency[RemoteStateBody](c.RemoteState.Remain) {
+		requested.RemoteState = nil
+	}
+
+	if c.Terraform == nil {
+		return &requested
+	}
+
+	terraform := *c.Terraform
+	terraform.ExtraArgs = nil
+	terraform.BeforeHooks = nil
+	terraform.AfterHooks = nil
+	terraform.ErrorHooks = nil
+	requested.Terraform = &terraform
+
+	wholeTerraform := slices.Contains(decodeList, pkgconfig.TerraformBlock)
+
+	if wholeTerraform || slices.Contains(decodeList, pkgconfig.TerraformExtraArgs) {
+		terraform.ExtraArgs = dropDependencyReaders[ExtraArgumentsBody](c.Terraform.ExtraArgs, (*ExtraArgumentsHCL).remain)
+	}
+
+	if !wholeTerraform {
+		return &requested
+	}
+
+	terraform.BeforeHooks = dropDependencyReaders[HookBody](c.Terraform.BeforeHooks, (*HookHCL).remain)
+	terraform.AfterHooks = dropDependencyReaders[HookBody](c.Terraform.AfterHooks, (*HookHCL).remain)
+	terraform.ErrorHooks = dropDependencyReaders[ErrorHookBody](c.Terraform.ErrorHooks, (*ErrorHookHCL).remain)
+
+	return &requested
+}
+
+// dropDependencyReaders returns a copy of items without those whose remain body, which decodes into B, reads the
+// `dependency` variable.
+func dropDependencyReaders[B, T any](items []T, remain func(*T) hcl.Body) []T {
+	return slices.DeleteFunc(slices.Clone(items), func(item T) bool {
+		return bodyReadsDependency[B](remain(&item))
+	})
+}
+
+// bodyReadsDependency reports whether an attribute of remain, which decodes into B, reads the `dependency` variable.
+func bodyReadsDependency[B any](remain hcl.Body) bool {
+	schema, _ := gohcl.ImpliedBodySchema(new(B))
 
 	spec := make(hcldec.ObjectSpec, len(schema.Attributes))
 	for _, attr := range schema.Attributes {
 		spec[attr.Name] = &hcldec.AttrSpec{Name: attr.Name, Type: cty.DynamicPseudoType}
 	}
 
-	return slices.ContainsFunc(hcldec.Variables(e.Remain, spec), func(traversal hcl.Traversal) bool {
-		return traversal.RootName() == pkgconfig.MetadataDependency
-	})
+	return slices.ContainsFunc(hcldec.Variables(remain, spec), isDependencyTraversal)
+}
+
+// attrReadsDependency reports whether attr, which is nil when absent, reads the `dependency` variable.
+func attrReadsDependency(attr *hcl.Attribute) bool {
+	return attr != nil && slices.ContainsFunc(attr.Expr.Variables(), isDependencyTraversal)
+}
+
+// isDependencyTraversal reports whether traversal reads the `dependency` variable.
+func isDependencyTraversal(traversal hcl.Traversal) bool {
+	return traversal.RootName() == pkgconfig.MetadataDependency
 }
 
 func (a *ExtraArgumentsHCL) remain() hcl.Body {

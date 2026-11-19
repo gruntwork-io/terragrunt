@@ -1,7 +1,16 @@
-import type { CollectionEntry } from "astro:content";
-import { compareVersionsDesc } from "./versions";
+import { z } from "astro/zod";
+import { compareVersionsDesc, releaseVersionSchema } from "./versions";
 
-export type ChangelogEntry = CollectionEntry<"changelog">;
+/**
+ * The parts of a changelog entry this module reads. An Astro
+ * `CollectionEntry<"changelog">` satisfies it, and so does an entry read
+ * straight from disk outside an Astro build.
+ */
+export interface ChangelogEntry {
+  id: string;
+  body?: string;
+  data: z.infer<typeof changelogSchema>;
+}
 
 export interface ChangelogCategory {
   slug: string;
@@ -27,19 +36,28 @@ export const CHANGELOG_CATEGORY_SLUGS = CHANGELOG_CATEGORIES.map((c) => c.slug) 
   ...string[],
 ];
 
+/**
+ * The frontmatter schema of a changelog entry.
+ */
+export const changelogSchema = z.object({
+  version: releaseVersionSchema,
+  category: z.enum(CHANGELOG_CATEGORY_SLUGS),
+  order: z.number().optional(),
+});
+
 const CATEGORY_INDEX = new Map(CHANGELOG_CATEGORIES.map((c, i) => [c.slug, i]));
 
 export function categoryLabel(slug: string): string {
   return CHANGELOG_CATEGORIES.find((c) => c.slug === slug)?.label ?? slug;
 }
 
-export interface CategoryGroup {
+export interface CategoryGroup<T extends ChangelogEntry = ChangelogEntry> {
   category: ChangelogCategory;
-  entries: ChangelogEntry[];
+  entries: T[];
 }
 
-export function groupByCategory(entries: ChangelogEntry[]): CategoryGroup[] {
-  const buckets = new Map<string, ChangelogEntry[]>();
+export function groupByCategory<T extends ChangelogEntry>(entries: T[]): CategoryGroup<T>[] {
+  const buckets = new Map<string, T[]>();
   for (const entry of entries) {
     const slug = entry.data.category;
     const bucket = buckets.get(slug) ?? [];
@@ -68,10 +86,7 @@ export function uniqueVersions(entries: ChangelogEntry[]): string[] {
   return Array.from(set).sort(compareVersionsDesc);
 }
 
-export function entriesForVersion(
-  entries: ChangelogEntry[],
-  version: string,
-): ChangelogEntry[] {
+export function entriesForVersion<T extends ChangelogEntry>(entries: T[], version: string): T[] {
   return entries.filter((e) => e.data.version === version);
 }
 
@@ -338,4 +353,27 @@ export function prepareForGitHub(body: string, siteUrl: string): string {
   result = result.replace(/\n{3,}/g, "\n\n");
 
   return result.trim();
+}
+
+/**
+ * Returns the body of the GitHub release for one version as Markdown: its
+ * changelog entries under their category headings, then the pull request list.
+ * `entries` must all belong to that version.
+ */
+export function releaseNotesMarkdown(
+  entries: ChangelogEntry[],
+  pullRequestGroups: PullRequestGroup[],
+  siteUrl: string,
+): string {
+  const releaseEntriesMd = prepareForGitHub(
+    groupByCategory(entries)
+      .map((group) => {
+        const bodies = group.entries.map((e) => (e.body ?? "").trim()).join("\n\n");
+        return `### ${group.category.label}\n\n---\n\n${bodies}`;
+      })
+      .join("\n\n"),
+    siteUrl,
+  );
+  const pullRequestsMd = pullRequestsToMarkdown(pullRequestGroups);
+  return [releaseEntriesMd, pullRequestsMd].filter(Boolean).join("\n\n");
 }

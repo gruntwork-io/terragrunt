@@ -7,6 +7,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
@@ -38,10 +40,69 @@ const (
 	// QueueIncludeUnitsReadingFlagName is the flag name for the hidden `--queue-include-units-reading`,
 	// which limits the queue to units that read the named file.
 	QueueIncludeUnitsReadingFlagName = "queue-include-units-reading"
+	// UnitsThatIncludeFlagName is the flag name for the hidden, deprecated `--units-that-include`, which
+	// limits the queue to units that read the named file. Setting it evaluates its strict control.
+	UnitsThatIncludeFlagName = "units-that-include"
 )
 
-// NewQueueFlags creates the flags used for queue control
-func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelper.Flags {
+// NewSelectionFlags creates every flag that adds to opts.Filters, which select the stacks and units a
+// command acts on: the filter flags, the queue selection flags, and --units-that-include.
+func NewSelectionFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.Flags {
+	selectionFlags := clihelper.Flags{NewUnitsThatIncludeFlag(opts)}
+
+	selectionFlags = selectionFlags.Add(NewQueueSelectionFlags(opts, nil)...)
+	selectionFlags = selectionFlags.Add(NewFilterFlags(l, opts, v)...)
+
+	return selectionFlags
+}
+
+// NewUnitsThatIncludeFlag creates the hidden, deprecated flag that limits the queue to units that read the
+// named file.
+func NewUnitsThatIncludeFlag(opts *options.TerragruntOptions) *flags.Flag {
+	tgPrefix := flags.Prefix{flags.TgPrefix}
+	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
+
+	return flags.NewFlag(
+		&clihelper.SliceFlag[string]{
+			Name:    UnitsThatIncludeFlagName,
+			EnvVars: tgPrefix.EnvVars(UnitsThatIncludeFlagName),
+			Usage:   "If flag is set, 'run --all' will only run the command against Terragrunt modules that include the specified file.",
+			Hidden:  true,
+			Action: func(ctx context.Context, _ *clihelper.Context, value []string) error {
+				if len(value) == 0 {
+					return nil
+				}
+
+				if err := opts.StrictControls.FilterByNames(controls.UnitsThatInclude).
+					Evaluate(ctx); err != nil {
+					return err
+				}
+
+				for _, v := range value {
+					attrExpr, err := filter.NewAttributeExpression(filter.AttributeReading, v)
+					if err != nil {
+						return err
+					}
+
+					opts.Filters = append(
+						opts.Filters,
+						filter.NewFilter(attrExpr, attrExpr.String()),
+					)
+				}
+
+				return nil
+			},
+		},
+		flags.WithDeprecatedEnvVars(
+			terragruntPrefix.EnvVars("modules-that-include"),
+			opts.StrictControls,
+		),
+	)
+}
+
+// NewQueueRunFlags creates the flags that control how the queue runs its units: whether a unit waits on
+// its dependencies, and whether it runs after one of them fails.
+func NewQueueRunFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelper.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
 
@@ -71,7 +132,16 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelp
 				opts.StrictControls,
 			),
 		),
+	}
+}
 
+// NewQueueSelectionFlags creates the hidden flags that select the units in the queue. Each one that still
+// selects anything does it by adding a filter.
+func NewQueueSelectionFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelper.Flags {
+	tgPrefix := prefix.Prepend(flags.TgPrefix)
+	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
+
+	return clihelper.Flags{
 		flags.NewFlag(
 			&clihelper.BoolFlag{
 				Name:    QueueExcludeExternalFlagName,

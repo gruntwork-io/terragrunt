@@ -10,7 +10,7 @@ const originalFetch = globalThis.fetch;
 const originalError = console.error;
 
 function mockFetch(response: Response) {
-  const fn = mock(async () => response);
+  const fn = mock(async (_input: string | URL | Request) => response);
   globalThis.fetch = fn as unknown as typeof fetch;
   return fn;
 }

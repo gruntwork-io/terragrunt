@@ -21,7 +21,7 @@ import (
 // directory, source, and source map; the tofu command, original command, and CLI args; the IAM role options and their
 // original values; the feature flag overrides; the auth provider command; the parser settings; the
 // read_terragrunt_config chain; SkipOutput; SkipOutputsResolution; the parse depth; SkipAutoIncludeMerge; whether
-// reads are tracked; the environment of v; and whether v discards output.
+// reads are tracked; the sections of the decode list; the environment of v; and whether v discards output.
 //
 // It leaves out the experiments, the strict controls, the maximum number of parent folders to check, the engine,
 // the tofu binary and implementation, the provider cache and CAS options, and the telemetry and logging options.
@@ -64,6 +64,7 @@ func runDigest(v *venv.Venv, run *pkgconfig.ParsingContext) (string, bool) {
 	d.int(run.ParseDepth)
 	d.bool(run.SkipAutoIncludeMerge)
 	d.bool(run.FilesRead.Tracking())
+	d.sections(run.PartialParseDecodeList)
 	d.strMap(v.Env)
 	d.bool(v.Writers.Writer == io.Discard)
 
@@ -123,6 +124,16 @@ func (d digest) roleOptions(o iam.RoleOptions) {
 	d.str(o.WebIdentityToken)
 	d.str(o.AssumeRoleSessionName)
 	d.str(strconv.FormatInt(o.AssumeRoleDuration, 10))
+}
+
+func (d digest) sections(list []pkgconfig.PartialDecodeSectionType) {
+	sections := slices.Compact(slices.Sorted(slices.Values(list)))
+
+	d.int(len(sections))
+
+	for _, section := range sections {
+		d.int(int(section))
+	}
 }
 
 func (d digest) parserSettings(s pkgconfig.ParserSettings) {

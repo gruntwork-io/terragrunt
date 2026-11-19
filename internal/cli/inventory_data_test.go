@@ -25,8 +25,14 @@ var cliInventory = cliCommand{
 			name:     "aws-provider-patch",
 			category: commands.ConfigurationCommandsCategoryName,
 			hidden:   true,
-			flags: slices.Concat(runFlags, []cliFlag{
+			flags: slices.Concat(configParsingFlags, filterFlags, queueSelectionFlags, []cliFlag{
 				allFlag,
+				failFastFlag,
+				noAutoRetryFlag,
+				noHooksFlag,
+				parallelismFlag,
+				sourceUpdateFlag,
+				unitsThatIncludeFlag,
 				{
 					names:             []string{"override-attr"},
 					envVars:           []string{"TG_OVERRIDE_ATTR"},
@@ -153,7 +159,7 @@ var cliInventory = cliCommand{
 			subcommands: []cliCommand{
 				{
 					name: "graph",
-					flags: slices.Concat(backendFlags, filterFlags, queueFlags, []cliFlag{
+					flags: slices.Concat(backendFlags, filterFlags, queueRunFlags, queueSelectionFlags, []cliFlag{
 						featureFlag,
 					}),
 				},
@@ -268,7 +274,7 @@ var cliInventory = cliCommand{
 				{
 					name:    "format",
 					aliases: []string{"fmt"},
-					flags: slices.Concat(filterFlags, queueFlags, []cliFlag{
+					flags: slices.Concat(filterFlags, queueRunFlags, queueSelectionFlags, []cliFlag{
 						{
 							names:             []string{"check"},
 							envVars:           []string{"TG_CHECK"},
@@ -303,7 +309,7 @@ var cliInventory = cliCommand{
 				},
 				{
 					name: "validate",
-					flags: slices.Concat(filterFlags, queueFlags, []cliFlag{
+					flags: slices.Concat(filterFlags, queueRunFlags, queueSelectionFlags, []cliFlag{
 						{names: []string{"inputs"}, envVars: []string{"TG_INPUTS"}},
 						{
 							names:             []string{"json"},
@@ -351,8 +357,14 @@ var cliInventory = cliCommand{
 			subcommands: []cliCommand{
 				{
 					name: "print",
-					flags: slices.Concat(runFlags, []cliFlag{
+					flags: slices.Concat(configParsingFlags, filterFlags, queueSelectionFlags, []cliFlag{
 						allFlag,
+						failFastFlag,
+						noAutoRetryFlag,
+						noHooksFlag,
+						parallelismFlag,
+						sourceUpdateFlag,
+						unitsThatIncludeFlag,
 					}),
 				},
 				{
@@ -495,7 +507,10 @@ var cliInventory = cliCommand{
 		{
 			name:     "render",
 			category: commands.ConfigurationCommandsCategoryName,
-			flags: slices.Concat(runFlags, []cliFlag{
+			flags: slices.Concat(configParsingFlags, filterFlags, queueSelectionFlags, []cliFlag{
+				failFastFlag,
+				parallelismFlag,
+				unitsThatIncludeFlag,
 				{
 					names:             []string{"all", "a"},
 					envVars:           []string{"TG_ALL"},
@@ -597,24 +612,28 @@ var cliInventory = cliCommand{
 				{name: "clean"},
 				{
 					name: "generate",
-					flags: slices.Concat(runFlags, []cliFlag{
-						{names: []string{"no-stack-validate"}, envVars: []string{"TG_NO_STACK_VALIDATE"}, hidden: true},
+					flags: slices.Concat(configParsingFlags, filterFlags, queueSelectionFlags, []cliFlag{
+						noStackGenerateFlag,
+						noStackValidateFlag,
+						parallelismFlag,
+						sourceUpdateFlag,
+						unitsThatIncludeFlag,
 					}),
 				},
 				{
 					name: "output",
-					flags: slices.Concat(runFlags, []cliFlag{
+					flags: slices.Concat(configParsingFlags, filterFlags, queueSelectionFlags, []cliFlag{
+						noStackValidateFlag,
+						parallelismFlag,
+						unitsThatIncludeFlag,
 						{names: []string{"format"}, envVars: []string{"TG_FORMAT"}},
 						{names: []string{"json"}},
-						{names: []string{"no-stack-validate"}, envVars: []string{"TG_NO_STACK_VALIDATE"}, hidden: true},
 						{names: []string{"raw"}},
 					}),
 				},
 				{
-					name: "run",
-					flags: slices.Concat(runFlags, []cliFlag{
-						{names: []string{"no-stack-validate"}, envVars: []string{"TG_NO_STACK_VALIDATE"}, hidden: true},
-					}),
+					name:  "run",
+					flags: slices.Concat(unitRunFlags, []cliFlag{noStackValidateFlag}),
 				},
 			},
 		},
@@ -786,8 +805,22 @@ var filterFlags = []cliFlag{
 	{names: []string{"no-filters-file"}, envVars: []string{"TG_NO_FILTERS_FILE"}},
 }
 
-// queueFlags shape the queue of units a command runs.
-var queueFlags = []cliFlag{
+// queueRunFlags control how the queue runs its units.
+var queueRunFlags = []cliFlag{
+	{
+		names:             []string{"queue-ignore-dag-order"},
+		envVars:           []string{"TG_QUEUE_IGNORE_DAG_ORDER"},
+		deprecatedEnvVars: []string{"TERRAGRUNT_IGNORE_DEPENDENCY_ORDER"},
+	},
+	{
+		names:             []string{"queue-ignore-errors"},
+		envVars:           []string{"TG_QUEUE_IGNORE_ERRORS"},
+		deprecatedEnvVars: []string{"TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS"},
+	},
+}
+
+// queueSelectionFlags select the units in the queue.
+var queueSelectionFlags = []cliFlag{
 	{
 		names:             []string{"queue-exclude-dir"},
 		envVars:           []string{"TG_QUEUE_EXCLUDE_DIR"},
@@ -805,16 +838,6 @@ var queueFlags = []cliFlag{
 		envVars:           []string{"TG_QUEUE_EXCLUDES_FILE"},
 		deprecatedEnvVars: []string{"TERRAGRUNT_EXCLUDES_FILE"},
 		hidden:            true,
-	},
-	{
-		names:             []string{"queue-ignore-dag-order"},
-		envVars:           []string{"TG_QUEUE_IGNORE_DAG_ORDER"},
-		deprecatedEnvVars: []string{"TERRAGRUNT_IGNORE_DEPENDENCY_ORDER"},
-	},
-	{
-		names:             []string{"queue-ignore-errors"},
-		envVars:           []string{"TG_QUEUE_IGNORE_ERRORS"},
-		deprecatedEnvVars: []string{"TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS"},
 	},
 	{
 		names:             []string{"queue-include-dir"},
@@ -842,10 +865,12 @@ var queueFlags = []cliFlag{
 	},
 }
 
-// runFlags are the flags of run, except --all and --graph, that the commands
-// built on run share.
-var runFlags = slices.Concat(backendFlags, filterFlags, queueFlags, []cliFlag{
+// configParsingFlags reach config parsing, which resolves dependency outputs
+// and so can download sources and run init, in every command that parses a
+// unit or a stack file.
+var configParsingFlags = slices.Concat(backendFlags, []cliFlag{
 	featureFlag,
+	inputsDebugFlag,
 	{
 		names:             []string{"auth-provider-cmd"},
 		envVars:           []string{"TG_AUTH_PROVIDER_CMD"},
@@ -860,13 +885,6 @@ var runFlags = slices.Concat(backendFlags, filterFlags, queueFlags, []cliFlag{
 		names:             []string{"dependency-fetch-output-from-state"},
 		envVars:           []string{"TG_DEPENDENCY_FETCH_OUTPUT_FROM_STATE"},
 		deprecatedEnvVars: []string{"TERRAGRUNT_FETCH_DEPENDENCY_OUTPUT_FROM_STATE"},
-	},
-	{names: []string{"destroy-dependencies-check"}, envVars: []string{"TG_DESTROY_DEPENDENCIES_CHECK"}},
-	{
-		names:             []string{"disable-command-validation"},
-		envVars:           []string{"TG_DISABLE_COMMAND_VALIDATION"},
-		deprecatedEnvVars: []string{"TERRAGRUNT_DISABLE_COMMAND_VALIDATION"},
-		hidden:            true,
 	},
 	{
 		names:             []string{"download-dir"},
@@ -897,12 +915,6 @@ var runFlags = slices.Concat(backendFlags, filterFlags, queueFlags, []cliFlag{
 		deprecatedEnvVars: []string{"TERRAGRUNT_EXPERIMENTAL_ENGINE"},
 		hidden:            true,
 	},
-	{names: []string{"fail-fast"}, envVars: []string{"TG_FAIL_FAST"}},
-	{
-		names:             []string{"graph-root"},
-		envVars:           []string{"TG_GRAPH_ROOT"},
-		deprecatedEnvVars: []string{"TERRAGRUNT_GRAPH_ROOT"},
-	},
 	{
 		names:             []string{"iam-assume-role"},
 		envVars:           []string{"TG_IAM_ASSUME_ROLE"},
@@ -924,52 +936,19 @@ var runFlags = slices.Concat(backendFlags, filterFlags, queueFlags, []cliFlag{
 		deprecatedEnvVars: []string{"TERRAGRUNT_IAM_WEB_IDENTITY_TOKEN", "TERRAGRUNT_IAM_ASSUME_ROLE_WEB_IDENTITY_TOKEN"},
 	},
 	{
-		names:             []string{"inputs-debug"},
-		envVars:           []string{"TG_INPUTS_DEBUG"},
-		deprecatedEnvVars: []string{"TERRAGRUNT_DEBUG"},
-	},
-	{
-		names:             []string{"json-out-dir"},
-		envVars:           []string{"TG_JSON_OUT_DIR"},
-		deprecatedEnvVars: []string{"TERRAGRUNT_JSON_OUT_DIR"},
-	},
-	{
-		names:             []string{"no-auto-approve"},
-		envVars:           []string{"TG_NO_AUTO_APPROVE"},
-		deprecatedEnvVars: []string{"TERRAGRUNT_AUTO_APPROVE"},
-	},
-	{
 		names:             []string{"no-auto-init"},
 		envVars:           []string{"TG_NO_AUTO_INIT"},
 		deprecatedEnvVars: []string{"TERRAGRUNT_AUTO_INIT"},
 	},
 	{names: []string{"no-auto-provider-cache-dir"}, envVars: []string{"TG_NO_AUTO_PROVIDER_CACHE_DIR"}},
-	{
-		names:             []string{"no-auto-retry"},
-		envVars:           []string{"TG_NO_AUTO_RETRY"},
-		deprecatedEnvVars: []string{"TERRAGRUNT_AUTO_RETRY"},
-	},
 	{names: []string{"no-cas"}, envVars: []string{"TG_NO_CAS"}},
 	{
 		names:   []string{"no-dependency-fetch-output-from-state"},
 		envVars: []string{"TG_NO_DEPENDENCY_FETCH_OUTPUT_FROM_STATE"},
 	},
 	{names: []string{"no-dependency-outputs"}, envVars: []string{"TG_NO_DEPENDENCY_OUTPUTS"}},
-	{
-		names:   []string{"no-destroy-dependencies-check"},
-		envVars: []string{"TG_NO_DESTROY_DEPENDENCIES_CHECK"},
-		hidden:  true,
-	},
 	{names: []string{"no-discovery-auth-provider-cmd"}, envVars: []string{"TG_NO_DISCOVERY_AUTH_PROVIDER_CMD"}},
 	{names: []string{"no-engine"}, envVars: []string{"TG_NO_ENGINE"}, hidden: true},
-	{names: []string{"no-hooks"}, envVars: []string{"TG_NO_HOOKS"}},
-	{names: []string{"no-stack-generate"}, envVars: []string{"TG_NO_STACK_GENERATE"}},
-	{names: []string{"out-dir"}, envVars: []string{"TG_OUT_DIR"}, deprecatedEnvVars: []string{"TERRAGRUNT_OUT_DIR"}},
-	{
-		names:             []string{"parallelism"},
-		envVars:           []string{"TG_PARALLELISM"},
-		deprecatedEnvVars: []string{"TERRAGRUNT_PARALLELISM"},
-	},
 	{
 		names:             []string{"provider-cache"},
 		envVars:           []string{"TG_PROVIDER_CACHE"},
@@ -1000,9 +979,6 @@ var runFlags = slices.Concat(backendFlags, filterFlags, queueFlags, []cliFlag{
 		envVars:           []string{"TG_PROVIDER_CACHE_TOKEN"},
 		deprecatedEnvVars: []string{"TERRAGRUNT_PROVIDER_CACHE_TOKEN"},
 	},
-	{names: []string{"report-file"}, envVars: []string{"TG_REPORT_FILE"}},
-	{names: []string{"report-format"}, envVars: []string{"TG_REPORT_FORMAT"}},
-	{names: []string{"report-schema-file"}, envVars: []string{"TG_REPORT_SCHEMA_FILE"}},
 	{names: []string{"source"}, envVars: []string{"TG_SOURCE"}, deprecatedEnvVars: []string{"TERRAGRUNT_SOURCE"}},
 	{
 		names:             []string{"source-map"},
@@ -1010,24 +986,11 @@ var runFlags = slices.Concat(backendFlags, filterFlags, queueFlags, []cliFlag{
 		deprecatedEnvVars: []string{"TERRAGRUNT_SOURCE_MAP"},
 	},
 	{
-		names:             []string{"source-update"},
-		envVars:           []string{"TG_SOURCE_UPDATE"},
-		deprecatedEnvVars: []string{"TERRAGRUNT_SOURCE_UPDATE"},
-	},
-	{names: []string{"summary-disable"}, envVars: []string{"TG_SUMMARY_DISABLE"}},
-	{names: []string{"summary-per-unit"}, envVars: []string{"TG_SUMMARY_PER_UNIT"}},
-	{
 		names:             []string{"tf-forward-stdout"},
 		envVars:           []string{"TG_TF_FORWARD_STDOUT"},
 		deprecatedEnvVars: []string{"TERRAGRUNT_FORWARD_TF_STDOUT", "TERRAGRUNT_INCLUDE_MODULE_PREFIX"},
 	},
 	{names: []string{"tf-path"}, envVars: []string{"TG_TF_PATH"}, deprecatedEnvVars: []string{"TERRAGRUNT_TFPATH"}},
-	{
-		names:             []string{"units-that-include"},
-		envVars:           []string{"TG_UNITS_THAT_INCLUDE"},
-		deprecatedEnvVars: []string{"TERRAGRUNT_MODULES_THAT_INCLUDE"},
-		hidden:            true,
-	},
 	{
 		names:             []string{"use-partial-parse-config-cache"},
 		envVars:           []string{"TG_USE_PARTIAL_PARSE_CONFIG_CACHE"},
@@ -1036,5 +999,101 @@ var runFlags = slices.Concat(backendFlags, filterFlags, queueFlags, []cliFlag{
 	{names: []string{"version-manager-file-name"}, envVars: []string{"TG_VERSION_MANAGER_FILE_NAME"}},
 })
 
+// runOnlyFlags have an effect only when OpenTofu/Terraform commands run in
+// units: on run, its shortcuts, and stack run.
+var runOnlyFlags = []cliFlag{
+	{names: []string{"destroy-dependencies-check"}, envVars: []string{"TG_DESTROY_DEPENDENCIES_CHECK"}},
+	{
+		names:             []string{"disable-command-validation"},
+		envVars:           []string{"TG_DISABLE_COMMAND_VALIDATION"},
+		deprecatedEnvVars: []string{"TERRAGRUNT_DISABLE_COMMAND_VALIDATION"},
+		hidden:            true,
+	},
+	{
+		names:             []string{"json-out-dir"},
+		envVars:           []string{"TG_JSON_OUT_DIR"},
+		deprecatedEnvVars: []string{"TERRAGRUNT_JSON_OUT_DIR"},
+	},
+	{
+		names:             []string{"no-auto-approve"},
+		envVars:           []string{"TG_NO_AUTO_APPROVE"},
+		deprecatedEnvVars: []string{"TERRAGRUNT_AUTO_APPROVE"},
+	},
+	{
+		names:   []string{"no-destroy-dependencies-check"},
+		envVars: []string{"TG_NO_DESTROY_DEPENDENCIES_CHECK"},
+		hidden:  true,
+	},
+	{names: []string{"out-dir"}, envVars: []string{"TG_OUT_DIR"}, deprecatedEnvVars: []string{"TERRAGRUNT_OUT_DIR"}},
+	{names: []string{"report-file"}, envVars: []string{"TG_REPORT_FILE"}},
+	{names: []string{"report-format"}, envVars: []string{"TG_REPORT_FORMAT"}},
+	{names: []string{"report-schema-file"}, envVars: []string{"TG_REPORT_SCHEMA_FILE"}},
+	{names: []string{"summary-disable"}, envVars: []string{"TG_SUMMARY_DISABLE"}},
+	{names: []string{"summary-per-unit"}, envVars: []string{"TG_SUMMARY_PER_UNIT"}},
+}
+
+var failFastFlag = cliFlag{names: []string{"fail-fast"}, envVars: []string{"TG_FAIL_FAST"}}
+
+var graphRootFlag = cliFlag{
+	names:             []string{"graph-root"},
+	envVars:           []string{"TG_GRAPH_ROOT"},
+	deprecatedEnvVars: []string{"TERRAGRUNT_GRAPH_ROOT"},
+}
+
+var inputsDebugFlag = cliFlag{
+	names:             []string{"inputs-debug"},
+	envVars:           []string{"TG_INPUTS_DEBUG"},
+	deprecatedEnvVars: []string{"TERRAGRUNT_DEBUG"},
+}
+
+var noAutoRetryFlag = cliFlag{
+	names:             []string{"no-auto-retry"},
+	envVars:           []string{"TG_NO_AUTO_RETRY"},
+	deprecatedEnvVars: []string{"TERRAGRUNT_AUTO_RETRY"},
+}
+
+var noHooksFlag = cliFlag{names: []string{"no-hooks"}, envVars: []string{"TG_NO_HOOKS"}}
+
+var noStackGenerateFlag = cliFlag{names: []string{"no-stack-generate"}, envVars: []string{"TG_NO_STACK_GENERATE"}}
+
+var parallelismFlag = cliFlag{
+	names:             []string{"parallelism"},
+	envVars:           []string{"TG_PARALLELISM"},
+	deprecatedEnvVars: []string{"TERRAGRUNT_PARALLELISM"},
+}
+
+var sourceUpdateFlag = cliFlag{
+	names:             []string{"source-update"},
+	envVars:           []string{"TG_SOURCE_UPDATE"},
+	deprecatedEnvVars: []string{"TERRAGRUNT_SOURCE_UPDATE"},
+}
+
+var unitsThatIncludeFlag = cliFlag{
+	names:             []string{"units-that-include"},
+	envVars:           []string{"TG_UNITS_THAT_INCLUDE"},
+	deprecatedEnvVars: []string{"TERRAGRUNT_MODULES_THAT_INCLUDE"},
+	hidden:            true,
+}
+
+var noStackValidateFlag = cliFlag{
+	names:   []string{"no-stack-validate"},
+	envVars: []string{"TG_NO_STACK_VALIDATE"},
+	hidden:  true,
+}
+
+// unitRunFlags are the flags run and stack run have in common.
+var unitRunFlags = slices.Concat(
+	configParsingFlags, filterFlags, queueRunFlags, queueSelectionFlags, runOnlyFlags,
+	[]cliFlag{
+		failFastFlag,
+		noAutoRetryFlag,
+		noHooksFlag,
+		noStackGenerateFlag,
+		parallelismFlag,
+		sourceUpdateFlag,
+		unitsThatIncludeFlag,
+	},
+)
+
 // runCommandFlags are the flags of run and of the OpenTofu shortcuts.
-var runCommandFlags = slices.Concat(runFlags, []cliFlag{allFlag, graphFlag})
+var runCommandFlags = slices.Concat(unitRunFlags, []cliFlag{allFlag, graphFlag, graphRootFlag})

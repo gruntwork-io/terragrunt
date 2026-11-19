@@ -17,7 +17,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
 
       - name: Use mise to install dependencies
-        uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+        uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
         with:
           version: 2026.11.0
           cache_save: ${{ github.ref == 'refs/heads/main' }}
@@ -88,6 +88,7 @@ jobs:
         if: ${{ !cancelled() }}
         run: |
           bats --print-output-on-failure \
+            .github/scripts/benchmark/tests/ \
             .github/scripts/ci/tests/ \
             .github/scripts/release/tests/ \
             .github/scripts/coverage/tests/ \
@@ -108,6 +109,22 @@ jobs:
       - name: Test scripts
         if: ${{ !cancelled() && steps.bun-install.outcome == 'success' }}
         working-directory: .github/scripts
+        run: bun test
+
+      - name: Install docs dependencies
+        id: docs-bun-install
+        if: ${{ !cancelled() }}
+        working-directory: docs
+        run: bun install --frozen-lockfile --ignore-scripts
+
+      - name: Typecheck docs
+        if: ${{ !cancelled() && steps.docs-bun-install.outcome == 'success' }}
+        working-directory: docs
+        run: bun run typecheck
+
+      - name: Test docs
+        if: ${{ !cancelled() && steps.docs-bun-install.outcome == 'success' }}
+        working-directory: docs
         run: bun test
 
       - name: Run License Check

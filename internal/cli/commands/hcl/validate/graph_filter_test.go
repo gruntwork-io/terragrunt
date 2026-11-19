@@ -37,6 +37,7 @@ type validateRun struct {
 	experiments     []string
 	queries         []string
 	strictControls  []string
+	tfCLIArgs       []string
 	inputs          bool
 	outputs         bool
 }
@@ -75,6 +76,7 @@ func runValidateIn(t *testing.T, v *venv.Venv, root string, run *validateRun) va
 	opts.HCLValidateInputs = run.inputs
 	opts.HCLValidateOutputs = run.outputs
 	opts.AuthProviderCmd = run.authProviderCmd
+	opts.AppendTerraformCliArgs(run.tfCLIArgs...)
 
 	if run.tfPath != "" {
 		opts.TFPath = run.tfPath
