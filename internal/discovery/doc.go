@@ -84,9 +84,6 @@
 // When a filter selects dependents, the workers also read the dependencies of every candidate a dependent traversal
 // can reach, and the pre-graph step of phase 3 links them on one goroutine without parsing anything again.
 //
-// The pipeline takes over one phase at a time. [EnvPipeline] and the phases are removed once it has replaced all
-// of them.
-//
 // # Filter Expressions
 //
 // The package supports several filter expression types:

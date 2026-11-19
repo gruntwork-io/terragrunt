@@ -1626,6 +1626,54 @@ func TestEntryDependenciesSkipItselfAndRepeats(t *testing.T) {
 	assert.Equal(t, []string{"b", "a"}, entryPaths(q.Entries))
 }
 
+func TestFailEntryStaysWithinItsDirection(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name      string
+		failed    string
+		untouched string
+		excluded  bool
+	}{
+		{name: "apply failure, direct", failed: "a", untouched: "d"},
+		{name: "destroy failure, direct", failed: "d", untouched: "a"},
+		{name: "apply failure, through an excluded unit", failed: "a", untouched: "d", excluded: true},
+		{name: "destroy failure, through an excluded unit", failed: "d", untouched: "a", excluded: true},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			a := component.NewUnit("a")
+			a.SetDiscoveryContext(&component.DiscoveryContext{Cmd: "apply"})
+
+			d := component.NewUnit("d")
+			d.SetDiscoveryContext(&component.DiscoveryContext{Cmd: "destroy"})
+
+			var dependency component.Component = a
+
+			if tc.excluded {
+				b := component.NewUnit("b")
+				b.AddDependency(a)
+				dependency = b
+			}
+
+			d.AddDependency(dependency)
+
+			q, err := queue.NewQueue(component.Components{a, d})
+			require.NoError(t, err)
+
+			untouched := q.EntryByPath(tc.untouched)
+			want := untouched.Status
+
+			q.FailEntry(q.EntryByPath(tc.failed))
+
+			assert.Equal(t, want, untouched.Status, "a unit being applied and a unit being destroyed never stop each other")
+		})
+	}
+}
+
 // excludedMiddleChain returns units a and c running cmd, where a depends on c only through a unit b that runs
 // nothing.
 func excludedMiddleChain(cmd string) (*component.Unit, *component.Unit) {

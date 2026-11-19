@@ -109,7 +109,8 @@ type pipeline struct {
 // nor has such a filter.
 //
 // Returns the error of the walk when it fails, and otherwise the parse errors joined. suppressParseErrors drops
-// both, as it does for the phases. A [CoexistenceError] or an [AmbiguousConfigError] is returned either way.
+// both, as it does for the phases. A [CoexistenceError], an [AmbiguousConfigError], or the error of ctx once it is
+// done is returned either way.
 func (d *Discovery) runPipeline(
 	ctx context.Context,
 	l log.Logger,
@@ -165,6 +166,10 @@ func (d *Discovery) runPipeline(
 		return walked{}, found.error
 	}
 
+	if err := ctx.Err(); err != nil {
+		return walked{}, err
+	}
+
 	if span := trace.SpanFromContext(ctx); span.IsRecording() {
 		span.SetAttributes(
 			attribute.Int("walked", len(collected.walkedDiscovered)+len(collected.walkedCandidates)),
@@ -201,8 +206,8 @@ func (d *Discovery) runPipeline(
 // walk walks the working directory, reports each component it finds on events, and queues the ones that need a
 // parse on work.
 //
-// Returns a [conflictError] when a component that needs a parse shares its directory with a config file that
-// validateNoCoexistence rejects beside it, before either is parsed.
+// Returns a conflictError when a component the walk queues for a worker shares its directory with a config file
+// that validateNoCoexistence rejects beside it, before either is parsed.
 func (p *pipeline) walk(ctx context.Context, l log.Logger, v *venv.Venv) error {
 	d := p.discovery
 	phase := NewFilesystemPhase(d.numWorkers)
@@ -286,7 +291,7 @@ type conflictError struct {
 	error
 }
 
-// conflict returns a [conflictError] when the directory of path, the config file of found, holds another config
+// conflict returns a conflictError when the directory of path, the config file of found, holds another config
 // file that validateNoCoexistence rejects beside it.
 func conflict(
 	fsys vfs.FS,
@@ -356,11 +361,16 @@ func (p *pipeline) readsDependencies(fsys vfs.FS, result DiscoveryResult) bool {
 }
 
 // parse works through the components on work until it closes and reports each on events. It parses a component
-// that needs it, then reads the dependencies of one discovery needs them from.
+// that needs it, then reads the dependencies of one discovery needs them from. Once ctx is done, it drains work
+// without reading anything.
 func (p *pipeline) parse(ctx context.Context, l log.Logger, v *venv.Venv) {
 	phase := NewParsePhase(p.discovery.numWorkers)
 
 	for candidate := range p.work {
+		if ctx.Err() != nil {
+			continue
+		}
+
 		event := pipelineEvent{result: candidate, stage: stageRelated}
 
 		if p.needsParse(candidate) {

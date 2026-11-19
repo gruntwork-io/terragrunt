@@ -68,8 +68,7 @@ const (
 )
 
 // Dependencies returns the entries e's component depends on, directly or through components that are not in the
-// queue, such as units a filter or an exclude block left out. A unit that depends on an excluded unit therefore still
-// waits on what the excluded unit depends on.
+// queue, such as units a filter or an exclude block left out.
 func (e *Entry) Dependencies() Entries {
 	return e.dependencies
 }
@@ -436,8 +435,8 @@ func (q *Queue) ClaimForRunning(e *Entry) bool {
 }
 
 // FailEntry marks the entry as failed and updates related entries if needed.
-// For up commands, this marks entries that come after this one as early exit.
-// For destroy/down commands, this marks entries that come before this one as early exit.
+// For up commands, this marks the up entries that come after this one as early exit.
+// For destroy/down commands, this marks the down entries that come before this one as early exit.
 // Use only for failure transitions. For other status changes, set Status directly.
 func (q *Queue) FailEntry(e *Entry) {
 	q.mu.Lock()
@@ -471,10 +470,10 @@ func (q *Queue) FailEntry(e *Entry) {
 	q.earlyExitDependencies(e)
 }
 
-// earlyExitDependents - Recursively mark all entries that are dependent on this one as early exit.
+// earlyExitDependents - Recursively mark all "up" entries that are dependent on this one as early exit.
 func (q *Queue) earlyExitDependents(e *Entry) {
 	for _, entry := range q.Entries {
-		if !slices.Contains(entry.dependencies, e) || isTerminalOrRunning(entry.Status) {
+		if !entry.IsUp() || !slices.Contains(entry.dependencies, e) || isTerminalOrRunning(entry.Status) {
 			continue
 		}
 
@@ -484,10 +483,10 @@ func (q *Queue) earlyExitDependents(e *Entry) {
 	}
 }
 
-// earlyExitDependencies - Recursively mark all entries that are dependencies on this one as early exit.
+// earlyExitDependencies - Recursively mark all "down" entries that are dependencies on this one as early exit.
 func (q *Queue) earlyExitDependencies(e *Entry) {
 	for _, depEntry := range e.dependencies {
-		if isTerminalOrRunning(depEntry.Status) {
+		if depEntry.IsUp() || isTerminalOrRunning(depEntry.Status) {
 			continue
 		}
 

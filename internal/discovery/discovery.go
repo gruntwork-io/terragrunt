@@ -245,7 +245,7 @@ func (d *Discovery) Discover(
 	return components, nil
 }
 
-// walked is what [Discovery.walkAndParse] found.
+// walked is what walkAndParse found.
 type walked struct {
 	// relations is the dependencies the pipeline read from the components, nil when the phases ran in its place or
 	// discovery needs none.

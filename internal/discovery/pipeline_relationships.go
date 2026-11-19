@@ -102,8 +102,9 @@ func (r *pipelineRelations) link(
 	}
 
 	for _, c := range components {
-		if _, ok := linker.discovered[c.Path()]; !ok {
-			linker.discovered[c.Path()] = c
+		resolved := d.paths.Resolve(c.Path())
+		if _, ok := linker.discovered[resolved]; !ok {
+			linker.discovered[resolved] = c
 		}
 	}
 
@@ -120,7 +121,7 @@ func (r *pipelineRelations) link(
 		linker.add(v, c, declared.paths)
 	}
 
-	walks := newTransientWalks(linker.discovered, components)
+	walks := newTransientWalks(linker, components)
 	linked := map[component.Component]struct{}{}
 	baseDepth := parseDepthFromContext(ctx)
 
@@ -152,7 +153,7 @@ func (r *pipelineRelations) link(
 		}
 
 		walks = slices.DeleteFunc(walks, func(w *transientWalk) bool {
-			w.advance(linker.discovered)
+			w.advance(linker)
 
 			return w.done()
 		})
@@ -174,11 +175,11 @@ type transientWalk struct {
 }
 
 // newTransientWalks returns a walk from each unit among components that still has a unit to follow and another
-// discovered unit to reach. discovered maps the path of each of components to the first component at it.
-func newTransientWalks(discovered map[string]component.Component, components component.Components) []*transientWalk {
+// discovered unit to reach. linker holds the first of components at each path.
+func newTransientWalks(linker *dependencyLinker, components component.Components) []*transientWalk {
 	units := 0
 
-	for _, c := range discovered {
+	for _, c := range linker.discovered {
 		if _, ok := c.(*component.Unit); ok {
 			units++
 		}
@@ -187,7 +188,11 @@ func newTransientWalks(discovered map[string]component.Component, components com
 	var walks []*transientWalk
 
 	for _, c := range components {
-		if _, ok := c.(*component.Unit); !ok || discovered[c.Path()] != c {
+		if _, ok := c.(*component.Unit); !ok {
+			continue
+		}
+
+		if first, _ := linker.discoveredAt(c.Path()); first != c {
 			continue
 		}
 
@@ -197,7 +202,7 @@ func newTransientWalks(discovered map[string]component.Component, components com
 			units:   units,
 		}
 
-		w.follow(discovered, c.Dependencies())
+		w.follow(linker, c.Dependencies())
 
 		if !w.done() {
 			walks = append(walks, w)
@@ -208,21 +213,24 @@ func newTransientWalks(discovered map[string]component.Component, components com
 }
 
 // advance follows the dependencies of the units the walk reached last.
-func (w *transientWalk) advance(discovered map[string]component.Component) {
+func (w *transientWalk) advance(linker *dependencyLinker) {
 	following := w.next
 	w.next = nil
 
 	for _, unit := range following {
-		w.follow(discovered, unit.Dependencies())
+		w.follow(linker, unit.Dependencies())
 	}
 }
 
-// follow records that the walk reached deps. A discovered unit among them counts as reached, and the walk follows
-// the dependencies of any other unit it has not visited next.
-func (w *transientWalk) follow(discovered map[string]component.Component, deps component.Components) {
+// follow records that the walk reached deps. A discovered unit among them counts as reached, the walk stops at a
+// discovered stack, and it follows the dependencies of any other unit it has not visited next.
+func (w *transientWalk) follow(linker *dependencyLinker, deps component.Components) {
 	for _, dep := range deps {
-		if _, ok := discovered[dep.Path()]; ok {
-			w.reached[dep.Path()] = struct{}{}
+		if found, ok := linker.discoveredAt(dep.Path()); ok {
+			if _, isUnit := found.(*component.Unit); isUnit {
+				w.reached[found.Path()] = struct{}{}
+			}
+
 			continue
 		}
 
@@ -347,7 +355,7 @@ func (r *pipelineRelations) readAll(
 type dependencyLinker struct {
 	// discovery is the discovery the components are linked for.
 	discovery *Discovery
-	// discovered maps the path of each component discovery found to it.
+	// discovered maps the path of each component discovery found, with symlinks resolved, to it.
 	discovered map[string]component.Component
 	// reached maps the path of each dependency discovery did not find to the unit created for it.
 	reached map[string]*component.Unit
@@ -366,7 +374,7 @@ func (k *dependencyLinker) add(v *venv.Venv, c component.Component, paths []stri
 
 // dependency returns the component at path: the one discovery found, or a unit that only its dependents reach.
 func (k *dependencyLinker) dependency(v *venv.Venv, path string) component.Component {
-	if dep, ok := k.discovered[path]; ok {
+	if dep, ok := k.discoveredAt(path); ok {
 		return dep
 	}
 
@@ -375,6 +383,7 @@ func (k *dependencyLinker) dependency(v *venv.Venv, path string) component.Compo
 	}
 
 	dep := component.NewUnit(path)
+	dep.SetConfigFile(unitConfigFilename(v.FS, path))
 
 	discoveryCtx := k.discovery.discoveryContext.Copy()
 	discoveryCtx.SuggestOrigin(component.OriginRelationshipDiscovery)
@@ -387,4 +396,11 @@ func (k *dependencyLinker) dependency(v *venv.Venv, path string) component.Compo
 	k.reached[path] = dep
 
 	return dep
+}
+
+// discoveredAt returns the component discovery found at path, comparing paths with symlinks resolved.
+func (k *dependencyLinker) discoveredAt(path string) (component.Component, bool) {
+	c, ok := k.discovered[k.discovery.paths.Resolve(path)]
+
+	return c, ok
 }
