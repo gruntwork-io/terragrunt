@@ -10,6 +10,8 @@
     "preview": "astro preview",
     "astro": "astro",
     "test": "bun test",
+    "typecheck": "astro sync && tsc --noEmit",
+    "release-notes": "bun scripts/release-notes.ts",
     "spell": "cd .. && codespell",
     "spell:fix": "cd .. && codespell -w"
   },

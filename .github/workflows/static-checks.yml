@@ -111,6 +111,22 @@ jobs:
         working-directory: .github/scripts
         run: bun test
 
+      - name: Install docs dependencies
+        id: docs-bun-install
+        if: ${{ !cancelled() }}
+        working-directory: docs
+        run: bun install --frozen-lockfile --ignore-scripts
+
+      - name: Typecheck docs
+        if: ${{ !cancelled() && steps.docs-bun-install.outcome == 'success' }}
+        working-directory: docs
+        run: bun run typecheck
+
+      - name: Test docs
+        if: ${{ !cancelled() && steps.docs-bun-install.outcome == 'success' }}
+        working-directory: docs
+        run: bun test
+
       - name: Run License Check
         if: ${{ !cancelled() }}
         run: ./.github/scripts/ci/run-license-check.sh

@@ -61,9 +61,10 @@ export function rehypeChangelogAnchors() {
       if (!HEADING_TAGS.has(node.tagName)) return;
       if (typeof index !== "number" || !parent) return;
 
-      const wrapperClass = Array.isArray(parent.properties?.className)
-        ? (parent.properties.className as string[])
-        : [];
+      const wrapperClass =
+        parent.type === "element" && Array.isArray(parent.properties.className)
+          ? (parent.properties.className as string[])
+          : [];
       if (wrapperClass.includes("sl-heading-wrapper")) return;
 
       const props = (node.properties ??= {});

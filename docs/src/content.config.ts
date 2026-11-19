@@ -3,11 +3,9 @@ import { z } from 'astro/zod';
 import { docsLoader } from '@astrojs/starlight/loaders';
 import { docsSchema } from '@astrojs/starlight/schema';
 import { glob, file } from 'astro/loaders';
-import { CHANGELOG_CATEGORY_SLUGS } from './lib/changelog';
+import { changelogSchema } from './lib/changelog';
 import { publishedOnly } from './lib/release';
-import { RELEASE_VERSION } from './lib/versions';
-
-const releaseVersion = z.string().regex(RELEASE_VERSION, 'must have the form vX.Y.Z, e.g. v1.2.0');
+import { releaseVersionSchema } from './lib/versions';
 
 const compatibilityVersion = z.string().regex(/^\d+\.\d+\.\d+$/, 'must have the form X.Y.Z, e.g. 1.2.0');
 
@@ -41,7 +39,7 @@ const commands = defineCollection({
 			control: z.string(),
 			name: z.string(),
 		}).optional(),
-		since: releaseVersion.optional(),
+		since: releaseVersionSchema.optional(),
 	}),
 });
 
@@ -49,7 +47,7 @@ const docs = defineCollection({
 	loader: publishedOnly(docsLoader()),
 	schema: docsSchema({
 		extend: z.object({
-			since: releaseVersion.optional(),
+			since: releaseVersionSchema.optional(),
 		}),
 	}),
 });
@@ -63,7 +61,7 @@ const flags = defineCollection({
 		type: z.string(),
 		env: z.array(z.string()).optional(),
 		aliases: z.array(z.string()).optional(),
-		since: releaseVersion.optional(),
+		since: releaseVersionSchema.optional(),
 	}),
 });
 
@@ -88,7 +86,7 @@ const hclItem = {
 	name: z.string().regex(/^[a-z][a-z0-9_]*$/),
 	description: z.string(),
 	configs: hclConfigs,
-	since: releaseVersion.optional(),
+	since: releaseVersionSchema.optional(),
 	// The experiment that gates the item, e.g. `deep-merge`. While it's active,
 	// index tables and the sidebar list the item after the rest.
 	experiment: z.string().optional(),
@@ -104,7 +102,7 @@ const hclAttributeFields = {
 	required: z.boolean().default(false),
 	default: z.string().optional(),
 	description: z.string(),
-	since: releaseVersion.optional(),
+	since: releaseVersionSchema.optional(),
 };
 
 const requiredHasNoDefault = [
@@ -256,11 +254,7 @@ const patterns = defineCollection({
 
 const changelog = defineCollection({
 	loader: glob({ pattern: ["**/*.{md,mdx}", "!README.md"], base: "src/data/changelog" }),
-	schema: z.object({
-		version: releaseVersion,
-		category: z.enum(CHANGELOG_CATEGORY_SLUGS),
-		order: z.number().optional(),
-	}),
+	schema: changelogSchema,
 });
 
 const compatibility = defineCollection({
@@ -285,8 +279,8 @@ const experiments = defineCollection({
 		// release ships, the experiment is treated as completed. An
 		// experiment's active/completed status is derived from these versions
 		// rather than a separate `status` field.
-		since: releaseVersion.optional(),
-		completedSince: releaseVersion.optional(),
+		since: releaseVersionSchema.optional(),
+		completedSince: releaseVersionSchema.optional(),
 	}),
 });
 
@@ -298,8 +292,8 @@ const strictControls = defineCollection({
 		// `completedSince` is the release in which the behavior it enforces
 		// became the default; once that release ships, the control is treated
 		// as completed.
-		since: releaseVersion.optional(),
-		completedSince: releaseVersion.optional(),
+		since: releaseVersionSchema.optional(),
+		completedSince: releaseVersionSchema.optional(),
 	}),
 });
 

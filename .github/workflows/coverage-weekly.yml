@@ -52,7 +52,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_SHA: ${{ steps.refs.outputs.current_sha }}
           GITHUB_REF: refs/heads/main
-        run: ./.github/scripts/coverage/coverage-report.sh collect current ${WEEKLY_PKGS}
+        run: |
+          read -ra pkgs <<< "$WEEKLY_PKGS"
+          ./.github/scripts/coverage/coverage-report.sh collect current "${pkgs[@]}"
 
       - name: Prepare previous checkout
         if: steps.refs.outputs.same_commit != 'true'
@@ -69,7 +71,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_SHA: ${{ steps.refs.outputs.previous_sha }}
           GITHUB_REF: refs/heads/main
-        run: ${{ github.workspace }}/.github/scripts/coverage/coverage-report.sh collect ${{ github.workspace }}/previous ${WEEKLY_PKGS}
+        run: |
+          read -ra pkgs <<< "$WEEKLY_PKGS"
+          "$GITHUB_WORKSPACE/.github/scripts/coverage/coverage-report.sh" collect "$GITHUB_WORKSPACE/previous" "${pkgs[@]}"
 
       - name: Compare coverage
         # A missing/empty previous summary yields a baseline (current-only) report.
