@@ -206,21 +206,19 @@ func (s *Store) ParseUnitAST(
 ) (*pkghclparse.File, error) {
 	k := Key{Path: filepath.Clean(path), Stage: StageAST}
 
-	s.dropStale(k, info)
-
-	res, err := s.Memoize(ctx, k, func(context.Context) (*astFile, error) {
+	file, err := s.memoizeStamped(ctx, k, info, func(context.Context) (*pkghclparse.File, error) {
 		file, err := parser.ParseFromFile(fsys, path)
 		if err != nil {
 			return nil, err
 		}
 
-		return &astFile{file: withoutParser(file), stamp: stampOf(info)}, nil
+		return withoutParser(file), nil
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	return res.Value.file.Rebind(parser), nil
+	return file.Rebind(parser), nil
 }
 
 // hasDependencyBlock reports whether the file at path declares a dependency or dependencies block. The first caller
@@ -239,21 +237,40 @@ func (s *Store) hasDependencyBlock(ctx context.Context, fsys vfs.FS, path string
 
 	k := Key{Path: filepath.Clean(path), Stage: StageDependencyScan}
 
+	return s.memoizeStamped(ctx, k, info, func(context.Context) (bool, error) {
+		return pkgconfig.ConfigFileHasDependencyBlock(fsys, path)
+	})
+}
+
+// memoizeStamped returns the value and error of k as [Store.Memoize] does, where fn reads the value from the file
+// that info describes. A retained value read from another version of the file is dropped first. A call that joined a
+// run which read another version runs fn again outside s, whether that run succeeded or failed.
+func (s *Store) memoizeStamped[T any](
+	ctx context.Context,
+	k Key,
+	info fs.FileInfo,
+	fn func(context.Context) (T, error),
+) (T, error) {
 	s.dropStale(k, info)
 
-	res, err := s.Memoize(ctx, k, func(context.Context) (*dependencyScan, error) {
-		found, err := pkgconfig.ConfigFileHasDependencyBlock(fsys, path)
-		if err != nil {
-			return nil, err
-		}
+	stamp := stampOf(info)
 
-		return &dependencyScan{found: found, stamp: stampOf(info)}, nil
+	res, err := s.Memoize(ctx, k, func(ctx context.Context) (*stampedValue[T], error) {
+		val, err := fn(ctx)
+
+		return &stampedValue[T]{value: val, stamp: stamp}, err
 	})
-	if err != nil {
-		return false, err
+	if res.Value == nil {
+		var zero T
+
+		return zero, err
 	}
 
-	return res.Value.found, nil
+	if !res.Value.stamp.matches(info) {
+		return fn(ctx)
+	}
+
+	return res.Value.value, err
 }
 
 // Invalidate drops every retained result of the file at path and of every result whose run parsed it through
@@ -345,24 +362,14 @@ type stamped interface {
 	readFrom() fileStamp
 }
 
-// astFile is a [StageAST] value with the stamp of the file it was parsed from.
-type astFile struct {
-	file  *pkghclparse.File
+// stampedValue is a value read from a file, with the stamp of the file it was read from.
+type stampedValue[T any] struct {
+	value T
 	stamp fileStamp
 }
 
-func (f *astFile) readFrom() fileStamp {
-	return f.stamp
-}
-
-// dependencyScan is a [StageDependencyScan] value with the stamp of the file it was scanned from.
-type dependencyScan struct {
-	stamp fileStamp
-	found bool
-}
-
-func (d *dependencyScan) readFrom() fileStamp {
-	return d.stamp
+func (v *stampedValue[T]) readFrom() fileStamp {
+	return v.stamp
 }
 
 // join returns the entry of k and whether the caller has to run its body.

@@ -220,7 +220,7 @@ func CreateTerragruntEvalContext(
 	pctx *ParsingContext,
 	cfgPath string,
 ) (*hcl.EvalContext, error) {
-	vars, err := TerragruntEvalVariables(ctx, l, v, pctx, cfgPath)
+	vars, err := TerragruntEvalVariables(ctx, l, pctx, cfgPath, ParsedExposedInclude(v))
 	if err != nil {
 		return nil, err
 	}
@@ -231,14 +231,23 @@ func CreateTerragruntEvalContext(
 	}, nil
 }
 
+// ExposedInclude returns the value the `include` variable holds for include, a block with expose set. pctx is the
+// context of the including file, without its include blocks.
+type ExposedInclude func(
+	ctx context.Context,
+	l log.Logger,
+	pctx *ParsingContext,
+	include *IncludeConfig,
+) (cty.Value, error)
+
 // TerragruntEvalVariables returns the variables of the eval context [CreateTerragruntEvalContext] builds for pctx,
-// with no functions.
+// with no functions. The `include` variable holds what exposed gives for each exposed include block.
 func TerragruntEvalVariables(
 	ctx context.Context,
 	l log.Logger,
-	v *venv.Venv,
 	pctx *ParsingContext,
 	cfgPath string,
+	exposed ExposedInclude,
 ) (map[string]cty.Value, error) {
 	vars := map[string]cty.Value{}
 
@@ -261,7 +270,7 @@ func TerragruntEvalVariables(
 	if pctx.TrackInclude != nil && len(pctx.TrackInclude.CurrentList) > 0 {
 		// For each include block, check if we want to expose the included config, and if so, add under the include
 		// variable.
-		exposedInclude, err := includeMapAsCtyVal(ctx, l, v, pctx)
+		exposedInclude, err := includeMapAsCtyVal(ctx, l, pctx, exposed)
 		if err != nil && len(pctx.PartialParseDecodeList) == 0 {
 			return nil, fmt.Errorf(
 				"could not resolve exposed includes for eval context in %s: %w",

@@ -81,6 +81,12 @@ func (c *UnitConfig) assemble(
 		errs = append(errs, err)
 	}
 
+	if src.checksDependencyDirs() {
+		if err := pkgconfig.ValidateDependencies(v, pctx, cfgFile.Dependencies); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
 	if cfg != nil {
 		if err := pkgconfig.ValidateInputDefinitions(bound, cfg); err != nil {
 			errs = append(errs, err)
