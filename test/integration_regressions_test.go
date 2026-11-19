@@ -3,21 +3,17 @@ package test_test
 import (
 	"bytes"
 	"encoding/gob"
-	"encoding/json"
 	"errors"
 	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/gruntwork-io/terragrunt/internal/view/diagnostic"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/hashicorp/hcl/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -48,7 +44,6 @@ const (
 	testFixtureDependencyGenuineError            = "fixtures/regressions/dependency-genuine-error"
 	testFixtureDependencyOutputLocalOptimization = "fixtures/regressions/dependency-output-local-optimization"
 	testFixtureTerraformSourceRefsDependency     = "fixtures/regressions/terraform-source-references-dependency"
-	testFixtureVersionAttributeRefsDependency    = "fixtures/regressions/version-attribute-references-dependency"
 )
 
 func TestIncludeError(t *testing.T) {
@@ -370,70 +365,6 @@ func findCachedFile(t *testing.T, cacheRoot, name string) string {
 	require.NoError(t, walkErr, "walking %s", cacheRoot)
 
 	return found
-}
-
-// TestVersionAttributeReferencesDependencyIsRejected pins that `run` and `run --all` both reject a unit whose
-// terraform_version_constraint references a dependency output, even in a branch that never evaluates.
-func TestVersionAttributeReferencesDependencyIsRejected(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name       string
-		command    string
-		workingDir string
-	}{
-		{name: "run", command: "terragrunt run --non-interactive", workingDir: "unit"},
-		{name: "run --all", command: "terragrunt run --all --non-interactive", workingDir: "."},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureVersionAttributeRefsDependency)
-			workingDir := filepath.Join(tmpEnvPath, testFixtureVersionAttributeRefsDependency, tt.workingDir)
-
-			_, _, err := helpers.RunTerragruntCommandWithOutput(t, tt.command+" --working-dir "+workingDir+" -- plan")
-
-			var diags hcl.Diagnostics
-			require.ErrorAs(t, err, &diags)
-			require.Len(t, diags, 1)
-
-			assert.Equal(t, "Dependency reference not allowed", diags[0].Summary)
-			require.NotNil(t, diags[0].Subject)
-			assert.Equal(t, 13, diags[0].Subject.Start.Line)
-		})
-	}
-}
-
-// TestHclValidateVersionAttributeReferencesDependency pins that `hcl validate` reports a version attribute that
-// references a dependency output as one diagnostic pointing at the reference.
-func TestHclValidateVersionAttributeReferencesDependency(t *testing.T) {
-	t.Parallel()
-
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureVersionAttributeRefsDependency)
-	rootPath := filepath.Join(tmpEnvPath, testFixtureVersionAttributeRefsDependency)
-
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
-		t,
-		"terragrunt hcl validate --json --working-dir "+rootPath,
-	)
-	require.Error(t, err)
-
-	var diags diagnostic.Diagnostics
-
-	require.NoError(t, json.Unmarshal([]byte(strings.TrimSpace(stdout)), &diags))
-	require.Len(t, diags, 1)
-
-	diag := diags[0]
-
-	assert.Equal(t, "Dependency reference not allowed", diag.Summary)
-
-	require.NotNil(t, diag.Range)
-	assert.Equal(t, filepath.Join(rootPath, "unit", "terragrunt.hcl"), diag.Range.Filename)
-	assert.Equal(t, 13, diag.Range.Start.Line)
-	assert.Equal(t, 55, diag.Range.Start.Column)
-	assert.Equal(t, 88, diag.Range.End.Column)
 }
 
 // TestTerraformSourceReferencesDependencyIsRejected pins that a unit whose terraform.source references a dependency

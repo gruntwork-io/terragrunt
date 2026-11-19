@@ -392,3 +392,28 @@ func TestRunValidateReportsValuesKeysThatAreNotIdentifiers(t *testing.T) {
 	require.NotNil(t, result.diags[0].Range)
 	assert.Equal(t, 5, result.diags[0].Range.Start.Line)
 }
+
+// TestRunValidateReportsVersionAttributeReferencingDependency pins that a version attribute that references a
+// dependency output reports one diagnostic pointing at the reference.
+func TestRunValidateReportsVersionAttributeReferencingDependency(t *testing.T) {
+	t.Parallel()
+
+	result := runValidate(t, &validateRun{files: map[string]string{
+		"dep/terragrunt.hcl": "",
+		"app/terragrunt.hcl": `dependency "dep" {
+  config_path = "../dep"
+}
+
+terraform_binary = dependency.dep.outputs.binary
+`,
+	}})
+
+	require.Error(t, result.err)
+	require.Len(t, result.diags, 1)
+	assert.Equal(t, "Dependency reference not allowed", result.diags[0].Summary)
+	require.NotNil(t, result.diags[0].Range)
+	assert.Equal(t, filepath.Join(result.root, "app", "terragrunt.hcl"), result.diags[0].Range.Filename)
+	assert.Equal(t, 5, result.diags[0].Range.Start.Line)
+	assert.Equal(t, 20, result.diags[0].Range.Start.Column)
+	assert.Equal(t, 49, result.diags[0].Range.End.Column)
+}
