@@ -37,6 +37,10 @@ const (
 	varDependency = blockDependency
 	varEach       = "each"
 	varCount      = "count"
+	varPath       = "path"
+
+	// pathAttrInclude names `path.include`, the path of the included stack file.
+	pathAttrInclude = "include"
 )
 
 const (
@@ -69,6 +73,8 @@ type ParseStackFileInput struct {
 	// OverrideSrc is the optional sibling terragrunt.autoinclude.stack.hcl. Its unit and stack blocks
 	// replace same-name base blocks wholesale, including their paths and autoinclude blocks.
 	OverrideSrc []byte
+	// UnitRoots are the variable roots a unit autoinclude keeps verbatim for the generated unit to resolve.
+	UnitRoots []string
 }
 
 // ParseResult holds the output of ParseStackFile.
@@ -107,7 +113,7 @@ func ParseStackFile(
 	srcByFilename := map[string][]byte{input.Filename: input.Src}
 
 	// Phase 3 resolves include blocks and merges included Remain bodies.
-	mergedRemain, err := mergeIncludes(
+	mergedRemain, contexts, err := mergeIncludes(
 		fsys,
 		parsedStackFile,
 		input.StackDir,
@@ -133,12 +139,12 @@ func ParseStackFile(
 	// Publish unit.<name>.path / stack.<name>.path from a path-only pre-decode so the
 	// phase-4 decode can evaluate values expressions that reference sibling component
 	// paths, matching the production parse (injectStackComponentRefs in pkg/config).
-	if err := publishComponentRefs(ctx, mergedRemain, overrideRemain, evalCtx, input.StackDir); err != nil {
+	if err := publishComponentRefs(ctx, mergedRemain, overrideRemain, contexts, input.StackDir); err != nil {
 		return result, err
 	}
 
 	// Phase 4 decodes unit/stack blocks once per expansion element and resolves autoincludes.
-	units, stacks, err := decodeComponents(ctx, mergedRemain, evalCtx)
+	units, stacks, err := decodeComponents(ctx, mergedRemain, contexts)
 
 	// Surface partial Units/Stacks before the error so LSP/IDE callers can inspect them.
 	result.Units = units
@@ -155,7 +161,7 @@ func ParseStackFile(
 	resolveUnits, resolveStacks := units, stacks
 
 	if overrideRemain != nil {
-		overrideUnits, overrideStacks, err := decodeComponents(ctx, overrideRemain, evalCtx)
+		overrideUnits, overrideStacks, err := decodeComponents(ctx, overrideRemain, contexts)
 		if err != nil {
 			return result, FileDecodeError{Name: input.OverrideFilename, Err: err}
 		}
@@ -169,7 +175,7 @@ func ParseStackFile(
 		resolveStacks = util.MergeNamed(stacks, overrideStacks, func(s *StackBlockHCL) string { return s.Name })
 	}
 
-	autoIncludes, err := resolveAutoIncludes(ctx, resolveUnits, resolveStacks, srcByFilename)
+	autoIncludes, err := resolveAutoIncludes(ctx, resolveUnits, resolveStacks, srcByFilename, input.UnitRoots)
 	if err != nil {
 		return result, err
 	}
@@ -177,6 +183,23 @@ func ParseStackFile(
 	result.AutoIncludes = autoIncludes
 
 	return result, nil
+}
+
+// IncludeEvalContext returns a child of evalCtx in which `path.include` is includePath, or evalCtx without `path`.
+func IncludeEvalContext(evalCtx *hcl.EvalContext, includePath string) *hcl.EvalContext {
+	path, found := evalCtx.Variables[varPath]
+	if !found || !path.Type().IsObjectType() || !path.IsKnown() || path.IsNull() {
+		return evalCtx
+	}
+
+	attrs := make(map[string]cty.Value, path.LengthInt()+1)
+	maps.Copy(attrs, path.AsValueMap())
+	attrs[pathAttrInclude] = cty.StringVal(includePath)
+
+	child := evalCtx.NewChild()
+	child.Variables = map[string]cty.Value{varPath: cty.ObjectVal(attrs)}
+
+	return child
 }
 
 // validateParseStackFileInput panics on malformed parser input.
@@ -246,7 +269,7 @@ func buildBaseEvalContext(input *ParseStackFileInput) *hcl.EvalContext {
 func decodeComponents(
 	ctx context.Context,
 	body hcl.Body,
-	evalCtx *hcl.EvalContext,
+	contexts blockContexts,
 ) ([]*UnitBlockHCL, []*StackBlockHCL, error) {
 	content, _, diags := body.PartialContent(componentBlocksSchema())
 	if diags.HasErrors() {
@@ -256,12 +279,12 @@ func decodeComponents(
 	units, unitErr := expandComponentBlocks[UnitBlockHCL](
 		ctx,
 		content.Blocks.OfType(blockUnit),
-		evalCtx,
+		contexts,
 	)
 	stacks, stackErr := expandComponentBlocks[StackBlockHCL](
 		ctx,
 		content.Blocks.OfType(blockStack),
-		evalCtx,
+		contexts,
 	)
 
 	return units, stacks, errors.Join(unitErr, stackErr)
@@ -313,16 +336,16 @@ func validateUniqueNames(units []*UnitBlockHCL, stacks []*StackBlockHCL) error {
 func publishComponentRefs(
 	ctx context.Context,
 	body, override hcl.Body,
-	evalCtx *hcl.EvalContext,
+	contexts blockContexts,
 	stackDir string,
 ) error {
-	headers, decoded := pathOnlyHeaders(ctx, body, evalCtx)
+	headers, decoded := pathOnlyHeaders(ctx, body, contexts)
 	if !decoded {
 		return nil
 	}
 
 	// Publish the base refs first so an override path referencing a base component resolves.
-	if err := setComponentRefVars(evalCtx, headers, stackDir); err != nil {
+	if err := setComponentRefVars(contexts.base, headers, stackDir); err != nil {
 		return err
 	}
 
@@ -330,7 +353,7 @@ func publishComponentRefs(
 		return nil
 	}
 
-	overrideHeaders, decoded := pathOnlyHeaders(ctx, override, evalCtx)
+	overrideHeaders, decoded := pathOnlyHeaders(ctx, override, contexts)
 	if !decoded {
 		return nil
 	}
@@ -338,7 +361,7 @@ func publishComponentRefs(
 	headers.Units = util.MergeNamed(headers.Units, overrideHeaders.Units, unitPathName)
 	headers.Stacks = util.MergeNamed(headers.Stacks, overrideHeaders.Stacks, stackPathName)
 
-	return setComponentRefVars(evalCtx, headers, stackDir)
+	return setComponentRefVars(contexts.base, headers, stackDir)
 }
 
 // pathOnlyHeaders decodes the path-only shape of every unit and stack block in body, and reports
@@ -346,14 +369,14 @@ func publishComponentRefs(
 func pathOnlyHeaders(
 	ctx context.Context,
 	body hcl.Body,
-	evalCtx *hcl.EvalContext,
+	contexts blockContexts,
 ) (*discoveryDecode, bool) {
 	content, _, diags := body.PartialContent(componentBlocksSchema())
 	if diags.HasErrors() {
 		return nil, false
 	}
 
-	headers, err := decodeComponentPaths(ctx, content.Blocks, evalCtx)
+	headers, err := decodeComponentPaths(ctx, content.Blocks, contexts)
 
 	return headers, err == nil
 }
@@ -619,33 +642,54 @@ type resolvedInclude struct {
 	Src    []byte
 }
 
-// mergeIncludes resolves include paths and merges included Remain bodies.
+// blockContexts selects the eval context of a block by the file that declares it.
+type blockContexts struct {
+	base     *hcl.EvalContext
+	includes map[string]*hcl.EvalContext
+}
+
+// forBlock returns the eval context of the included file that declares block, or the base context.
+func (contexts blockContexts) forBlock(block *hcl.Block) *hcl.EvalContext {
+	if evalCtx, found := contexts.includes[block.DefRange.Filename]; found {
+		return evalCtx
+	}
+
+	return contexts.base
+}
+
+// mergeIncludes merges the included Remain bodies and returns the eval contexts of their blocks.
 func mergeIncludes(
 	fsys vfs.FS,
 	parsedFile *StackFileHCL,
 	stackDir string,
 	evalCtx *hcl.EvalContext,
 	srcByFilename map[string][]byte,
-) (hcl.Body, error) {
+) (hcl.Body, blockContexts, error) {
+	contexts := blockContexts{
+		base:     evalCtx,
+		includes: make(map[string]*hcl.EvalContext, len(parsedFile.Includes)),
+	}
+
 	bodies := make([]hcl.Body, 0, 1+len(parsedFile.Includes))
 	bodies = append(bodies, parsedFile.Remain)
 
 	for _, inc := range parsedFile.Includes {
 		resolved, err := mergeOneInclude(fsys, inc, stackDir, evalCtx)
 		if err != nil {
-			return nil, err
+			return nil, contexts, err
 		}
 
 		srcByFilename[resolved.Path] = resolved.Src
+		contexts.includes[resolved.Path] = IncludeEvalContext(evalCtx, resolved.Path)
 
 		bodies = append(bodies, resolved.Remain)
 	}
 
 	if len(bodies) == 1 {
-		return bodies[0], nil
+		return bodies[0], contexts, nil
 	}
 
-	return hcl.MergeBodies(bodies), nil
+	return hcl.MergeBodies(bodies), contexts, nil
 }
 
 // mergeOneInclude reads and parses one included file.
@@ -760,6 +804,7 @@ func resolveAutoIncludes(
 	units []*UnitBlockHCL,
 	stacks []*StackBlockHCL,
 	srcByFilename map[string][]byte,
+	unitRoots []string,
 ) (map[string]*AutoIncludeResolved, error) {
 	autoIncludes := make(map[string]*AutoIncludeResolved)
 
@@ -781,6 +826,7 @@ func resolveAutoIncludes(
 		}
 
 		if resolved != nil {
+			resolved.UnitRoots = unitRoots
 			autoIncludes[AutoIncludeKey(KindUnit, unit.Address())] = resolved
 		}
 	}

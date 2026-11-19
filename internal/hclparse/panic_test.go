@@ -112,6 +112,13 @@ func TestUnitPathsFromStackDir_NilArgs_Panics(t *testing.T) {
 	})
 }
 
+func TestDirectComponentPaths_NilArgs_Panics(t *testing.T) {
+	t.Parallel()
+	assertPanicsContaining(t, "hclparse.DirectComponentPaths: args is nil", func() {
+		_, _, _ = hclparse.DirectComponentPaths(t.Context(), vfs.NewMemMapFS(), "/x", nil)
+	})
+}
+
 func TestAutoIncludeDependencyPaths_NilFS_Panics(t *testing.T) {
 	t.Parallel()
 	assertPanicsContaining(t, "hclparse.AutoIncludeDependencyPaths: fsys is nil", func() {

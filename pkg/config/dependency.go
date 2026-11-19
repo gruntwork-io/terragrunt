@@ -3011,6 +3011,11 @@ func foldSiblingAutoIncludeDeps(
 	// Files the autoinclude pulls in through its own includes must not re-merge a sibling autoinclude.
 	autoPctx.SkipAutoIncludeMerge = true
 
+	autoPctx, err = withPathVariable(ctx, l, v, autoPctx, autoFile, nil)
+	if err != nil {
+		return nil, err
+	}
+
 	baseBlocks, err := DecodeBaseBlocks(
 		ctx,
 		l,

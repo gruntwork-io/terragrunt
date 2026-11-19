@@ -616,6 +616,7 @@ func TerragruntConfigFromPartialConfig(
 
 	// Fold the sibling autoinclude existence and content into the key so an in-process create, remove, or edit cannot return a stale entry, with the merge experiment-gated so the experiment-off key is byte-for-byte unchanged.
 	cacheKey += autoIncludeCacheKeySuffix(ctx, v, pctx, file.ConfigPath)
+	cacheKey += pathCacheKeySuffix(pctx)
 
 	terragruntConfigCache := cache.ContextCache[*TerragruntConfig](
 		ctx,
@@ -716,7 +717,10 @@ func PartialParseConfig(
 		)
 	}
 
-	pctx = pctx.WithTrackInclude(nil)
+	pctx, err := withPathVariable(ctx, l, v, pctx.WithTrackInclude(nil), file, includeFromChild)
+	if err != nil {
+		return nil, err
+	}
 
 	// read unit files and add to context
 	unitValues, err := ReadValues(ctx, l, v, pctx, filepath.Dir(file.ConfigPath))

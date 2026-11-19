@@ -258,6 +258,10 @@ func TerragruntEvalVariables(
 		vars[MetadataDependency] = *pctx.DecodedDependencies
 	}
 
+	if pctx.Experiments.Evaluate(experiment.PathVariable) {
+		vars[MetadataPath] = evalPathVariable(ctx, pctx)
+	}
+
 	if pctx.TrackInclude != nil && len(pctx.TrackInclude.CurrentList) > 0 {
 		// For each include block, check if we want to expose the included config, and if so, add under the include
 		// variable.

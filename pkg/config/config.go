@@ -127,6 +127,8 @@ const (
 	MetadataStack = "stack"
 	// MetadataUnit names the `unit` block of a stack file.
 	MetadataUnit = "unit"
+	// MetadataPath names the `path` variable.
+	MetadataPath = "path"
 )
 
 var (
@@ -1828,7 +1830,10 @@ func ParseConfig(
 		)
 	}
 
-	pctx = pctx.WithTrackInclude(nil)
+	pctx, err := withPathVariable(ctx, l, v, pctx.WithTrackInclude(nil), file, includeFromChild)
+	if err != nil {
+		return nil, err
+	}
 
 	// Initial evaluation of configuration to load flags like IamRole which will be used for final parsing
 	// https://github.com/gruntwork-io/terragrunt/issues/667

@@ -149,6 +149,8 @@ const (
 	// empty object when the dependency has no outputs or has not been applied
 	// and no mock outputs apply, where Terragrunt otherwise returns an error.
 	EmptyDependencyOutputs = "empty-dependency-outputs"
+	// PathVariable gates the path variable, which exposes the unit, stack, module, include, and read paths.
+	PathVariable = "path-variable"
 )
 
 const (
@@ -302,6 +304,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: EmptyDependencyOutputs,
+		},
+		{
+			Name: PathVariable,
 		},
 	}
 }

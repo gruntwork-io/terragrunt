@@ -8,10 +8,13 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/hclparse"
+	"github.com/gruntwork-io/terragrunt/internal/vendored/opentofu/upstream/lang/funcs"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
+	"github.com/hashicorp/hcl/v2/ext/tryfunc"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 )
 
@@ -1039,7 +1042,12 @@ func TestDirectComponentPaths_NotAStackSkipsFuncFactory(t *testing.T) {
 		return map[string]function.Function{}, nil
 	}
 
-	unitPaths, stackPaths, err := hclparse.DirectComponentPaths(t.Context(), fs, "/test", funcsFor)
+	unitPaths, stackPaths, err := hclparse.DirectComponentPaths(
+		t.Context(),
+		fs,
+		"/test",
+		&hclparse.StackDirArgs{FuncsFor: funcsFor},
+	)
 	require.NoError(t, err)
 	assert.Nil(t, unitPaths)
 	assert.Nil(t, stackPaths)
@@ -1288,4 +1296,75 @@ func TestBuildComponentRefMap_WithRefs(t *testing.T) {
 	appVal := result.GetAttr("app")
 	require.True(t, appVal.Type().IsObjectType())
 	assert.Equal(t, "app-service", appVal.GetAttr("path").AsString())
+}
+
+func TestUnitPathsFromStackDirEvaluatesWithFactoryVariables(t *testing.T) {
+	t.Parallel()
+
+	fsys, root := venvtest.LoadFS(t, filepath.Join("..", "..", "test", "fixtures", "path-variable"))
+	stackDir := filepath.Join(root, "stack", "live")
+
+	unitPaths, err := hclparse.UnitPathsFromStackDir(t.Context(), fsys, stackDir, &hclparse.StackDirArgs{
+		FuncsFor: noFuncs,
+		VarsFor:  pathVarsFor,
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{filepath.Join(stackDir, ".terragrunt-stack", "app")}, unitPaths)
+}
+
+func TestDirectComponentPathsEvaluatesWithFactoryVariables(t *testing.T) {
+	t.Parallel()
+
+	fsys, root := venvtest.LoadFS(t, filepath.Join("..", "..", "test", "fixtures", "path-variable"))
+	stackDir := filepath.Join(root, "stack", "live")
+
+	unitPaths, stackPaths, err := hclparse.DirectComponentPaths(t.Context(), fsys, stackDir, &hclparse.StackDirArgs{
+		FuncsFor: noFuncs,
+		VarsFor:  pathVarsFor,
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{filepath.Join(stackDir, ".terragrunt-stack", "app")}, unitPaths)
+	assert.Empty(t, stackPaths)
+}
+
+func TestDirectComponentPathsScopesPathIncludeToIncludedFile(t *testing.T) {
+	t.Parallel()
+
+	fsys, root := venvtest.LoadFS(t, filepath.Join("..", "..", "test", "fixtures", "path-variable"))
+	stackDir := filepath.Join(root, "stack-include", "live")
+
+	unitPaths, stackPaths, err := hclparse.DirectComponentPaths(t.Context(), fsys, stackDir, &hclparse.StackDirArgs{
+		FuncsFor: func(string) (map[string]function.Function, error) { return pathFuncs(), nil },
+		VarsFor:  pathVarsFor,
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{
+		filepath.Join(stackDir, ".terragrunt-stack", "root"),
+		filepath.Join(stackDir, ".terragrunt-stack", "catalog-app"),
+	}, unitPaths)
+	assert.Empty(t, stackPaths)
+}
+
+// pathFuncs returns the functions the stack-include fixture calls.
+func pathFuncs() map[string]function.Function {
+	return map[string]function.Function{
+		"basename": funcs.BasenameFunc,
+		"dirname":  funcs.DirnameFunc,
+		"try":      tryfunc.TryFunc,
+	}
+}
+
+// pathVars returns the variables of a stack file in stackDir that reads path.stack.
+func pathVars(stackDir string) map[string]cty.Value {
+	return map[string]cty.Value{
+		"path": cty.ObjectVal(map[string]cty.Value{"stack": cty.StringVal(stackDir)}),
+	}
+}
+
+// pathVarsFor is the variable factory of a stack file that reads path.stack.
+func pathVarsFor(stackDir string) (map[string]cty.Value, error) {
+	return pathVars(stackDir), nil
 }

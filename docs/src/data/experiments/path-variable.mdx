@@ -1,0 +1,104 @@
+---
+name: path-variable
+since: "v1.2.3"
+---
+
+Support for the `path` variable, which exposes the paths of the unit, the stack, the module directory, the included file and the read file by name.
+
+This experiment is ongoing and disabled by default. A reference to `path` without the experiment enabled returns an error. It becomes generally available once every item in the stabilization criteria below is met.
+
+### `path-variable` - What it does
+
+Functions such as `get_terragrunt_dir()` and `get_parent_terragrunt_dir()` return a different directory in a unit, in an included file and in a file that `read_terragrunt_config` reads. With this experiment enabled, each attribute of `path` names one location. `path.unit`, `path.stack` and `path.module` have the same value in every file that Terragrunt evaluates for a unit. `path.include` and `path.read` name the file that Terragrunt evaluates:
+
+| Attribute | Value |
+| --- | --- |
+| `path.unit` | Absolute path to the directory of the unit, which holds its `terragrunt.hcl`. |
+| `path.stack` | Absolute path to the directory that holds `terragrunt.stack.hcl`. |
+| `path.module` | Absolute path to the directory in which Terragrunt runs OpenTofu/Terraform for the unit. |
+| `path.include` | Absolute path to the included file, e.g. `/path/to/root.hcl`. |
+| `path.read` | Absolute path to the file that `read_terragrunt_config` reads, e.g. `/path/to/env.hcl`. |
+
+```hcl
+# root.hcl
+remote_state {
+  backend = "s3"
+
+  config = {
+    bucket = "my-tofu-state"
+    key    = "${trimprefix(path.unit, "${dirname(path.include)}/")}/tofu.tfstate"
+    region = "us-east-1"
+  }
+}
+```
+
+```hcl
+# env.hcl
+locals {
+  settings = yamldecode(file("${dirname(path.read)}/settings.yml"))
+  unit     = basename(path.unit)
+}
+```
+
+```hcl
+# catalog/components.hcl, included by terragrunt.stack.hcl
+unit "app" {
+  source = "${dirname(path.include)}/units/app"
+  path   = "app"
+}
+```
+
+```bash
+terragrunt run --all --experiment path-variable -- plan
+```
+
+An attribute is defined only where its location exists:
+
+- `path.unit` and `path.module` are defined in a unit, and in every file that the unit includes or reads. They are not defined in `terragrunt.stack.hcl`, or in the `terragrunt.values.hcl` beside it.
+- `path.stack` in `terragrunt.stack.hcl` is the directory of that file. In a unit it is the nearest directory at or above the unit that holds a `terragrunt.stack.hcl`, and it is not defined when no such directory exists.
+- `path.include` is defined in a file that a unit or a `terragrunt.stack.hcl` includes with an `include` block.
+- `path.read` is defined in a file that `read_terragrunt_config` reads, and in every file that this file includes.
+
+A reference to an attribute that is not defined returns an `Unsupported attribute` error. Use `try` to supply a fallback:
+
+```hcl
+locals {
+  stack_dir = try(path.stack, path.unit)
+}
+```
+
+In the configuration of a `dependency`, `path.unit` and `path.module` are the paths of that dependency. `path.module` has the same value as `get_working_dir()` called from the unit.
+
+In the `autoinclude` block of a `unit` block in `terragrunt.stack.hcl`, `path` has the values of the generated unit, so `path.unit` and `path.module` are the paths of that unit:
+
+```hcl
+# terragrunt.stack.hcl
+unit "app" {
+  source = "../units/app"
+  path   = "app"
+
+  autoinclude {
+    inputs = {
+      unit_dir = path.unit
+    }
+  }
+}
+```
+
+Terragrunt resolves `path.include` in that block when it generates the stack, so it is the path of the included file that declares the block.
+
+Two parts of a stack file also resolve when Terragrunt generates the stack, where `path.unit` and `path.module` are not defined: the `config_path` of a `dependency` block, and the `autoinclude` block of a `stack` block.
+
+### `path-variable` - How to provide feedback
+
+{/* TODO: link the experiment's GitHub Discussion once it exists. */}
+
+Provide your feedback in the [Terragrunt GitHub Discussions](https://github.com/gruntwork-io/terragrunt/discussions).
+
+### `path-variable` - Criteria for stabilization
+
+To transition the `path-variable` feature to a stable release, the following must be addressed:
+
+- [ ] Agree on the attribute names, and on an error or a `null` value for an attribute that is not defined.
+- [ ] Add reference documentation for HCL variables.
+- [ ] Positive feedback from users that replace the path functions with `path`.

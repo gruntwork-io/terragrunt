@@ -391,6 +391,14 @@ func (s *Store) prepareBase(
 	pc = pc.withInclude(include)
 	pctx = pc.parsingContext()
 
+	pathValue, err := pkgconfig.PathVariable(ctx, l, v, pctx, file, include)
+	if err != nil {
+		return nil, err
+	}
+
+	pc = pc.withPath(pathValue)
+	pctx.Path = pathValue
+
 	var errs []error
 
 	iamRoleOptions, err := pkgconfig.ResolveIAMRoleOptions(ctx, l, v, pctx, file, include)
