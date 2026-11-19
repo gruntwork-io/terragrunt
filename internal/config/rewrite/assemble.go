@@ -137,7 +137,8 @@ func (c *UnitConfig) assemble(
 }
 
 // convert converts cfgFile as [pkgconfig.ConvertToTerragruntConfig] does. A config assembled for a merge gets the
-// field metadata of its locals without the locals themselves, unless converting them can fail.
+// field metadata of its locals without the locals themselves, since the merged config keeps the locals of the
+// including file. Locals that can fail to convert are still converted, so the error matches that of pkg/config.
 func (c *UnitConfig) convert(
 	v *venv.Venv,
 	pc *ParseContext,

@@ -93,7 +93,8 @@ func (pc *ParseContext) StoreContext() (string, bool) {
 
 // withInclude returns a copy of pc for the file include pulls in, which has no include blocks until its base
 // blocks decode. The file reads the `dependency` value of the including file unless the run supplied one. A nil
-// include is a file no include block pulls in, which resolves its own dependencies.
+// include is a file no include block pulls in, which resolves its own dependencies. The copy drops any forMerge
+// marking of pc.
 func (pc *ParseContext) withInclude(include *pkgconfig.IncludeConfig) *ParseContext {
 	c := *pc
 	c.file.include = include
@@ -104,8 +105,7 @@ func (pc *ParseContext) withInclude(include *pkgconfig.IncludeConfig) *ParseCont
 	return &c
 }
 
-// forMerge returns a copy of pc for assembling a config that only merges into the config of the including file. The
-// merge drops the locals of that config, so its assembly leaves them unconverted.
+// forMerge returns a copy of pc for assembling a config that only merges into the config of the including file.
 func (pc *ParseContext) forMerge() *ParseContext {
 	c := *pc
 	c.merging = true

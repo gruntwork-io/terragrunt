@@ -1348,6 +1348,36 @@ include "root" {
 			},
 		},
 		{
+			name: "autoinclude of the included file reads an exposed include",
+			files: map[string]string{
+				"root.hcl": `
+locals {
+  region = "us-east-1"
+}
+`,
+				"app/env.hcl": `
+locals {
+  env = "dev"
+}
+`,
+				"terragrunt.autoinclude.hcl": `
+include "env" {
+  path   = "env.hcl"
+  expose = true
+}
+
+inputs = {
+  env = include.env.locals.env
+}
+`,
+				"app/terragrunt.hcl": `
+include "root" {
+  path = "../root.hcl"
+}
+`,
+			},
+		},
+		{
 			name: "included file with empty locals",
 			files: map[string]string{
 				"root.hcl": "locals {}\n",

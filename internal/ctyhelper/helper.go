@@ -31,7 +31,7 @@ func ParseCtyValueToMap(value cty.Value) (map[string]any, error) {
 	}
 
 	if ty := value.Type(); ty.IsObjectType() || ty.IsMapType() {
-		if out, ok := mappingToGo(value); ok {
+		if out, ok := mappingToGo(value, buildGo); ok {
 			return out, nil
 		}
 	}
@@ -53,7 +53,13 @@ func ConvertsToMapDirectly(value cty.Value) bool {
 
 	ty := value.Type()
 
-	return (ty.IsObjectType() || ty.IsMapType()) && mappingConvertsToGo(value)
+	if !ty.IsObjectType() && !ty.IsMapType() {
+		return false
+	}
+
+	_, ok := mappingToGo(value, checkGo)
+
+	return ok
 }
 
 // CtyJSONOutput is a struct that captures the output of cty's JSON marshalling.
@@ -212,19 +218,30 @@ func parseCtyValueToMapWithJSON(value cty.Value) (map[string]any, error) {
 	return ctyJSONOutput.Value, nil
 }
 
+// goConversion selects whether mappingToGo builds the Go value or only checks that it could.
+type goConversion int
+
+const (
+	buildGo goConversion = iota
+	checkGo
+)
+
 // mappingToGo converts an object or map to the result parseCtyValueToMapWithJSON would give for it with its marks
-// removed.
+// removed. With checkGo it builds nothing and returns a nil map.
 //
 // Reports false when the value is or holds anything that conversion would change or reject: an unknown value, an
 // infinity, a number outside [MaxNumberDecimalExponent], a string that is not valid UTF-8, or a capsule.
-func mappingToGo(val cty.Value) (map[string]any, bool) {
+func mappingToGo(val cty.Value, conv goConversion) (map[string]any, bool) {
 	val, _ = val.Unmark()
 
 	if !val.IsKnown() {
 		return nil, false
 	}
 
-	out := make(map[string]any, val.LengthInt())
+	var out map[string]any
+	if conv == buildGo {
+		out = make(map[string]any, val.LengthInt())
+	}
 
 	for it := val.ElementIterator(); it.Next(); {
 		k, ev := it.Element()
@@ -234,12 +251,14 @@ func mappingToGo(val cty.Value) (map[string]any, bool) {
 			return nil, false
 		}
 
-		goVal, ok := ctyValueToGo(ev)
+		goVal, ok := ctyValueToGo(ev, conv)
 		if !ok {
 			return nil, false
 		}
 
-		out[key] = goVal
+		if conv == buildGo {
+			out[key] = goVal
+		}
 	}
 
 	return out, true
@@ -247,7 +266,7 @@ func mappingToGo(val cty.Value) (map[string]any, bool) {
 
 // ctyValueToGo converts one value nested in a value passed to mappingToGo, reporting false on the same values it
 // does.
-func ctyValueToGo(val cty.Value) (any, bool) {
+func ctyValueToGo(val cty.Value, conv goConversion) (any, bool) {
 	val, _ = val.Unmark()
 
 	if !val.IsKnown() {
@@ -263,99 +282,59 @@ func ctyValueToGo(val cty.Value) (any, bool) {
 	switch {
 	case ty == cty.String:
 		s := val.AsString()
+		if !utf8.ValidString(s) {
+			return nil, false
+		}
 
-		return s, utf8.ValidString(s)
+		if conv == checkGo {
+			return nil, true
+		}
+
+		return s, true
 	case ty == cty.Number:
 		bf := val.AsBigFloat()
 		if bf.IsInf() || !numberInRange(bf) {
 			return nil, false
 		}
 
+		if conv == checkGo {
+			return nil, true
+		}
+
 		return json.Number(bf.Text('f', -1)), true
 	case ty == cty.Bool:
 		return val.True(), true
 	case ty.IsObjectType(), ty.IsMapType():
-		return mappingToGo(val)
+		return mappingToGo(val, conv)
 	case ty.IsListType(), ty.IsSetType(), ty.IsTupleType():
-		return sequenceToGo(val)
+		return sequenceToGo(val, conv)
 	}
 
 	return nil, false
 }
 
-// sequenceToGo converts an unmarked list, set, or tuple, reporting false on the same values mappingToGo does.
-func sequenceToGo(val cty.Value) ([]any, bool) {
-	out := make([]any, 0, val.LengthInt())
+// sequenceToGo converts an unmarked list, set, or tuple, reporting false on the same values mappingToGo does. With
+// checkGo it builds nothing and returns a nil slice.
+func sequenceToGo(val cty.Value, conv goConversion) ([]any, bool) {
+	var out []any
+	if conv == buildGo {
+		out = make([]any, 0, val.LengthInt())
+	}
 
 	for it := val.ElementIterator(); it.Next(); {
 		_, ev := it.Element()
 
-		goVal, ok := ctyValueToGo(ev)
+		goVal, ok := ctyValueToGo(ev, conv)
 		if !ok {
 			return nil, false
 		}
 
-		out = append(out, goVal)
+		if conv == buildGo {
+			out = append(out, goVal)
+		}
 	}
 
 	return out, true
-}
-
-// mappingConvertsToGo reports whether mappingToGo converts the object or map val with its marks removed.
-func mappingConvertsToGo(val cty.Value) bool {
-	val, _ = val.Unmark()
-
-	if !val.IsKnown() {
-		return false
-	}
-
-	for it := val.ElementIterator(); it.Next(); {
-		k, ev := it.Element()
-
-		if !utf8.ValidString(k.AsString()) || !ctyValueConvertsToGo(ev) {
-			return false
-		}
-	}
-
-	return true
-}
-
-// ctyValueConvertsToGo reports whether ctyValueToGo converts val with its marks removed.
-func ctyValueConvertsToGo(val cty.Value) bool {
-	val, _ = val.Unmark()
-
-	if !val.IsKnown() {
-		return false
-	}
-
-	if val.IsNull() {
-		return true
-	}
-
-	ty := val.Type()
-
-	switch {
-	case ty == cty.String:
-		return utf8.ValidString(val.AsString())
-	case ty == cty.Number:
-		bf := val.AsBigFloat()
-
-		return !bf.IsInf() && numberInRange(bf)
-	case ty == cty.Bool:
-		return true
-	case ty.IsObjectType(), ty.IsMapType():
-		return mappingConvertsToGo(val)
-	case ty.IsListType(), ty.IsSetType(), ty.IsTupleType():
-		for it := val.ElementIterator(); it.Next(); {
-			if _, ev := it.Element(); !ctyValueConvertsToGo(ev) {
-				return false
-			}
-		}
-
-		return true
-	}
-
-	return false
 }
 
 // numberInRange reports whether the magnitude of n stays within [MaxNumberDecimalExponent] powers of ten in either
