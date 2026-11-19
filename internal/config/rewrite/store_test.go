@@ -1383,3 +1383,35 @@ func BenchmarkResolveUnitConfig(b *testing.B) {
 		})
 	}
 }
+
+func BenchmarkResolveUnitConfigMergedIncludeLocals(b *testing.B) {
+	root := b.TempDir()
+	files := map[string]string{
+		"root.hcl": `
+locals {
+  units = {
+    for i in range(1000) : "unit-${i}" => { name = "unit-${i}", zones = ["a", "b", "c"], index = i }
+  }
+}
+`,
+		"app/terragrunt.hcl": `
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+`,
+	}
+
+	fsys := vfs.NewMemMapFS()
+
+	for rel, content := range files {
+		require.NoError(b, vfs.WriteFile(fsys, filepath.Join(root, rel), []byte(content), 0o644))
+	}
+
+	v := venv.MemVenv().WithFS(fsys)
+	l := logger.CreateLogger()
+	path := filepath.Join(root, "app", pkgconfig.DefaultTerragruntConfigPath)
+
+	for b.Loop() {
+		parseForBenchmark(b, l, v, &config.Store{}, path)
+	}
+}
