@@ -2138,23 +2138,27 @@ func resolveOutputJSON(
 	// proceed to routine that fetches remote state directly. Otherwise, fallback to calling `terragrunt output`
 	// directly.
 
-	// we need to suspend logging diagnostic errors on this attempt
-	remoteStateTGConfig, err := PartialParseConfigFile(
-		ctx,
-		l,
-		v,
-		pctx.WithDiagnosticsDiscarded().WithDecodeList(
-			RemoteStateBlock,
-			TerragruntFlags,
-			EngineBlock,
-		),
-		targetConfig,
-		nil,
-	)
+	var remoteStateTGConfig *TerragruntConfig
+
+	if declaresRemoteState(ctx, l, v, pctx, targetConfig) {
+		// we need to suspend logging diagnostic errors on this attempt
+		remoteStateTGConfig, err = PartialParseConfigFile(
+			ctx,
+			l,
+			v,
+			pctx.WithDiagnosticsDiscarded().WithDecodeList(
+				RemoteStateBlock,
+				TerragruntFlags,
+				EngineBlock,
+			),
+			targetConfig,
+			nil,
+		)
+	}
 
 	// Check err before dereferencing the config: a remote_state block that references the dependency namespace makes
 	// this parse fail and return a nil config, so the short-circuit avoids a nil pointer panic.
-	if err != nil || !canGetRemoteState(remoteStateTGConfig.RemoteState) {
+	if err != nil || remoteStateTGConfig == nil || !canGetRemoteState(remoteStateTGConfig.RemoteState) {
 		l.Debugf(
 			"Could not parse remote_state block from target config %s",
 			pctx.TerragruntConfigPath,

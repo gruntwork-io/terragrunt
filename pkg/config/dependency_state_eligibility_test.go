@@ -580,3 +580,76 @@ func assertEligibilityOutputInvocation(t *testing.T, invocations []vexec.Invocat
 		return slices.Contains(inv.Args, "output") && slices.Contains(inv.Args, "-json")
 	}))
 }
+
+// TestDependencyStateDirectReadUsesTheRemoteStateOfAnInclude pins that a dependency whose remote_state comes from a file
+// it includes has its state read directly, unless the include does not merge.
+func TestDependencyStateDirectReadUsesTheRemoteStateOfAnInclude(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name       string
+		strategy   string
+		wantDirect bool
+	}{
+		{name: "merged include", wantDirect: true},
+		{name: "include that does not merge", strategy: `merge_strategy = "no_merge"`},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := venvtest.Root("/remote-state-include")
+			consumerPath := filepath.Join(root, "consumer", config.DefaultTerragruntConfigPath)
+			recorder := newDependencyStateRecorder(t, http.StatusOK, terraformState("from-direct"))
+
+			v := venv.MemVenv().
+				WithEnv(map[string]string{
+					"AWS_ACCESS_KEY_ID":     "test-access-key",
+					"AWS_SECRET_ACCESS_KEY": "test-secret-key",
+				}).
+				WithExec(recorder.exec()).
+				WithHTTP(recorder.httpClient()).
+				WithFS(venvtest.NewFS(t, root, map[string]string{
+					"root.hcl": fmt.Sprintf(`remote_state {
+  backend = "s3"
+  config = {
+%s
+  }
+}
+`, eligibilityConfigHCL(eligibilityS3Config())),
+					filepath.Join("producer", "main.tf"): "",
+					filepath.Join("producer", config.DefaultTerragruntConfigPath): `include "root" {
+  path = find_in_parent_folders("root.hcl")
+  ` + tc.strategy + `
+}
+`,
+					filepath.Join("consumer", config.DefaultTerragruntConfigPath): `dependency "producer" {
+  config_path = "../producer"
+}
+
+inputs = {
+  result = dependency.producer.outputs.producer_value
+}
+`,
+				}))
+
+			ctx, pctx := newTestParsingContext(t, consumerPath)
+			pctx.OriginalTerragruntConfigPath = consumerPath
+
+			cfg, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, consumerPath, nil)
+			require.NoError(t, err)
+
+			if tc.wantDirect {
+				assert.Equal(t, "from-direct", cfg.Inputs["result"])
+				assert.Empty(t, recorder.invocations())
+				assert.NotEmpty(t, recorder.requestPaths())
+
+				return
+			}
+
+			assert.Equal(t, "from-native-output", cfg.Inputs["result"])
+			assert.Empty(t, recorder.requestPaths())
+		})
+	}
+}

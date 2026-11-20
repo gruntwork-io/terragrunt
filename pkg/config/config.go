@@ -2200,7 +2200,7 @@ func ResolveIAMRoleOptions(
 		return pctx.OriginalIAMRoleOptions, nil
 	}
 
-	if !declaresIAMRole(ctx, l, v, pctx, file) {
+	if !mergesDeclaration(ctx, l, v, pctx, file, iamRoleSchema) {
 		return FileIAMRoleOptions(pctx, iam.RoleOptions{}), nil
 	}
 
@@ -2240,17 +2240,24 @@ var iamRoleSchema = &hcl.BodySchema{
 	Attributes: []hcl.AttributeSchema{{Name: MetadataIamRole}, {Name: MetadataIamWebIdentityToken}},
 }
 
-// declaresIAMRole reports whether file, a file one of its include blocks merges, or its sibling autoinclude declares an
-// attribute [ResolveIAMRoleOptions] decodes. Include blocks that fail to decode, and included files that fail to parse,
-// declare none, since the parse of the Terragrunt flags fails on them and leaves the role as it was.
-func declaresIAMRole(
+// remoteStateSchemas name the remote_state block and the remote_state attribute, which a config declares one of.
+var remoteStateSchemas = []*hcl.BodySchema{
+	{Blocks: []hcl.BlockHeaderSchema{{Type: MetadataRemoteState}}},
+	{Attributes: []hcl.AttributeSchema{{Name: MetadataRemoteState}}},
+}
+
+// mergesDeclaration reports whether file, a file one of its include blocks merges, or its sibling autoinclude declares
+// an attribute or block of one of schemas. Include blocks that fail to decode, and included files that fail to parse,
+// declare none, since a partial parse that decodes the declaration fails on them.
+func mergesDeclaration(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	pctx *ParsingContext,
 	file *hclparse.File,
+	schemas ...*hcl.BodySchema,
 ) bool {
-	if hasIAMRoleAttribute(file) {
+	if declares(file, schemas) {
 		return true
 	}
 
@@ -2287,7 +2294,7 @@ func declaresIAMRole(
 
 	for _, path := range paths {
 		included, err := parsedConfigFile(ctx, l, v, pctx, path)
-		if err == nil && hasIAMRoleAttribute(included) {
+		if err == nil && declares(included, schemas) {
 			return true
 		}
 	}
@@ -2295,12 +2302,25 @@ func declaresIAMRole(
 	return false
 }
 
-// hasIAMRoleAttribute reports whether file declares an attribute [ResolveIAMRoleOptions] decodes, or declares one of
-// their names in a way that fails to decode.
-func hasIAMRoleAttribute(file *hclparse.File) bool {
-	content, _, diags := file.Body.PartialContent(iamRoleSchema)
+// declares reports whether file declares an attribute or block of one of schemas, or declares one of their names in a
+// way that fails to decode.
+func declares(file *hclparse.File, schemas []*hcl.BodySchema) bool {
+	return slices.ContainsFunc(schemas, func(schema *hcl.BodySchema) bool {
+		content, _, diags := file.Body.PartialContent(schema)
 
-	return diags.HasErrors() || len(content.Attributes) > 0
+		return diags.HasErrors() || len(content.Attributes) > 0 || len(content.Blocks) > 0
+	})
+}
+
+// declaresRemoteState reports whether the config at cfgPath, which pctx parses, merges a remote_state block or
+// attribute. A config that fails to parse declares none.
+func declaresRemoteState(ctx context.Context, l log.Logger, v *venv.Venv, pctx *ParsingContext, cfgPath string) bool {
+	file, err := parsedConfigFile(ctx, l, v, pctx.WithDiagnosticsDiscarded(), cfgPath)
+	if err != nil {
+		return false
+	}
+
+	return mergesDeclaration(ctx, l, v, pctx, file, remoteStateSchemas...)
 }
 
 // FileIAMRoleOptions returns the IAM role options a parse with pctx evaluates a file with when the file's config sets
