@@ -20,19 +20,21 @@ import (
 // includeSource is where an assembly gets the config of each file it merges, and whether it decodes the run parts of
 // each one: the parse presents the queue parts it decoded, and ToV1 adds the run parts.
 type includeSource interface {
+	// parts returns the parts of each file the assembly decodes.
+	parts() assemblyParts
 	// file builds the v1 file of c from its queue parts, decoding the run parts with evalCtx when the assembly
 	// reaches them, and returns the diagnostics of that decode.
 	file(c *UnitConfig, evalCtx *hcl.EvalContext) (*pkgconfig.TerragruntConfigFile, hcl.Diagnostics)
-	// dependencies returns the `dependency` value c decodes with.
+	// dependencies returns the `dependency` value c decodes with and the blocks it was resolved from.
 	dependencies(
 		ctx context.Context,
 		l log.Logger,
 		v *venv.Venv,
 		pc *ParseContext,
 		c *UnitConfig,
-	) (*cty.Value, error)
-	// included returns the config of the file c's include block i names, which decodes with deps, the `dependency`
-	// value of c, and resolves its own dependencies when deps is nil.
+	) (*resolvedDependencies, error)
+	// included returns the config of the file c's include block i names, which decodes with deps, c's `dependency`
+	// value and the blocks it was resolved from, and resolves its own dependencies when deps is nil.
 	included(
 		ctx context.Context,
 		l log.Logger,
@@ -40,11 +42,8 @@ type includeSource interface {
 		pc *ParseContext,
 		c *UnitConfig,
 		i int,
-		deps *cty.Value,
+		deps *resolvedDependencies,
 	) (*pkgconfig.TerragruntConfig, error)
-	// checksDependencyDirs reports whether the assembly checks that the dependencies paths of each file are
-	// directories, as [pkgconfig.ParseConfig] does.
-	checksDependencyDirs() bool
 	// autoIncluded returns the config of c's autoinclude at path.
 	autoIncluded(
 		ctx context.Context,
@@ -62,6 +61,10 @@ type includeResolver struct {
 	kept  *keptFiles
 }
 
+func (p includeResolver) parts() assemblyParts {
+	return queueParts
+}
+
 func (p includeResolver) file(
 	c *UnitConfig,
 	evalCtx *hcl.EvalContext,
@@ -75,7 +78,7 @@ func (p includeResolver) dependencies(
 	_ *venv.Venv,
 	pc *ParseContext,
 	_ *UnitConfig,
-) (*cty.Value, error) {
+) (*resolvedDependencies, error) {
 	return pc.file.decodedDeps, nil
 }
 
@@ -86,7 +89,7 @@ func (p includeResolver) included(
 	pc *ParseContext,
 	c *UnitConfig,
 	i int,
-	_ *cty.Value,
+	_ *resolvedDependencies,
 ) (*pkgconfig.TerragruntConfig, error) {
 	include := pc.file.includes.List[i]
 
@@ -94,10 +97,6 @@ func (p includeResolver) included(
 	p.kept.included[i] = newIncludedFile(included, err)
 
 	return cfg, err
-}
-
-func (p includeResolver) checksDependencyDirs() bool {
-	return false
 }
 
 func (p includeResolver) autoIncluded(
@@ -117,8 +116,13 @@ func (p includeResolver) autoIncluded(
 // keptIncludes assembles the files a parse kept. A parse keeps the files its assembly reached before it stopped, and an
 // assembly that gets further returns [UnparsedIncludeError].
 type keptIncludes struct {
-	// inherited is the `dependency` value of the including file, nil when the assembled file resolves its own.
-	inherited *cty.Value
+	// inherited is the `dependency` value of the including file and the blocks it was resolved from, nil when the
+	// assembled file resolves its own.
+	inherited *resolvedDependencies
+}
+
+func (k keptIncludes) parts() assemblyParts {
+	return runParts
 }
 
 func (k keptIncludes) file(
@@ -139,7 +143,7 @@ func (k keptIncludes) dependencies(
 	v *venv.Venv,
 	pc *ParseContext,
 	c *UnitConfig,
-) (*cty.Value, error) {
+) (*resolvedDependencies, error) {
 	if k.inherited != nil {
 		return k.inherited, nil
 	}
@@ -154,14 +158,21 @@ func (k keptIncludes) included(
 	pc *ParseContext,
 	c *UnitConfig,
 	i int,
-	deps *cty.Value,
+	deps *resolvedDependencies,
 ) (*pkgconfig.TerragruntConfig, error) {
 	included, err := c.keptInclude(pc, i)
 	if err != nil {
 		return nil, err
 	}
 
-	cfg, err := included.assemble(ctx, l, v, pc.forMerge(), keptIncludes{inherited: deps})
+	cfg, err := included.assemble(
+		ctx,
+		l,
+		v,
+		pc.forMerge(),
+		keptIncludes{inherited: deps},
+		included.functions(ctx, l, v),
+	)
 	if err != nil {
 		include := pc.file.includes.List[i]
 
@@ -169,10 +180,6 @@ func (k keptIncludes) included(
 	}
 
 	return cfg, nil
-}
-
-func (k keptIncludes) checksDependencyDirs() bool {
-	return true
 }
 
 func (k keptIncludes) autoIncluded(
@@ -188,12 +195,16 @@ func (k keptIncludes) autoIncluded(
 		return nil, err
 	}
 
-	return autoInclude.assemble(ctx, l, v, pc, keptIncludes{})
+	return autoInclude.assemble(ctx, l, v, pc, keptIncludes{}, autoInclude.functions(ctx, l, v))
 }
 
 // keptQueue assembles the files a parse kept from their queue parts alone, with no run parts and no outputs. An
 // assembly that gets further than the parse did returns [UnparsedIncludeError].
 type keptQueue struct{}
+
+func (q keptQueue) parts() assemblyParts {
+	return queueParts
+}
 
 func (q keptQueue) file(
 	c *UnitConfig,
@@ -208,7 +219,7 @@ func (q keptQueue) dependencies(
 	_ *venv.Venv,
 	pc *ParseContext,
 	_ *UnitConfig,
-) (*cty.Value, error) {
+) (*resolvedDependencies, error) {
 	return pc.file.decodedDeps, nil
 }
 
@@ -219,14 +230,14 @@ func (q keptQueue) included(
 	pc *ParseContext,
 	c *UnitConfig,
 	i int,
-	_ *cty.Value,
+	_ *resolvedDependencies,
 ) (*pkgconfig.TerragruntConfig, error) {
 	included, err := c.keptInclude(pc, i)
 	if err != nil {
 		return nil, err
 	}
 
-	cfg, err := included.assemble(ctx, l, v, pc.forMerge(), keptQueue{})
+	cfg, err := included.assemble(ctx, l, v, pc.forMerge(), keptQueue{}, included.functions(ctx, l, v))
 	if err != nil {
 		include := pc.file.includes.List[i]
 
@@ -234,10 +245,6 @@ func (q keptQueue) included(
 	}
 
 	return cfg, nil
-}
-
-func (q keptQueue) checksDependencyDirs() bool {
-	return false
 }
 
 func (q keptQueue) autoIncluded(
@@ -253,7 +260,7 @@ func (q keptQueue) autoIncluded(
 		return nil, err
 	}
 
-	return autoInclude.assemble(ctx, l, v, pc, keptQueue{})
+	return autoInclude.assemble(ctx, l, v, pc, keptQueue{}, autoInclude.functions(ctx, l, v))
 }
 
 // keptUnknownOutputs assembles the files a parse kept with `dependency` unknown, fetching no outputs. It decodes the
@@ -261,6 +268,10 @@ func (q keptQueue) autoIncluded(
 // that gets further than the parse did returns [UnparsedIncludeError].
 type keptUnknownOutputs struct {
 	decodeList []pkgconfig.PartialDecodeSectionType
+}
+
+func (k keptUnknownOutputs) parts() assemblyParts {
+	return queueParts
 }
 
 func (k keptUnknownOutputs) file(
@@ -283,8 +294,8 @@ func (k keptUnknownOutputs) dependencies(
 	_ *venv.Venv,
 	_ *ParseContext,
 	_ *UnitConfig,
-) (*cty.Value, error) {
-	return new(cty.DynamicVal), nil
+) (*resolvedDependencies, error) {
+	return &resolvedDependencies{value: new(cty.DynamicVal)}, nil
 }
 
 func (k keptUnknownOutputs) included(
@@ -294,14 +305,14 @@ func (k keptUnknownOutputs) included(
 	pc *ParseContext,
 	c *UnitConfig,
 	i int,
-	_ *cty.Value,
+	_ *resolvedDependencies,
 ) (*pkgconfig.TerragruntConfig, error) {
 	included, err := c.keptInclude(pc, i)
 	if err != nil {
 		return nil, err
 	}
 
-	cfg, err := included.assemble(ctx, l, v, pc, k)
+	cfg, err := included.assemble(ctx, l, v, pc, k, included.functions(ctx, l, v))
 	if err != nil {
 		include := pc.file.includes.List[i]
 
@@ -309,10 +320,6 @@ func (k keptUnknownOutputs) included(
 	}
 
 	return cfg, nil
-}
-
-func (k keptUnknownOutputs) checksDependencyDirs() bool {
-	return false
 }
 
 func (k keptUnknownOutputs) autoIncluded(
@@ -328,7 +335,7 @@ func (k keptUnknownOutputs) autoIncluded(
 		return nil, err
 	}
 
-	return autoInclude.assemble(ctx, l, v, pc, k)
+	return autoInclude.assemble(ctx, l, v, pc, k, autoInclude.functions(ctx, l, v))
 }
 
 // keptInclude returns the parse of the file c's include block i names.
@@ -374,7 +381,7 @@ func (c *UnitConfig) mergeIncludes(
 	v *venv.Venv,
 	pc *ParseContext,
 	src includeSource,
-	deps *cty.Value,
+	deps *resolvedDependencies,
 	cfg *pkgconfig.TerragruntConfig,
 ) (*pkgconfig.TerragruntConfig, error) {
 	baseCfg := cfg
@@ -573,9 +580,9 @@ func (b *includedBase) dependencyBlocks(
 		vars[pkgconfig.MetadataDependency] = cty.DynamicVal
 	}
 
-	evalCtx := &hcl.EvalContext{
-		Functions: pkgconfig.TerragruntFunctions(ctx, l, v, pctx, b.file.ConfigPath),
-		Variables: vars,
+	evalCtx := &hcl.EvalContext{Variables: vars}
+	if declaresDependencies(b.file.Body) {
+		evalCtx = pkgconfig.TerragruntEvalContext(ctx, l, v, pctx, b.file.ConfigPath, b.file.FunctionCalls(), vars)
 	}
 
 	return pkgconfig.DecodeDependencyBlocks(ctx, l, v, pctx, b.file, evalCtx)
@@ -703,7 +710,7 @@ func (s *Store) resolveExposedInclude(
 		return cty.NilVal, includeParseError(err, include, pc)
 	}
 
-	cfg, err := included.assemble(ctx, l, v, includedPC, src)
+	cfg, err := included.assemble(ctx, l, v, includedPC, src, included.functions(ctx, l, v))
 	if err != nil {
 		return cty.NilVal, includeParseError(err, include, pc)
 	}

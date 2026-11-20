@@ -231,6 +231,37 @@ func TestPathVariableModuleOfRejectedInPlaceUnit(t *testing.T) {
 	}
 }
 
+func TestPathVariableModuleRejectsDependencyReference(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name      string
+		unit      string
+		attribute string
+	}{
+		{name: "download_dir", unit: "download-dir", attribute: "download_dir"},
+		{name: "no_dot_terragrunt_cache", unit: "in-place", attribute: "terraform.no_dot_terragrunt_cache"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v, root := pathFixture(t)
+			cfgPath := filepath.Join(root, "module", "dependency", tc.unit, config.DefaultTerragruntConfigPath)
+			ctx, pctx := newPathParsingContext(t, cfgPath)
+
+			_, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, cfgPath, nil)
+
+			var got config.ModuleDirReferencesDependencyError
+
+			require.ErrorAs(t, err, &got)
+			assert.Equal(t, tc.attribute, got.Attribute)
+			assert.Equal(t, cfgPath, got.ConfigPath)
+		})
+	}
+}
+
 func TestPathVariableAsWholeObject(t *testing.T) {
 	t.Parallel()
 

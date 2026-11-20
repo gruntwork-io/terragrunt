@@ -1,6 +1,6 @@
 // Package config is a rewrite of Terragrunt's config parsing that will replace the orchestration in pkg/config. It
 // decodes files into block structs of its own and converts them to pkg/config types, reusing pkg/config's merge
-// logic and helpers.
+// logic and helpers. Discovery parses units with it, and [Store.ReadTerragruntConfig] reads a unit's config with it.
 //
 // A parse fetches no dependency outputs. It decodes the tagged fields of each block struct and the queue parts,
 // which [QueueBodies] names, with no `dependency` variable in scope, and keeps both. [UnitConfig.ToV1] fetches the
@@ -11,13 +11,11 @@
 // The engine block is the one part of both: a parse decodes it with `dependency` unknown, as discovery needs it, and
 // ToV1 decodes it again with the outputs.
 //
-// Every parse goes through a [Store], which shares a file's syntax tree across the units that include it
-// and reuses a unit's parse for a later caller with the same context. What the context covers is the
-// contract of the run digest in profile.go. A memoized result holds nothing of its caller's: each stage takes the
-// settings and sinks of a [ParseContext], and assembles a [pkgconfig.TerragruntConfig] of the caller's own, which the
-// merges change in place. [EnvRewrite] selects this package's parser for discovery.
+// Every parse goes through a [Store], which shares a file's syntax tree across the units that include it, and shares
+// a unit's parse with the callers that wait on it while it runs. What the context covers is the contract of the run
+// digest in profile.go. A memoized result holds nothing of its caller's: each stage takes the settings and sinks of a
+// [ParseContext], and assembles a [pkgconfig.TerragruntConfig] of the caller's own, which the merges change in place.
 //
-// pkg/config must never import this package, which depguard enforces. Delete the package, or merge it into
-// pkg/config, once it is the default parser and its parity test has passed across the fixture corpus for one
-// release.
+// pkg/config must never import this package, which depguard enforces. Merge the package into pkg/config once its
+// parity test has passed across the fixture corpus for one release.
 package config

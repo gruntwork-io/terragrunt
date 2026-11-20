@@ -4177,6 +4177,29 @@ func TestTFTerragruntVersionConstraintsPartialParse(t *testing.T) {
 	assert.True(t, ok)
 }
 
+func TestTFTerragruntVersionConstraintsPartialParseRunAll(t *testing.T) {
+	t.Parallel()
+
+	fixturePath := "fixtures/partial-parse/terragrunt-version-constraint"
+	tmpEnvPath := helpers.CopyEnvironment(t, fixturePath)
+	rootPath := filepath.Join(tmpEnvPath, fixturePath)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := helpers.RunTerragruntVersionCommand(
+		t,
+		"0.21.23",
+		"terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply -auto-approve",
+		&stdout,
+		&stderr,
+	)
+	helpers.LogBufferContentsLineByLine(t, stdout, "stdout")
+	helpers.LogBufferContentsLineByLine(t, stderr, "stderr")
+
+	require.ErrorAs(t, err, new(run.InvalidTerragruntVersion))
+}
+
 func TestTFLogFailingDependencies(t *testing.T) {
 	t.Parallel()
 

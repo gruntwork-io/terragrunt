@@ -3,7 +3,6 @@ package config
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"hash"
 	"io"
 	"maps"
 	"slices"
@@ -65,7 +64,7 @@ func runDigest(v *venv.Venv, run *pkgconfig.ParsingContext) (string, bool) {
 	d.bool(run.SkipAutoIncludeMerge)
 	d.bool(run.FilesRead.Tracking())
 	d.sections(run.PartialParseDecodeList)
-	d.strMap(v.Env)
+	d.uint64(pkgconfig.HashEnv(v.Env))
 	d.bool(v.Writers.Writer == io.Discard)
 
 	return d.sum(), true
@@ -80,21 +79,23 @@ func extend(key string, parts ...string) string {
 	return d.sum()
 }
 
+const decimal = 10
+
 // digest accumulates typed parts into one hash, each followed by a separator.
 type digest struct {
-	h hash.Hash
+	buf []byte
 }
 
-func newDigest() digest {
-	return digest{h: sha256.New()}
+func newDigest() *digest {
+	return &digest{}
 }
 
-func (d digest) str(s string) {
-	d.h.Write([]byte(s))
-	d.h.Write([]byte{0})
+func (d *digest) str(s string) {
+	d.buf = append(d.buf, s...)
+	d.buf = append(d.buf, 0)
 }
 
-func (d digest) strs(ss []string) {
+func (d *digest) strs(ss []string) {
 	d.int(len(ss))
 
 	for _, s := range ss {
@@ -102,31 +103,45 @@ func (d digest) strs(ss []string) {
 	}
 }
 
-func (d digest) strMap(m map[string]string) {
+func (d *digest) strMap(m map[string]string) {
 	d.int(len(m))
 
-	for _, k := range slices.Sorted(maps.Keys(m)) {
+	keys := slices.AppendSeq(make([]string, 0, len(m)), maps.Keys(m))
+	slices.Sort(keys)
+
+	for _, k := range keys {
 		d.str(k)
 		d.str(m[k])
 	}
 }
 
-func (d digest) bool(b bool) {
-	d.str(strconv.FormatBool(b))
+func (d *digest) bool(b bool) {
+	d.buf = strconv.AppendBool(d.buf, b)
+	d.buf = append(d.buf, 0)
 }
 
-func (d digest) int(n int) {
-	d.str(strconv.Itoa(n))
+func (d *digest) int(n int) {
+	d.int64(int64(n))
 }
 
-func (d digest) roleOptions(o iam.RoleOptions) {
+func (d *digest) int64(n int64) {
+	d.buf = strconv.AppendInt(d.buf, n, decimal)
+	d.buf = append(d.buf, 0)
+}
+
+func (d *digest) uint64(n uint64) {
+	d.buf = strconv.AppendUint(d.buf, n, decimal)
+	d.buf = append(d.buf, 0)
+}
+
+func (d *digest) roleOptions(o iam.RoleOptions) {
 	d.str(o.RoleARN)
 	d.str(o.WebIdentityToken)
 	d.str(o.AssumeRoleSessionName)
-	d.str(strconv.FormatInt(o.AssumeRoleDuration, 10))
+	d.int64(o.AssumeRoleDuration)
 }
 
-func (d digest) sections(list []pkgconfig.PartialDecodeSectionType) {
+func (d *digest) sections(list []pkgconfig.PartialDecodeSectionType) {
 	sections := slices.Compact(slices.Sorted(slices.Values(list)))
 
 	d.int(len(sections))
@@ -136,7 +151,7 @@ func (d digest) sections(list []pkgconfig.PartialDecodeSectionType) {
 	}
 }
 
-func (d digest) parserSettings(s pkgconfig.ParserSettings) {
+func (d *digest) parserSettings(s pkgconfig.ParserSettings) {
 	d.int(int(s.Diagnostics))
 	d.bool(s.RewriteBareInclude)
 	d.bool(s.IgnoreDiagnostics)
@@ -144,6 +159,8 @@ func (d digest) parserSettings(s pkgconfig.ParserSettings) {
 	d.strs(s.HaltOnErrorOnlyInBlocks)
 }
 
-func (d digest) sum() string {
-	return hex.EncodeToString(d.h.Sum(nil))
+func (d *digest) sum() string {
+	sum := sha256.Sum256(d.buf)
+
+	return hex.EncodeToString(sum[:])
 }

@@ -29,8 +29,7 @@ type QueueBodies struct {
 
 // RunBodies is the parts of a [UnitConfig] that only the run reads, decoded. [UnitConfig.ToV1] decodes them with
 // the `dependency` outputs resolved, and the parse never does. A nil pointer is an absent part, and each slice
-// aligns by index with the HCL slice it decodes. Exclude is set only for an exclude block that reads `dependency`,
-// and so is each of the top-level attributes, which the tagged field of [UnitConfig] holds otherwise.
+// aligns by index with the HCL slice it decodes. Exclude is set only for an exclude block that reads `dependency`.
 type RunBodies struct {
 	Exclude                  *ExcludeBody
 	Inputs                   *cty.Value
@@ -93,10 +92,11 @@ func withUnknownDependency(evalCtx *hcl.EvalContext) *hcl.EvalContext {
 		return evalCtx
 	}
 
-	vars := maps.Clone(evalCtx.Variables)
-	vars[pkgconfig.MetadataDependency] = cty.DynamicVal
+	withDependency := *evalCtx
+	withDependency.Variables = maps.Clone(evalCtx.Variables)
+	withDependency.Variables[pkgconfig.MetadataDependency] = cty.DynamicVal
 
-	return &hcl.EvalContext{Variables: vars, Functions: evalCtx.Functions}
+	return &withDependency
 }
 
 // dependencyBlockContext returns the eval context the dependency blocks decode with: evalCtx with `dependency`
@@ -108,6 +108,16 @@ func dependencyBlockContext(pctx *pkgconfig.ParsingContext, evalCtx *hcl.EvalCon
 	}
 
 	return withUnknownDependency(evalCtx)
+}
+
+// declaresDependencies reports whether body has a dependency block. A body whose dependency blocks fail to parse
+// reports true, so that their decode reports why.
+func declaresDependencies(body hcl.Body) bool {
+	content, _, diags := body.PartialContent(&hcl.BodySchema{
+		Blocks: []hcl.BlockHeaderSchema{{Type: pkgconfig.MetadataDependency, LabelNames: []string{"name"}}},
+	})
+
+	return diags.HasErrors() || len(content.Blocks) > 0
 }
 
 // decodeRun decodes the run parts of c with evalCtx.
@@ -204,6 +214,7 @@ func (c *UnitConfig) withRequestedRunParts(decodeList []pkgconfig.PartialDecodeS
 	requested.GenerateAttrs = nil
 	requested.GenerateBlocks = nil
 	requested.VariablesBlocks = nil
+	requested.runAttrs = nil
 
 	if !slices.Contains(decodeList, pkgconfig.RemoteStateBlock) || attrReadsDependency(c.RemoteStateAttr) {
 		requested.RemoteStateAttr = nil

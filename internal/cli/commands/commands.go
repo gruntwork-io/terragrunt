@@ -19,6 +19,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/panicreport"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -261,8 +262,10 @@ func RunAction(
 
 	// Install run-scoped caches on actionCtx so memoized helpers like
 	// [github.com/gruntwork-io/terragrunt/internal/git.GoRepoRoot] and
-	// the version probes share state across the whole action.
-	actionCtx := cache.ContextWithCache(ctx)
+	// the version probes share state across the whole action. The
+	// auth provider response cache is shared by discovery, dependency
+	// output fetches, and the run.
+	actionCtx := externalcmd.ContextWithResponseCache(cache.ContextWithCache(ctx))
 
 	if opts.Experiments.Evaluate(experiment.SlowTaskReporting) {
 		reporter := newProgressReporter(l, opts, v)

@@ -2373,10 +2373,7 @@ func TestConstraintCheck(t *testing.T) {
 			func(t *testing.T) {
 				t.Parallel()
 
-				v := venvtest.NewWithOSFS()
-				ctx, pctx := newTestParsingContext(t, "")
-
-				actual, err := config.ConstraintCheck(ctx, v, pctx, tc.args)
+				actual, err := config.ConstraintCheck(tc.args)
 				if tc.err != "" {
 					require.EqualError(t, err, tc.err)
 				} else {

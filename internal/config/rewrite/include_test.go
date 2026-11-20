@@ -273,14 +273,13 @@ func TestResolveUnitQueueConfigReportsWhyAnExposedIncludeFailedToResolve(t *test
 		"root.hcl": `
 locals {
   skip = true
+  dir  = get_env("TG_TEST_UNSET_LOCAL")
 }
 
 dependency "dep" {
   config_path  = "../dep"
   mock_outputs = { id = "mock" }
 }
-
-download_dir = get_env("TG_TEST_UNSET_DOWNLOAD_DIR")
 `,
 		"dep/terragrunt.hcl": "",
 		"unit/terragrunt.hcl": `

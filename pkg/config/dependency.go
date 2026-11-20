@@ -604,7 +604,7 @@ func DecodeTerragruntDependencies(
 	pctx *ParsingContext,
 	file *hclparse.File,
 ) (*TerragruntDependency, error) {
-	evalCtx, err := CreateTerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath)
+	evalCtx, err := CreateTerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath, file.FunctionCalls())
 	if err != nil {
 		return nil, err
 	}
@@ -1009,34 +1009,6 @@ func checkForDependencyBlockCyclesUsingDFS(
 	)
 
 	return nil
-}
-
-// Given the config path, return the list of config paths that are specified as dependency blocks in the config
-func getDependencyBlockConfigPathsByFilepath(
-	ctx context.Context,
-	l log.Logger,
-	v *venv.Venv,
-	pctx *ParsingContext,
-	cfgPath string,
-) ([]string, error) {
-	tgConfig, err := PartialParseConfigFile(
-		ctx,
-		l,
-		v,
-		pctx.WithDecodeList(DependencyBlock).WithDiagnosticsSuppressed(),
-		cfgPath,
-		nil,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	paths, unresolved := tgConfig.DependencyPaths()
-	for _, name := range unresolved {
-		l.Debugf("Skipping dependency %q of %s in cycle check: config_path is not a known string", name, cfgPath)
-	}
-
-	return paths, nil
 }
 
 // DependencyBlocksToCtyValue encodes the list of dependency blocks into a single cty.Value object that maps the
@@ -2077,23 +2049,27 @@ func resolveOutputJSON(
 	// proceed to routine that fetches remote state directly. Otherwise, fallback to calling `terragrunt output`
 	// directly.
 
-	// we need to suspend logging diagnostic errors on this attempt
-	remoteStateTGConfig, err := PartialParseConfigFile(
-		ctx,
-		l,
-		v,
-		pctx.WithDiagnosticsDiscarded().WithDecodeList(
-			RemoteStateBlock,
-			TerragruntFlags,
-			EngineBlock,
-		),
-		targetConfig,
-		nil,
-	)
+	var remoteStateTGConfig *TerragruntConfig
+
+	if declaresRemoteState(ctx, l, v, pctx, targetConfig, partialTerragruntConfig.ProcessedIncludes) {
+		// we need to suspend logging diagnostic errors on this attempt
+		remoteStateTGConfig, err = PartialParseConfigFile(
+			ctx,
+			l,
+			v,
+			pctx.WithDiagnosticsDiscarded().WithDecodeList(
+				RemoteStateBlock,
+				TerragruntFlags,
+				EngineBlock,
+			),
+			targetConfig,
+			nil,
+		)
+	}
 
 	// Check err before dereferencing the config: a remote_state block that references the dependency namespace makes
 	// this parse fail and return a nil config, so the short-circuit avoids a nil pointer panic.
-	if err != nil || !canGetRemoteState(remoteStateTGConfig.RemoteState) {
+	if err != nil || remoteStateTGConfig == nil || !canGetRemoteState(remoteStateTGConfig.RemoteState) {
 		l.Debugf(
 			"Could not parse remote_state block from target config %s",
 			pctx.TerragruntConfigPath,
@@ -3061,7 +3037,7 @@ func foldSiblingAutoIncludeDeps(
 		autoPctx = autoPctx.WithLocals(baseBlocks.Locals)
 	}
 
-	evalCtx, err := CreateTerragruntEvalContext(ctx, l, v, autoPctx, autoIncludePath)
+	evalCtx, err := CreateTerragruntEvalContext(ctx, l, v, autoPctx, autoIncludePath, autoFile.FunctionCalls())
 	if err != nil {
 		return nil, err
 	}

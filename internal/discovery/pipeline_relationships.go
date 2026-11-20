@@ -301,7 +301,7 @@ func (r *pipelineRelations) linkForDependents(
 			continue
 		}
 
-		if err := linkGraphDependencies(
+		if err := linkReached(
 			v.FS,
 			c,
 			declared.paths,
@@ -313,6 +313,61 @@ func (r *pipelineRelations) linkForDependents(
 	}
 
 	return errs
+}
+
+// linkReached links c to the component at each of depPaths, taking it from components or adding it there with the
+// discovery context of a component the graph reached from c.
+//
+// Returns a [config.AmbiguousConfigError] when check is [config.RejectAmbiguousConfig] and a dependency path that
+// components does not hold has both default unit config files.
+func linkReached(
+	fsys vfs.FS,
+	c component.Component,
+	depPaths []string,
+	check config.AmbiguousConfigCheck,
+	components *component.ThreadSafeComponents,
+) error {
+	parentCtx := c.DiscoveryContext()
+
+	for _, depPath := range depPaths {
+		dep, err := componentFromDependencyPath(fsys, depPath, check, components)
+		if err != nil {
+			return err
+		}
+
+		assignGraphDiscoveryContext(fsys, dep, parentCtx, depPath)
+
+		added, _ := components.EnsureComponent(dep)
+
+		c.AddDependency(added)
+	}
+
+	return nil
+}
+
+// adoptLinkedDependencies adds to components each component that one of them is linked to as a dependency, at any
+// depth. The graph phase then links to those, where it would otherwise create a second component for the path of
+// one that discovery did not find.
+func adoptLinkedDependencies(components *component.ThreadSafeComponents) {
+	pending := components.ToComponents()
+	adopted := make(map[component.Component]struct{}, len(pending))
+
+	for len(pending) > 0 {
+		c := pending[len(pending)-1]
+		pending = pending[:len(pending)-1]
+
+		if _, done := adopted[c]; done {
+			continue
+		}
+
+		adopted[c] = struct{}{}
+
+		for _, dep := range c.Dependencies() {
+			components.EnsureComponent(dep)
+
+			pending = append(pending, dep)
+		}
+	}
 }
 
 // traversedFrom names a component a dependency traversal continued from, and the boundary it stayed within.

@@ -1,11 +1,9 @@
 package cli_test
 
 import (
-	"maps"
 	"path/filepath"
 	"testing"
 
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -22,7 +20,6 @@ func TestAmbiguousDefaultConfig(t *testing.T) {
 
 	tests := []struct {
 		files    map[string]string
-		env      map[string]string
 		name     string
 		wantPath string
 		args     []string
@@ -33,16 +30,6 @@ func TestAmbiguousDefaultConfig(t *testing.T) {
 				"unit/terragrunt.hcl":      `inputs = { from = "hcl" }`,
 				"unit/terragrunt.hcl.json": `{"inputs": {"from": "json"}}`,
 			},
-			args:     []string{"render", "--working-dir", filepath.Join(root, "unit")},
-			wantPath: filepath.Join(root, "unit"),
-		},
-		{
-			name: "unit in the working directory with the config rewrite",
-			files: map[string]string{
-				"unit/terragrunt.hcl":      `inputs = { from = "hcl" }`,
-				"unit/terragrunt.hcl.json": `{"inputs": {"from": "json"}}`,
-			},
-			env:      map[string]string{rewrite.EnvRewrite: "true"},
 			args:     []string{"render", "--working-dir", filepath.Join(root, "unit")},
 			wantPath: filepath.Join(root, "unit"),
 		},
@@ -107,7 +94,6 @@ func TestAmbiguousDefaultConfig(t *testing.T) {
 			t.Parallel()
 
 			v := venv.MemVenv().WithFS(venvtest.NewFS(t, root, tt.files))
-			maps.Copy(v.Env, tt.env)
 
 			_, err := runCLI(t, v, tt.args...)
 
@@ -162,39 +148,15 @@ func TestConfigFlagAllowsDependencyWithBothDefaultConfigs(t *testing.T) {
 
 	root := venvtest.Root("/repo")
 	appDir := filepath.Join(root, "app")
-	configFlag := []string{"--working-dir", appDir, "--config", filepath.Join(appDir, "terragrunt.hcl")}
 
-	tests := []struct {
-		env  map[string]string
-		name string
-		args []string
-	}{
-		{
-			name: "render",
-			args: append([]string{"render"}, configFlag...),
-		},
-		{
-			name: "render with the config rewrite",
-			env:  map[string]string{rewrite.EnvRewrite: "true"},
-			args: append([]string{"render"}, configFlag...),
-		},
-	}
+	v := venv.MemVenv().WithFS(venvtest.NewFS(t, root, map[string]string{
+		"app/terragrunt.hcl":     "dependency \"db\" {\n  config_path  = \"../db\"\n  skip_outputs = true\n}\n",
+		"db/terragrunt.hcl":      "",
+		"db/terragrunt.hcl.json": "{}",
+	}))
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			v := venv.MemVenv().WithFS(venvtest.NewFS(t, root, map[string]string{
-				"app/terragrunt.hcl":     "dependency \"db\" {\n  config_path  = \"../db\"\n  skip_outputs = true\n}\n",
-				"db/terragrunt.hcl":      "",
-				"db/terragrunt.hcl.json": "{}",
-			}))
-			maps.Copy(v.Env, tt.env)
-
-			_, err := runCLI(t, v, tt.args...)
-			require.NoError(t, err)
-		})
-	}
+	_, err := runCLI(t, v, "render", "--working-dir", appDir, "--config", filepath.Join(appDir, "terragrunt.hcl"))
+	require.NoError(t, err)
 }
 
 // TestRenderJSONOnlyUnit pins that a directory holding only terragrunt.hcl.json still renders.

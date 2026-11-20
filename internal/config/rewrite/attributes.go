@@ -1,6 +1,7 @@
 package config
 
 import (
+	"maps"
 	"slices"
 
 	"github.com/hashicorp/hcl/v2"
@@ -10,25 +11,53 @@ import (
 )
 
 // The top-level attributes that [pkgconfig.ParseConfig] decodes after it resolves the dependency outputs, so each
-// can read `dependency`.
+// can read `dependency`. Discovery never reads them.
 const (
 	attrDownloadDir              = "download_dir"
 	attrIamAssumeRoleDuration    = "iam_assume_role_duration"
 	attrIamAssumeRoleSessionName = "iam_assume_role_session_name"
 )
 
-// runAttributeNames is the attributes that become a run part when they read `dependency`.
+// runAttributeNames is the attributes that are always run parts.
 var runAttributeNames = []string{
 	attrDownloadDir,
 	attrIamAssumeRoleDuration,
 	attrIamAssumeRoleSessionName,
 }
 
-// dependencyAttributes returns the attributes of body among runAttributeNames that read `dependency`, by name. It
-// returns none for a body whose content has errors, which the decode of the whole body reports.
-func dependencyAttributes(body hcl.Body) map[string]*hcl.Attribute {
-	schema := &hcl.BodySchema{Attributes: make([]hcl.AttributeSchema, 0, len(runAttributeNames))}
-	for _, name := range runAttributeNames {
+// versionAttributeNames is the top-level attributes Terragrunt reads to check versions before any dependency has
+// run.
+var versionAttributeNames = []string{
+	pkgconfig.MetadataTerraformBinary,
+	pkgconfig.MetadataTerraformVersionConstraint,
+	pkgconfig.MetadataTerragruntVersionConstraint,
+}
+
+// runAttributes returns the attributes of body among runAttributeNames, by name. It returns none for a body whose
+// content has errors, which the decode of the whole body reports.
+func runAttributes(body hcl.Body) map[string]*hcl.Attribute {
+	return attributesNamed(body, runAttributeNames)
+}
+
+// dependencyVersionAttributes returns the attributes of body among versionAttributeNames that read `dependency`, by
+// name, which [pkgconfig.ValidateVersionAttributeReferences] reports. It returns none for a body whose content has
+// errors, which the decode of the whole body reports.
+func dependencyVersionAttributes(body hcl.Body) map[string]*hcl.Attribute {
+	attrs := attributesNamed(body, versionAttributeNames)
+	maps.DeleteFunc(attrs, func(_ string, attr *hcl.Attribute) bool {
+		return !slices.ContainsFunc(attr.Expr.Variables(), func(traversal hcl.Traversal) bool {
+			return traversal.RootName() == pkgconfig.MetadataDependency
+		})
+	})
+
+	return attrs
+}
+
+// attributesNamed returns the top-level attributes of body among names, by name, and none for a body whose content
+// has errors.
+func attributesNamed(body hcl.Body, names []string) map[string]*hcl.Attribute {
+	schema := &hcl.BodySchema{Attributes: make([]hcl.AttributeSchema, 0, len(names))}
+	for _, name := range names {
 		schema.Attributes = append(schema.Attributes, hcl.AttributeSchema{Name: name})
 	}
 
@@ -37,18 +66,7 @@ func dependencyAttributes(body hcl.Body) map[string]*hcl.Attribute {
 		return nil
 	}
 
-	reading := map[string]*hcl.Attribute{}
-
-	for name, attr := range content.Attributes {
-		readsDependency := slices.ContainsFunc(attr.Expr.Variables(), func(traversal hcl.Traversal) bool {
-			return traversal.RootName() == pkgconfig.MetadataDependency
-		})
-		if readsDependency {
-			reading[name] = attr
-		}
-	}
-
-	return reading
+	return content.Attributes
 }
 
 // withoutAttributes is a body whose content leaves out the attributes in hidden.
@@ -85,7 +103,7 @@ func (b withoutAttributes) hide(attrs hcl.Attributes) {
 	}
 }
 
-// decodeRunAttributes decodes the attributes of c that read `dependency` into r with evalCtx.
+// decodeRunAttributes decodes the run attributes of c into r with evalCtx.
 func (c *UnitConfig) decodeRunAttributes(evalCtx *hcl.EvalContext, r *RunBodies) hcl.Diagnostics {
 	var diags hcl.Diagnostics
 
@@ -96,7 +114,7 @@ func (c *UnitConfig) decodeRunAttributes(evalCtx *hcl.EvalContext, r *RunBodies)
 	}
 
 	for _, name := range runAttributeNames {
-		attr, ok := c.dependencyAttrs[name]
+		attr, ok := c.runAttrs[name]
 		if !ok {
 			continue
 		}
@@ -107,9 +125,9 @@ func (c *UnitConfig) decodeRunAttributes(evalCtx *hcl.EvalContext, r *RunBodies)
 	return diags
 }
 
-// fillRunAttributes sets on file the attributes of c that read `dependency`, as r holds them.
+// fillRunAttributes sets on file the run attributes of c, as r holds them.
 func (c *UnitConfig) fillRunAttributes(r *RunBodies, file *pkgconfig.TerragruntConfigFile) {
-	for name := range c.dependencyAttrs {
+	for name := range c.runAttrs {
 		switch name {
 		case attrDownloadDir:
 			file.DownloadDir = r.DownloadDir

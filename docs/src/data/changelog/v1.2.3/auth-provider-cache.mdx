@@ -1,0 +1,26 @@
+---
+version: "v1.2.3"
+category: "experiments-added"
+---
+
+#### `auth-provider-cache` — Reuse an auth provider command response across units
+
+Terragrunt runs [`--auth-provider-cmd`](/reference/cli/commands/run#auth-provider-cmd) for every unit, several times per run, even when many units use the same credentials. Enable the [`auth-provider-cache`](/reference/experiments/active#auth-provider-cache) experiment and return a `cache` object from the command. Terragrunt then reuses the response for every unit whose directory matches one of its `globs`, for `ttl` seconds.
+
+```json
+{
+  "awsCredentials": {
+    "ACCESS_KEY_ID": "fake-access-key-id",
+    "SECRET_ACCESS_KEY": "fake-secret-access-key"
+  },
+  "cache": {
+    "root": "repo",
+    "globs": ["dev/**"],
+    "ttl": 900
+  }
+}
+```
+
+```bash
+terragrunt run --all --experiment auth-provider-cache --auth-provider-cmd /path/to/auth-script.sh -- plan
+```

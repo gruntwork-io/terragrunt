@@ -316,7 +316,7 @@ func DecodeBaseBlocks(
 ) (*DecodedBaseBlocks, error) {
 	var errs []error
 
-	evalParsingContext, err := CreateTerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath)
+	evalParsingContext, err := CreateTerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath, file.FunctionCalls())
 	if err != nil {
 		return nil, err
 	}
@@ -633,12 +633,7 @@ func PartialParseConfigFile(
 		return nil, err
 	}
 
-	cacheKey := fmt.Sprintf(
-		"configPath-%v-modTime-%v-size-%v",
-		cfgPath,
-		fileInfo.ModTime().UnixMicro(),
-		fileInfo.Size(),
-	)
+	cacheKey := hclFileCacheKey(cfgPath, fileInfo)
 
 	cached := cachedHCLFile(ctx, v.FS, hclCache, cacheKey, cfgPath)
 
@@ -844,7 +839,7 @@ func PartialParseConfig(
 		pctx.DecodedDependencies = &dynamicVal
 	}
 
-	evalParsingContext, err := CreateTerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath)
+	evalParsingContext, err := CreateTerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath, file.FunctionCalls())
 	if err != nil {
 		return nil, err
 	}
@@ -1069,6 +1064,10 @@ func PartialParseConfig(
 		case moduleDirAttributes:
 			if TerraformSourceReferencesDependency(file) {
 				return nil, TerraformSourceReferencesDependencyError{ConfigPath: file.ConfigPath}
+			}
+
+			if attr := moduleDirDependencyReference(file); attr != "" {
+				return nil, ModuleDirReferencesDependencyError{ConfigPath: file.ConfigPath, Attribute: attr}
 			}
 
 			decoded := terragruntModuleDir{}
@@ -1341,6 +1340,33 @@ func autoIncludeContentSuffix(fsys vfs.FS, autoIncludePath string) string {
 	}
 
 	return fmt.Sprintf("-autoinclude:%#v-%#v", true, content)
+}
+
+// moduleDirDependencyReference returns the module directory attribute of file that references a dependency, or "".
+func moduleDirDependencyReference(file *hclparse.File) string {
+	const noDotTerragruntCache = "no_dot_terragrunt_cache"
+
+	body, ok := file.Body.(*hclsyntax.Body)
+	if !ok {
+		return ""
+	}
+
+	if attr, found := body.Attributes[MetadataDownloadDir]; found && expressionReferencesDependency(attr.Expr) {
+		return MetadataDownloadDir
+	}
+
+	for _, block := range body.Blocks {
+		if block.Type != MetadataTerraform {
+			continue
+		}
+
+		attr, found := block.Body.Attributes[noDotTerragruntCache]
+		if found && expressionReferencesDependency(attr.Expr) {
+			return MetadataTerraform + "." + noDotTerragruntCache
+		}
+	}
+
+	return ""
 }
 
 // Custom error types

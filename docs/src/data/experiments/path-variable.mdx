@@ -69,6 +69,8 @@ locals {
 
 In the configuration of a `dependency`, `path.unit` and `path.module` are the paths of that dependency.
 
+Terragrunt resolves `path.module` before it reads the outputs of a `dependency`. A unit that references `path.module` returns an error when its `download_dir` or its `terraform.no_dot_terragrunt_cache` references a `dependency` output.
+
 In the `autoinclude` block of a `unit` block in `terragrunt.stack.hcl`, `path` has the values of the generated unit, so `path.unit` and `path.module` are the paths of that unit:
 
 ```hcl

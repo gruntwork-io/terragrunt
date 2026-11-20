@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 )
 
@@ -61,6 +62,23 @@ func TestPathVariableModuleMatchesGetWorkingDir(t *testing.T) {
 			assert.Equal(t, inputs["working_dir"], inputs["module"])
 		})
 	}
+}
+
+func TestPathVariableModuleRejectsDependencyReference(t *testing.T) {
+	t.Parallel()
+
+	root := copyPathVariableFixture(t)
+	unitDir := filepath.Join(root, "module", "dependency", "download-dir")
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt render --format json --non-interactive --working-dir "+unitDir+pathVariableExperimentFlag,
+	)
+
+	var got config.ModuleDirReferencesDependencyError
+
+	require.ErrorAs(t, err, &got)
+	assert.Equal(t, "download_dir", got.Attribute)
 }
 
 func TestPathVariableInGeneratedStack(t *testing.T) {

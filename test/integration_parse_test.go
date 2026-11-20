@@ -58,6 +58,8 @@ var knownBadFiles = []string{
 	// Files that need a unit config path to resolve `path.module`
 	"fixtures/path-variable/autoinclude/live/terragrunt.stack.hcl",
 	"fixtures/path-variable/autoinclude/unit/terragrunt.autoinclude.hcl",
+	"fixtures/path-variable/module/dependency/download-dir/terragrunt.hcl",
+	"fixtures/path-variable/module/dependency/in-place/terragrunt.hcl",
 	"fixtures/path-variable/module/download-dir-include/terragrunt.hcl",
 	"fixtures/path-variable/module/download-dir/terragrunt.hcl",
 	"fixtures/path-variable/module/in-place/terragrunt.hcl",

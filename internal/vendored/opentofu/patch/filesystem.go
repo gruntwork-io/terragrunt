@@ -53,6 +53,27 @@ const (
 	pathParam = "path"
 )
 
+var (
+	returnsString    = function.StaticReturnType(cty.String)
+	returnsBool      = function.StaticReturnType(cty.Bool)
+	returnsStringSet = function.StaticReturnType(cty.Set(cty.String))
+
+	pathParams       = []function.Parameter{{Name: pathParam, Type: cty.String}}
+	markedPathParams = []function.Parameter{{Name: pathParam, Type: cty.String, AllowMarked: true}}
+
+	fileSetParams = []function.Parameter{
+		{Name: pathParam, Type: cty.String, AllowMarked: true},
+		{Name: "pattern", Type: cty.String, AllowMarked: true},
+	}
+
+	templateFileParams = []function.Parameter{
+		{Name: pathParam, Type: cty.String, AllowMarked: true},
+		{Name: "vars", Type: cty.DynamicPseudoType},
+	}
+
+	base64EncodeToString = base64.StdEncoding.EncodeToString
+)
+
 // ErrUserSpecificHomeDir is returned for a path that starts with ~ followed by
 // a user name, such as ~alice/main.tf, which upstream refuses to expand.
 var ErrUserSpecificHomeDir = errors.New("cannot expand user-specific home dir")
@@ -89,10 +110,10 @@ func Functions(
 		"fileexists":   FileExistsFunc(v, baseDir, onRead),
 		"fileset":      FileSetFunc(v, baseDir, onRead),
 		"filebase64sha256": FileHashFunc(
-			v, baseDir, sha256.New, base64.StdEncoding.EncodeToString, onRead,
+			v, baseDir, sha256.New, base64EncodeToString, onRead,
 		),
 		"filebase64sha512": FileHashFunc(
-			v, baseDir, sha512.New, base64.StdEncoding.EncodeToString, onRead,
+			v, baseDir, sha512.New, base64EncodeToString, onRead,
 		),
 		"filemd5":            FileHashFunc(v, baseDir, md5.New, hex.EncodeToString, onRead),
 		"filesha1":           FileHashFunc(v, baseDir, sha1.New, hex.EncodeToString, onRead),
@@ -128,14 +149,8 @@ func FileFunc(
 	onRead func(path string),
 ) function.Function {
 	return function.New(&function.Spec{
-		Params: []function.Parameter{
-			{
-				Name:        pathParam,
-				Type:        cty.String,
-				AllowMarked: true,
-			},
-		},
-		Type:         function.StaticReturnType(cty.String),
+		Params:       markedPathParams,
+		Type:         returnsString,
 		RefineResult: refineNotNull,
 		Impl: func(args []cty.Value, _ cty.Type) (cty.Value, error) {
 			pathArg, pathMarks := args[0].Unmark()
@@ -171,14 +186,8 @@ func FileFunc(
 // at a path relative to baseDir.
 func FileExistsFunc(v *venv.Venv, baseDir string, onRead func(path string)) function.Function {
 	return function.New(&function.Spec{
-		Params: []function.Parameter{
-			{
-				Name:        pathParam,
-				Type:        cty.String,
-				AllowMarked: true,
-			},
-		},
-		Type:         function.StaticReturnType(cty.Bool),
+		Params:       markedPathParams,
+		Type:         returnsBool,
 		RefineResult: refineNotNull,
 		Impl: func(args []cty.Value, _ cty.Type) (cty.Value, error) {
 			pathArg, pathMarks := args[0].Unmark()
@@ -211,19 +220,8 @@ func FileExistsFunc(v *venv.Venv, baseDir string, onRead func(path string)) func
 // FileSetFunc returns a function that lists the files a pattern matches, relative to a path resolved against baseDir.
 func FileSetFunc(v *venv.Venv, baseDir string, onRead func(path string)) function.Function {
 	return function.New(&function.Spec{
-		Params: []function.Parameter{
-			{
-				Name:        pathParam,
-				Type:        cty.String,
-				AllowMarked: true,
-			},
-			{
-				Name:        "pattern",
-				Type:        cty.String,
-				AllowMarked: true,
-			},
-		},
-		Type:         function.StaticReturnType(cty.Set(cty.String)),
+		Params:       fileSetParams,
+		Type:         returnsStringSet,
 		RefineResult: refineNotNull,
 		Impl: func(args []cty.Value, _ cty.Type) (cty.Value, error) {
 			pathArg, pathMarks := args[0].Unmark()
@@ -262,13 +260,8 @@ func FileSetFunc(v *venv.Venv, baseDir string, onRead func(path string)) functio
 // resolving a relative path against the working directory the venv reports.
 func AbsPathFunc(v *venv.Venv) function.Function {
 	return function.New(&function.Spec{
-		Params: []function.Parameter{
-			{
-				Name: pathParam,
-				Type: cty.String,
-			},
-		},
-		Type:         function.StaticReturnType(cty.String),
+		Params:       pathParams,
+		Type:         returnsString,
 		RefineResult: refineNotNull,
 		Impl: func(args []cty.Value, _ cty.Type) (cty.Value, error) {
 			path := args[0].AsString()
@@ -291,13 +284,8 @@ func AbsPathFunc(v *venv.Venv) function.Function {
 // directory of the user the venv reports.
 func PathExpandFunc(v *venv.Venv) function.Function {
 	return function.New(&function.Spec{
-		Params: []function.Parameter{
-			{
-				Name: pathParam,
-				Type: cty.String,
-			},
-		},
-		Type:         function.StaticReturnType(cty.String),
+		Params:       pathParams,
+		Type:         returnsString,
 		RefineResult: refineNotNull,
 		Impl: func(args []cty.Value, _ cty.Type) (cty.Value, error) {
 			path, err := expandHome(v, args[0].AsString())
@@ -320,13 +308,8 @@ func FileHashFunc(
 	onRead func(path string),
 ) function.Function {
 	return function.New(&function.Spec{
-		Params: []function.Parameter{
-			{
-				Name: pathParam,
-				Type: cty.String,
-			},
-		},
-		Type:         function.StaticReturnType(cty.String),
+		Params:       pathParams,
+		Type:         returnsString,
 		RefineResult: refineNotNull,
 		Impl: func(args []cty.Value, _ cty.Type) (cty.Value, error) {
 			sum, err := hashFile(v, baseDir, args[0].AsString(), hf, onRead)
@@ -415,17 +398,7 @@ func templateFileFunc(
 	}
 
 	return function.New(&function.Spec{
-		Params: []function.Parameter{
-			{
-				Name:        pathParam,
-				Type:        cty.String,
-				AllowMarked: true,
-			},
-			{
-				Name: "vars",
-				Type: cty.DynamicPseudoType,
-			},
-		},
+		Params: templateFileParams,
 		Type: func(args []cty.Value) (cty.Type, error) {
 			if !args[0].IsKnown() || !args[1].IsKnown() {
 				return cty.DynamicPseudoType, nil

@@ -25,18 +25,14 @@ var ErrBase64NotUTF8 = errors.New(
 	"the result of decoding the provided string is not valid UTF-8",
 )
 
+var base64DecodeParams = []function.Parameter{{Name: "str", Type: cty.String, AllowMarked: true}}
+
 // Base64DecodeFunc returns a function that decodes a base64 string, reporting
 // what it decoded to l when the result is not valid UTF-8.
 func Base64DecodeFunc(l log.Logger) function.Function {
 	return function.New(&function.Spec{
-		Params: []function.Parameter{
-			{
-				Name:        "str",
-				Type:        cty.String,
-				AllowMarked: true,
-			},
-		},
-		Type:         function.StaticReturnType(cty.String),
+		Params:       base64DecodeParams,
+		Type:         returnsString,
 		RefineResult: refineNotNull,
 		Impl: func(args []cty.Value, _ cty.Type) (cty.Value, error) {
 			str, strMarks := args[0].Unmark()
