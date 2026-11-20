@@ -230,6 +230,7 @@ func (d *OutputHCL) v1() *pkgconfig.OutputDeclaration {
 	return &pkgconfig.OutputDeclaration{
 		MockValue: clonePtr(d.MockValue),
 		Name:      d.Name,
+		Nullable:  d.Nullable,
 	}
 }
 

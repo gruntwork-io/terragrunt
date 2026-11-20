@@ -36,6 +36,7 @@ type OutputsMockStrategy struct {
 type OutputDeclaration struct {
 	MockValue *cty.Value `hcl:"mock_value,optional"`
 	Name      string     `hcl:"name,label"`
+	Nullable  bool       `hcl:"nullable,optional"`
 }
 
 // Clone returns a deep copy of c.
@@ -161,6 +162,46 @@ func (c *OutputsConfig) MockValues() *cty.Value {
 	return &object
 }
 
+// mockValuesOrUnknown returns an object of every declared output, unknown for each that sets no mock value.
+func (c *OutputsConfig) mockValuesOrUnknown() *cty.Value {
+	values := make(map[string]cty.Value, len(c.Outputs))
+
+	for _, output := range c.Outputs {
+		values[output.Name] = cty.DynamicVal
+
+		if output.MockValue != nil {
+			values[output.Name] = *output.MockValue
+		}
+	}
+
+	if len(values) == 0 {
+		return nil
+	}
+
+	object := cty.ObjectVal(values)
+
+	return &object
+}
+
+// withMockStrategyOf returns a copy of c whose mock_strategy takes each attribute it leaves unset from parent.
+func (c *OutputsConfig) withMockStrategyOf(parent *OutputsConfig) *OutputsConfig {
+	clone := c.Clone()
+
+	if parent == nil || parent.MockStrategy == nil {
+		return clone
+	}
+
+	strategy := parent.MockStrategy.Clone()
+
+	if clone.MockStrategy != nil {
+		strategy.merge(clone.MockStrategy)
+	}
+
+	clone.MockStrategy = strategy
+
+	return clone
+}
+
 // Clone returns a deep copy of s.
 func (s *OutputsMockStrategy) Clone() *OutputsMockStrategy {
 	if s == nil {
@@ -180,6 +221,11 @@ func (s *OutputsMockStrategy) Clone() *OutputsMockStrategy {
 	return clone
 }
 
+// listsCommands reports whether s names the commands that read the mock values.
+func (s *OutputsMockStrategy) listsCommands() bool {
+	return s != nil && s.AllowedCommands != nil && len(*s.AllowedCommands) > 0
+}
+
 // merge replaces each attribute of s that other sets.
 func (s *OutputsMockStrategy) merge(other *OutputsMockStrategy) {
 	if other.AllowedCommands != nil {
@@ -197,7 +243,7 @@ func (d *OutputDeclaration) Clone() *OutputDeclaration {
 		return nil
 	}
 
-	clone := &OutputDeclaration{Name: d.Name}
+	clone := &OutputDeclaration{Name: d.Name, Nullable: d.Nullable}
 
 	if d.MockValue != nil {
 		clone.MockValue = new(*d.MockValue)

@@ -1075,9 +1075,9 @@ type DeclaredOutputMissingError struct {
 func (err DeclaredOutputMissingError) Error() string {
 	return fmt.Sprintf(
 		"%s declares output %q in its outputs block, but its state has no output %q. "+
-			"Apply %s after adding the output to its module, remove the declaration, "+
-			"or set merge_with_state = \"shallow\" in its mock_strategy block, with the command in allowed_commands, "+
-			"to fill it from mock_value.",
+			"Apply %s after adding the output to its module, or remove the declaration. "+
+			"Set nullable = true on the output if its value can be null. "+
+			"A mock_value fills it for a command in allowed_commands, unless merge_with_state is \"no_merge\".",
 		err.TargetConfig,
 		err.Output,
 		err.Output,

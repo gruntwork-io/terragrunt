@@ -11,10 +11,14 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
+
+// unlistedMockCommands read the mock values an outputs block declares only when a list of allowed commands names them.
+var unlistedMockCommands = []string{tf.CommandNameApply, tf.CommandNameDestroy}
 
 type declaredDependency struct {
 	dep     *Dependency
@@ -42,7 +46,7 @@ func (dep *Dependency) withDeclaredOutputs(
 	}
 
 	effective := *dep
-	effective.MockOutputs = mergeDeclaredMockValues(declared.MockValues(), dep.MockOutputs)
+	effective.MockOutputs = mergeDeclaredMockValues(declaredMockValues(pctx, dep, declared), dep.MockOutputs)
 
 	strategy := declared.MockStrategy
 	if strategy == nil {
@@ -185,8 +189,8 @@ func UnitsWithoutOutputs(
 	return slices.Compact(targets), nil
 }
 
-// checkDeclaredOutputs returns a [DeclaredOutputMissingError] for each declared output missing from stateOutputs.
-func checkDeclaredOutputs(
+// fillDeclaredOutputs fills each declared output stateOutputs lacks, or returns [DeclaredOutputMissingError].
+func fillDeclaredOutputs(
 	pctx *ParsingContext,
 	dep *Dependency,
 	declared *OutputsConfig,
@@ -197,28 +201,42 @@ func checkDeclaredOutputs(
 		return nil
 	}
 
-	mocks := stateFillingMocks(pctx, dep)
-	names := declared.Names()
-	errs := make([]error, 0, len(names))
+	mocks := readableMocks(pctx, dep)
+	merges := dep.shouldMergeMockOutputsWithState(pctx)
+	mergeIsSet := dep.MockOutputsMergeStrategyWithState != nil || dep.MockOutputsMergeWithState != nil
+	errs := make([]error, 0, len(declared.Outputs))
 
-	for _, name := range names {
-		if _, ok := stateOutputs[name]; ok {
+	for _, output := range declared.Outputs {
+		if _, ok := stateOutputs[output.Name]; ok {
 			continue
 		}
 
-		if _, ok := mocks[name]; ok {
+		mock, mocked := mocks[output.Name]
+		if mocked && merges {
 			continue
 		}
 
-		errs = append(errs, DeclaredOutputMissingError{TargetConfig: targetConfig, Output: name})
+		if output.Nullable {
+			stateOutputs[output.Name] = cty.NullVal(cty.DynamicPseudoType)
+
+			continue
+		}
+
+		if mocked && !mergeIsSet {
+			stateOutputs[output.Name] = mock
+
+			continue
+		}
+
+		errs = append(errs, DeclaredOutputMissingError{TargetConfig: targetConfig, Output: output.Name})
 	}
 
 	return errors.Join(errs...)
 }
 
-// stateFillingMocks returns the mock values that stand in for outputs the state lacks, none unless dep merges them.
-func stateFillingMocks(pctx *ParsingContext, dep *Dependency) map[string]cty.Value {
-	if !dep.shouldMergeMockOutputsWithState(pctx) {
+// readableMocks returns the mock values of dep by output name, none unless the command reads them.
+func readableMocks(pctx *ParsingContext, dep *Dependency) map[string]cty.Value {
+	if !dep.shouldReturnMockOutputs(pctx) {
 		return nil
 	}
 
@@ -228,6 +246,22 @@ func stateFillingMocks(pctx *ParsingContext, dep *Dependency) map[string]cty.Val
 	}
 
 	return values
+}
+
+// declaredMockValues returns the mock values dep reads from declared, none for an apply or destroy no list names.
+func declaredMockValues(pctx *ParsingContext, dep *Dependency, declared *OutputsConfig) *cty.Value {
+	commands := dep.MockOutputsAllowedTerraformCommands
+	listed := commands != nil && len(*commands) > 0 || declared.MockStrategy.listsCommands()
+
+	if !listed && slices.Contains(unlistedMockCommands, pctx.OriginalTofuCommand) {
+		return nil
+	}
+
+	if pctx.SkipOutput {
+		return declared.mockValuesOrUnknown()
+	}
+
+	return declared.MockValues()
 }
 
 // mergeDeclaredMockValues returns the mock values a dependent reads, each key of overrides winning over declared.

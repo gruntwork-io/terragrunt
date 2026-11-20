@@ -1345,7 +1345,7 @@ func getTerragruntOutput(
 	}
 
 	if fromState && !isEmpty {
-		if err := checkDeclaredOutputs(pctx, dependencyConfig, declared, targetConfigPath, outputMap); err != nil {
+		if err := fillDeclaredOutputs(pctx, dependencyConfig, declared, targetConfigPath, outputMap); err != nil {
 			return nil, isEmpty, DependencyBlockError{
 				Name:       dependencyConfig.Name,
 				ConfigPath: pctx.TerragruntConfigPath,

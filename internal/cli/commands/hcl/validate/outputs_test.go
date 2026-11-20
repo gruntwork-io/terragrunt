@@ -223,6 +223,66 @@ inputs = {
 			expectedLine:    11,
 		},
 		{
+			name: "a reference to a declared output without a mock value holds",
+			overrides: map[string]string{
+				"vpc/terragrunt.hcl": `
+outputs {
+  output "vpc_id" {}
+
+  output "subnet_ids" {
+    mock_value = []
+  }
+}
+`,
+			},
+		},
+		{
+			name: "a reference guarded by try is not reported",
+			overrides: map[string]string{
+				"app/terragrunt.hcl": `
+dependency "vpc" {
+  config_path = "../vpc"
+}
+
+inputs = {
+  vpc_id = dependency.vpc.outputs.vpc_id
+  nat_id = try(dependency.vpc.outputs.nat_id, null)
+}
+`,
+			},
+		},
+		{
+			name: "a declared output missing from the module is reported at its declaration in an include",
+			overrides: map[string]string{
+				"root.hcl": `
+outputs {
+  output "vpc_id" {
+    mock_value = "vpc-mock"
+  }
+
+  output "nat_id" {
+    mock_value = "nat-mock"
+  }
+}
+`,
+				"vpc/terragrunt.hcl": `
+include "root" {
+  path           = find_in_parent_folders("root.hcl")
+  merge_strategy = "deep"
+}
+
+outputs {
+  output "subnet_ids" {
+    mock_value = []
+  }
+}
+`,
+			},
+			expectedSummary: "Declared output not in module",
+			expectedFile:    "root.hcl",
+			expectedLine:    7,
+		},
+		{
 			name: "a dependency without an outputs block is not checked",
 			overrides: map[string]string{
 				"vpc/terragrunt.hcl": ``,
@@ -1916,6 +1976,40 @@ func TestRunValidateChecksOutputsContractsOnlyWithTheFlag(t *testing.T) {
 			assert.Equal(t, "Declared output not in module", result.diags[0].Summary)
 		})
 	}
+}
+
+func TestRunValidateReadsDeclaredOutputWithoutMockValue(t *testing.T) {
+	t.Parallel()
+
+	files := withFiles(outputsContractFiles, map[string]string{
+		"vpc/terragrunt.hcl": `
+outputs {
+  output "vpc_id" {}
+
+  output "subnet_ids" {
+    mock_value = []
+  }
+}
+`,
+	})
+
+	result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}})
+
+	require.NoError(t, result.err)
+	assert.Empty(t, result.diags)
+}
+
+func TestRunValidateOutputsContractsNamesAnEmptyOutputsBlock(t *testing.T) {
+	t.Parallel()
+
+	files := withFiles(outputsContractFiles, map[string]string{"vpc/terragrunt.hcl": "outputs {}\n"})
+
+	result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}, outputs: true})
+
+	require.Error(t, result.err)
+	require.Len(t, result.diags, 1)
+	assert.Equal(t, "Undeclared dependency output", result.diags[0].Summary)
+	assert.Contains(t, result.diags[0].Detail, "Declared outputs: none.")
 }
 
 // TestRunOutputsFlagRequiresExperiment expects --outputs to fail while the outputs-block experiment is off.

@@ -172,6 +172,7 @@ type MockStrategyHCL struct {
 type OutputHCL struct {
 	MockValue *cty.Value `hcl:"mock_value,optional"`
 	Name      string     `hcl:"name,label"`
+	Nullable  bool       `hcl:"nullable,optional"`
 }
 
 // FeatureFlagHCL is a feature block.
