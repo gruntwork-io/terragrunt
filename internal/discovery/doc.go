@@ -45,7 +45,7 @@
 //  1. Pipeline
 //     - A walk of the working directory classifies each component via [filter.Classifier]
 //     - For Git filters [ref...ref], a second finder discovers components in temporary worktrees beside the walk
-//     and detects added/removed/modified components via SHA256 comparison
+//     and detects added/removed/modified components by comparing their files
 //     - Workers parse the candidates with [filter.CandidacyReasonRequiresParse] while the walk is still finding
 //     components, and classify them again from the parsed attributes (reading, source)
 //     - Workers also read the dependencies each component declares, as paths, when a later step needs them
