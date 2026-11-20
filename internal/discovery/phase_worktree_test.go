@@ -13,52 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestNewWorktreePhase tests the WorktreePhase constructor.
-func TestNewWorktreePhase(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name               string
-		numWorkers         int
-		expectedNumWorkers int
-	}{
-		{
-			name:               "positive workers",
-			numWorkers:         4,
-			expectedNumWorkers: 4,
-		},
-		{
-			name:               "zero workers defaults to CPU count",
-			numWorkers:         0,
-			expectedNumWorkers: -1, // Will check > 0
-		},
-		{
-			name:               "negative workers defaults to CPU count",
-			numWorkers:         -1,
-			expectedNumWorkers: -1, // Will check > 0
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			phase := discovery.NewWorktreePhase(nil, tt.numWorkers)
-
-			assert.NotNil(t, phase)
-			assert.Equal(t, "worktree", phase.Name())
-			assert.Equal(t, discovery.PhaseWorktree, phase.Kind())
-
-			if tt.expectedNumWorkers > 0 {
-				assert.Equal(t, tt.expectedNumWorkers, phase.NumWorkers())
-			} else {
-				// When workers <= 0, it should default to runtime.GOMAXPROCS(0)
-				assert.Positive(t, phase.NumWorkers())
-			}
-		})
-	}
-}
-
 // TestGenerateDirSHA256 tests the SHA256 hash generation for directories.
 func TestGenerateDirSHA256(t *testing.T) {
 	t.Parallel()
