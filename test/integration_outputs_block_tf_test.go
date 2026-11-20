@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 )
 
@@ -19,6 +20,8 @@ const (
 	testFixtureOutputsBlockInvalid   = "fixtures/outputs-block-invalid"
 	testFixtureOutputsBlockVariables = "fixtures/outputs-block-variables"
 	testFixtureOutputsBlockMerge     = "fixtures/outputs-block-merge"
+	testFixtureOutputsBlockDefaults  = "fixtures/outputs-block-defaults"
+	testFixtureOutputsBlockNullable  = "fixtures/outputs-block-nullable"
 )
 
 func TestTFOutputsBlockDeclaredMocksStandInBeforeApply(t *testing.T) {
@@ -182,4 +185,53 @@ func TestTFOutputsBlockMergesMocksWithState(t *testing.T) {
 			filepath.Join(rootPath, "app"),
 	)
 	require.ErrorContains(t, err, `has no output "nat_id"`)
+}
+
+func TestTFOutputsBlockDeclaredMocksStayOutOfApplyByDefault(t *testing.T) {
+	t.Parallel()
+
+	rootPath := filepath.Join(helpers.CopyEnvironment(t, testFixtureOutputsBlockDefaults), testFixtureOutputsBlockDefaults)
+	appPath := filepath.Join(rootPath, "app")
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt plan --experiment outputs-block --non-interactive --working-dir "+appPath,
+	)
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "vpc-mock")
+
+	_, _, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt apply -auto-approve --experiment outputs-block --non-interactive --working-dir "+appPath,
+	)
+
+	var noOutputsErr config.TerragruntOutputTargetNoOutputs
+
+	require.ErrorAs(t, err, &noOutputsErr)
+}
+
+func TestTFOutputsBlockNullableOutputReadsNull(t *testing.T) {
+	t.Parallel()
+
+	rootPath := filepath.Join(helpers.CopyEnvironment(t, testFixtureOutputsBlockNullable), testFixtureOutputsBlockNullable)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all apply --experiment outputs-block --non-interactive --working-dir "+rootPath,
+	)
+	require.NoError(t, err)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt output -json --experiment outputs-block --non-interactive --working-dir "+filepath.Join(rootPath, "app"),
+	)
+	require.NoError(t, err)
+
+	var outputs map[string]struct {
+		Value any `json:"value"`
+	}
+
+	require.NoError(t, json.Unmarshal([]byte(stdout), &outputs))
+	assert.Equal(t, "vpc-real", outputs["vpc_id"].Value)
+	assert.Equal(t, true, outputs["nat_is_null"].Value)
 }

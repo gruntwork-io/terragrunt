@@ -886,6 +886,10 @@ outputs {
   output "subnet_ids" {
     mock_value = ["subnet-mock"]
   }
+
+  output "nat_id" {
+    nullable = true
+  }
 }
 `,
 		"app/terragrunt.hcl": `
@@ -927,7 +931,8 @@ inputs = {
 				t.Helper()
 
 				require.NoError(t, result.toV1Err)
-				assert.Equal(t, []string{"vpc_id", "subnet_ids"}, result.cfg.Outputs.Names())
+				assert.Equal(t, []string{"vpc_id", "subnet_ids", "nat_id"}, result.cfg.Outputs.Names())
+				assert.True(t, result.cfg.Outputs.Outputs[2].Nullable)
 			},
 		},
 		{

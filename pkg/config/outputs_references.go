@@ -16,6 +16,8 @@ import (
 
 const maxBlockNesting = 32
 
+var guardFunctions = []string{"try", "can"}
+
 // DependencyOutputReference is a reference to a dependency output in a unit, with the range of the expression.
 type DependencyOutputReference struct {
 	Instance   hclparse.InstanceKey
@@ -73,7 +75,16 @@ func bodyDependencyOutputReferences(
 	var refs []DependencyOutputReference
 
 	for _, attr := range body.Attributes {
+		guards, err := guardedRanges(attr.Expr)
+		if err != nil {
+			return nil, err
+		}
+
 		for _, traversal := range attr.Expr.Variables() {
+			if guardedBy(traversal.SourceRange(), guards) {
+				continue
+			}
+
 			if ref, ok := dependencyOutputReference(traversal, walk.expanded); ok {
 				refs = append(refs, ref)
 			}
@@ -102,6 +113,32 @@ func bodyDependencyOutputReferences(
 	}
 
 	return refs, nil
+}
+
+// guardedRanges returns the ranges of the try and can calls in expr, whose arguments may fail to evaluate.
+func guardedRanges(expr hclsyntax.Expression) ([]hcl.Range, error) {
+	var guards []hcl.Range
+
+	diags := hclsyntax.VisitAll(expr, func(node hclsyntax.Node) hcl.Diagnostics {
+		call, ok := node.(*hclsyntax.FunctionCallExpr)
+		if ok && slices.Contains(guardFunctions, call.Name) {
+			guards = append(guards, call.Range())
+		}
+
+		return nil
+	})
+	if diags.HasErrors() {
+		return nil, diags
+	}
+
+	return guards, nil
+}
+
+// guardedBy reports whether rng lies inside one of guards.
+func guardedBy(rng hcl.Range, guards []hcl.Range) bool {
+	return slices.ContainsFunc(guards, func(guard hcl.Range) bool {
+		return rng.Start.Byte >= guard.Start.Byte && rng.End.Byte <= guard.End.Byte
+	})
 }
 
 // replacedDependencyBlock reports whether block is an unexpanded dependency block labeled in replaced.

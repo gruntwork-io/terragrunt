@@ -384,7 +384,7 @@ func (cfg *TerragruntConfig) Merge(l log.Logger, sourceConfig *TerragruntConfig)
 	}
 
 	if sourceConfig.Outputs != nil {
-		cfg.Outputs = sourceConfig.Outputs.Clone()
+		cfg.Outputs = sourceConfig.Outputs.withMockStrategyOf(cfg.Outputs)
 	}
 
 	if sourceConfig.RemoteState != nil {

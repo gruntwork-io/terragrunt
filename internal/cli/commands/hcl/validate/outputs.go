@@ -1,6 +1,7 @@
 package validate
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -427,21 +428,75 @@ func declaredOutputsChecks(
 		return nil, nil
 	}
 
-	file, err := syntaxTree(ctx, l, v, s, pctx, opts.TerragruntConfigPath)
+	files, err := declarationFiles(ctx, l, v, s, pctx, cfg, opts.TerragruntConfigPath, missing)
 	if err != nil {
 		return nil, err
 	}
 
-	return []contractDiagnostics{{file: file, diags: missingOutputDiagnostics(file, module.dir, missing)}}, nil
+	return missingOutputDiagnostics(files, module.dir, missing), nil
 }
 
-// missingOutputDiagnostics returns a diagnostic at the declaration in file of each output the module at dir lacks.
-func missingOutputDiagnostics(file *hclparse.File, dir string, missing []string) hcl.Diagnostics {
-	ranges := config.OutputDeclarationRanges(file)
-	diags := make(hcl.Diagnostics, 0, len(missing))
+// declarationFiles returns the syntax tree of the unit, and of its includes when it does not declare all of names.
+func declarationFiles(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	s *rewrite.Store,
+	pctx *config.ParsingContext,
+	cfg *config.TerragruntConfig,
+	configPath string,
+	names []string,
+) ([]*hclparse.File, error) {
+	unit, err := syntaxTree(ctx, l, v, s, pctx, configPath)
+	if err != nil {
+		return nil, err
+	}
+
+	files := []*hclparse.File{unit}
+	ranges := config.OutputDeclarationRanges(unit)
+
+	if !slices.ContainsFunc(names, func(name string) bool { return ranges[name].Empty() }) {
+		return files, nil
+	}
+
+	autoInclude, err := autoIncludeTree(ctx, l, v, s, pctx, configPath)
+	if err != nil {
+		return nil, err
+	}
+
+	includedPaths, err := includedFiles(ctx, l, v, pctx, cfg, autoInclude)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, includedPath := range includedPaths {
+		included, err := syntaxTree(ctx, l, v, s, pctx, includedPath)
+		if err != nil {
+			return nil, err
+		}
+
+		files = append(files, included)
+	}
+
+	return files, nil
+}
+
+// missingOutputDiagnostics reports each output the module at dir lacks, at its first declaration in files.
+func missingOutputDiagnostics(files []*hclparse.File, dir string, missing []string) []contractDiagnostics {
+	checks := make([]contractDiagnostics, len(files))
+	ranges := make([]map[string]hcl.Range, len(files))
+
+	for i, file := range files {
+		checks[i].file = file
+		ranges[i] = config.OutputDeclarationRanges(file)
+	}
 
 	for _, name := range missing {
-		diags = append(diags, &hcl.Diagnostic{
+		declaredIn := max(0, slices.IndexFunc(ranges, func(declared map[string]hcl.Range) bool {
+			return !declared[name].Empty()
+		}))
+
+		checks[declaredIn].diags = append(checks[declaredIn].diags, &hcl.Diagnostic{
 			Severity: hcl.DiagError,
 			Summary:  summaryDeclaredOutputNotInModule,
 			Detail: fmt.Sprintf(
@@ -451,11 +506,13 @@ func missingOutputDiagnostics(file *hclparse.File, dir string, missing []string)
 				dir,
 				name,
 			),
-			Subject: declarationSubject(file, ranges, name),
+			Subject: declarationSubject(files[declaredIn], ranges[declaredIn], name),
 		})
 	}
 
-	return diags
+	return slices.DeleteFunc(checks, func(check contractDiagnostics) bool {
+		return len(check.diags) == 0
+	})
 }
 
 // moduleParseDiagnostics reports each of files in moduleFS that fails to parse, or moduleDiags when none does.
@@ -775,7 +832,7 @@ func dependencyOutputReferenceDiagnostics(
 					"Fix the reference or add output %q to the outputs block of the dependency.",
 				address,
 				reference.Output,
-				strings.Join(contract.declared.Names(), ", "),
+				cmp.Or(strings.Join(contract.declared.Names(), ", "), "none"),
 				reference.Output,
 			),
 			Subject: &reference.Range,
