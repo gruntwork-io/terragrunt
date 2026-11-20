@@ -14,4 +14,4 @@ note:
   body: Terragrunt doesn't check this constraint on a unit that uses an [IaC engine](/features/units/engine/).
 ---
 
-The `terraform_version_constraint` attribute sets the OpenTofu/Terraform versions a unit accepts. It replaces the default constraint, so it can allow versions older than the default. If the version of the binary [`terraform_binary`](/reference/hcl/attributes/terraform_binary/) selects doesn't satisfy the constraint, Terragrunt exits with an error.
+The `terraform_version_constraint` attribute sets the OpenTofu/Terraform versions a unit accepts. It replaces the default constraint, so it can allow versions older than the default. If the version of the binary [`terraform_binary`](/reference/hcl/attributes/terraform_binary/) selects doesn't satisfy the constraint, Terragrunt exits with an error. It can't reference `dependency` outputs, because Terragrunt checks the constraint before any dependency has run.

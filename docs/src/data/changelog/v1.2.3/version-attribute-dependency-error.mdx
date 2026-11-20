@@ -1,0 +1,22 @@
+---
+version: "v1.2.3"
+category: "bug-fixes"
+---
+
+#### Clear error when a version attribute references a dependency
+
+A [`terraform_binary`](/reference/hcl/attributes/terraform_binary/), [`terraform_version_constraint`](/reference/hcl/attributes/terraform_version_constraint/), or [`terragrunt_version_constraint`](/reference/hcl/attributes/terragrunt_version_constraint/) that references `dependency` is now rejected with a diagnostic that points at the reference. `hcl validate` reports it too:
+
+```
+error: Dependency reference not allowed
+  --> unit/terragrunt.hcl:13:55
+   |
+13 | terraform_version_constraint = local.use_dependency ? dependency.dep.outputs.constraint : ">= 1.0"
+   |                                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = The terraform_version_constraint attribute can't reference dependency
+     outputs, because Terragrunt checks versions before any dependency has
+     run.
+```
+
+Terragrunt reads these attributes to check versions before any dependency has run. A reference to an output failed with `There is no variable named "dependency"` in `run` and `value must be known` in `run --all`, while a reference in a conditional branch that never evaluated passed. Set these attributes from a literal, a local, or an environment variable.

@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"testing"
@@ -8,10 +9,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 
+	config "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	pkgconfig "github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
@@ -1405,4 +1410,196 @@ include "root" {
 			})
 		})
 	}
+}
+
+// dependencyAttributeCases maps a name to a unit config in which one top-level attribute reads an output of the
+// dependency on ../vpc.
+func dependencyAttributeCases() map[string]string {
+	const dependency = `
+dependency "vpc" {
+  config_path = "../vpc"
+}
+`
+
+	return map[string]string{
+		"download_dir":                 dependency + "download_dir = dependency.vpc.outputs.data\n",
+		"iam_assume_role_duration":     dependency + "iam_assume_role_duration = length(dependency.vpc.outputs.data)\n",
+		"iam_assume_role_session_name": dependency + "iam_assume_role_session_name = dependency.vpc.outputs.data\n",
+		"attribute beside one that reads no dependency": dependency +
+			"download_dir = dependency.vpc.outputs.data\nterraform_binary = \"tofu\"\n",
+	}
+}
+
+// versionAttributeCases maps a name to a unit config in which a version attribute references the dependency on
+// ../vpc.
+func versionAttributeCases() map[string]string {
+	const dependency = `
+dependency "vpc" {
+  config_path = "../vpc"
+}
+`
+
+	return map[string]string{
+		"terraform_binary":              dependency + "terraform_binary = dependency.vpc.outputs.data\n",
+		"terraform_version_constraint":  dependency + "terraform_version_constraint = dependency.vpc.outputs.data\n",
+		"terragrunt_version_constraint": dependency + "terragrunt_version_constraint = dependency.vpc.outputs.data\n",
+		"untaken branch": dependency + `
+locals {
+  use = false
+}
+
+terraform_version_constraint = local.use ? dependency.vpc.outputs.data : ">= 1.0"
+`,
+	}
+}
+
+func TestParityAttributesThatReadDependencyOutputs(t *testing.T) {
+	t.Parallel()
+
+	for name, content := range dependencyAttributeCases() {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			result := assertDependencyAttributeParity(t, name, content)
+
+			require.NoError(t, result.toV1Err)
+		})
+	}
+}
+
+func TestParityVersionAttributesThatReferenceDependency(t *testing.T) {
+	t.Parallel()
+
+	for name, content := range versionAttributeCases() {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			result := assertDependencyAttributeParity(t, name, content)
+
+			requireDependencyReferenceDiagnostic(t, result.toV1Err)
+		})
+	}
+}
+
+func TestQueueConfigMatchesPartialParseForAttributesThatReadDependencyOutputs(t *testing.T) {
+	t.Parallel()
+
+	cases := dependencyAttributeCases()
+	cases["dependency whose config_path reads another dependency"] = `
+dependency "vpc" {
+  config_path = "../vpc"
+}
+
+dependency "next" {
+  config_path = dependency.vpc.outputs.data
+}
+`
+
+	for name, content := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			assertQueueParity(t, name, content)
+		})
+	}
+}
+
+func TestQueueConfigRejectsVersionAttributesThatReferenceDependency(t *testing.T) {
+	t.Parallel()
+
+	for name, content := range versionAttributeCases() {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			err := assertQueueParity(t, name, content)
+
+			requireDependencyReferenceDiagnostic(t, err)
+		})
+	}
+}
+
+// requireDependencyReferenceDiagnostic asserts that err is the one diagnostic a version attribute that references
+// `dependency` reports.
+func requireDependencyReferenceDiagnostic(t *testing.T, err error) {
+	t.Helper()
+
+	var diags hcl.Diagnostics
+	require.ErrorAs(t, err, &diags)
+	require.Len(t, diags, 1)
+	assert.Equal(t, "Dependency reference not allowed", diags[0].Summary)
+}
+
+// assertDependencyAttributeParity asserts parity for the unit config content in app/, beside an empty unit in vpc/.
+func assertDependencyAttributeParity(t *testing.T, name, content string) parityResult {
+	t.Helper()
+
+	root := venvtest.Root("/fixture-" + name)
+
+	return assertParity(t, parityCase{
+		newFS: memFS(root, map[string]string{
+			"app/terragrunt.hcl": content,
+			"app/main.tf":        "",
+			"vpc/terragrunt.hcl": "",
+			"vpc/main.tf":        "",
+		}),
+		cfgPath:   filepath.Join(root, "app", pkgconfig.DefaultTerragruntConfigPath),
+		configure: func(*pkgconfig.ParsingContext) {},
+	})
+}
+
+// assertQueueParity asserts that the queue config of the unit config content in app/ matches what discovery's
+// partial parse of it returns, and returns the error of the queue config.
+func assertQueueParity(t *testing.T, name, content string) error {
+	t.Helper()
+
+	root := venvtest.Root("/fixture-queue-" + name)
+	cfgPath := filepath.Join(root, "app", pkgconfig.DefaultTerragruntConfigPath)
+	newFS := memFS(root, map[string]string{"app/terragrunt.hcl": content, "vpc/terragrunt.hcl": ""})
+	l := logger.CreateLogger()
+
+	newRun := func() (context.Context, *pkgconfig.ParsingContext) {
+		ctx, run := newTestParsingContext(t, cfgPath)
+		run.SkipOutput = true
+
+		return ctx, run.WithDecodeList(
+			pkgconfig.TerraformSource,
+			pkgconfig.DependenciesBlock,
+			pkgconfig.DependencyBlock,
+			pkgconfig.TerragruntFlags,
+			pkgconfig.FeatureFlagsBlock,
+			pkgconfig.ExcludeBlock,
+			pkgconfig.ErrorsBlock,
+			pkgconfig.TerragruntVersionConstraints,
+			pkgconfig.EngineBlock,
+		).WithSkipOutputsResolution()
+	}
+
+	wantCtx, wantRun := newRun()
+	want, wantErr := pkgconfig.PartialParseConfigFile(
+		wantCtx, l, venv.MemVenv().WithFS(newFS(t)), wantRun, cfgPath, nil,
+	)
+
+	gotCtx, gotRun := newRun()
+	gotV := venv.MemVenv().WithFS(newFS(t))
+	got, gotErr := new(config.Store).ResolveUnitQueueConfig(
+		gotCtx, l, gotV, config.NewParseContext(gotV, gotRun), cfgPath,
+	)
+
+	wantView := walkErrors(t, wantErr).view(wantErr, nil)
+	gotView := walkErrors(t, gotErr).view(gotErr, nil)
+
+	assert.Equal(t, wantView.diagnostics, gotView.diagnostics)
+	assert.Equal(t, wantView.text, gotView.text)
+
+	if want == nil {
+		return gotErr
+	}
+
+	require.NotNil(t, got)
+	assert.Equal(t, want.TerraformBinary, got.TerraformBinary)
+	assert.Equal(t, want.TerraformVersionConstraint, got.TerraformVersionConstraint)
+	assert.Equal(t, want.TerragruntVersionConstraint, got.TerragruntVersionConstraint)
+	assert.Equal(t, want.TerragruntDependencies, got.TerragruntDependencies)
+
+	return gotErr
 }

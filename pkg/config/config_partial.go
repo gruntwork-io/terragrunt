@@ -163,6 +163,63 @@ func ValidateExcludeReferences(file *hclparse.File) error {
 	return nil
 }
 
+// ValidateVersionAttributeReferences reports a diagnostic through file for each of the top-level `terraform_binary`,
+// `terraform_version_constraint`, and `terragrunt_version_constraint` attributes of file that references the
+// `dependency` namespace, even in a branch that never evaluates. Terragrunt reads them to check versions before any
+// dependency has run.
+//
+// Returns what [hclparse.File.HandleDiagnostics] returns for those diagnostics, or for the diagnostics of a body
+// whose top-level content fails to parse.
+func ValidateVersionAttributeReferences(file *hclparse.File) error {
+	names := []string{
+		MetadataTerraformBinary,
+		MetadataTerraformVersionConstraint,
+		MetadataTerragruntVersionConstraint,
+	}
+
+	schema := &hcl.BodySchema{Attributes: make([]hcl.AttributeSchema, 0, len(names))}
+	for _, name := range names {
+		schema.Attributes = append(schema.Attributes, hcl.AttributeSchema{Name: name})
+	}
+
+	content, _, diags := file.Body.PartialContent(schema)
+	if err := file.HandleDiagnostics(diags); err != nil {
+		return err
+	}
+
+	var refDiags hcl.Diagnostics
+
+	for _, name := range names {
+		attr, ok := content.Attributes[name]
+		if !ok {
+			continue
+		}
+
+		traversals := attr.Expr.Variables()
+
+		reference := slices.IndexFunc(traversals, func(traversal hcl.Traversal) bool {
+			return traversal.RootName() == MetadataDependency
+		})
+		if reference < 0 {
+			continue
+		}
+
+		refDiags = refDiags.Append(&hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  "Dependency reference not allowed",
+			Detail: fmt.Sprintf(
+				"The %s attribute can't reference dependency outputs, because Terragrunt checks versions before "+
+					"any dependency has run.",
+				name,
+			),
+			Subject: traversals[reference].SourceRange().Ptr(),
+			Context: attr.Range.Ptr(),
+		})
+	}
+
+	return file.HandleDiagnostics(refDiags)
+}
+
 func expressionReferencesDependency(expr hcl.Expression) bool {
 	for _, traversal := range expr.Variables() {
 		if traversal.RootName() == MetadataDependency {
@@ -878,6 +935,10 @@ func PartialParseConfig(
 				output.IamWebIdentityToken = *decoded.IamWebIdentityToken
 			}
 		case TerragruntVersionConstraints:
+			if err := ValidateVersionAttributeReferences(file); err != nil {
+				return nil, err
+			}
+
 			decoded := terragruntVersionConstraints{}
 
 			err := file.Decode(&decoded, evalParsingContext)
