@@ -143,6 +143,10 @@ func (d *Discovery) recordInputsReads(
 	}
 
 	for _, read := range reads {
+		if place == tips.InputsReadInAutoInclude && read.MarkedAsRead {
+			continue
+		}
+
 		file := fileOf(read.Range.Filename)
 
 		rng := read.Range
