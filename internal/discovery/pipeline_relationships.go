@@ -328,9 +328,6 @@ func linkReached(
 	components *component.ThreadSafeComponents,
 ) error {
 	parentCtx := c.DiscoveryContext()
-	if parentCtx == nil {
-		return nil
-	}
 
 	for _, depPath := range depPaths {
 		dep, err := componentFromDependencyPath(fsys, depPath, check, components)
