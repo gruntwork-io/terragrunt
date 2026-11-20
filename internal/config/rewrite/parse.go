@@ -22,11 +22,10 @@ import (
 
 // ResolveUnitConfig resolves the config file at cfgPath and the files it merges in, fetching no dependency outputs.
 //
-// The result is memoized in s by file and context: a second call for the same file and context shares the first's
-// evaluation. [Store.Invalidate] finds a memoized result by the config files it parsed, and by a file it read through
-// a function such as file only when pc's run records its reads.
+// Calls for the same file and context while one is running share its evaluation. A later call evaluates the file
+// again, served the syntax trees and dependency scans s retained.
 //
-// The [UnitConfig] is shared with every caller of the same file and context, and must not be changed.
+// The [UnitConfig] is shared with every call that shares its evaluation, and must not be changed.
 //
 // Returns the errors of the parse, which [UnitConfig.ToV1] returns again with those of resolving the outputs. Returns
 // nil when the parse produced no config.
@@ -37,6 +36,9 @@ func (s *Store) ResolveUnitConfig(
 	pc *ParseContext,
 	cfgPath string,
 ) (*UnitConfig, error) {
+	ctx, scope := withReleaseScope(ctx)
+	defer s.releaseScope(scope)
+
 	c, cfg, err := s.resolveFile(ctx, l, v, pc, cfgPath)
 	if cfg == nil {
 		return nil, err
@@ -100,6 +102,9 @@ func (s *Store) ResolveUnitQueueConfig(
 	pc *ParseContext,
 	cfgPath string,
 ) (*pkgconfig.TerragruntConfig, error) {
+	ctx, scope := withReleaseScope(ctx)
+	defer s.releaseScope(scope)
+
 	_, cfg, err := s.resolveFile(ctx, l, v, pc, cfgPath)
 
 	return cfg, err
@@ -126,18 +131,14 @@ func (s *Store) ResolveRunConfig(
 	return c.ToV1(ctx, l, v, pc)
 }
 
-// ReadTerragruntConfig reads the config file of run as [pkgconfig.ReadTerragruntConfig] does. When [EnvRewrite]
-// selects this package's parser, it resolves the file as [Store.ResolveRunConfig] does.
+// ReadTerragruntConfig reads the config file of run as [pkgconfig.ReadTerragruntConfig] does, resolving the file as
+// [Store.ResolveRunConfig] does.
 func (s *Store) ReadTerragruntConfig(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	run *pkgconfig.ParsingContext,
 ) (*pkgconfig.TerragruntConfig, error) {
-	if !Enabled(v.Env) {
-		return pkgconfig.ReadTerragruntConfig(ctx, l, v, run)
-	}
-
 	if err := pkgconfig.RejectAmbiguousUnitConfig(v.FS, run); err != nil {
 		return nil, err
 	}
@@ -202,7 +203,7 @@ func (s *Store) resolveFile(
 	cfg := res.Value.cfg
 
 	if res.Hit {
-		cfg, err = c.assemble(ctx, l, v, pc, keptQueue{})
+		cfg, err = c.assemble(ctx, l, v, pc, keptQueue{}, c.functions(ctx, l, v))
 	}
 
 	return c, cfg, err
@@ -248,9 +249,10 @@ func (s *Store) resolveFileOnce(
 				return parseErr
 			}
 
-			c = s.prepare(childCtx, l, v, pc, file, base)
+			fns := newParseFunctions(childCtx, l, v, file)
+			c = s.prepare(childCtx, l, v, pc, file, base, fns)
 
-			cfg, parseErr = s.assembleFirst(childCtx, l, v, pc, c)
+			cfg, parseErr = s.assembleFirst(childCtx, l, v, pc, c, fns)
 
 			return parseErr
 		},
@@ -323,10 +325,11 @@ func (s *Store) assembleFirst(
 	v *venv.Venv,
 	pc *ParseContext,
 	c *UnitConfig,
+	fns *parseFunctions,
 ) (*pkgconfig.TerragruntConfig, error) {
 	kept := newKeptFiles(c.Includes)
 
-	cfg, err := c.assemble(ctx, l, v, pc, includeResolver{store: s, kept: kept})
+	cfg, err := c.assemble(ctx, l, v, pc, includeResolver{store: s, kept: kept}, fns)
 	c.kept = *kept
 
 	return cfg, err
@@ -491,6 +494,7 @@ func (s *Store) prepare(
 	pc *ParseContext,
 	file *pkghclparse.File,
 	base *unitBase,
+	fns *parseFunctions,
 ) *UnitConfig {
 	pc = pc.withFile(&base.scope)
 	errs := slices.Clone(base.errs)
@@ -510,7 +514,7 @@ func (s *Store) prepare(
 	if pc.file.decodedDeps == nil && !pc.file.inheritsDependencies {
 		depPC := pc.withOwnReads()
 
-		set, err := c.newDependencySet(ctx, l, v, depPC, file, s.includedDependencies(v, depPC))
+		set, err := c.newDependencySet(ctx, l, v, depPC, file, s.includedDependencies(v, depPC), fns)
 		c.dependencyReads = depPC.sinks.filesRead.Paths()
 
 		if err != nil {
@@ -527,32 +531,50 @@ func (s *Store) prepare(
 		errs = append(errs, base.evalErr)
 	}
 
-	evalCtx := c.evalContext(ctx, l, v, pc.parsingContext())
+	evalCtx := c.evalContext(fns, pc.parsingContext())
 	c.prepErrs = errs
 
 	c.decodeErr = file.ApplyFileUpdate()
-	if c.decodeErr == nil {
-		dependencyAttrs := dependencyAttributes(file.Body)
+	c.queueDecodeErr = c.decodeErr
 
-		diags := gohcl.DecodeBody(withoutAttributes{Body: file.Body, hidden: dependencyAttrs}, evalCtx, c)
-		c.dependencyAttrs = dependencyAttrs
+	if c.decodeErr == nil {
+		runAttrs := runAttributes(file.Body)
+
+		hidden := map[string]*hcl.Attribute{}
+		maps.Copy(hidden, runAttrs)
+		maps.Copy(hidden, dependencyVersionAttributes(file.Body))
+
+		diags := gohcl.DecodeBody(withoutAttributes{Body: file.Body, hidden: hidden}, evalCtx, c)
+		c.runAttrs = runAttrs
 
 		var queueDiags hcl.Diagnostics
 
 		c.Queue, queueDiags = c.decodeQueue(evalCtx)
 		c.Queue.Engine, c.queueEngineDiags = c.decodeQueueEngine(evalCtx)
-		c.decodeErr = file.HandleDiagnostics(append(diags, queueDiags...))
+
+		diags = append(diags, queueDiags...)
+		c.decodeErr = file.HandleDiagnostics(diags)
+		c.queueDecodeErr = c.decodeErr
+
+		if diags.HasErrors() {
+			c.queueDecodeErr = withoutDiagnostics(c.decodeErr, unsupportedContent(file.Body, c))
+		}
 	}
 
-	c.file = withoutParser(file)
+	c.file = file.WithoutParser()
 
 	return c
 }
 
-// withoutParser returns file with no parser, for keeping in a stage's result. Using it before [pkghclparse.File.Rebind]
-// panics.
-func withoutParser(file *pkghclparse.File) *pkghclparse.File {
-	return &pkghclparse.File{File: file.File, ConfigPath: file.ConfigPath}
+// unsupportedContent returns the diagnostics that decoding body into c reports for the top-level arguments and blocks
+// the schema of c does not name.
+func unsupportedContent(body hcl.Body, c *UnitConfig) hcl.Diagnostics {
+	schema, _ := gohcl.ImpliedBodySchema(c)
+
+	_, all := body.Content(schema)
+	_, _, partial := body.PartialContent(schema)
+
+	return excludeDiagnostics(all, partial)
 }
 
 // absInclude returns pc's include block with its path made absolute, in a copy.

@@ -384,6 +384,18 @@ func readConfigChainPaths(chain []readConfigFrame, last readConfigFrame) []strin
 	return append(paths, last.path)
 }
 
+// forDependencyScan returns a copy for reading the dependency blocks of a dependency, without the evaluation state of
+// the config whose dependency it is.
+func (ctx *ParsingContext) forDependencyScan() *ParsingContext {
+	c := ctx.Clone()
+	c.DependencyBlocks = nil
+	c.DecodedDependencies = nil
+	c.Locals = nil
+	c.Features = nil
+
+	return c
+}
+
 // forReadTarget returns a copy for parsing a config that read_terragrunt_config reads, without the evaluation state
 // of the config that reads it.
 //

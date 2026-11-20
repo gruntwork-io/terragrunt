@@ -300,7 +300,7 @@ func DecodeBaseBlocks(
 ) (*DecodedBaseBlocks, error) {
 	var errs []error
 
-	evalParsingContext, err := CreateTerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath)
+	evalParsingContext, err := CreateTerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath, file.FunctionCalls())
 	if err != nil {
 		return nil, err
 	}
@@ -617,12 +617,7 @@ func PartialParseConfigFile(
 		return nil, err
 	}
 
-	cacheKey := fmt.Sprintf(
-		"configPath-%v-modTime-%v-size-%v",
-		cfgPath,
-		fileInfo.ModTime().UnixMicro(),
-		fileInfo.Size(),
-	)
+	cacheKey := hclFileCacheKey(cfgPath, fileInfo)
 
 	cached := cachedHCLFile(ctx, v.FS, hclCache, cacheKey, cfgPath)
 
@@ -824,7 +819,7 @@ func PartialParseConfig(
 		pctx.DecodedDependencies = &dynamicVal
 	}
 
-	evalParsingContext, err := CreateTerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath)
+	evalParsingContext, err := CreateTerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath, file.FunctionCalls())
 	if err != nil {
 		return nil, err
 	}

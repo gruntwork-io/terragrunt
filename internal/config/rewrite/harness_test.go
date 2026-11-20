@@ -85,6 +85,9 @@ const (
 	driftSplitBodySuggestion drift = "split body suggestion"
 	// driftJSONShapeRepeated is a JSON shape diagnostic that each decode stage reports again.
 	driftJSONShapeRepeated drift = "repeated JSON shape diagnostic"
+	// driftIncludedErrorRepeated is an error evaluating an included file, which pkg/config reports again for each
+	// partial parse of the file and the rewrite reports once.
+	driftIncludedErrorRepeated drift = "repeated included file error"
 )
 
 // splitBodySuggestion matches the suggestion after an unsupported argument, block type, or JSON property.
@@ -381,6 +384,10 @@ func (tree errorTree) text(err error, drifts map[drift]struct{}) string {
 
 	if _, ok := drifts[driftSplitBodySuggestion]; ok {
 		text = splitBodySuggestion.ReplaceAllString(text, "$1")
+	}
+
+	if _, ok := drifts[driftIncludedErrorRepeated]; ok {
+		text = strings.Join(slices.Compact(strings.Split(text, "\n")), "\n")
 	}
 
 	return text

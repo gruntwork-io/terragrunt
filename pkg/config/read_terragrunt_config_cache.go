@@ -196,7 +196,7 @@ func NewReadTerragruntConfigKey(v *venv.Venv, pctx *ParsingContext) ReadTerragru
 		FeatureFlags:              featureFlags,
 		DecodeList:                pctx.PartialParseDecodeList,
 		HaltOnErrorOnlyInBlocks:   pctx.Parser.HaltOnErrorOnlyInBlocks,
-		EnvHash:                   hashEnv(v.Env),
+		EnvHash:                   HashEnv(v.Env),
 		MaxFoldersToCheck:         pctx.MaxFoldersToCheck,
 		Diagnostics:               pctx.Parser.Diagnostics,
 		DiscardOutput:             v.Writers.Writer == io.Discard,
@@ -306,8 +306,8 @@ func parseTerragruntConfigAsCty(
 	return TerragruntConfigAsCty(config)
 }
 
-// hashEnv hashes env independently of its iteration order.
-func hashEnv(env map[string]string) uint64 {
+// HashEnv hashes env independently of its iteration order. The hash only agrees within one process.
+func HashEnv(env map[string]string) uint64 {
 	var sum uint64
 
 	for name, value := range env {

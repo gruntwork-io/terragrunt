@@ -1945,8 +1945,8 @@ func TestRunOutputsFlagRequiresExperiment(t *testing.T) {
 	}
 }
 
-// TestRunValidateOutputsContractsParseEachConfigOnce expects one read per config, however many units share it.
-func TestRunValidateOutputsContractsParseEachConfigOnce(t *testing.T) {
+// TestRunValidateOutputsContractsOpenNoConfigAgain expects the contract check to open no config again.
+func TestRunValidateOutputsContractsOpenNoConfigAgain(t *testing.T) {
 	t.Parallel()
 
 	const rootInclude = `
@@ -1992,11 +1992,12 @@ dependency "network" {
 	}
 
 	without := opens(false)
-	with := opens(true)
 
 	for path, count := range without {
-		assert.Equal(t, count+1, with[path], path)
+		assert.Positive(t, count, path)
 	}
+
+	assert.Equal(t, without, opens(true))
 }
 
 // TestRunValidateOutputsContractsOpenNoConfigAgainWithoutAContract expects the experiment alone to reread no unit.

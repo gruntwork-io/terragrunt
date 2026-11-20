@@ -50,7 +50,7 @@ func BenchmarkDiscovery(b *testing.B) {
 	b.Run("dependents_expression", func(b *testing.B) {
 		for _, n := range unitCounts {
 			b.Run(fmt.Sprintf("units_%d", n), func(b *testing.B) {
-				benchmarkDependents(b, dependentsFromRepoRoot, chainedDependentsFixture(n), defaultParser)
+				benchmarkDependents(b, dependentsFromRepoRoot, chainedDependentsFixture(n))
 			})
 		}
 	})
@@ -58,29 +58,11 @@ func BenchmarkDiscovery(b *testing.B) {
 	b.Run("dependents_expression_from_target", func(b *testing.B) {
 		for _, n := range unitCounts {
 			b.Run(fmt.Sprintf("units_%d", n), func(b *testing.B) {
-				benchmarkDependents(b, dependentsFromTargetDir, chainedDependentsFixture(n), defaultParser)
-			})
-		}
-	})
-
-	b.Run("dependents_expression_config_rewrite", func(b *testing.B) {
-		for _, n := range unitCounts {
-			b.Run(fmt.Sprintf("units_%d", n), func(b *testing.B) {
-				benchmarkDependents(b, dependentsFromRepoRoot, chainedDependentsFixture(n), rewriteParser)
+				benchmarkDependents(b, dependentsFromTargetDir, chainedDependentsFixture(n))
 			})
 		}
 	})
 }
-
-// benchmarkParser names the parser a benchmark discovers with.
-type benchmarkParser int
-
-const (
-	// defaultParser is pkg/config.
-	defaultParser benchmarkParser = iota
-	// rewriteParser is the config rewrite, selected through its environment variable.
-	rewriteParser
-)
 
 // dependentsPlacement names where a dependents benchmark runs discovery from.
 type dependentsPlacement int
@@ -122,7 +104,6 @@ func benchmarkDependents(
 	b *testing.B,
 	placement dependentsPlacement,
 	fixture dependentsFixture,
-	parser benchmarkParser,
 ) {
 	b.Helper()
 
@@ -141,10 +122,6 @@ func benchmarkDependents(
 	require.NoError(b, err)
 
 	v := venvtest.NewOSWithEmptyEnv()
-
-	if parser == rewriteParser {
-		v.Env[rewrite.EnvRewrite] = "true"
-	}
 
 	b.ResetTimer()
 

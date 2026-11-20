@@ -121,7 +121,14 @@ func evaluateLocalsInOrder(
 		return evaluatedLocals, nil
 	}
 
-	vars, err := TerragruntEvalVariables(ctx, l, pctx, file.ConfigPath, exposed)
+	varsPctx := pctx
+	if exposesInclude(pctx) && !readsVariable(attrs, MetadataInclude) {
+		withoutIncludes := *pctx
+		withoutIncludes.TrackInclude = nil
+		varsPctx = &withoutIncludes
+	}
+
+	vars, err := TerragruntEvalVariables(ctx, l, varsPctx, file.ConfigPath, exposed)
 	if err != nil {
 		l.Errorf(
 			"Could not convert include to the execution ctx to evaluate additional locals in file %s",
@@ -131,10 +138,7 @@ func evaluateLocalsInOrder(
 		return evaluatedLocals, err
 	}
 
-	evalCtx := &hcl.EvalContext{
-		Functions: TerragruntFunctions(ctx, l, v, pctx, file.ConfigPath),
-		Variables: vars,
-	}
+	evalCtx := TerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath, file.FunctionCalls(), vars)
 
 	for len(ready) > 0 {
 		localsAsCtyVal, err := ConvertValuesMapToCtyVal(evaluatedLocals)
@@ -183,6 +187,26 @@ func evaluateLocalsInOrder(
 	}
 
 	return evaluatedLocals, nil
+}
+
+// exposesInclude reports whether an include block of the config pctx parses exposes the file it includes.
+func exposesInclude(pctx *ParsingContext) bool {
+	if pctx.TrackInclude == nil {
+		return false
+	}
+
+	return slices.ContainsFunc(pctx.TrackInclude.CurrentList, func(include IncludeConfig) bool {
+		return include.GetExpose()
+	})
+}
+
+// readsVariable reports whether an expression of attrs references the variable name.
+func readsVariable(attrs hclparse.Attributes, name string) bool {
+	return slices.ContainsFunc(attrs, func(attr *hclparse.Attribute) bool {
+		return slices.ContainsFunc(attr.Expr.Variables(), func(traversal hcl.Traversal) bool {
+			return traversal.RootName() == name
+		})
+	})
 }
 
 // localsGraph returns a graph over the names of attrs, in which each local waits on the locals it references, along

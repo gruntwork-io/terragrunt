@@ -42,8 +42,10 @@ type Key struct {
 	Stage Stage
 }
 
-// Store runs the stages of config parses and memoizes those a [Stage] names, for the life of a process. The zero value
-// is ready to use, and every method is safe for concurrent use.
+// Store runs the stages of config parses and memoizes those a [Stage] names. It retains a result whose [Key] has no
+// Context for the life of a process. [Store.ResolveUnitConfig] and [Store.ResolveUnitQueueConfig] release the results
+// with a Context that their runs led when they return. The zero value is ready to use, and every method is safe for
+// concurrent use.
 //
 // A unit's stages are [Store.ParseUnitAST], [Store.ResolveUnitBaseVariables], [Store.ResolveUnitQueueConfig], and
 // [Store.ResolveRunConfig], each reading more of the file than the last.
@@ -58,8 +60,6 @@ type Key struct {
 // call one of them.
 //
 // A body that memoizes its own key, directly or through the bodies it calls, waits for itself.
-//
-// The Store never releases what it holds.
 type Store struct {
 	entries map[Key]*entry
 	mu      sync.Mutex
@@ -96,8 +96,11 @@ type entry struct {
 	err error
 	// reads is the paths [NoteReads] reported to the body.
 	reads map[string]struct{}
-	// files is reads plus the path of every file the body parsed through the Store or reported through [NoteFiles].
+	// files is reads plus the path of every file the body parsed through the Store or reported through [NoteFiles],
+	// other than path.
 	files map[string]struct{}
+	// path is the cleaned path of the file the run is keyed by.
+	path string
 	// mu guards reads and files.
 	mu sync.Mutex
 	// abandoned is true when the body returned after its caller's context ended.
@@ -166,6 +169,7 @@ func (s *Store) Memoize[T any](
 		e, lead := s.join(k)
 		if lead {
 			s.misses.Add(1)
+			noteRelease(ctx, k)
 
 			return s.run(ctx, k, e, fn)
 		}
@@ -212,7 +216,7 @@ func (s *Store) ParseUnitAST(
 			return nil, err
 		}
 
-		return withoutParser(file), nil
+		return file.WithoutParser(), nil
 	})
 	if err != nil {
 		return nil, err
@@ -319,8 +323,8 @@ func NoteReads(ctx context.Context, paths ...string) {
 	defer e.mu.Unlock()
 
 	for _, path := range paths {
-		e.reads[path] = struct{}{}
-		e.files[filepath.Clean(path)] = struct{}{}
+		e.reads = addPath(e.reads, path)
+		e.files = addPath(e.files, filepath.Clean(path))
 	}
 }
 
@@ -336,8 +340,19 @@ func NoteFiles(ctx context.Context, paths ...string) {
 	defer e.mu.Unlock()
 
 	for _, path := range paths {
-		e.files[filepath.Clean(path)] = struct{}{}
+		e.files = addPath(e.files, filepath.Clean(path))
 	}
+}
+
+// addPath returns set with path added, making set when it is nil.
+func addPath(set map[string]struct{}, path string) map[string]struct{} {
+	if set == nil {
+		set = make(map[string]struct{})
+	}
+
+	set[path] = struct{}{}
+
+	return set
 }
 
 // fileStamp is the metadata of the file a value was read from.
@@ -386,9 +401,8 @@ func (s *Store) join(k Key) (*entry, bool) {
 	}
 
 	e := &entry{
-		done:  make(chan struct{}),
-		reads: make(map[string]struct{}),
-		files: map[string]struct{}{filepath.Clean(k.Path): {}},
+		done: make(chan struct{}),
+		path: filepath.Clean(k.Path),
 	}
 	s.entries[k] = e
 
@@ -452,6 +466,74 @@ func (s *Store) finish(k Key, e *entry, val any, err error, end flightEnd) {
 	close(e.done)
 }
 
+// releaseScope is the keys with a Context that the runs under one resolution led, which the resolution releases when
+// it ends.
+type releaseScope struct {
+	keys []Key
+	mu   sync.Mutex
+}
+
+// releaseScopeKey is the context key of the [releaseScope] a run belongs to.
+type releaseScopeKey struct{}
+
+// withReleaseScope returns a copy of ctx whose runs note their keys to a new scope, and the scope.
+func withReleaseScope(ctx context.Context) (context.Context, *releaseScope) {
+	scope := new(releaseScope)
+
+	return context.WithValue(ctx, releaseScopeKey{}, scope), scope
+}
+
+// noteRelease adds k to the scope of ctx when k has a Context. It does nothing outside a scope.
+func noteRelease(ctx context.Context, k Key) {
+	if k.Context == "" {
+		return
+	}
+
+	scope, ok := ctx.Value(releaseScopeKey{}).(*releaseScope)
+	if !ok {
+		return
+	}
+
+	scope.add(k)
+}
+
+// add notes k to r.
+func (r *releaseScope) add(k Key) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.keys = append(r.keys, k)
+}
+
+// noted returns the keys noted to r so far.
+func (r *releaseScope) noted() []Key {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return slices.Clone(r.keys)
+}
+
+// releaseScope drops the retained value of each key of scope. A run in progress is left alone.
+func (s *Store) releaseScope(scope *releaseScope) {
+	keys := scope.noted()
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for _, k := range keys {
+		e, ok := s.entries[k]
+		if !ok {
+			continue
+		}
+
+		select {
+		case <-e.done:
+			delete(s.entries, k)
+		default:
+		}
+	}
+}
+
 // dropStale drops the retained value of k when info no longer matches the file it was read from. A run in
 // progress is left alone.
 func (s *Store) dropStale(k Key, info fs.FileInfo) {
@@ -504,8 +586,15 @@ func (e *entry) propagate(ctx context.Context) {
 	parent.mu.Lock()
 	defer parent.mu.Unlock()
 
-	maps.Copy(parent.reads, reads)
-	maps.Copy(parent.files, files)
+	for path := range reads {
+		parent.reads = addPath(parent.reads, path)
+	}
+
+	parent.files = addPath(parent.files, e.path)
+
+	for path := range files {
+		parent.files = addPath(parent.files, path)
+	}
 }
 
 // read reports whether e's body parsed or read path.
@@ -515,7 +604,7 @@ func (e *entry) read(path string) bool {
 
 	_, ok := e.files[path]
 
-	return ok
+	return ok || path == e.path
 }
 
 // readUnder reports whether e's body parsed or read a file in dir or below it.
@@ -524,6 +613,10 @@ func (e *entry) readUnder(dir string) bool {
 	defer e.mu.Unlock()
 
 	prefix := strings.TrimSuffix(dir, string(filepath.Separator)) + string(filepath.Separator)
+
+	if strings.HasPrefix(e.path, prefix) {
+		return true
+	}
 
 	for path := range e.files {
 		if strings.HasPrefix(path, prefix) {

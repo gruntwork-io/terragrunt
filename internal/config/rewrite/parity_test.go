@@ -3,6 +3,7 @@ package config_test
 import (
 	"context"
 	"fmt"
+	"maps"
 	"path/filepath"
 	"testing"
 
@@ -1235,6 +1236,7 @@ func TestParityMergedIncludeLocals(t *testing.T) {
 	testCases := []struct {
 		files map[string]string
 		name  string
+		drift []drift
 	}{
 		{
 			name: "locals only the included file declares",
@@ -1351,6 +1353,7 @@ include "root" {
 }
 `,
 			},
+			drift: []drift{driftIncludedErrorRepeated},
 		},
 		{
 			name: "autoinclude of the included file reads an exposed include",
@@ -1407,6 +1410,7 @@ include "root" {
 				newFS:     memFS(root, tc.files),
 				cfgPath:   filepath.Join(root, "app", pkgconfig.DefaultTerragruntConfigPath),
 				configure: func(*pkgconfig.ParsingContext) {},
+				drift:     tc.drift,
 			})
 		})
 	}
@@ -1477,6 +1481,88 @@ func TestParityVersionAttributesThatReferenceDependency(t *testing.T) {
 			result := assertDependencyAttributeParity(t, name, content)
 
 			requireDependencyReferenceDiagnostic(t, result.toV1Err)
+		})
+	}
+}
+
+// newQueueParsingContext returns a context for parsing cfgPath the way discovery parses a unit.
+func newQueueParsingContext(t *testing.T, cfgPath string) (context.Context, *pkgconfig.ParsingContext) {
+	t.Helper()
+
+	ctx, run := newTestParsingContext(t, cfgPath)
+	run.SkipOutput = true
+
+	return ctx, run.WithDecodeList(
+		pkgconfig.TerraformSource,
+		pkgconfig.DependenciesBlock,
+		pkgconfig.DependencyBlock,
+		pkgconfig.TerragruntFlags,
+		pkgconfig.FeatureFlagsBlock,
+		pkgconfig.ExcludeBlock,
+		pkgconfig.ErrorsBlock,
+		pkgconfig.TerragruntVersionConstraints,
+		pkgconfig.EngineBlock,
+	).WithSkipOutputsResolution()
+}
+
+// queueDivergentFixtures are fixtures whose queue parse still differs from [pkgconfig.PartialParseConfigFile].
+var queueDivergentFixtures = map[string]struct{}{
+	// The queue parse repeats the same error a different number of times.
+	"parent-folders/in-another-subfolder/live":                                    {},
+	"parent-folders/multiple-terragrunt-in-parents/child/sub-child/sub-sub-child": {},
+	"partial-parse/ignore-bad-block-in-parent/child":                              {},
+	// The queue parse returns the partial config with the error, where pkg/config returns none.
+	"exclude/null-string/null-string": {},
+}
+
+func TestQueueConfigMatchesPartialParseFixtures(t *testing.T) {
+	t.Parallel()
+
+	fixtures := loadFixtures(t, parityFixtureRoots, parityExcludedDirs)
+	l := logger.CreateLogger()
+
+	for _, fixture := range fixtures.configs {
+		if _, divergent := queueDivergentFixtures[fixture.name]; divergent {
+			continue
+		}
+
+		t.Run(fixture.name, func(t *testing.T) {
+			t.Parallel()
+
+			wantCtx, wantRun := newQueueParsingContext(t, fixture.path)
+			want, wantErr := pkgconfig.PartialParseConfigFile(
+				wantCtx, l, venv.MemVenv().WithFS(fixtures.newFS(t)), wantRun, fixture.path, nil,
+			)
+
+			gotCtx, gotRun := newQueueParsingContext(t, fixture.path)
+			gotV := venv.MemVenv().WithFS(fixtures.newFS(t))
+			got, gotErr := new(config.Store).ResolveUnitQueueConfig(
+				gotCtx, l, gotV, config.NewParseContext(gotV, gotRun), fixture.path,
+			)
+
+			wantView := walkErrors(t, wantErr).view(wantErr, nil)
+			gotView := walkErrors(t, gotErr).view(gotErr, nil)
+
+			assert.Equal(t, wantView.diagnostics, gotView.diagnostics)
+			assert.Equal(t, wantView.text, gotView.text)
+
+			if want == nil {
+				assert.Nil(t, got)
+
+				return
+			}
+
+			require.NotNil(t, got)
+			assert.Equal(t, want.Terraform, got.Terraform)
+			assert.Equal(t, want.Dependencies, got.Dependencies)
+			assert.Equal(t, want.TerragruntDependencies, got.TerragruntDependencies)
+			assert.Equal(t, want.FeatureFlags, got.FeatureFlags)
+			assert.Equal(t, want.Exclude, got.Exclude)
+			assert.Equal(t, want.Errors, got.Errors)
+			assert.Equal(t, want.Engine, got.Engine)
+			assert.Equal(t, want.TerragruntVersionConstraint, got.TerragruntVersionConstraint)
+			assert.Equal(t, want.TerraformVersionConstraint, got.TerraformVersionConstraint)
+			assert.Equal(t, want.TerraformBinary, got.TerraformBinary)
 		})
 	}
 }
@@ -1557,29 +1643,12 @@ func assertQueueParity(t *testing.T, name, content string) error {
 	newFS := memFS(root, map[string]string{"app/terragrunt.hcl": content, "vpc/terragrunt.hcl": ""})
 	l := logger.CreateLogger()
 
-	newRun := func() (context.Context, *pkgconfig.ParsingContext) {
-		ctx, run := newTestParsingContext(t, cfgPath)
-		run.SkipOutput = true
-
-		return ctx, run.WithDecodeList(
-			pkgconfig.TerraformSource,
-			pkgconfig.DependenciesBlock,
-			pkgconfig.DependencyBlock,
-			pkgconfig.TerragruntFlags,
-			pkgconfig.FeatureFlagsBlock,
-			pkgconfig.ExcludeBlock,
-			pkgconfig.ErrorsBlock,
-			pkgconfig.TerragruntVersionConstraints,
-			pkgconfig.EngineBlock,
-		).WithSkipOutputsResolution()
-	}
-
-	wantCtx, wantRun := newRun()
+	wantCtx, wantRun := newQueueParsingContext(t, cfgPath)
 	want, wantErr := pkgconfig.PartialParseConfigFile(
 		wantCtx, l, venv.MemVenv().WithFS(newFS(t)), wantRun, cfgPath, nil,
 	)
 
-	gotCtx, gotRun := newRun()
+	gotCtx, gotRun := newQueueParsingContext(t, cfgPath)
 	gotV := venv.MemVenv().WithFS(newFS(t))
 	got, gotErr := new(config.Store).ResolveUnitQueueConfig(
 		gotCtx, l, gotV, config.NewParseContext(gotV, gotRun), cfgPath,
@@ -1602,4 +1671,195 @@ func assertQueueParity(t *testing.T, name, content string) error {
 	assert.Equal(t, want.TerragruntDependencies, got.TerragruntDependencies)
 
 	return gotErr
+}
+
+func TestParityEmptyDependencyOutputs(t *testing.T) {
+	t.Parallel()
+
+	const dependency = `
+dependency "vpc" {
+  config_path = "../vpc"
+}
+`
+
+	const inputs = `
+inputs = {
+  vpc_id = dependency.vpc.outputs.vpc_id
+}
+`
+
+	testCases := []struct {
+		files map[string]string
+		name  string
+	}{
+		{
+			name:  "unit that reads the output",
+			files: map[string]string{"app/terragrunt.hcl": dependency + inputs},
+		},
+		{
+			name: "included file that reads the output",
+			files: map[string]string{
+				"root.hcl": inputs,
+				"app/terragrunt.hcl": dependency + `
+include "root" {
+  path = "../root.hcl"
+}
+`,
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := venvtest.Root("/fixture-empty-outputs-" + tc.name)
+			files := map[string]string{"vpc/terragrunt.hcl": "", "vpc/main.tf": "", "app/main.tf": ""}
+			maps.Copy(files, tc.files)
+
+			result := assertParity(t, parityCase{
+				newFS:   memFS(root, files),
+				cfgPath: filepath.Join(root, "app", pkgconfig.DefaultTerragruntConfigPath),
+				outputs: map[string]string{filepath.Join(root, "vpc"): "{}"},
+				configure: func(pctx *pkgconfig.ParsingContext) {
+					require.NoError(t, pctx.Experiments.EnableExperiment(experiment.EmptyDependencyOutputs))
+				},
+			})
+
+			require.ErrorAs(t, result.toV1Err, new(pkgconfig.TerragruntOutputTargetNoOutputs))
+		})
+	}
+}
+
+func TestQueueConfigSkipsAttributesDiscoveryNeverReads(t *testing.T) {
+	t.Parallel()
+
+	const unset = `get_env("TG_TEST_QUEUE_UNSET")`
+
+	attributes := map[string]string{
+		"download_dir":                 "download_dir = " + unset + "\n",
+		"iam_assume_role_duration":     "iam_assume_role_duration = tonumber(" + unset + ")\n",
+		"iam_assume_role_session_name": "iam_assume_role_session_name = " + unset + "\n",
+	}
+
+	layouts := map[string]func(attribute string) map[string]string{
+		"unit": func(attribute string) map[string]string {
+			return map[string]string{"app/terragrunt.hcl": attribute, "app/main.tf": ""}
+		},
+		"exposed include with a dependency": func(attribute string) map[string]string {
+			return map[string]string{
+				"root.hcl": `
+locals {
+  skip = false
+}
+
+dependency "vpc" {
+  config_path  = "../vpc"
+  skip_outputs = true
+}
+` + attribute,
+				"app/terragrunt.hcl": `
+include "root" {
+  path   = find_in_parent_folders("root.hcl")
+  expose = true
+}
+
+exclude {
+  if      = include.root.locals.skip
+  actions = ["all"]
+}
+`,
+				"app/main.tf":        "",
+				"vpc/terragrunt.hcl": "",
+				"vpc/main.tf":        "",
+			}
+		},
+	}
+
+	for layout, files := range layouts {
+		for name, attribute := range attributes {
+			t.Run(layout+"/"+name, func(t *testing.T) {
+				t.Parallel()
+
+				root := venvtest.Root("/fixture-queue-skips-" + layout + "-" + name)
+				cfgPath := filepath.Join(root, "app", pkgconfig.DefaultTerragruntConfigPath)
+				newFS := memFS(root, files(attribute))
+				l := logger.CreateLogger()
+
+				wantCtx, wantRun := newQueueParsingContext(t, cfgPath)
+				_, wantErr := pkgconfig.PartialParseConfigFile(
+					wantCtx, l, venv.MemVenv().WithFS(newFS(t)), wantRun, cfgPath, nil,
+				)
+				require.NoError(t, wantErr)
+
+				gotCtx, gotRun := newQueueParsingContext(t, cfgPath)
+				gotV := venv.MemVenv().WithFS(newFS(t))
+				_, gotErr := new(config.Store).ResolveUnitQueueConfig(
+					gotCtx, l, gotV, config.NewParseContext(gotV, gotRun), cfgPath,
+				)
+				require.NoError(t, gotErr)
+
+				result := assertParity(t, parityCase{
+					newFS:     newFS,
+					cfgPath:   cfgPath,
+					configure: func(*pkgconfig.ParsingContext) {},
+				})
+
+				require.Error(t, result.toV1Err)
+			})
+		}
+	}
+}
+
+func TestQueueConfigReportsUnsupportedArgumentsOfAnExposedInclude(t *testing.T) {
+	t.Parallel()
+
+	root := venvtest.Root("/fixture-queue-exposed-unsupported")
+	cfgPath := filepath.Join(root, "app", pkgconfig.DefaultTerragruntConfigPath)
+	newFS := memFS(root, map[string]string{
+		"root.hcl": `
+unsupported = true
+
+locals {
+  binary = "tofu"
+}
+`,
+		"app/terragrunt.hcl": `
+include "root" {
+  path   = "../root.hcl"
+  expose = true
+}
+
+terraform_binary = include.root.locals.binary
+`,
+		"app/main.tf": "",
+	})
+	l := logger.CreateLogger()
+
+	wantCtx, wantRun := newQueueParsingContext(t, cfgPath)
+	_, wantErr := pkgconfig.PartialParseConfigFile(
+		wantCtx, l, venv.MemVenv().WithFS(newFS(t)), wantRun, cfgPath, nil,
+	)
+	require.Error(t, wantErr)
+
+	gotCtx, gotRun := newQueueParsingContext(t, cfgPath)
+	gotV := venv.MemVenv().WithFS(newFS(t))
+	_, gotErr := new(config.Store).ResolveUnitQueueConfig(
+		gotCtx, l, gotV, config.NewParseContext(gotV, gotRun), cfgPath,
+	)
+
+	got := walkErrors(t, gotErr)
+	assert.Subset(t, got.view(gotErr, nil).diagnostics, walkErrors(t, wantErr).view(wantErr, nil).diagnostics)
+
+	var unsupported []string
+
+	for _, diags := range got.diags {
+		for _, diag := range diags {
+			if diag.Summary == "Unsupported argument" && diag.Subject != nil {
+				unsupported = append(unsupported, diag.Subject.Filename)
+			}
+		}
+	}
+
+	assert.Equal(t, []string{filepath.Join(root, "root.hcl")}, unsupported)
 }

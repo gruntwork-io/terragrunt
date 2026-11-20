@@ -17,7 +17,20 @@ const (
 type File struct {
 	*Parser
 	*hcl.File
+	calls      FunctionCalls
 	ConfigPath string
+}
+
+// FunctionCalls returns the functions the file calls. A file that [Parser.ParseFromBytes] did not parse, and a file of
+// HCL JSON, which names its calls only inside strings, may call any function.
+func (file *File) FunctionCalls() FunctionCalls {
+	return file.calls
+}
+
+// WithoutParser returns a copy of file with no parser, for keeping after the parse. Using the copy before
+// [File.Rebind] panics.
+func (file *File) WithoutParser() *File {
+	return &File{File: file.File, ConfigPath: file.ConfigPath, calls: file.calls}
 }
 
 // Content returns the file's source text.
@@ -48,6 +61,7 @@ func (file *File) Update(content []byte) error {
 	}
 
 	file.File = updatedFile.File
+	file.calls = updatedFile.calls
 
 	return nil
 }
@@ -165,5 +179,6 @@ func (file *File) Rebind(parser *Parser) *File {
 		Parser:     parser,
 		File:       file.File,
 		ConfigPath: file.ConfigPath,
+		calls:      file.calls,
 	}
 }

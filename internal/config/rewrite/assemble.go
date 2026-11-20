@@ -16,6 +16,19 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
+// assemblyParts is the parts of each file an assembly decodes, which set the errors it reports.
+type assemblyParts int
+
+const (
+	// queueParts is the queue parts alone. An assembly of them reports the errors
+	// [pkgconfig.PartialParseConfigFile] does: none for a top-level argument or block the schema does not name, or
+	// for a `dependencies` path that is not a directory.
+	queueParts assemblyParts = iota
+	// runParts is the queue parts and the run parts. An assembly of them reports the errors [pkgconfig.ParseConfig]
+	// does.
+	runParts
+)
+
 // ToV1 resolves the dependency outputs the parse deferred, decodes the run parts of c with them, and returns the
 // config and errors that [pkgconfig.ParseConfigFile] returns for the same file, which can be a partial config with
 // an error. Each call fetches the outputs again. It never changes c.
@@ -29,7 +42,7 @@ func (c *UnitConfig) ToV1(
 	v *venv.Venv,
 	pc *ParseContext,
 ) (*pkgconfig.TerragruntConfig, error) {
-	return c.assemble(ctx, l, v, pc, keptIncludes{})
+	return c.assemble(ctx, l, v, pc, keptIncludes{}, c.functions(ctx, l, v))
 }
 
 // assemble converts c to a config and merges in its autoinclude and included files from src, as
@@ -42,6 +55,7 @@ func (c *UnitConfig) assemble(
 	v *venv.Venv,
 	pc *ParseContext,
 	src includeSource,
+	fns *parseFunctions,
 ) (*pkgconfig.TerragruntConfig, error) {
 	pc = pc.withFile(&c.scope)
 	errs := slices.Clone(c.prepErrs)
@@ -52,11 +66,12 @@ func (c *UnitConfig) assemble(
 	}
 
 	pctx := pc.withDecodedDependencies(deps).parsingContext()
-	evalCtx := c.evalContext(ctx, l, v, pctx)
+	evalCtx := c.evalContext(fns, pctx)
 	bound := c.boundFile(l, v, pc)
 
+	parts := src.parts()
 	file, diags := src.file(c, evalCtx)
-	decodeErr := joinDecodeErrors(c.decodeErr, bound.HandleDiagnostics(diags))
+	decodeErr := joinDecodeErrors(c.parseDecodeErr(parts), bound.HandleDiagnostics(diags))
 
 	cfgFile, err := pkgconfig.CompleteTerragruntConfigFile(
 		ctx,
@@ -68,6 +83,8 @@ func (c *UnitConfig) assemble(
 		file,
 		decodeErr,
 	)
+
+	err = pkgconfig.WithNoOutputsError(v, pctx, err)
 	if err != nil &&
 		!slices.ContainsFunc(errs, func(seen error) bool { return errors.Is(err, seen) }) {
 		errs = append(errs, err)
@@ -82,7 +99,7 @@ func (c *UnitConfig) assemble(
 		errs = append(errs, err)
 	}
 
-	if src.checksDependencyDirs() {
+	if parts == runParts {
 		if err := pkgconfig.ValidateDependencies(v, pctx, cfgFile.Dependencies); err != nil {
 			errs = append(errs, err)
 		}
@@ -136,6 +153,15 @@ func (c *UnitConfig) assemble(
 	return cfg, errors.Join(errs...)
 }
 
+// parseDecodeErr returns the error of the parse's decode that an assembly of parts reports.
+func (c *UnitConfig) parseDecodeErr(parts assemblyParts) error {
+	if parts == queueParts {
+		return c.queueDecodeErr
+	}
+
+	return c.decodeErr
+}
+
 // convert converts cfgFile as [pkgconfig.ConvertToTerragruntConfig] does. A config assembled for a merge gets the
 // field metadata of its locals without the locals themselves, since the merged config keeps the locals of the
 // including file. Locals that can fail to convert are still converted, so the error matches that of pkg/config.
@@ -172,15 +198,14 @@ func (c *UnitConfig) boundFile(l log.Logger, v *venv.Venv, pc *ParseContext) *pk
 	return c.file.Rebind(pkghclparse.NewParser(pc.parserOptions(l, v)...))
 }
 
+// functions returns new functions for a parse of c's file, which use ctx, l, and v when called.
+func (c *UnitConfig) functions(ctx context.Context, l log.Logger, v *venv.Venv) *parseFunctions {
+	return newParseFunctions(ctx, l, v, c.file)
+}
+
 // evalContext returns an eval context with the variables c's blocks decoded with, the `dependency` value of pctx,
-// and functions built for ctx, l, v, and pctx. It returns nil when the eval context failed to build during the
-// parse.
-func (c *UnitConfig) evalContext(
-	ctx context.Context,
-	l log.Logger,
-	v *venv.Venv,
-	pctx *pkgconfig.ParsingContext,
-) *hcl.EvalContext {
+// and fns, which read pctx when called. It returns nil when the eval context failed to build during the parse.
+func (c *UnitConfig) evalContext(fns *parseFunctions, pctx *pkgconfig.ParsingContext) *hcl.EvalContext {
 	if c.evalVars == nil {
 		return nil
 	}
@@ -192,10 +217,7 @@ func (c *UnitConfig) evalContext(
 		vars[pkgconfig.MetadataDependency] = *pctx.DecodedDependencies
 	}
 
-	return &hcl.EvalContext{
-		Functions: pkgconfig.TerragruntFunctions(ctx, l, v, pctx, c.file.ConfigPath),
-		Variables: vars,
-	}
+	return fns.evalContext(pctx, vars)
 }
 
 // joinDecodeErrors returns the error [pkghclparse.File.HandleDiagnostics] would return for the diagnostics of the
@@ -216,4 +238,40 @@ func joinDecodeErrors(parse, deferred error) error {
 	}
 
 	return slices.Concat(parseDiags, deferredDiags)
+}
+
+// withoutDiagnostics returns err without the diagnostics in dropped, and nil when it holds no others. An error that
+// holds no diagnostics is returned unchanged.
+func withoutDiagnostics(err error, dropped hcl.Diagnostics) error {
+	var diags hcl.Diagnostics
+	if len(dropped) == 0 || !errors.As(err, &diags) {
+		return err
+	}
+
+	kept := excludeDiagnostics(diags, dropped)
+	if len(kept) == 0 {
+		return nil
+	}
+
+	return kept
+}
+
+// excludeDiagnostics returns the diagnostics of diags that dropped does not report, in a new slice.
+func excludeDiagnostics(diags, dropped hcl.Diagnostics) hcl.Diagnostics {
+	return slices.DeleteFunc(slices.Clone(diags), func(diag *hcl.Diagnostic) bool {
+		return slices.ContainsFunc(dropped, func(drop *hcl.Diagnostic) bool { return sameDiagnostic(diag, drop) })
+	})
+}
+
+// sameDiagnostic reports whether a and b report the same problem at the same place.
+func sameDiagnostic(a, b *hcl.Diagnostic) bool {
+	if a.Severity != b.Severity || a.Summary != b.Summary || a.Detail != b.Detail {
+		return false
+	}
+
+	if a.Subject == nil || b.Subject == nil {
+		return a.Subject == b.Subject
+	}
+
+	return *a.Subject == *b.Subject
 }
