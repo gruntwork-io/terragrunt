@@ -7,6 +7,8 @@ sidebar:
 ---
 
 import { Aside } from '@astrojs/starlight/components'
+import Before from '@components/Before.astro';
+import Since from '@components/Since.astro';
 
 <Aside type="tip">
 If you're using OpenTofu >= 1.10, you'll use the [Automatic Provider Cache Dir](/features/caching/auto-provider-cache-dir) feature by default on the latest version of Terragrunt.
@@ -65,7 +67,7 @@ TG_PROVIDER_CACHE_DIR=/new/path/to/cache/dir \
 terragrunt plan
 ```
 
-By default, Terragrunt only caches providers from the following registries: `registry.terraform.io`, `registry.opentofu.org`. You can override this list using the flag [`provider-cache-registry-names`](https://docs.terragrunt.com/reference/cli/commands/run#provider-cache-registry-names):
+<Before version="v1.2.0">By default, Terragrunt only caches providers from the following registries: `registry.terraform.io`, `registry.opentofu.org`. You can override this list using the flag [`provider-cache-registry-names`](https://docs.terragrunt.com/reference/cli/commands/run#provider-cache-registry-names):</Before><Since version="v1.2.0">By default, Terragrunt caches providers from the following registries: `registry.terraform.io`, `registry.opentofu.org`, and from any registry named by the `include` patterns of `network_mirror` and `filesystem_mirror` methods in your CLI config file, so that the cache server can apply those methods. You can override the default list using the flag [`provider-cache-registry-names`](https://docs.terragrunt.com/reference/cli/commands/run#provider-cache-registry-names):</Since>
 
 ```shell
 terragrunt apply \
