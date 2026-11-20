@@ -22,197 +22,48 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
-func TestDiscoveryPipelineMatchesPhasesForGitFiltersWithRacing(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		configure         func(d *discovery.Discovery) *discovery.Discovery
-		name              string
-		queries           []string
-		omitGitFilter     bool
-		absoluteDependent bool
-	}{
-		{name: "git filter"},
-		{name: "git filter beside a path filter", queries: []string{"./untouched"}},
-		{
-			name:    "relationships",
-			queries: []string{"./untouched"},
-			configure: func(d *discovery.Discovery) *discovery.Discovery {
-				return d.WithRelationships()
-			},
-		},
-		{
-			name:    "filter that reads the config",
-			queries: []string{"reading=shared.hcl"},
-			configure: func(d *discovery.Discovery) *discovery.Discovery {
-				return d.WithSuppressParseErrors()
-			},
-		},
-		{
-			name:    "dependents of a unit",
-			queries: []string{"...db"},
-			configure: func(d *discovery.Discovery) *discovery.Discovery {
-				return d.WithRelationships().WithSuppressParseErrors()
-			},
-		},
-		{
-			name:          "dependencies and dependents of the changed units, without them",
-			queries:       []string{"...^[HEAD~1...HEAD]..."},
-			omitGitFilter: true,
-		},
-		{name: "dependents of the changed units", queries: []string{"...[HEAD~1...HEAD]"}},
-		{name: "direct dependents of the changed units", queries: []string{"1...[HEAD~1...HEAD]"}},
-		{name: "dependents of the changed units within a boundary", queries: []string{"(./web)...[HEAD~1...HEAD]"}},
-		{
-			name:              "direct dependents of the changed units by absolute paths",
-			queries:           []string{"1...[HEAD~1...HEAD]"},
-			absoluteDependent: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			repo, runner := setupGitRepo(t)
-
-			createUnit(t, repo, "db", "")
-			createUnit(t, repo, "app", dependenciesOn("../db"))
-			createUnit(t, repo, "web", dependenciesOn("../app"))
-			createUnit(t, repo, "edge", dependenciesOn("../web"))
-
-			if tt.absoluteDependent {
-				createUnit(t, repo, "pinned", dependenciesOn(filepath.Join(repo, "app"), filepath.Join(repo, "db")))
-			}
-
-			createUnit(t, repo, "untouched", `locals { shared = read_terragrunt_config("../shared.hcl") }`)
-			createUnit(t, repo, "removed", "")
-
-			require.NoError(t, os.WriteFile(filepath.Join(repo, "shared.hcl"), []byte("locals {}\n"), 0o644))
-
-			commitChanges(t, runner, "Initial commit")
-
-			require.NoError(t, os.WriteFile(
-				filepath.Join(repo, "app", "terragrunt.hcl"),
-				[]byte(dependenciesOn("../db")+"locals {}\n"),
-				0o644,
-			))
-			require.NoError(t, os.RemoveAll(filepath.Join(repo, "removed")))
-
-			commitChanges(t, runner, "Change app and remove a unit")
-
-			l := logger.CreateLogger()
-			ctx := config.WithCaches(t.Context())
-
-			gitExpr := filter.NewGitExpression("HEAD~1", "HEAD")
-
-			w, err := worktrees.NewWorktrees(ctx, l, venvtest.NewOSWithEmptyEnv(), worktrees.WorktreeOpts{
-				WorkingDir:     repo,
-				GitExpressions: filter.GitExpressions{gitExpr},
-			})
-			require.NoError(t, err)
-
-			t.Cleanup(func() {
-				require.NoError(t, w.Cleanup(context.WithoutCancel(ctx), l, venvtest.NewOSWithEmptyEnv()))
-			})
-
-			filters, err := filter.ParseFilterQueries(l, tt.queries)
-			require.NoError(t, err)
-
-			if !tt.omitGitFilter {
-				filters = append(filter.Filters{filter.NewFilter(gitExpr, gitExpr.String())}, filters...)
-			}
-
-			discover := func(pipeline string) map[string][]string {
-				opts := options.NewTerragruntOptions()
-				opts.WorkingDir = repo
-				opts.RootWorkingDir = repo
-
-				d := discovery.NewDiscovery(repo).
-					WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: repo}).
-					WithWorktrees(w).
-					WithFilters(filters)
-
-				if tt.configure != nil {
-					d = tt.configure(d)
-				}
-
-				v := venvtest.NewOSWithEmptyEnv()
-				v.Env[discovery.EnvPipeline] = pipeline
-
-				components, err := d.Discover(ctx, l, v, new(rewrite.Store), opts)
-				require.NoError(t, err)
-
-				return dependenciesByPath(components)
-			}
-
-			want := discover("false")
-			require.NotEmpty(t, want)
-
-			assert.Equal(t, want, discover("true"))
-		})
-	}
-}
-
 func TestDiscoveryReportsAmbiguousConfigsInGitFilterWorktreesWithRacing(t *testing.T) {
 	t.Parallel()
 
-	flows := []struct {
-		name     string
-		pipeline string
-	}{
-		{name: "phases", pipeline: "false"},
-		{name: "pipeline", pipeline: "true"},
-	}
+	repo, runner := setupGitRepo(t)
 
-	for _, flow := range flows {
-		t.Run(flow.name, func(t *testing.T) {
-			t.Parallel()
+	createUnit(t, repo, "app", "")
+	createUnit(t, repo, "both", "")
 
-			repo, runner := setupGitRepo(t)
+	require.NoError(t, os.WriteFile(filepath.Join(repo, "both", "terragrunt.hcl.json"), []byte("{}"), 0o644))
 
-			createUnit(t, repo, "app", "")
-			createUnit(t, repo, "both", "")
+	commitChanges(t, runner, "Initial commit")
 
-			require.NoError(t, os.WriteFile(filepath.Join(repo, "both", "terragrunt.hcl.json"), []byte("{}"), 0o644))
+	require.NoError(t, os.Remove(filepath.Join(repo, "both", "terragrunt.hcl.json")))
 
-			commitChanges(t, runner, "Initial commit")
+	commitChanges(t, runner, "Remove the JSON config")
 
-			require.NoError(t, os.Remove(filepath.Join(repo, "both", "terragrunt.hcl.json")))
+	l := logger.CreateLogger()
+	ctx := config.WithCaches(t.Context())
 
-			commitChanges(t, runner, "Remove the JSON config")
+	gitExpr := filter.NewGitExpression("HEAD~1", "HEAD")
 
-			l := logger.CreateLogger()
-			ctx := config.WithCaches(t.Context())
+	w, err := worktrees.NewWorktrees(ctx, l, venvtest.NewOSWithEmptyEnv(), worktrees.WorktreeOpts{
+		WorkingDir:     repo,
+		GitExpressions: filter.GitExpressions{gitExpr},
+	})
+	require.NoError(t, err)
 
-			gitExpr := filter.NewGitExpression("HEAD~1", "HEAD")
+	t.Cleanup(func() {
+		require.NoError(t, w.Cleanup(context.WithoutCancel(ctx), l, venvtest.NewOSWithEmptyEnv()))
+	})
 
-			w, err := worktrees.NewWorktrees(ctx, l, venvtest.NewOSWithEmptyEnv(), worktrees.WorktreeOpts{
-				WorkingDir:     repo,
-				GitExpressions: filter.GitExpressions{gitExpr},
-			})
-			require.NoError(t, err)
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = repo
+	opts.RootWorkingDir = repo
 
-			t.Cleanup(func() {
-				require.NoError(t, w.Cleanup(context.WithoutCancel(ctx), l, venvtest.NewOSWithEmptyEnv()))
-			})
-
-			opts := options.NewTerragruntOptions()
-			opts.WorkingDir = repo
-			opts.RootWorkingDir = repo
-
-			v := venvtest.NewOSWithEmptyEnv()
-			v.Env[discovery.EnvPipeline] = flow.pipeline
-
-			_, err = discovery.NewDiscovery(repo).
-				WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: repo}).
-				WithWorktrees(w).
-				WithFilters(filter.Filters{filter.NewFilter(gitExpr, gitExpr.String())}).
-				WithSuppressParseErrors().
-				Discover(ctx, l, v, new(rewrite.Store), opts)
-			require.ErrorAs(t, err, new(config.AmbiguousConfigError))
-		})
-	}
+	_, err = discovery.NewDiscovery(repo).
+		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: repo}).
+		WithWorktrees(w).
+		WithFilters(filter.Filters{filter.NewFilter(gitExpr, gitExpr.String())}).
+		WithSuppressParseErrors().
+		Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
+	require.ErrorAs(t, err, new(config.AmbiguousConfigError))
 }
 
 func TestDiscoveryPipelineFindsWorktreeDependentsOfAnAbsolutePath(t *testing.T) {
@@ -266,14 +117,11 @@ func TestDiscoveryPipelineFindsWorktreeDependentsOfAnAbsolutePath(t *testing.T) 
 			opts.WorkingDir = workingDir
 			opts.RootWorkingDir = workingDir
 
-			v := venvtest.NewOSWithEmptyEnv()
-			v.Env[discovery.EnvPipeline] = "true"
-
 			components, err := discovery.NewDiscovery(workingDir).
 				WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: workingDir}).
 				WithWorktrees(w).
 				WithFilters(filters).
-				Discover(ctx, l, v, new(rewrite.Store), opts)
+				Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
 			require.NoError(t, err)
 
 			require.Len(t, w.WorktreePairs, 1)
@@ -324,40 +172,23 @@ func TestDiscoveryPipelineParsesComponentsFoundInWorktreesWithRacing(t *testing.
 		require.NoError(t, w.Cleanup(context.WithoutCancel(ctx), l, venvtest.NewOSWithEmptyEnv()))
 	})
 
-	discover := func(pipeline string) map[string][]string {
-		opts := options.NewTerragruntOptions()
-		opts.WorkingDir = repo
-		opts.RootWorkingDir = repo
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = repo
+	opts.RootWorkingDir = repo
 
-		d := discovery.NewDiscovery(repo).
-			WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: repo}).
-			WithWorktrees(w).
-			WithFilters(filter.Filters{filter.NewFilter(gitExpr, gitExpr.String())}).
-			WithReadFiles()
+	components, err := discovery.NewDiscovery(repo).
+		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: repo}).
+		WithWorktrees(w).
+		WithFilters(filter.Filters{filter.NewFilter(gitExpr, gitExpr.String())}).
+		WithReadFiles().
+		Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
+	require.NoError(t, err)
+	require.Len(t, components, 1)
 
-		v := venvtest.NewOSWithEmptyEnv()
-		v.Env[discovery.EnvPipeline] = pipeline
+	removed := components[0]
 
-		components, err := d.Discover(ctx, l, v, new(rewrite.Store), opts)
-		require.NoError(t, err)
-
-		reads := make(map[string][]string, len(components))
-
-		for _, c := range components {
-			reads[c.Path()] = slices.Sorted(slices.Values(c.Reading()))
-		}
-
-		return reads
-	}
-
-	want := discover("false")
-	require.Len(t, want, 1)
-
-	for _, read := range want {
-		require.NotEmpty(t, read)
-	}
-
-	assert.Equal(t, want, discover("true"))
+	assert.Equal(t, "removed", filepath.Base(removed.Path()))
+	assert.Equal(t, []string{filepath.Join(filepath.Dir(removed.Path()), "shared.hcl")}, removed.Reading())
 }
 
 func TestDiscoveryPipelineReportsConfigConflictsInWorktreesWithRacing(t *testing.T) {
@@ -483,10 +314,7 @@ func TestDiscoveryPipelineReportsConfigConflictsInWorktreesWithRacing(t *testing
 						WithWorktrees(w).
 						WithFilters(filter.Filters{filter.NewFilter(gitExpr, gitExpr.String())}))
 
-					v := venvtest.NewOSWithEmptyEnv()
-					v.Env[discovery.EnvPipeline] = "true"
-
-					_, err = d.Discover(ctx, l, v, new(rewrite.Store), opts)
+					_, err = d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
 					conflict.requireErr(t, err)
 				})
 			}

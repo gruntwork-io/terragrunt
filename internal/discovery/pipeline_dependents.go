@@ -36,7 +36,7 @@ type boundaryUnit struct {
 // its graph expression traverses to. It runs on one goroutine, from the dependencies the pipeline read.
 //
 // Returns the errors of reading and resolving the dependencies and of walking to the dependent boundaries.
-func (p *GraphPhase) traverseFromRelations(
+func (p *graphTraversal) traverseFromRelations(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
@@ -62,11 +62,11 @@ type dependentsFrom struct {
 }
 
 // discoverDependentsFromLinks adds to the results of state the dependents that the graph expression of each of
-// targets traverses to, as [GraphPhase.discoverDependents] does.
+// targets traverses to.
 //
 // A component that several traversals reach is traversed from again only by one with more depth left than any
 // before it, so the results do not depend on the order of the traversals.
-func (p *GraphPhase) discoverDependentsFromLinks(
+func (p *graphTraversal) discoverDependentsFromLinks(
 	state *graphTraversalState,
 	graphExprs []*filter.GraphExpressionInfo,
 	targets []DiscoveryResult,
@@ -110,7 +110,7 @@ func (p *GraphPhase) discoverDependentsFromLinks(
 // boundary once, however many targets share it, and reads the dependencies of the units there together.
 //
 // Returns the errors of resolving the boundaries, walking to them and reading the dependencies.
-func (p *GraphPhase) linkDependentsToBoundaries(
+func (p *graphTraversal) linkDependentsToBoundaries(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
@@ -189,7 +189,7 @@ func dependentWalkOf(
 // context from the first of targets, which all share walk, and joins the components of state only once its
 // dependencies have been read. When targets were found in a Git worktree, dependency paths move into it as
 // [worktreeRelocation] describes.
-func (p *GraphPhase) linkUnitsOf(
+func (p *graphTraversal) linkUnitsOf(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
@@ -242,8 +242,7 @@ func (p *GraphPhase) linkUnitsOf(
 
 // worktreeRelocation moves dependency paths into the Git worktree of the targets of one dependent walk. A path that
 // names one of the targets, or a unit that depends on one at any depth, by its place in the Git root moves to that
-// component in the worktree, as phase 3 links a dependent to its target. Every other path stays where the config
-// names it.
+// component in the worktree. Every other path stays where the config names it.
 type worktreeRelocation struct {
 	// discovery resolves the paths the relocation compares.
 	discovery *Discovery
@@ -361,6 +360,9 @@ func (r worktreeRelocation) relIn(root, path string) (string, bool) {
 
 // units returns the units below the start of the walk and below each directory above it, up to the boundary. A
 // directory is walked once, and a start outside the boundary has no units.
+//
+// Returns a [config.AmbiguousConfigError] when two of the units are at one path, read from the two default unit
+// config files.
 func (w dependentWalk) units(
 	ctx context.Context,
 	v *venv.Venv,
@@ -402,7 +404,7 @@ func (w dependentWalk) units(
 
 		units = append(units, boundaryUnit{
 			found:  found,
-			parsed: upstreamParseUnit(state.threadSafeComponents.FindByPath(found.Path()), found),
+			parsed: unitToParse(state.threadSafeComponents.FindByPath(found.Path()), found),
 		})
 
 		return nil
@@ -414,10 +416,35 @@ func (w dependentWalk) units(
 		}
 	}
 
+	found := make([]component.Component, 0, len(units))
+	for _, unit := range units {
+		found = append(found, unit.found)
+	}
+
+	if err := rejectAmbiguousUnits(found); err != nil {
+		return nil, err
+	}
+
 	return units, nil
 }
 
 // covers reports whether dir is the boundary of the walk or below it.
 func (w dependentWalk) covers(dir string) bool {
 	return dir == w.boundary || strings.HasPrefix(dir, w.boundary)
+}
+
+// unitToParse returns published when it is a unit at the path of candidate with the same config file, and candidate
+// otherwise.
+func unitToParse(published component.Component, candidate *component.Unit) *component.Unit {
+	publishedUnit, ok := published.(*component.Unit)
+	if !ok {
+		return candidate
+	}
+
+	if publishedUnit.Path() != candidate.Path() ||
+		publishedUnit.ConfigFile() != candidate.ConfigFile() {
+		return candidate
+	}
+
+	return publishedUnit
 }

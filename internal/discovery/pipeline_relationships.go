@@ -269,8 +269,8 @@ func (w *transientWalk) done() bool {
 }
 
 // linkForDependents links each of components to the dependencies it declares, so a traversal can find the dependents
-// of any of them. A dependency that is none of them becomes a component the graph phase can reach. A component whose
-// path is in unparsed is neither read nor linked.
+// of any of them. A dependency that is none of them becomes a component the graph traversal can reach. A component
+// whose path is in unparsed is neither read nor linked.
 //
 // Returns the errors of reading the dependencies.
 func (r *pipelineRelations) linkForDependents(
@@ -346,7 +346,7 @@ func linkReached(
 }
 
 // adoptLinkedDependencies adds to components each component that one of them is linked to as a dependency, at any
-// depth. The graph phase then links to those, where it would otherwise create a second component for the path of
+// depth. The graph traversal then links to those, where it would otherwise create a second component for the path of
 // one that discovery did not find.
 func adoptLinkedDependencies(components *component.ThreadSafeComponents) {
 	pending := components.ToComponents()
@@ -377,14 +377,14 @@ type traversedFrom struct {
 }
 
 // discoverDependenciesFromRelations adds each of targets to the results of state, and with it the dependencies that
-// every graph expression of the target's filter traverses to, as the graph phase's own dependency traversal does. It
-// runs on one goroutine and reads the dependencies of the components at each depth together.
+// every graph expression of the target's filter traverses to. It runs on one goroutine and reads the dependencies of
+// the components at each depth together.
 //
 // A component that several traversals reach is traversed from again only by one within the same boundary with more
 // depth left than any before it, so the results do not depend on the order of the traversals.
 //
 // Returns the errors of reading and resolving the dependencies.
-func (p *GraphPhase) discoverDependenciesFromRelations(
+func (p *graphTraversal) discoverDependenciesFromRelations(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
@@ -414,7 +414,7 @@ func (p *GraphPhase) discoverDependenciesFromRelations(
 // traverseDependencies adds c to the results of state, and with it the dependencies graphExpr traverses to from c.
 //
 // Returns the errors of reading and resolving the dependencies.
-func (p *GraphPhase) traverseDependencies(
+func (p *graphTraversal) traverseDependencies(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
@@ -434,7 +434,7 @@ func (p *GraphPhase) traverseDependencies(
 		return []error{err}
 	}
 
-	traversal := &dependencyTraversal{phase: p, state: state, depthLeft: depthLeft, boundary: boundary}
+	traversal := &dependencyTraversal{graph: p, state: state, depthLeft: depthLeft, boundary: boundary}
 	traversal.run(ctx, l, v, c, p.dependencyDepth(graphExpr))
 
 	return traversal.errs
@@ -442,11 +442,11 @@ func (p *GraphPhase) traverseDependencies(
 
 // dependencyTraversal is the traversal of one graph expression from one of its targets to its dependencies.
 type dependencyTraversal struct {
-	// phase is the graph phase the traversal runs in, which holds the dependencies the pipeline read.
-	phase *GraphPhase
+	// graph is the graph traversal this one is part of, which holds the dependencies the pipeline read.
+	graph *graphTraversal
 	// state holds the results the traversal adds to.
 	state *graphTraversalState
-	// depthLeft holds the most depth any traversal of the phase had left at each component it continued from.
+	// depthLeft holds the most depth any traversal of graph had left at each component it continued from.
 	depthLeft map[traversedFrom]int
 	// boundary is the directory the traversal stays within, empty when it has none.
 	boundary string
@@ -470,7 +470,7 @@ func (t *dependencyTraversal) run(
 	reached := component.Components{target}
 
 	for level := 0; level < depth && len(reached) > 0; level++ {
-		t.phase.relations.readUnread(contextWithParseDepth(ctx, baseDepth+level), l, v, reached, nil)
+		t.graph.relations.readUnread(contextWithParseDepth(ctx, baseDepth+level), l, v, reached, nil)
 
 		var next component.Components
 
@@ -490,7 +490,7 @@ func (t *dependencyTraversal) dependenciesOf(
 	c component.Component,
 	left int,
 ) component.Components {
-	declared := t.phase.relations.declared[c]
+	declared := t.graph.relations.declared[c]
 	if declared.err != nil {
 		t.errs = append(t.errs, declared.err)
 
@@ -523,7 +523,7 @@ func (t *dependencyTraversal) reach(
 		return nil, false
 	}
 
-	dep, err := t.phase.resolveDependency(
+	dep, err := t.graph.resolveDependency(
 		fsys, c, depPath, configbridge.AmbiguousConfigCheck(t.state.opts), t.state.threadSafeComponents,
 	)
 	if err != nil {
@@ -538,7 +538,7 @@ func (t *dependencyTraversal) reach(
 }
 
 // continuesFrom reports whether the traversal goes on from c, which it reached with left depth to go: it does when
-// no traversal of the phase within the same boundary went on from c with as much. It records left when it does.
+// no traversal of the graph within the same boundary went on from c with as much. It records left when it does.
 func (t *dependencyTraversal) continuesFrom(c component.Component, left int) bool {
 	from := traversedFrom{c: c, boundary: t.boundary}
 	if t.depthLeft[from] >= left {

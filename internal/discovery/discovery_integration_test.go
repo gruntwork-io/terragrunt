@@ -1324,7 +1324,7 @@ dependency "dependency" {
 }
 
 // TestDiscovery_OriginalTerragruntConfigPath tests that get_original_terragrunt_dir() returns the
-// correct directory during parsing. This verifies that phase_parse.go correctly sets
+// correct directory during parsing. This verifies that internal/discovery/parse.go correctly sets
 // OriginalTerragruntConfigPath when parsing units.
 func TestDiscovery_OriginalTerragruntConfigPath(t *testing.T) {
 	t.Parallel()
