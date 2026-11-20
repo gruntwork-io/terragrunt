@@ -49,7 +49,7 @@
 //     - Workers parse the candidates with [filter.CandidacyReasonRequiresParse] while the walk is still finding
 //     components, and classify them again from the parsed attributes (reading, source)
 //     - Workers also read the dependencies each component declares, as paths, when a later step needs them
-//     - One collector receives what the walk, the worktree discovery and the workers report
+//     - The walk and the worktree discovery keep what they find, and one collector receives what the workers report
 //
 //  2. Graph traversal (if a filter traverses the graph)
 //     - Traverses dependencies (target|N) and/or dependents (...target) based on
@@ -106,8 +106,9 @@
 //
 // # Thread Safety
 //
-// The walk, the worktree discovery and the parse workers report over channels to one collector, which alone holds the
-// results. Components are shared between goroutines, such as a unit the collector holds while a worker parses it, and
-// each component guards its fields with its own lock. The graph traversal and the linking of dependencies each run on
+// The walk and the worktree discovery each own what they find until the pipeline has drained. The parse workers
+// report over a channel to one collector, which alone holds what they parsed and read. Components are shared between
+// goroutines, such as a unit the walk holds while a worker parses it, and each component guards its fields with its
+// own lock. The graph traversal and the linking of dependencies each run on
 // one goroutine after the pipeline has drained, and read the dependencies of the units at each depth concurrently.
 package discovery
