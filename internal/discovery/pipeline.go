@@ -81,9 +81,9 @@ type pipelineEvent struct {
 //
 // The pipeline ends because its channels form a chain with no way back:
 //
-//  1. The walk ends when the tree is exhausted, it fails, or ctx is done. The worktree phase ends when its
-//     discoveries have, each a walk or a pipeline of its own.
-//  2. The finders are the only senders on work, which closes when both have ended.
+//  1. The walk ends when the tree is exhausted, it fails, or ctx is done. The worktree phase ends when the
+//     discoveries it runs in its worktrees have ended.
+//  2. The finders are the only senders on work, which closes when every finder has ended.
 //  3. A worker ends when work is closed and empty, so the workers end once the finders have.
 //  4. The finders and the workers are the only senders on events, which closes when all of them have ended.
 //  5. The collector ends when events is closed and empty.
@@ -116,10 +116,10 @@ type pipeline struct {
 // discovery neither relates components nor has a graph filter. A discovery with Git filters gets the components they
 // select in their worktrees as well.
 //
-// Returns the error of the walk when it fails, and otherwise the parse errors of what it found, joined. The error
-// of the worktree phase and the parse errors of what that phase found follow in the same order. suppressParseErrors
-// drops them all, as it does for the phases. A [CoexistenceError], a [config.AmbiguousConfigError], or the error of
-// ctx once it is done is returned either way.
+// Returns the first of these that occurred: the error of the walk, the parse errors of what it found, the error of
+// the worktree phase, and the parse errors of what that phase found. Each set of parse errors comes back joined.
+// suppressParseErrors drops them all, as it does for the phases. A [CoexistenceError], a
+// [config.AmbiguousConfigError], or the error of ctx once it is done is returned either way.
 func (d *Discovery) runPipeline(
 	ctx context.Context,
 	l log.Logger,
@@ -378,7 +378,7 @@ func (p *pipeline) findInWorktrees(ctx context.Context, l log.Logger, v *venv.Ve
 // report sends result on events as what a finder found at stage, and queues it on work when a worker has to parse
 // it or read its dependencies.
 //
-// Returns the error of ctx when it is done before both are sent.
+// Returns the error of ctx when it is done before a send completes.
 func (p *pipeline) report(ctx context.Context, fsys vfs.FS, result DiscoveryResult, stage pipelineStage) error {
 	select {
 	case p.events <- pipelineEvent{result: result, stage: stage}:
