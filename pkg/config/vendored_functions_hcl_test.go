@@ -2,6 +2,8 @@ package config_test
 
 import (
 	"maps"
+	"net/url"
+	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/vendored/opentofu/upstream/lang/funcs"
@@ -220,7 +222,7 @@ func TestHCLConcurrentParsesCallSharedAndBoundFunctionsWithRacing(t *testing.T) 
 			}
 
 			assert.Equal(t, "Hello, WORLD!", out.Locals["greeting"])
-			assert.Equal(t, "%2Fmem%2Funit", out.Locals["encoded"])
+			assert.Equal(t, url.QueryEscape(filepath.FromSlash(memUnitDir)), out.Locals["encoded"])
 
 			return nil
 		})
