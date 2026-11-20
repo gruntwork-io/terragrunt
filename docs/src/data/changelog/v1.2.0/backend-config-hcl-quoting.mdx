@@ -1,0 +1,10 @@
+---
+version: "v1.2.0"
+category: "bug-fixes"
+---
+
+#### Map-valued backend settings are passed as valid HCL
+
+Terragrunt writes map-valued `remote_state` settings, such as the S3 `assume_role` map or `state_tags`, as a one-line HCL value for `-backend-config` and for generated backend blocks. Keys that are not HCL identifiers, such as the session tag key `"team:name"`, were written unquoted. A `${...}` sequence in a string, such as the IAM policy variable `${aws:username}`, was not escaped. A `null` value was written as `<nil>`. Each of these made `init` or backend generation fail with an HCL syntax error.
+
+Terragrunt now quotes such keys, escapes template sequences, and leaves out null attributes.
