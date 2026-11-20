@@ -573,9 +573,9 @@ func (b *includedBase) dependencyBlocks(
 		vars[pkgconfig.MetadataDependency] = cty.DynamicVal
 	}
 
-	evalCtx := &hcl.EvalContext{
-		Functions: pkgconfig.TerragruntFunctions(ctx, l, v, pctx, b.file.ConfigPath),
-		Variables: vars,
+	evalCtx := &hcl.EvalContext{Variables: vars}
+	if declaresDependencies(b.file.Body) {
+		evalCtx.Functions = pkgconfig.TerragruntFunctions(ctx, l, v, pctx, b.file.ConfigPath)
 	}
 
 	return pkgconfig.DecodeDependencyBlocks(ctx, l, v, pctx, b.file, evalCtx)

@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 
+	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -57,7 +58,10 @@ func (c *UnitConfig) newDependencySet(
 
 	pctx := pc.parsingContext()
 
-	evalCtx := dependencyBlockContext(pctx, c.evalContext(ctx, l, v, pctx))
+	evalCtx := &hcl.EvalContext{Variables: c.evalVars}
+	if declaresDependencies(file.Body) {
+		evalCtx = dependencyBlockContext(pctx, c.evalContext(ctx, l, v, pctx))
+	}
 
 	own, err := pkgconfig.DecodeOwnDependencies(ctx, l, v, pctx, file, evalCtx)
 	if err != nil {

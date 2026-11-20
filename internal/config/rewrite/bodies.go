@@ -109,6 +109,16 @@ func dependencyBlockContext(pctx *pkgconfig.ParsingContext, evalCtx *hcl.EvalCon
 	return withUnknownDependency(evalCtx)
 }
 
+// declaresDependencies reports whether body has a dependency block. A body whose dependency blocks fail to parse
+// reports true, so that their decode reports why.
+func declaresDependencies(body hcl.Body) bool {
+	content, _, diags := body.PartialContent(&hcl.BodySchema{
+		Blocks: []hcl.BlockHeaderSchema{{Type: pkgconfig.MetadataDependency, LabelNames: []string{"name"}}},
+	})
+
+	return diags.HasErrors() || len(content.Blocks) > 0
+}
+
 // decodeRun decodes the run parts of c with evalCtx.
 func (c *UnitConfig) decodeRun(evalCtx *hcl.EvalContext) (*RunBodies, hcl.Diagnostics) {
 	var (
@@ -203,6 +213,7 @@ func (c *UnitConfig) withRequestedRunParts(decodeList []pkgconfig.PartialDecodeS
 	requested.GenerateAttrs = nil
 	requested.GenerateBlocks = nil
 	requested.VariablesBlocks = nil
+	requested.runAttrs = nil
 
 	if !slices.Contains(decodeList, pkgconfig.RemoteStateBlock) || attrReadsDependency(c.RemoteStateAttr) {
 		requested.RemoteStateAttr = nil

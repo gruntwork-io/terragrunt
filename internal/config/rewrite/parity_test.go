@@ -1733,42 +1733,78 @@ func TestQueueConfigSkipsAttributesDiscoveryNeverReads(t *testing.T) {
 
 	const unset = `get_env("TG_TEST_QUEUE_UNSET")`
 
-	cases := map[string]string{
+	attributes := map[string]string{
 		"download_dir":                 "download_dir = " + unset + "\n",
 		"iam_assume_role_duration":     "iam_assume_role_duration = tonumber(" + unset + ")\n",
 		"iam_assume_role_session_name": "iam_assume_role_session_name = " + unset + "\n",
 	}
 
-	for name, content := range cases {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
+	layouts := map[string]func(attribute string) map[string]string{
+		"unit": func(attribute string) map[string]string {
+			return map[string]string{"app/terragrunt.hcl": attribute, "app/main.tf": ""}
+		},
+		"exposed include with a dependency": func(attribute string) map[string]string {
+			return map[string]string{
+				"root.hcl": `
+locals {
+  skip = false
+}
 
-			root := venvtest.Root("/fixture-queue-skips-" + name)
-			cfgPath := filepath.Join(root, "app", pkgconfig.DefaultTerragruntConfigPath)
-			newFS := memFS(root, map[string]string{"app/terragrunt.hcl": content, "app/main.tf": ""})
-			l := logger.CreateLogger()
+dependency "vpc" {
+  config_path  = "../vpc"
+  skip_outputs = true
+}
+` + attribute,
+				"app/terragrunt.hcl": `
+include "root" {
+  path   = find_in_parent_folders("root.hcl")
+  expose = true
+}
 
-			wantCtx, wantRun := newQueueParsingContext(t, cfgPath)
-			_, wantErr := pkgconfig.PartialParseConfigFile(
-				wantCtx, l, venv.MemVenv().WithFS(newFS(t)), wantRun, cfgPath, nil,
-			)
-			require.NoError(t, wantErr)
+exclude {
+  if      = include.root.locals.skip
+  actions = ["all"]
+}
+`,
+				"app/main.tf":        "",
+				"vpc/terragrunt.hcl": "",
+				"vpc/main.tf":        "",
+			}
+		},
+	}
 
-			gotCtx, gotRun := newQueueParsingContext(t, cfgPath)
-			gotV := venv.MemVenv().WithFS(newFS(t))
-			_, gotErr := new(config.Store).ResolveUnitQueueConfig(
-				gotCtx, l, gotV, config.NewParseContext(gotV, gotRun), cfgPath,
-			)
-			require.NoError(t, gotErr)
+	for layout, files := range layouts {
+		for name, attribute := range attributes {
+			t.Run(layout+"/"+name, func(t *testing.T) {
+				t.Parallel()
 
-			result := assertParity(t, parityCase{
-				newFS:     newFS,
-				cfgPath:   cfgPath,
-				configure: func(*pkgconfig.ParsingContext) {},
+				root := venvtest.Root("/fixture-queue-skips-" + layout + "-" + name)
+				cfgPath := filepath.Join(root, "app", pkgconfig.DefaultTerragruntConfigPath)
+				newFS := memFS(root, files(attribute))
+				l := logger.CreateLogger()
+
+				wantCtx, wantRun := newQueueParsingContext(t, cfgPath)
+				_, wantErr := pkgconfig.PartialParseConfigFile(
+					wantCtx, l, venv.MemVenv().WithFS(newFS(t)), wantRun, cfgPath, nil,
+				)
+				require.NoError(t, wantErr)
+
+				gotCtx, gotRun := newQueueParsingContext(t, cfgPath)
+				gotV := venv.MemVenv().WithFS(newFS(t))
+				_, gotErr := new(config.Store).ResolveUnitQueueConfig(
+					gotCtx, l, gotV, config.NewParseContext(gotV, gotRun), cfgPath,
+				)
+				require.NoError(t, gotErr)
+
+				result := assertParity(t, parityCase{
+					newFS:     newFS,
+					cfgPath:   cfgPath,
+					configure: func(*pkgconfig.ParsingContext) {},
+				})
+
+				require.Error(t, result.toV1Err)
 			})
-
-			require.Error(t, result.toV1Err)
-		})
+		}
 	}
 }
 
