@@ -494,17 +494,28 @@ func noteRelease(ctx context.Context, k Key) {
 		return
 	}
 
-	scope.mu.Lock()
-	defer scope.mu.Unlock()
+	scope.add(k)
+}
 
-	scope.keys = append(scope.keys, k)
+// add notes k to r.
+func (r *releaseScope) add(k Key) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.keys = append(r.keys, k)
+}
+
+// noted returns the keys noted to r so far.
+func (r *releaseScope) noted() []Key {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return slices.Clone(r.keys)
 }
 
 // releaseScope drops the retained value of each key of scope. A run in progress is left alone.
 func (s *Store) releaseScope(scope *releaseScope) {
-	scope.mu.Lock()
-	keys := scope.keys
-	scope.mu.Unlock()
+	keys := scope.noted()
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
