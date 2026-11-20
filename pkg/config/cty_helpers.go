@@ -21,6 +21,13 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 )
 
+var (
+	stringVarParam    = &function.Parameter{Type: cty.String}
+	returnsString     = function.StaticReturnType(cty.String)
+	returnsBool       = function.StaticReturnType(cty.Bool)
+	returnsStringList = function.StaticReturnType(cty.List(cty.String))
+)
+
 // Create a cty Function that takes as input parameters a slice of strings (var args, so this slice could be of any
 // length) and returns as output a string. The implementation of the function calls the given toWrap function, passing
 // it the input parameters string slice as well as the given include and terragruntOptions.
@@ -32,8 +39,8 @@ func wrapStringSliceToStringAsFuncImpl(
 	toWrap func(ctx context.Context, l log.Logger, v *venv.Venv, pctx *ParsingContext, params []string) (string, error),
 ) function.Function {
 	return function.New(&function.Spec{
-		VarParam: &function.Parameter{Type: cty.String},
-		Type:     function.StaticReturnType(cty.String),
+		VarParam: stringVarParam,
+		Type:     returnsString,
 		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
 			params, err := ctySliceToStringSlice(args)
 			if err != nil {
@@ -57,8 +64,8 @@ func wrapStringSliceToBoolAsFuncImpl(
 	toWrap func(ctx context.Context, v *venv.Venv, pctx *ParsingContext, params []string) (bool, error),
 ) function.Function {
 	return function.New(&function.Spec{
-		VarParam: &function.Parameter{Type: cty.String},
-		Type:     function.StaticReturnType(cty.Bool),
+		VarParam: stringVarParam,
+		Type:     returnsBool,
 		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
 			params, err := ctySliceToStringSlice(args)
 			if err != nil {
@@ -85,7 +92,7 @@ func wrapVoidToStringAsFuncImpl(
 	toWrap func(ctx context.Context, l log.Logger, v *venv.Venv, pctx *ParsingContext) (string, error),
 ) function.Function {
 	return function.New(&function.Spec{
-		Type: function.StaticReturnType(cty.String),
+		Type: returnsString,
 		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
 			out, err := toWrap(ctx, l, v, pctx)
 			if err != nil {
@@ -100,7 +107,7 @@ func wrapVoidToStringAsFuncImpl(
 // Create a cty Function that takes no input parameters and returns as output an empty string.
 func wrapVoidToEmptyStringAsFuncImpl() function.Function {
 	return function.New(&function.Spec{
-		Type: function.StaticReturnType(cty.String),
+		Type: returnsString,
 		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
 			return cty.StringVal(""), nil
 		},
@@ -117,7 +124,7 @@ func wrapVoidToStringSliceAsFuncImpl(
 	toWrap func(ctx context.Context, l log.Logger, v *venv.Venv, pctx *ParsingContext) ([]string, error),
 ) function.Function {
 	return function.New(&function.Spec{
-		Type: function.StaticReturnType(cty.List(cty.String)),
+		Type: returnsStringList,
 		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
 			outVals, err := toWrap(ctx, l, v, pctx)
 			if err != nil || len(outVals) == 0 {
@@ -144,8 +151,8 @@ func wrapStringSliceToStringSliceAsFuncImpl(
 	toWrap func(ctx context.Context, l log.Logger, v *venv.Venv, pctx *ParsingContext, params []string) ([]string, error),
 ) function.Function {
 	return function.New(&function.Spec{
-		VarParam: &function.Parameter{Type: cty.String},
-		Type:     function.StaticReturnType(cty.List(cty.String)),
+		VarParam: stringVarParam,
+		Type:     returnsStringList,
 		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
 			params, err := ctySliceToStringSlice(args)
 			if err != nil {
@@ -171,7 +178,7 @@ func wrapStringSliceToStringSliceAsFuncImpl(
 // function returns the given string slice.
 func wrapStaticValueToStringSliceAsFuncImpl(out []string) function.Function {
 	return function.New(&function.Spec{
-		Type: function.StaticReturnType(cty.List(cty.String)),
+		Type: returnsStringList,
 		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
 			outVals := make([]cty.Value, 0, len(out))
 			for _, val := range out {

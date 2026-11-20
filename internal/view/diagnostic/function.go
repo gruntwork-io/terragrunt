@@ -116,8 +116,11 @@ func DescribeFunctionCall(hclDiag *hcl.Diagnostic) *FunctionCall {
 
 	var signature *Function
 
-	if f, ok := hclDiag.EvalContext.Functions[calledAs]; ok {
-		signature = DescribeFunction(baseName, f)
+	for evalCtx := hclDiag.EvalContext; evalCtx != nil; evalCtx = evalCtx.Parent() {
+		if f, ok := evalCtx.Functions[calledAs]; ok {
+			signature = DescribeFunction(baseName, f)
+			break
+		}
 	}
 
 	return &FunctionCall{

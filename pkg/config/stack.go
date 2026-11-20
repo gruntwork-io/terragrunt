@@ -355,7 +355,7 @@ func resolveStackAutoIncludes(
 	// Evaluate the autoinclude with the stack-file function set (derived from the eval context already built
 	// above) so directory-context functions like get_working_dir resolve against the stack file instead of
 	// re-parsing it as a regular config.
-	earlyFuncs := StackParseFunctionsFrom(prodEvalCtx.Functions, stackSourceDir)
+	earlyFuncs := StackParseFunctionsFrom(EvalFunctions(prodEvalCtx), stackSourceDir)
 
 	overridePath := filepath.Join(stackSourceDir, inthclparse.AutoIncludeStackFile)
 

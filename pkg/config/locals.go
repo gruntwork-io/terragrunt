@@ -131,10 +131,7 @@ func evaluateLocalsInOrder(
 		return evaluatedLocals, err
 	}
 
-	evalCtx := &hcl.EvalContext{
-		Functions: TerragruntFunctions(ctx, l, v, pctx, file.ConfigPath),
-		Variables: vars,
-	}
+	evalCtx := TerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath, vars)
 
 	for len(ready) > 0 {
 		localsAsCtyVal, err := ConvertValuesMapToCtyVal(evaluatedLocals)

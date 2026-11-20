@@ -45,6 +45,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vendored/opentofu/patch"
 	"github.com/gruntwork-io/terragrunt/internal/vendored/opentofu/upstream/lang"
+	"github.com/gruntwork-io/terragrunt/internal/vendored/opentofu/upstream/lang/funcs"
 	"github.com/gruntwork-io/terragrunt/internal/vsops"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -225,11 +226,56 @@ func CreateTerragruntEvalContext(
 		return nil, err
 	}
 
-	return &hcl.EvalContext{
-		Functions: TerragruntFunctions(ctx, l, v, pctx, cfgPath),
-		Variables: vars,
-	}, nil
+	return TerragruntEvalContext(ctx, l, v, pctx, cfgPath, vars), nil
 }
+
+// TerragruntEvalContext returns an eval context with vars and the functions of the config at cfgPath: the OpenTofu
+// functions with Terragrunt's patches, and the Terragrunt functions. The functions use ctx, l, v, and pctx when
+// called.
+//
+// The context defines only the functions bound to the parse. Its parent, which every such context shares, defines
+// the rest. [EvalFunctions] returns all of them.
+func TerragruntEvalContext(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
+	cfgPath string,
+	vars map[string]cty.Value,
+) *hcl.EvalContext {
+	evalCtx := sharedFunctions().NewChild()
+	evalCtx.Functions = boundFunctions(ctx, l, v, pctx, cfgPath)
+	evalCtx.Variables = vars
+
+	return evalCtx
+}
+
+// EvalFunctions returns every function evalCtx and its parents define. A function of a context hides one of the same
+// name in its parents.
+func EvalFunctions(evalCtx *hcl.EvalContext) map[string]function.Function {
+	functions := map[string]function.Function{}
+
+	for c := evalCtx; c != nil; c = c.Parent() {
+		for name, fn := range c.Functions {
+			if _, hidden := functions[name]; !hidden {
+				functions[name] = fn
+			}
+		}
+	}
+
+	return functions
+}
+
+const funcNameTemplateString = "templatestring"
+
+// sharedFunctions returns the parent context of every context [TerragruntEvalContext] builds. It defines the OpenTofu
+// functions that read nothing from a parse. Nothing may write to it, since parses read it concurrently.
+var sharedFunctions = sync.OnceValue(func() *hcl.EvalContext {
+	functions := lang.MakeBaseFunctionTable("")
+	delete(functions, funcNameTemplateString)
+
+	return &hcl.EvalContext{Functions: functions}
+})
 
 // ExposedInclude returns the value the `include` variable holds for include, a block with expose set. pctx is the
 // context of the including file, without its include blocks.
@@ -299,10 +345,9 @@ func TerragruntEvalVariables(
 	return vars, nil
 }
 
-// TerragruntFunctions returns the functions of the eval context [CreateTerragruntEvalContext] builds for the config
-// at cfgPath: the OpenTofu functions with Terragrunt's patches, then the Terragrunt functions, which win on a name
-// clash. The functions use ctx, l, v, and pctx when called.
-func TerragruntFunctions(
+// boundFunctions returns the functions of the eval context [TerragruntEvalContext] builds that are bound to the parse:
+// the OpenTofu functions Terragrunt patches or wraps, and the Terragrunt functions.
+func boundFunctions(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
@@ -310,20 +355,24 @@ func TerragruntFunctions(
 	cfgPath string,
 ) map[string]function.Function {
 	baseDir := filepath.Dir(cfgPath)
-	tfFunctions := lang.MakeBaseFunctionTable(baseDir)
+	shared := sharedFunctions().Functions
+
+	var tofuFunctions map[string]function.Function
+
+	templateFunctions := func() map[string]function.Function {
+		functions := maps.Clone(shared)
+		maps.Copy(functions, tofuFunctions)
+
+		return functions
+	}
 
 	// Patch with our version of these OpenTofu functions
 	// so we can thread venv and the logger through.
-	maps.Copy(tfFunctions, patch.Functions(
-		v,
-		l,
-		baseDir,
-		func() map[string]function.Function { return tfFunctions },
-		pctx.FilesRead.Add,
-	))
+	tofuFunctions = patch.Functions(v, l, baseDir, templateFunctions, pctx.FilesRead.Add)
+	tofuFunctions[funcNameTemplateString] = funcs.MakeTemplateStringFunc(baseDir, templateFunctions)
 
 	for _, name := range perCallFunctionNames {
-		tfFunctions[name] = markingNotShareable(ctx, tfFunctions[name])
+		tofuFunctions[name] = markingNotShareable(ctx, shared[name])
 	}
 
 	terragruntFunctions := map[string]function.Function{
@@ -536,16 +585,13 @@ func TerragruntFunctions(
 		}),
 	}
 
-	functions := make(map[string]function.Function, len(tfFunctions)+len(terragruntFunctions))
-
-	maps.Copy(functions, tfFunctions)
-	maps.Copy(functions, terragruntFunctions)
+	maps.Copy(terragruntFunctions, tofuFunctions)
 
 	if pctx.stubWorkingDirFunc {
-		functions[FuncNameGetWorkingDir] = wrapVoidToEmptyStringAsFuncImpl()
+		terragruntFunctions[FuncNameGetWorkingDir] = wrapVoidToEmptyStringAsFuncImpl()
 	}
 
-	return functions
+	return terragruntFunctions
 }
 
 // Return the OS platform

@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -92,6 +93,83 @@ func TestHCLTemplateFileReadsThroughTheVenv(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, out.Locals)
 	assert.Equal(t, "Hello, world! a%2Fb", out.Locals["greeting"])
+}
+
+func TestHCLTemplateStringRendersWithOpenTofuFunctions(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+	v := venv.MemVenv().WithFS(memUnitFS(t, nil))
+	ctx, pctx := newTestParsingContext(t, memConfigPath)
+	ctx = config.WithCaches(ctx)
+
+	const hcl = `locals {
+  greeting = templatestring("Hello, $${upper(name)}!", { name = "world" })
+}`
+
+	out, err := config.ParseConfigString(ctx, l, v, pctx, memConfigPath, hcl, nil)
+	require.NoError(t, err)
+	require.NotNil(t, out.Locals)
+	assert.Equal(t, "Hello, WORLD!", out.Locals["greeting"])
+}
+
+func TestHCLTemplateFileCannotCallTerragruntFunctions(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+	v := venv.MemVenv().WithFS(memUnitFS(t, map[string]string{
+		"dir.tmpl": "${get_terragrunt_dir()}",
+	}))
+	ctx, pctx := newTestParsingContext(t, memConfigPath)
+	ctx = config.WithCaches(ctx)
+
+	const hcl = `locals {
+  dir = templatefile("dir.tmpl", {})
+}`
+
+	_, err := config.ParseConfigString(ctx, l, v, pctx, memConfigPath, hcl, nil)
+	require.Error(t, err)
+}
+
+func TestHCLConcurrentParsesCallSharedAndBoundFunctionsWithRacing(t *testing.T) {
+	t.Parallel()
+
+	const parses = 8
+
+	l := logger.CreateLogger()
+	v := venv.MemVenv().WithFS(memUnitFS(t, map[string]string{
+		"greeting.tmpl": "Hello, ${upper(name)}!",
+	}))
+
+	const hcl = `locals {
+  greeting = templatefile("greeting.tmpl", { name = "world" })
+  encoded  = urlencode(get_terragrunt_dir())
+}`
+
+	g, gctx := errgroup.WithContext(t.Context())
+
+	for range parses {
+		ctx, pctx := newTestParsingContext(t, memConfigPath)
+		ctx = config.WithCaches(ctx)
+
+		g.Go(func() error {
+			if err := gctx.Err(); err != nil {
+				return err
+			}
+
+			out, err := config.ParseConfigString(ctx, l, v, pctx, memConfigPath, hcl, nil)
+			if err != nil {
+				return err
+			}
+
+			assert.Equal(t, "Hello, WORLD!", out.Locals["greeting"])
+			assert.Equal(t, "%2Fmem%2Funit", out.Locals["encoded"])
+
+			return nil
+		})
+	}
+
+	require.NoError(t, g.Wait())
 }
 
 func TestHCLBase64GzipUsesTheCurrentEncoder(t *testing.T) {

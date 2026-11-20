@@ -92,10 +92,11 @@ func withUnknownDependency(evalCtx *hcl.EvalContext) *hcl.EvalContext {
 		return evalCtx
 	}
 
-	vars := maps.Clone(evalCtx.Variables)
-	vars[pkgconfig.MetadataDependency] = cty.DynamicVal
+	withDependency := *evalCtx
+	withDependency.Variables = maps.Clone(evalCtx.Variables)
+	withDependency.Variables[pkgconfig.MetadataDependency] = cty.DynamicVal
 
-	return &hcl.EvalContext{Variables: vars, Functions: evalCtx.Functions}
+	return &withDependency
 }
 
 // dependencyBlockContext returns the eval context the dependency blocks decode with: evalCtx with `dependency`

@@ -217,10 +217,7 @@ func (c *UnitConfig) evalContext(
 		vars[pkgconfig.MetadataDependency] = *pctx.DecodedDependencies
 	}
 
-	return &hcl.EvalContext{
-		Functions: pkgconfig.TerragruntFunctions(ctx, l, v, pctx, c.file.ConfigPath),
-		Variables: vars,
-	}
+	return pkgconfig.TerragruntEvalContext(ctx, l, v, pctx, c.file.ConfigPath, vars)
 }
 
 // joinDecodeErrors returns the error [pkghclparse.File.HandleDiagnostics] would return for the diagnostics of the
