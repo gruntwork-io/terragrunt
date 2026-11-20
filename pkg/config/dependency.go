@@ -2051,7 +2051,7 @@ func resolveOutputJSON(
 
 	var remoteStateTGConfig *TerragruntConfig
 
-	if declaresRemoteState(ctx, l, v, pctx, targetConfig) {
+	if declaresRemoteState(ctx, l, v, pctx, targetConfig, partialTerragruntConfig.ProcessedIncludes) {
 		// we need to suspend logging diagnostic errors on this attempt
 		remoteStateTGConfig, err = PartialParseConfigFile(
 			ctx,

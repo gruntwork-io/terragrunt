@@ -587,12 +587,22 @@ func TestDependencyStateDirectReadUsesTheRemoteStateOfAnInclude(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
+		files      map[string]string
 		name       string
-		strategy   string
+		include    string
 		wantDirect bool
 	}{
-		{name: "merged include", wantDirect: true},
-		{name: "include that does not merge", strategy: `merge_strategy = "no_merge"`},
+		{name: "merged include", include: `path = find_in_parent_folders("root.hcl")`, wantDirect: true},
+		{
+			name:    "include that does not merge",
+			include: `path = find_in_parent_folders("root.hcl")` + "\n" + `merge_strategy = "no_merge"`,
+		},
+		{
+			name:       "include whose path reads values",
+			include:    `path = "${values.root_dir}/root.hcl"`,
+			files:      map[string]string{filepath.Join("producer", "terragrunt.values.hcl"): `root_dir = ".."`},
+			wantDirect: true,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -600,6 +610,27 @@ func TestDependencyStateDirectReadUsesTheRemoteStateOfAnInclude(t *testing.T) {
 			t.Parallel()
 
 			root := venvtest.Root("/remote-state-include")
+			files := map[string]string{
+				"root.hcl": fmt.Sprintf(`remote_state {
+  backend = "s3"
+  config = {
+%s
+  }
+}
+`, eligibilityConfigHCL(eligibilityS3Config())),
+				filepath.Join("producer", "main.tf"):                          "",
+				filepath.Join("producer", config.DefaultTerragruntConfigPath): "include \"root\" {\n" + tc.include + "\n}\n",
+				filepath.Join("consumer", config.DefaultTerragruntConfigPath): `dependency "producer" {
+  config_path = "../producer"
+}
+
+inputs = {
+  result = dependency.producer.outputs.producer_value
+}
+`,
+			}
+			maps.Copy(files, tc.files)
+
 			consumerPath := filepath.Join(root, "consumer", config.DefaultTerragruntConfigPath)
 			recorder := newDependencyStateRecorder(t, http.StatusOK, terraformState("from-direct"))
 
@@ -610,29 +641,7 @@ func TestDependencyStateDirectReadUsesTheRemoteStateOfAnInclude(t *testing.T) {
 				}).
 				WithExec(recorder.exec()).
 				WithHTTP(recorder.httpClient()).
-				WithFS(venvtest.NewFS(t, root, map[string]string{
-					"root.hcl": fmt.Sprintf(`remote_state {
-  backend = "s3"
-  config = {
-%s
-  }
-}
-`, eligibilityConfigHCL(eligibilityS3Config())),
-					filepath.Join("producer", "main.tf"): "",
-					filepath.Join("producer", config.DefaultTerragruntConfigPath): `include "root" {
-  path = find_in_parent_folders("root.hcl")
-  ` + tc.strategy + `
-}
-`,
-					filepath.Join("consumer", config.DefaultTerragruntConfigPath): `dependency "producer" {
-  config_path = "../producer"
-}
-
-inputs = {
-  result = dependency.producer.outputs.producer_value
-}
-`,
-				}))
+				WithFS(venvtest.NewFS(t, root, files))
 
 			ctx, pctx := newTestParsingContext(t, consumerPath)
 			pctx.OriginalTerragruntConfigPath = consumerPath

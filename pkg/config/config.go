@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/errorconfig"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
@@ -2200,10 +2201,6 @@ func ResolveIAMRoleOptions(
 		return pctx.OriginalIAMRoleOptions, nil
 	}
 
-	if !mergesDeclaration(ctx, l, v, pctx, file, iamRoleSchema) {
-		return FileIAMRoleOptions(pctx, iam.RoleOptions{}), nil
-	}
-
 	key := fmt.Sprintf(
 		"%s-%s-%s-%s-%v-%v",
 		file.ConfigPath,
@@ -2216,23 +2213,46 @@ func ResolveIAMRoleOptions(
 
 	config, found := iamRoleCache.Get(ctx, key)
 	if !found {
-		iamConfig, err := TerragruntConfigFromPartialConfig(
-			ctx,
-			l,
-			v,
-			pctx.WithDecodeList(TerragruntFlags),
-			file,
-			includeFromChild,
-		)
+		var err error
+
+		config, err = parseIAMRoleOptions(ctx, l, v, pctx, file, includeFromChild)
 		if err != nil {
 			return iam.RoleOptions{}, err
 		}
 
-		config = iamConfig.GetIAMRoleOptions()
 		iamRoleCache.Put(ctx, key, config)
 	}
 
 	return FileIAMRoleOptions(pctx, config), nil
+}
+
+// parseIAMRoleOptions partially parses the Terragrunt flags of file and returns the IAM role options they set. It
+// returns no options without parsing when file and every file it merges can't declare a flag the options come from.
+func parseIAMRoleOptions(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
+	file *hclparse.File,
+	includeFromChild *IncludeConfig,
+) (iam.RoleOptions, error) {
+	if !mayMergeDeclaration(ctx, l, v, pctx, file, iamRoleSchema) {
+		return iam.RoleOptions{}, nil
+	}
+
+	iamConfig, err := TerragruntConfigFromPartialConfig(
+		ctx,
+		l,
+		v,
+		pctx.WithDecodeList(TerragruntFlags),
+		file,
+		includeFromChild,
+	)
+	if err != nil {
+		return iam.RoleOptions{}, err
+	}
+
+	return iamConfig.GetIAMRoleOptions(), nil
 }
 
 // iamRoleSchema names the attributes [ResolveIAMRoleOptions] decodes the IAM role options of a config from.
@@ -2246,10 +2266,11 @@ var remoteStateSchemas = []*hcl.BodySchema{
 	{Attributes: []hcl.AttributeSchema{{Name: MetadataRemoteState}}},
 }
 
-// mergesDeclaration reports whether file, a file one of its include blocks merges, or its sibling autoinclude declares
-// an attribute or block of one of schemas. Include blocks that fail to decode, and included files that fail to parse,
-// declare none, since a partial parse that decodes the declaration fails on them.
-func mergesDeclaration(
+// mayMergeDeclaration reports whether file, a file one of its include blocks merges, or its sibling autoinclude can
+// declare an attribute or block of one of schemas. It reports true when [mergedIncludePaths] can't evaluate the
+// include blocks of file. An included file that fails to parse declares none, since a partial parse that decodes the
+// declaration fails on it.
+func mayMergeDeclaration(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
@@ -2261,60 +2282,100 @@ func mergesDeclaration(
 		return true
 	}
 
-	paths := mergedIncludePaths(ctx, l, v, pctx, file)
-
-	if autoIncludePath, ok := siblingAutoIncludePath(pctx, file.ConfigPath); ok && vfs.Exists(v.FS, autoIncludePath) {
-		paths = append(paths, autoIncludePath)
+	paths, ok := mergedIncludePaths(ctx, l, v, pctx, file)
+	if !ok {
+		return true
 	}
 
+	return anyDeclares(ctx, l, v, pctx, withSiblingAutoInclude(v, pctx, file.ConfigPath, paths), schemas)
+}
+
+// anyDeclares reports whether a config at one of paths declares an attribute or block of one of schemas. A config
+// that fails to parse declares none.
+func anyDeclares(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
+	paths []string,
+	schemas []*hcl.BodySchema,
+) bool {
 	if len(paths) == 0 {
 		return false
 	}
 
 	pctx = pctx.WithDiagnosticsDiscarded()
 
-	for _, path := range paths {
+	return slices.ContainsFunc(paths, func(path string) bool {
 		body, err := configBody(ctx, l, v, pctx, path)
-		if err == nil && declares(body, schemas) {
-			return true
-		}
-	}
 
-	return false
+		return err == nil && declares(body, schemas)
+	})
 }
 
-// mergedIncludePaths returns the absolute paths of the files the include blocks of file merge, evaluated with pctx.
-// An include block that fails to decode or names an invalid merge_strategy merges nothing.
+// withSiblingAutoInclude returns paths with the sibling autoinclude of the config at cfgPath appended when a parse
+// with pctx merges it.
+func withSiblingAutoInclude(v *venv.Venv, pctx *ParsingContext, cfgPath string, paths []string) []string {
+	if autoIncludePath, ok := siblingAutoIncludePath(pctx, cfgPath); ok && vfs.Exists(v.FS, autoIncludePath) {
+		return append(paths, autoIncludePath)
+	}
+
+	return paths
+}
+
+// mergedIncludePaths returns the absolute paths of the files the include blocks of file merge, evaluated with pctx and
+// the values of file's directory, as a partial parse of file evaluates them. An include block with an invalid
+// merge_strategy merges nothing.
+//
+// It evaluates only pure functions, so the evaluation has no effect a partial parse doesn't repeat. It returns false
+// without evaluating anything when file is HCL JSON, or when its include blocks, or the values they read, call any
+// other function. It returns false when an include block fails to evaluate.
 func mergedIncludePaths(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	pctx *ParsingContext,
 	file *hclparse.File,
-) []string {
+) ([]string, bool) {
 	body, native := file.Body.(*hclsyntax.Body)
-	if native && !slices.ContainsFunc(body.Blocks, isIncludeBlock) {
-		return nil
+	if !native {
+		return nil, false
+	}
+
+	includeBlocks := slices.DeleteFunc(slices.Clone(body.Blocks), func(block *hclsyntax.Block) bool {
+		return !isIncludeBlock(block)
+	})
+	if len(includeBlocks) == 0 {
+		return nil, true
+	}
+
+	if slices.ContainsFunc(includeBlocks, func(block *hclsyntax.Block) bool { return !callsOnlyPureFunctions(block) }) {
+		return nil, false
 	}
 
 	pctx = pctx.WithTrackInclude(nil).WithDiagnosticsDiscarded()
 
+	readsValues := slices.ContainsFunc(includeBlocks, func(block *hclsyntax.Block) bool {
+		return referencesVariable(block, MetadataValues)
+	})
+
+	if readsValues {
+		values, ok := pureValues(ctx, l, v, pctx, filepath.Dir(file.ConfigPath))
+		if !ok {
+			return nil, false
+		}
+
+		pctx = pctx.WithValues(values)
+	}
+
 	evalCtx, err := CreateTerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath, file.FunctionCalls())
 	if err != nil {
-		return nil
+		return nil, false
 	}
 
-	var includes IncludeConfigs
-
-	if native {
-		includes = nativeIncludes(body, evalCtx)
-	}
-
-	if !native {
-		includes, err = decodeAsTerragruntInclude(file.Rebind(pctx.NewParser(l, v)), evalCtx)
-		if err != nil {
-			return nil
-		}
+	includes, decoded := nativeIncludes(body, evalCtx)
+	if !decoded {
+		return nil, false
 	}
 
 	paths := make([]string, 0, len(includes)+1)
@@ -2332,11 +2393,109 @@ func mergedIncludePaths(
 		paths = append(paths, path)
 	}
 
-	return paths
+	return paths, true
 }
 
-// nativeIncludes returns the path and merge_strategy of each include block of body that evaluates with evalCtx.
-func nativeIncludes(body *hclsyntax.Body, evalCtx *hcl.EvalContext) IncludeConfigs {
+// pureValues returns the values in dir that a parse of a config in dir reads. It returns false without reading them
+// when the values file calls a function [callsOnlyPureFunctions] rejects, and false when reading them fails.
+func pureValues(ctx context.Context, l log.Logger, v *venv.Venv, pctx *ParsingContext, dir string) (*cty.Value, bool) {
+	valuesPath := filepath.Join(dir, valuesFile)
+
+	if vfs.Exists(v.FS, valuesPath) {
+		body, err := configBody(ctx, l, v, pctx, valuesPath)
+		if err != nil {
+			return nil, false
+		}
+
+		native, ok := body.(*hclsyntax.Body)
+		if !ok || !callsOnlyPureFunctions(native) {
+			return nil, false
+		}
+	}
+
+	values, err := ReadValues(ctx, l, v, pctx, dir)
+	if err != nil {
+		return nil, false
+	}
+
+	return values, true
+}
+
+// pureFunctions returns the names of the functions whose calls have no effect beyond their value and read nothing
+// but the filesystem's directory structure and the environment.
+var pureFunctions = sync.OnceValue(func() map[string]struct{} {
+	names := map[string]struct{}{}
+
+	for name := range openTofuFunctions().Functions {
+		if !slices.Contains(perCallFunctionNames, name) {
+			names[name] = struct{}{}
+		}
+	}
+
+	for name := range sharedFunctions().Functions {
+		names[name] = struct{}{}
+	}
+
+	for _, name := range []string{
+		FuncNameFindInParentFolders,
+		FuncNameGetTerragruntDir,
+		FuncNameGetParentTerragruntDir,
+		FuncNameGetOriginalTerragruntDir,
+		FuncNamePathRelativeToInclude,
+		FuncNamePathRelativeFromInclude,
+		FuncNameGetEnv,
+		FuncNameGetPlatform,
+		FuncNameGetTerraformCommand,
+		FuncNameGetTerraformCLIArgs,
+	} {
+		names[name] = struct{}{}
+	}
+
+	return names
+})
+
+// callsOnlyPureFunctions reports whether every function node calls is one of [pureFunctions].
+func callsOnlyPureFunctions(node hclsyntax.Node) bool {
+	pure := true
+
+	walkNodes(node, func(node hclsyntax.Node) {
+		if call, ok := node.(*hclsyntax.FunctionCallExpr); ok {
+			_, isPure := pureFunctions()[call.Name]
+			pure = pure && isPure
+		}
+	})
+
+	return pure
+}
+
+// referencesVariable reports whether an expression in node references the variable name.
+func referencesVariable(node hclsyntax.Node, name string) bool {
+	references := false
+
+	walkNodes(node, func(node hclsyntax.Node) {
+		if traversal, ok := node.(*hclsyntax.ScopeTraversalExpr); ok && traversal.Traversal.RootName() == name {
+			references = true
+		}
+	})
+
+	return references
+}
+
+// walkNodes calls visit with node and every node below it.
+func walkNodes(node hclsyntax.Node, visit func(node hclsyntax.Node)) {
+	diags := hclsyntax.VisitAll(node, func(node hclsyntax.Node) hcl.Diagnostics {
+		visit(node)
+
+		return nil
+	})
+	if diags.HasErrors() {
+		panic("walkNodes: a visitor that reports nothing reported " + diags.Error())
+	}
+}
+
+// nativeIncludes returns the path and merge_strategy of each include block of body, evaluated with evalCtx. It returns
+// false when one fails to evaluate to a known string.
+func nativeIncludes(body *hclsyntax.Body, evalCtx *hcl.EvalContext) (IncludeConfigs, bool) {
 	var includes IncludeConfigs
 
 	for _, block := range body.Blocks {
@@ -2346,7 +2505,7 @@ func nativeIncludes(body *hclsyntax.Body, evalCtx *hcl.EvalContext) IncludeConfi
 
 		path, ok := stringAttribute(block.Body, "path", evalCtx)
 		if !ok {
-			continue
+			return nil, false
 		}
 
 		include := IncludeConfig{Path: path}
@@ -2354,7 +2513,7 @@ func nativeIncludes(body *hclsyntax.Body, evalCtx *hcl.EvalContext) IncludeConfi
 		if _, declared := block.Body.Attributes["merge_strategy"]; declared {
 			strategy, ok := stringAttribute(block.Body, "merge_strategy", evalCtx)
 			if !ok {
-				continue
+				return nil, false
 			}
 
 			include.MergeStrategy = &strategy
@@ -2363,7 +2522,7 @@ func nativeIncludes(body *hclsyntax.Body, evalCtx *hcl.EvalContext) IncludeConfi
 		includes = append(includes, include)
 	}
 
-	return includes
+	return includes, true
 }
 
 // isIncludeBlock reports whether block is an include block.
@@ -2417,15 +2576,26 @@ func declaresNatively(body *hclsyntax.Body, schema *hcl.BodySchema) bool {
 		slices.ContainsFunc(schema.Blocks, func(block hcl.BlockHeaderSchema) bool { return named(block.Type) })
 }
 
-// declaresRemoteState reports whether the config at cfgPath, which pctx parses, merges a remote_state block or
-// attribute. A config that fails to parse declares none.
-func declaresRemoteState(ctx context.Context, l log.Logger, v *venv.Venv, pctx *ParsingContext, cfgPath string) bool {
-	file, err := parsedConfigFile(ctx, l, v, pctx.WithDiagnosticsDiscarded(), cfgPath)
-	if err != nil {
-		return false
+// declaresRemoteState reports whether the config at cfgPath, a file it merges, or its sibling autoinclude declares a
+// remote_state block or attribute. includes is the includes a partial parse of the config with pctx processed. A
+// config that fails to parse declares none.
+func declaresRemoteState(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
+	cfgPath string,
+	includes map[string]IncludeConfig,
+) bool {
+	paths := []string{cfgPath}
+
+	for _, include := range includes {
+		if strategy, err := include.GetMergeStrategy(); err == nil && strategy != NoMerge {
+			paths = append(paths, include.Path)
+		}
 	}
 
-	return mergesDeclaration(ctx, l, v, pctx, file, remoteStateSchemas...)
+	return anyDeclares(ctx, l, v, pctx, withSiblingAutoInclude(v, pctx, cfgPath, paths), remoteStateSchemas)
 }
 
 // FileIAMRoleOptions returns the IAM role options a parse with pctx evaluates a file with when the file's config sets

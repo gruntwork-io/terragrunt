@@ -3,17 +3,13 @@ package config
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"slices"
+	"sync"
 
-	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 
-	"github.com/gruntwork-io/terragrunt/internal/cache"
-	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -24,8 +20,9 @@ var inheritableVariables = []string{MetadataLocal, MetadataFeatureFlag, Metadata
 // getDependencyBlockConfigPathsByFilepath returns the config paths of the dependency blocks of the config at cfgPath,
 // which pctx parses as a dependency. Every read records the files the parse read on pctx.FilesRead.
 //
-// A command reads them once for every config whose parse can't read a value pctx inherits, and a concurrent read of
-// the same config waits for the first. A config whose parse can read one is read again with pctx each time.
+// A command scans them once for every config whose parse can't read a value pctx inherits, and a concurrent read of
+// the same config waits for the scan. A config whose parse can read one, a config whose scan fails, and a read made
+// while a scan of any config runs on the same call path read them again with pctx.
 func getDependencyBlockConfigPathsByFilepath(
 	ctx context.Context,
 	l log.Logger,
@@ -33,33 +30,82 @@ func getDependencyBlockConfigPathsByFilepath(
 	pctx *ParsingContext,
 	cfgPath string,
 ) ([]string, error) {
+	inheritingPctx := pctx.WithDecodeList(DependencyBlock).WithDiagnosticsSuppressed()
+
+	if _, scanning := ctx.Value(scanningDependencyPathsKey{}).(bool); scanning {
+		paths, _, err := readDependencyPaths(ctx, l, v, inheritingPctx, cfgPath)
+
+		return paths, err
+	}
+
 	scanPctx := pctx.forDependencyScan().WithDecodeList(DependencyBlock).WithDiagnosticsSuppressed()
 
 	key := fmt.Sprintf("%#v", dependencyPathsKey{
 		read:                  NewReadTerragruntConfigKey(v, scanPctx),
 		skipOutputsResolution: scanPctx.SkipOutputsResolution,
 	})
-	scans := cache.ContextCache[*dependencyPathsScan](ctx, DependencyPathsCacheContextKey)
 
-	scan, found := scans.Get(ctx, key)
-	if !found || !scan.scanned && !scan.inherits(pctx) {
-		var err error
-
-		scan, err = scanDependencyPaths(ctx, l, v, pctx, scanPctx, cfgPath, key, scans)
-		if err != nil {
-			return nil, err
-		}
+	flight, leads := ctx.Value(DependencyPathsCacheContextKey).(*dependencyPathsScans).join(key)
+	if leads {
+		scanCtx := context.WithValue(ctx, scanningDependencyPathsKey{}, true)
+		flight.scan, flight.err = scanDependencyPaths(scanCtx, l, v, scanPctx, cfgPath)
+		close(flight.done)
 	}
 
-	if scan.inherits(pctx) {
-		return readDependencyPaths(ctx, l, v, pctx.WithDecodeList(DependencyBlock).WithDiagnosticsSuppressed(), cfgPath)
+	select {
+	case <-flight.done:
+	case <-ctx.Done():
+		return nil, ctx.Err()
 	}
 
-	for _, path := range scan.filesRead {
+	if flight.err != nil || flight.scan.inherits(pctx) {
+		paths, _, err := readDependencyPaths(ctx, l, v, inheritingPctx, cfgPath)
+
+		return paths, err
+	}
+
+	for _, path := range flight.scan.filesRead {
 		pctx.FilesRead.Add(path)
 	}
 
-	return scan.paths, nil
+	return flight.scan.paths, nil
+}
+
+// scanningDependencyPathsKey is the context key whose value marks a call path a scan of dependency paths runs on.
+type scanningDependencyPathsKey struct{}
+
+// dependencyPathsScans is the scans of dependency paths a command ran or is running, by key. Only a call path no scan
+// runs on waits for a scan, and a scan never waits for one, so no wait can wait on itself.
+type dependencyPathsScans struct {
+	flights map[string]*dependencyPathsFlight
+	mu      sync.Mutex
+}
+
+// dependencyPathsFlight is one scan of dependency paths. Its scan and err are set before done closes.
+type dependencyPathsFlight struct {
+	done chan struct{}
+	scan *dependencyPathsScan
+	err  error
+}
+
+// newDependencyPathsScans returns an empty set of scans.
+func newDependencyPathsScans() *dependencyPathsScans {
+	return &dependencyPathsScans{flights: map[string]*dependencyPathsFlight{}}
+}
+
+// join returns the scan under key, and true when the caller created it and must run it.
+func (scans *dependencyPathsScans) join(key string) (*dependencyPathsFlight, bool) {
+	scans.mu.Lock()
+	defer scans.mu.Unlock()
+
+	if flight, ok := scans.flights[key]; ok {
+		return flight, false
+	}
+
+	flight := &dependencyPathsFlight{done: make(chan struct{})}
+	scans.flights[key] = flight
+
+	return flight, true
 }
 
 // dependencyPathsKey is the key [getDependencyBlockConfigPathsByFilepath] caches the dependency paths of a config
@@ -69,13 +115,12 @@ type dependencyPathsKey struct {
 	skipOutputsResolution bool
 }
 
-// dependencyPathsScan is what a command knows about the dependency paths of a config: the inheritable variables its
-// parse reads, and once scanned, its dependency paths with the files the parse that found them read.
+// dependencyPathsScan is the dependency paths of a config parsed without inherited values, with the files that parse
+// read and the inheritable variables a parse of the config can read.
 type dependencyPathsScan struct {
 	reads     map[string]struct{}
 	paths     []string
 	filesRead []string
-	scanned   bool
 }
 
 // inherits reports whether the parse of the config with pctx reads a value pctx inherits from the config whose
@@ -96,60 +141,40 @@ func (scan *dependencyPathsScan) inherits(pctx *ParsingContext) bool {
 	return false
 }
 
-// scanDependencyPaths returns what the command knows about the dependency paths of the config at cfgPath, with the
-// paths parsed with scanPctx unless the parse with pctx reads a value pctx inherits. It caches the result in scans
-// under key, unless a concurrent call holding the lock for key cached it first.
+// scanDependencyPaths reads the dependency paths of the config at cfgPath with scanPctx, which inherits no values.
 func scanDependencyPaths(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	pctx *ParsingContext,
 	scanPctx *ParsingContext,
 	cfgPath string,
-	key string,
-	scans *cache.Cache[*dependencyPathsScan],
 ) (*dependencyPathsScan, error) {
-	locks := ctx.Value(DependencyPathsLocksContextKey).(*util.KeyLocks)
-
-	if err := locks.LockContext(ctx, key); err != nil {
-		return nil, fmt.Errorf("waiting for a concurrent read of the dependencies of %s: %w", cfgPath, err)
-	}
-	defer locks.Unlock(key)
-
-	scan, found := scans.Get(ctx, key)
-	if !found {
-		scan = &dependencyPathsScan{reads: inheritedReads(ctx, l, v, scanPctx, cfgPath)}
-		scans.Put(ctx, key, scan)
-	}
-
-	if scan.scanned || scan.inherits(pctx) {
-		return scan, nil
-	}
-
 	tracked := scanPctx.WithFileReadTracking()
 
-	paths, err := readDependencyPaths(ctx, l, v, tracked, cfgPath)
+	paths, cfg, err := readDependencyPaths(ctx, l, v, tracked, cfgPath)
 	if err != nil {
 		return nil, err
 	}
 
-	scan = &dependencyPathsScan{reads: scan.reads, paths: paths, filesRead: tracked.FilesRead.Paths(), scanned: true}
-	scans.Put(ctx, key, scan)
-
-	return scan, nil
+	return &dependencyPathsScan{
+		reads:     inheritedReads(ctx, l, v, scanPctx, cfgPath, cfg.ProcessedIncludes),
+		paths:     paths,
+		filesRead: tracked.FilesRead.Paths(),
+	}, nil
 }
 
-// readDependencyPaths parses the dependency blocks of the config at cfgPath with pctx and returns their config paths.
+// readDependencyPaths parses the dependency blocks of the config at cfgPath with pctx and returns their config paths
+// with the config the parse returned.
 func readDependencyPaths(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	pctx *ParsingContext,
 	cfgPath string,
-) ([]string, error) {
+) ([]string, *TerragruntConfig, error) {
 	tgConfig, err := PartialParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	paths, unresolved := tgConfig.DependencyPaths()
@@ -157,100 +182,69 @@ func readDependencyPaths(
 		l.Debugf("Skipping dependency %q of %s in cycle check: config_path is not a known string", name, cfgPath)
 	}
 
-	return paths, nil
+	return paths, tgConfig, nil
 }
 
 // inheritedReads returns the inheritable variables a parse of the dependency blocks of the config at cfgPath can read
 // before the config's own value replaces them: in the include and feature blocks of the config and of each file it
-// includes, in their dependency blocks, and anywhere in a file it exposes. A config that fails to parse, and one in HCL
-// JSON, reads them all.
+// merges, in their dependency blocks, and anywhere in a file it exposes. includes is the includes a partial parse of
+// the config processed. A config in HCL JSON, and one that includes a file in HCL JSON or a file that fails to parse,
+// reads them all.
 func inheritedReads(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	pctx *ParsingContext,
 	cfgPath string,
+	includes map[string]IncludeConfig,
 ) map[string]struct{} {
 	all := map[string]struct{}{}
 	for _, name := range inheritableVariables {
 		all[name] = struct{}{}
 	}
 
-	file, err := parsedConfigFile(ctx, l, v, pctx.WithDiagnosticsDiscarded(), cfgPath)
-	if err != nil {
-		return all
-	}
-
-	body, native := file.Body.(*hclsyntax.Body)
-	if !native {
-		return all
-	}
+	pctx = pctx.WithDiagnosticsDiscarded()
 
 	reads := map[string]struct{}{}
-	addBlockReads(reads, body, false)
 
-	for _, included := range readIncludes(ctx, l, v, pctx, file, body) {
-		includedBody, err := configBody(ctx, l, v, pctx.WithDiagnosticsDiscarded(), included.path)
+	read := func(path string, exposed bool) bool {
+		body, err := configBody(ctx, l, v, pctx, path)
 		if err != nil {
+			return false
+		}
+
+		native, ok := body.(*hclsyntax.Body)
+		if !ok {
+			return false
+		}
+
+		addBlockReads(reads, native, exposed)
+
+		return true
+	}
+
+	if !read(cfgPath, false) {
+		return all
+	}
+
+	for _, include := range includes {
+		strategy, err := include.GetMergeStrategy()
+		if err == nil && strategy == NoMerge && !include.GetExpose() {
 			continue
 		}
 
-		nativeIncluded, ok := includedBody.(*hclsyntax.Body)
-		if !ok {
+		if !read(include.Path, include.GetExpose()) {
 			return all
 		}
+	}
 
-		addBlockReads(reads, nativeIncluded, included.exposed)
+	if autoIncludePath, ok := siblingAutoIncludePath(pctx, cfgPath); ok && vfs.Exists(v.FS, autoIncludePath) {
+		if !read(autoIncludePath, false) {
+			return all
+		}
 	}
 
 	return reads
-}
-
-// readInclude is a file a parse of a config reads because one of its include blocks names it.
-type readInclude struct {
-	path    string
-	exposed bool
-}
-
-// readIncludes returns the files the include blocks of file, whose body is body, name and a parse reads: those it
-// merges or exposes, and its sibling autoinclude. An include block that fails to decode or names an invalid
-// merge_strategy reads nothing.
-func readIncludes(
-	ctx context.Context,
-	l log.Logger,
-	v *venv.Venv,
-	pctx *ParsingContext,
-	file *hclparse.File,
-	body *hclsyntax.Body,
-) []readInclude {
-	var included []readInclude
-
-	if slices.ContainsFunc(body.Blocks, isIncludeBlock) {
-		evalPctx := pctx.WithTrackInclude(nil).WithDiagnosticsDiscarded()
-
-		evalCtx, err := CreateTerragruntEvalContext(ctx, l, v, evalPctx, file.ConfigPath, file.FunctionCalls())
-		if err == nil {
-			for _, include := range nativeIncludes(body, evalCtx) {
-				strategy, err := include.GetMergeStrategy()
-				if err != nil || strategy == NoMerge && !include.GetExpose() {
-					continue
-				}
-
-				path := include.Path
-				if !filepath.IsAbs(path) {
-					path = filepath.Join(filepath.Dir(file.ConfigPath), path)
-				}
-
-				included = append(included, readInclude{path: path, exposed: include.GetExpose()})
-			}
-		}
-	}
-
-	if autoIncludePath, ok := siblingAutoIncludePath(pctx, file.ConfigPath); ok && vfs.Exists(v.FS, autoIncludePath) {
-		included = append(included, readInclude{path: autoIncludePath})
-	}
-
-	return included
 }
 
 // addBlockReads adds to reads the inheritable variables body references in its include, feature, and dependency
@@ -272,15 +266,10 @@ func addBlockReads(reads map[string]struct{}, body *hclsyntax.Body, anywhere boo
 
 // addReads adds to reads each inheritable variable an expression in node references.
 func addReads(reads map[string]struct{}, node hclsyntax.Node) {
-	diags := hclsyntax.VisitAll(node, func(node hclsyntax.Node) hcl.Diagnostics {
+	walkNodes(node, func(node hclsyntax.Node) {
 		traversal, ok := node.(*hclsyntax.ScopeTraversalExpr)
 		if ok && slices.Contains(inheritableVariables, traversal.Traversal.RootName()) {
 			reads[traversal.Traversal.RootName()] = struct{}{}
 		}
-
-		return nil
 	})
-	if diags.HasErrors() {
-		panic("addReads: a visitor that reports nothing reported " + diags.Error())
-	}
 }
