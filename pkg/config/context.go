@@ -42,6 +42,12 @@ const (
 	// RunCmdLocksContextKey is the context key of the per-command locks that make concurrent identical `run_cmd`
 	// calls wait for the first.
 	RunCmdLocksContextKey configKey = iota
+	// DependencyPathsCacheContextKey is the context key of the cache of the dependency paths the dependency cycle check
+	// reads from each config.
+	DependencyPathsCacheContextKey configKey = iota
+	// DependencyPathsLocksContextKey is the context key of the per-config locks that make a concurrent cycle check wait
+	// for the first read of a config's dependency paths.
+	DependencyPathsLocksContextKey configKey = iota
 
 	hclCacheName               = "hclCache"
 	configCacheName            = "configCache"
@@ -52,6 +58,7 @@ const (
 	autoIncludeSuffixCacheName = "autoIncludeSuffixCache"
 	parentFileProbeCacheName   = "parentFileProbeCache"
 	readTerragruntConfigName   = "readTerragruntConfigCache"
+	dependencyPathsCacheName   = "dependencyPathsCache"
 )
 
 // WithCaches installs every cache Terragrunt reads while parsing and running a command.
@@ -102,6 +109,12 @@ func withConfigValues(ctx context.Context) context.Context {
 		ReadTerragruntConfigCacheContextKey,
 		cache.NewCache[*readTerragruntConfigResult](readTerragruntConfigName),
 	)
+	ctx = context.WithValue(
+		ctx,
+		DependencyPathsCacheContextKey,
+		cache.NewCache[*dependencyPathsScan](dependencyPathsCacheName),
+	)
+	ctx = context.WithValue(ctx, DependencyPathsLocksContextKey, util.NewKeyLocks())
 
 	return ctx
 }

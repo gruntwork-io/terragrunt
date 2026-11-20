@@ -1011,7 +1011,10 @@ func checkForDependencyBlockCyclesUsingDFS(
 	return nil
 }
 
-// Given the config path, return the list of config paths that are specified as dependency blocks in the config
+// getDependencyBlockConfigPathsByFilepath returns the config paths of the dependency blocks of the config at cfgPath,
+// which pctx parses as a dependency. A command reads them once for each parsing context that can change them, and
+// a concurrent read of the same config waits for the first. Every read records the files the parse read on
+// pctx.FilesRead.
 func getDependencyBlockConfigPathsByFilepath(
 	ctx context.Context,
 	l log.Logger,
@@ -1019,14 +1022,69 @@ func getDependencyBlockConfigPathsByFilepath(
 	pctx *ParsingContext,
 	cfgPath string,
 ) ([]string, error) {
-	tgConfig, err := PartialParseConfigFile(
-		ctx,
-		l,
-		v,
-		pctx.WithDecodeList(DependencyBlock).WithDiagnosticsSuppressed(),
-		cfgPath,
-		nil,
-	)
+	pctx = pctx.forDependencyScan().WithDecodeList(DependencyBlock).WithDiagnosticsSuppressed()
+
+	key := fmt.Sprintf("%#v", dependencyPathsKey{
+		read:                  NewReadTerragruntConfigKey(v, pctx),
+		skipOutputsResolution: pctx.SkipOutputsResolution,
+	})
+	scans := cache.ContextCache[*dependencyPathsScan](ctx, DependencyPathsCacheContextKey)
+
+	scan, found := scans.Get(ctx, key)
+	if !found {
+		var err error
+
+		scan, err = scanDependencyPaths(ctx, l, v, pctx, cfgPath, key, scans)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	for _, path := range scan.filesRead {
+		pctx.FilesRead.Add(path)
+	}
+
+	return scan.paths, nil
+}
+
+// dependencyPathsKey is the key [getDependencyBlockConfigPathsByFilepath] caches the dependency paths of a config
+// under: what reading a config with read_terragrunt_config is keyed on, and whether dependency outputs are skipped.
+type dependencyPathsKey struct {
+	read                  ReadTerragruntConfigKey
+	skipOutputsResolution bool
+}
+
+// dependencyPathsScan is the dependency paths of a config, and the files reading them read.
+type dependencyPathsScan struct {
+	paths     []string
+	filesRead []string
+}
+
+// scanDependencyPaths parses the dependency blocks of the config at cfgPath with pctx and caches the result in scans
+// under key, unless a concurrent call holding the lock for key cached it first.
+func scanDependencyPaths(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
+	cfgPath string,
+	key string,
+	scans *cache.Cache[*dependencyPathsScan],
+) (*dependencyPathsScan, error) {
+	locks := ctx.Value(DependencyPathsLocksContextKey).(*util.KeyLocks)
+
+	if err := locks.LockContext(ctx, key); err != nil {
+		return nil, fmt.Errorf("waiting for a concurrent read of the dependencies of %s: %w", cfgPath, err)
+	}
+	defer locks.Unlock(key)
+
+	if scan, found := scans.Get(ctx, key); found {
+		return scan, nil
+	}
+
+	pctx = pctx.WithFileReadTracking()
+
+	tgConfig, err := PartialParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1036,7 +1094,10 @@ func getDependencyBlockConfigPathsByFilepath(
 		l.Debugf("Skipping dependency %q of %s in cycle check: config_path is not a known string", name, cfgPath)
 	}
 
-	return paths, nil
+	scan := &dependencyPathsScan{paths: paths, filesRead: pctx.FilesRead.Paths()}
+	scans.Put(ctx, key, scan)
+
+	return scan, nil
 }
 
 // DependencyBlocksToCtyValue encodes the list of dependency blocks into a single cty.Value object that maps the
