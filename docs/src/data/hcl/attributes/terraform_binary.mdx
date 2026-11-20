@@ -11,7 +11,7 @@ examples:
       terraform_binary = "/usr/local/bin/tofu"
 ---
 
-The `terraform_binary` attribute sets the OpenTofu/Terraform binary Terragrunt calls.
+The `terraform_binary` attribute sets the OpenTofu/Terraform binary Terragrunt calls. It can't reference `dependency` outputs, because Terragrunt checks the binary's version before any dependency has run.
 
 ### Precedence
 

@@ -92,10 +92,12 @@ func (d *Discovery) Discover(
 		}
 	}
 
-	discovered, candidates, err := d.walkAndParse(ctx, l, v, s, opts, withWorktree)
+	found, err := d.walkAndParse(ctx, l, v, s, opts, withWorktree)
 	if err != nil {
 		return nil, err
 	}
+
+	discovered, candidates := found.discovered, found.candidates
 
 	if d.classifier.HasGraphFilters() {
 		if d.classifier.HasDependentFilters() && d.discoveryBoundary == "" && d.gitRoot == "" {
@@ -127,7 +129,7 @@ func (d *Discovery) Discover(
 			}, func(childCtx context.Context, l log.Logger) error {
 				var phaseErr error
 
-				results, phaseErr = d.runGraphPhase(childCtx, l, v, s, opts, discovered, candidates)
+				results, phaseErr = d.runGraphPhase(childCtx, l, v, s, opts, found)
 
 				return phaseErr
 			})
@@ -153,6 +155,10 @@ func (d *Discovery) Discover(
 				"max_dependency_depth": d.maxDependencyDepth,
 				"components_in":        len(components),
 			}, func(childCtx context.Context, l log.Logger) error {
+				if found.relations != nil {
+					return found.relations.link(childCtx, l, v, components)
+				}
+
 				var phaseErr error
 
 				components, phaseErr = d.runRelationshipPhase(childCtx, l, v, s, opts, components)
@@ -241,11 +247,20 @@ func (d *Discovery) Discover(
 	return components, nil
 }
 
+// walked is what walkAndParse found.
+type walked struct {
+	// relations is the dependencies the pipeline read from the components, nil when the phases ran in its place or
+	// discovery needs none.
+	relations *pipelineRelations
+	// discovered is the components ready for filtering.
+	discovered []DiscoveryResult
+	// candidates is the components left for the graph phase.
+	candidates []DiscoveryResult
+}
+
 // walkAndParse finds the components below the working directory and parses the ones that need it, through the
 // pipeline when [EnvPipeline] selects it and no Git filter needs worktrees, and through the filesystem and parse
 // phases otherwise.
-//
-// Returns the components ready for filtering and the candidates left for the graph phase.
 func (d *Discovery) walkAndParse(
 	ctx context.Context,
 	l log.Logger,
@@ -253,7 +268,7 @@ func (d *Discovery) walkAndParse(
 	s *rewrite.Store,
 	opts *options.TerragruntOptions,
 	withWorktree bool,
-) ([]DiscoveryResult, []DiscoveryResult, error) {
+) (walked, error) {
 	parseReasons := slices.Clone(d.parseReasons)
 	if d.classifier.HasParseRequiredFilters() {
 		if !slices.Contains(parseReasons, parseReasonClassifierRequiresParse) {
@@ -267,7 +282,7 @@ func (d *Discovery) walkAndParse(
 
 	l.Debugf("Discovery: starting pipeline (workers=%d, parse_reasons=%s)", d.numWorkers, joinParseReasons(parseReasons))
 
-	var results *PhaseResults
+	var found walked
 
 	err := telemetry.TelemeterFromContext(ctx).
 		Collect(ctx, l, "discovery_pipeline", map[string]any{
@@ -280,18 +295,14 @@ func (d *Discovery) walkAndParse(
 		}, func(childCtx context.Context, l log.Logger) error {
 			var pipelineErr error
 
-			results, pipelineErr = d.runPipeline(childCtx, l, v, s, opts, len(parseReasons) > 0)
+			found, pipelineErr = d.runPipeline(childCtx, l, v, s, opts, len(parseReasons) > 0)
 
 			return pipelineErr
 		})
 
-	logPhaseComplete(l, "pipeline", results, err)
+	logPhaseComplete(l, "pipeline", &PhaseResults{Discovered: found.discovered, Candidates: found.candidates}, err)
 
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return results.Discovered, results.Candidates, nil
+	return found, err
 }
 
 // runWalkAndParsePhases runs the filesystem phase, then the parse phase when parseReasons names a reason for it.
@@ -303,7 +314,7 @@ func (d *Discovery) runWalkAndParsePhases(
 	opts *options.TerragruntOptions,
 	withWorktree bool,
 	parseReasons []parseReason,
-) ([]DiscoveryResult, []DiscoveryResult, error) {
+) (walked, error) {
 	var (
 		results *PhaseResults
 		err     error
@@ -330,13 +341,13 @@ func (d *Discovery) runWalkAndParsePhases(
 	logPhaseComplete(l, "filesystem", results, err)
 
 	if d.returnsPhaseError(err) {
-		return nil, nil, err
+		return walked{}, err
 	}
 
 	discovered, candidates := results.Discovered, results.Candidates
 
 	if len(parseReasons) == 0 {
-		return discovered, candidates, nil
+		return walked{discovered: discovered, candidates: candidates}, nil
 	}
 
 	reasonsStr := joinParseReasons(parseReasons)
@@ -365,10 +376,10 @@ func (d *Discovery) runWalkAndParsePhases(
 	logPhaseComplete(l, "parse", results, err)
 
 	if err != nil && !d.suppressParseErrors {
-		return nil, nil, err
+		return walked{}, err
 	}
 
-	return results.Discovered, results.Candidates, nil
+	return walked{discovered: results.Discovered, candidates: results.Candidates}, nil
 }
 
 // logPhaseComplete emits a debug log summarizing a discovery phase's outcome.
@@ -555,16 +566,18 @@ func (d *Discovery) runParsePhase(
 	}, err
 }
 
-// runGraphPhase runs the graph traversal phase.
+// runGraphPhase runs the graph traversal phase over what found holds. When a filter selects dependents, it first
+// links every component to its dependencies, from the dependencies the pipeline read when found has them.
 func (d *Discovery) runGraphPhase(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	s *rewrite.Store,
 	opts *options.TerragruntOptions,
-	discovered []DiscoveryResult,
-	candidates []DiscoveryResult,
+	found walked,
 ) (*PhaseResults, error) {
+	discovered, candidates := found.discovered, found.candidates
+
 	if d.classifier.HasDependentFilters() {
 		allComponents := resultsToComponents(discovered)
 		allComponents = append(allComponents, resultsToComponents(candidates)...)
@@ -574,6 +587,10 @@ func (d *Discovery) runGraphPhase(
 		buildErr := telemetry.TelemeterFromContext(ctx).Collect(
 			ctx, l, "discover_dependents", map[string]any{},
 			func(childCtx context.Context, l log.Logger) error {
+				if found.relations != nil {
+					return errors.Join(found.relations.linkForDependents(childCtx, l, v, allComponents, unparsed)...)
+				}
+
 				return errors.Join(d.buildDependencyGraph(childCtx, l, v, s, opts, allComponents, unparsed)...)
 			})
 
@@ -743,22 +760,28 @@ func (d *Discovery) buildComponentDependencies(
 		return err
 	}
 
-	if len(depPaths) == 0 {
-		return nil
-	}
+	return linkGraphDependencies(v.FS, c, depPaths, configbridge.AmbiguousConfigCheck(opts), threadSafeComponents)
+}
 
+// linkGraphDependencies links c to the component at each of depPaths, taking it from components or adding it there
+// as one the graph reached from c.
+//
+// Returns a [config.AmbiguousConfigError] when check is [config.RejectAmbiguousConfig] and a dependency path that
+// components does not hold has both default unit config files.
+func linkGraphDependencies(
+	fsys vfs.FS,
+	c component.Component,
+	depPaths []string,
+	check config.AmbiguousConfigCheck,
+	components *component.ThreadSafeComponents,
+) error {
 	parentCtx := c.DiscoveryContext()
 	if parentCtx == nil {
 		return nil
 	}
 
 	for _, depPath := range depPaths {
-		depComponent, err := componentFromDependencyPath(
-			v.FS,
-			depPath,
-			configbridge.AmbiguousConfigCheck(opts),
-			threadSafeComponents,
-		)
+		depComponent, err := componentFromDependencyPath(fsys, depPath, check, components)
 		if err != nil {
 			return err
 		}
@@ -768,14 +791,14 @@ func (d *Discovery) buildComponentDependencies(
 				parentCtx.CopyWithNewOrigin(component.OriginGraphDiscovery),
 			)
 
-			if isExternal(v.FS, parentCtx.WorkingDir, depPath) {
+			if isExternal(fsys, parentCtx.WorkingDir, depPath) {
 				if ext, ok := depComponent.(*component.Unit); ok {
 					ext.SetExternal()
 				}
 			}
 		}
 
-		addedComponent, _ := threadSafeComponents.EnsureComponent(depComponent)
+		addedComponent, _ := components.EnsureComponent(depComponent)
 
 		c.AddDependency(addedComponent)
 	}

@@ -1886,6 +1886,10 @@ func ParseConfig(
 		return nil, err
 	}
 
+	if err := ValidateVersionAttributeReferences(file); err != nil {
+		return nil, err
+	}
+
 	if includeFromChild != nil && includeFromChild.Path != "" &&
 		!filepath.IsAbs(includeFromChild.Path) {
 		includeFromChild.Path = filepath.Clean(

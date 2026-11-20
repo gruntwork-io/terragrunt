@@ -390,6 +390,10 @@ func (s *Store) prepareBase(
 		return nil, err
 	}
 
+	if err := pkgconfig.ValidateVersionAttributeReferences(file); err != nil {
+		return nil, err
+	}
+
 	include := absInclude(pc)
 
 	pc = pc.withInclude(include)
@@ -536,7 +540,10 @@ func (s *Store) prepare(
 
 	c.decodeErr = file.ApplyFileUpdate()
 	if c.decodeErr == nil {
-		diags := gohcl.DecodeBody(file.Body, evalCtx, c)
+		dependencyAttrs := dependencyAttributes(file.Body)
+
+		diags := gohcl.DecodeBody(withoutAttributes{Body: file.Body, hidden: dependencyAttrs}, evalCtx, c)
+		c.dependencyAttrs = dependencyAttrs
 
 		var queueDiags hcl.Diagnostics
 

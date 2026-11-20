@@ -75,8 +75,14 @@
 // them. The walk and the parse workers report to one collector, which hands the graph phase the same discovered
 // components and candidates the two phases would. A discovery with Git filters keeps the phases.
 //
-// The pipeline takes over one phase at a time. [EnvPipeline] and the phases are removed once it has replaced all
-// of them.
+// The pipeline also replaces phase 4. After the graph phase, it reads the dependencies of each discovered unit no
+// worker read, and links the components on one goroutine. A dependency that is not a discovered component becomes a
+// transient unit. Each discovered unit then walks the transient units it reaches, reading their dependencies, until
+// it has reached every other discovered unit or has nothing left to follow, so units joined only through transient
+// units are related. The walks share their reads, so each transient unit is parsed at most once.
+//
+// When a filter selects dependents, the workers also read the dependencies of every candidate a dependent traversal
+// can reach, and the pre-graph step of phase 3 links them on one goroutine without parsing anything again.
 //
 // # Filter Expressions
 //
