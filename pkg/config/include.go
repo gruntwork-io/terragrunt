@@ -100,9 +100,10 @@ func parseIncludedConfig(
 		return PartialParseConfigFile(ctx, l, v, pctx, includePath, includedConfig)
 	}
 
-	// When included config has dependencies, suppress diagnostics during parsing.
+	// When included config has dependencies, suppress diagnostics during parsing. The same goes for a parse that has no
+	// dependency outputs to give it, as its failure is handled below.
 	parseCtx := pctx
-	if hasDependency {
+	if hasDependency || pctx.SkipOutputsResolution {
 		parseCtx = pctx.WithDiagnosticsSuppressed()
 	}
 
@@ -113,6 +114,19 @@ func parseIncludedConfig(
 				IncludePath: includePath,
 				SourcePath:  pctx.TerragruntConfigPath,
 			}
+		}
+
+		// An included config without a dependency block can still reference a dependency block of the config including
+		// it. Without outputs, an attribute that must decode to a known value (e.g. the contents of a generate block) fails
+		// the full parse, so resort to a partial parse the same way we do for an included config with a dependency block.
+		if pctx.SkipOutputsResolution {
+			l.Debugf(
+				"Included config %s can only be partially parsed during dependency graph formation for run --all command: %v",
+				includePath,
+				err,
+			)
+
+			return PartialParseConfigFile(ctx, l, v, pctx, includePath, includedConfig)
 		}
 
 		return nil, err

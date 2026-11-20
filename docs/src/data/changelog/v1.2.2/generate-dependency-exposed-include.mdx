@@ -1,0 +1,23 @@
+---
+version: "v1.2.2"
+category: "bug-fixes"
+---
+
+#### `run --all` no longer fails on an exposed include with a `generate` block that references a dependency
+
+A `run --all` could fail with `Unsuitable value: value must be known` and `There is no variable named "include"` when a unit read an exposed include in its `terraform` block, and a `generate` block in that include referenced a `dependency` block declared in the unit. Running the unit on its own worked.
+
+```hcl
+# root.hcl
+generate "provider" {
+  path      = "provider.tf"
+  if_exists = "overwrite_terragrunt"
+  contents  = <<EOF
+%{ if try(dependency.vpc.outputs.region, "") != "" }
+provider "aws" { region = "${dependency.vpc.outputs.region}" }
+%{ endif }
+EOF
+}
+```
+
+Terragrunt now falls back to a partial parse of the include while it builds the run queue, as it already does for an include with its own `dependency` block, so the unit can read the include's `locals`.
