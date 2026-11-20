@@ -77,7 +77,7 @@ func (d *Discovery) Discover(
 		l.Debugf("Discovery: graph traversal bounded to %s", boundary)
 	}
 
-	withWorktree := len(d.gitExpressions) > 0 && d.worktrees != nil
+	withWorktree := d.findsInWorktrees()
 
 	if withWorktree {
 		if gitRoot, gitErr := git.GoRepoRoot(ctx, v, d.workingDir); gitErr == nil {
@@ -279,79 +279,12 @@ func (d *Discovery) walkAndParse(
 		return d.runWalkAndParsePhases(ctx, l, v, s, opts, withWorktree, parseReasons)
 	}
 
-	if withWorktree {
-		return d.runPipelineBesideWorktrees(ctx, l, v, s, opts, parseReasons)
-	}
-
 	return d.runTracedPipeline(ctx, l, v, s, opts, parseReasons)
 }
 
-// runPipelineBesideWorktrees runs the pipeline over the working directory while the worktree phase discovers the
-// components the Git filters select, then parses the ones from the worktrees that need it with the parse phase.
-//
-// Returns the error of the pipeline when it fails. An error from the worktree phase or the parse phase is returned
-// unless suppressParseErrors drops it; a [CoexistenceError] or a [config.AmbiguousConfigError] from the worktree
-// phase is returned either way.
-func (d *Discovery) runPipelineBesideWorktrees(
-	ctx context.Context,
-	l log.Logger,
-	v *venv.Venv,
-	s *rewrite.Store,
-	opts *options.TerragruntOptions,
-	parseReasons []parseReason,
-) (walked, error) {
-	var (
-		found        walked
-		pipelineErr  error
-		inWorktrees  *PhaseResults
-		worktreesErr error
-		walks        errgroup.Group
-	)
-
-	walks.Go(func() error {
-		found, pipelineErr = d.runTracedPipeline(ctx, l, v, s, opts, parseReasons)
-
-		return nil
-	})
-
-	walks.Go(func() error {
-		inWorktrees, worktreesErr = d.runWorktreeWalk(ctx, l, v, s, opts)
-
-		return nil
-	})
-
-	// Neither walk returns its error to the group: each records its own.
-	if err := walks.Wait(); err != nil {
-		panic(err)
-	}
-
-	if pipelineErr != nil {
-		return walked{}, pipelineErr
-	}
-
-	if d.returnsPhaseError(worktreesErr) {
-		return walked{}, worktreesErr
-	}
-
-	if inWorktrees == nil {
-		return found, nil
-	}
-
-	if len(parseReasons) > 0 {
-		parsed, err := d.runTracedParsePhase(
-			ctx, l, v, s, opts, inWorktrees.Discovered, inWorktrees.Candidates, parseReasons,
-		)
-		if err != nil && !d.suppressParseErrors {
-			return walked{}, err
-		}
-
-		inWorktrees = parsed
-	}
-
-	found.discovered = deduplicateResults(append(found.discovered, inWorktrees.Discovered...))
-	found.candidates = deduplicateResults(append(found.candidates, inWorktrees.Candidates...))
-
-	return found, nil
+// findsInWorktrees reports whether discovery also finds the components its Git filters select in their worktrees.
+func (d *Discovery) findsInWorktrees() bool {
+	return len(d.gitExpressions) > 0 && d.worktrees != nil
 }
 
 // runTracedPipeline runs the pipeline inside its telemetry span.
@@ -560,7 +493,7 @@ func (d *Discovery) runFilesystemPhase(
 		return nil
 	})
 
-	if len(d.gitExpressions) > 0 && d.worktrees != nil {
+	if d.findsInWorktrees() {
 		g.Go(func() error {
 			result, err := d.runWorktreeWalk(ctx, l, v, s, opts)
 

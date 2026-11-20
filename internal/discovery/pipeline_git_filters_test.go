@@ -14,6 +14,7 @@ import (
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -289,6 +290,207 @@ func TestDiscoveryPipelineFindsWorktreeDependentsOfAnAbsolutePath(t *testing.T) 
 				filepath.Join(head, "pinned"): {filepath.Join(workingDir, "shared"), app},
 			}, dependenciesByPath(components))
 		})
+	}
+}
+
+func TestDiscoveryPipelineParsesComponentsFoundInWorktreesWithRacing(t *testing.T) {
+	t.Parallel()
+
+	repo, runner := setupGitRepo(t)
+
+	createUnit(t, repo, "kept", "")
+	createUnit(t, repo, "removed", `locals { shared = read_terragrunt_config("../shared.hcl") }`+"\n")
+
+	require.NoError(t, os.WriteFile(filepath.Join(repo, "shared.hcl"), []byte("locals {}\n"), 0o644))
+
+	commitChanges(t, runner, "Initial commit")
+
+	require.NoError(t, os.RemoveAll(filepath.Join(repo, "removed")))
+
+	commitChanges(t, runner, "Remove a unit")
+
+	l := logger.CreateLogger()
+	ctx := config.WithCaches(t.Context())
+
+	gitExpr := filter.NewGitExpression("HEAD~1", "HEAD")
+
+	w, err := worktrees.NewWorktrees(ctx, l, venvtest.NewOSWithEmptyEnv(), worktrees.WorktreeOpts{
+		WorkingDir:     repo,
+		GitExpressions: filter.GitExpressions{gitExpr},
+	})
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		require.NoError(t, w.Cleanup(context.WithoutCancel(ctx), l, venvtest.NewOSWithEmptyEnv()))
+	})
+
+	discover := func(pipeline string) map[string][]string {
+		opts := options.NewTerragruntOptions()
+		opts.WorkingDir = repo
+		opts.RootWorkingDir = repo
+
+		d := discovery.NewDiscovery(repo).
+			WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: repo}).
+			WithWorktrees(w).
+			WithFilters(filter.Filters{filter.NewFilter(gitExpr, gitExpr.String())}).
+			WithReadFiles()
+
+		v := venvtest.NewOSWithEmptyEnv()
+		v.Env[discovery.EnvPipeline] = pipeline
+
+		components, err := d.Discover(ctx, l, v, new(rewrite.Store), opts)
+		require.NoError(t, err)
+
+		reads := make(map[string][]string, len(components))
+
+		for _, c := range components {
+			reads[c.Path()] = slices.Sorted(slices.Values(c.Reading()))
+		}
+
+		return reads
+	}
+
+	want := discover("false")
+	require.Len(t, want, 1)
+
+	for _, read := range want {
+		require.NotEmpty(t, read)
+	}
+
+	assert.Equal(t, want, discover("true"))
+}
+
+func TestDiscoveryPipelineReportsConfigConflictsInWorktreesWithRacing(t *testing.T) {
+	t.Parallel()
+
+	conflicts := []struct {
+		requireErr func(t *testing.T, err error)
+		name       string
+		sibling    string
+		contents   string
+	}{
+		{
+			name:    "unit and stack",
+			sibling: config.DefaultStackFile,
+			requireErr: func(t *testing.T, err error) {
+				t.Helper()
+
+				require.ErrorAs(t, err, new(discovery.CoexistenceError))
+			},
+		},
+		{
+			name:     "both default unit configs",
+			sibling:  config.DefaultTerragruntJSONConfigPath,
+			contents: "{}",
+			requireErr: func(t *testing.T, err error) {
+				t.Helper()
+
+				require.ErrorAs(t, err, new(config.AmbiguousConfigError))
+			},
+		},
+	}
+
+	flows := []struct {
+		configure func(d *discovery.Discovery) *discovery.Discovery
+		name      string
+	}{
+		{
+			name: "parse errors reported",
+			configure: func(d *discovery.Discovery) *discovery.Discovery {
+				return d
+			},
+		},
+		{
+			name: "parse errors suppressed",
+			configure: func(d *discovery.Discovery) *discovery.Discovery {
+				return d.WithSuppressParseErrors()
+			},
+		},
+	}
+
+	placements := []struct {
+		commit func(t *testing.T, repo string, runner *git.GitRunner, addConflict func())
+		name   string
+	}{
+		{
+			name: "in the live checkout",
+			commit: func(t *testing.T, _ string, runner *git.GitRunner, addConflict func()) {
+				t.Helper()
+
+				commitChanges(t, runner, "Initial commit")
+
+				addConflict()
+
+				commitChanges(t, runner, "Add a directory with two configs")
+			},
+		},
+		{
+			name: "only at the compared ref",
+			commit: func(t *testing.T, repo string, runner *git.GitRunner, addConflict func()) {
+				t.Helper()
+
+				addConflict()
+
+				commitChanges(t, runner, "Initial commit")
+
+				require.NoError(t, os.RemoveAll(filepath.Join(repo, "both")))
+
+				commitChanges(t, runner, "Remove the directory with two configs")
+			},
+		},
+	}
+
+	for _, conflict := range conflicts {
+		for _, placement := range placements {
+			for _, flow := range flows {
+				t.Run(conflict.name+"/"+placement.name+"/"+flow.name, func(t *testing.T) {
+					t.Parallel()
+
+					repo, runner := setupGitRepo(t)
+
+					createUnit(t, repo, "kept", "")
+
+					placement.commit(t, repo, runner, func() {
+						both := createUnit(t, repo, "both", "")
+						require.NoError(t, os.WriteFile(
+							filepath.Join(both, conflict.sibling),
+							[]byte(conflict.contents),
+							0o644,
+						))
+					})
+
+					l := logger.CreateLogger()
+					ctx := config.WithCaches(t.Context())
+
+					gitExpr := filter.NewGitExpression("HEAD~1", "HEAD")
+
+					w, err := worktrees.NewWorktrees(ctx, l, venvtest.NewOSWithEmptyEnv(), worktrees.WorktreeOpts{
+						WorkingDir:     repo,
+						GitExpressions: filter.GitExpressions{gitExpr},
+					})
+					require.NoError(t, err)
+
+					t.Cleanup(func() {
+						require.NoError(t, w.Cleanup(context.WithoutCancel(ctx), l, venvtest.NewOSWithEmptyEnv()))
+					})
+
+					opts := options.NewTerragruntOptions()
+					opts.WorkingDir = repo
+					opts.RootWorkingDir = repo
+
+					d := flow.configure(discovery.NewDiscovery(repo).
+						WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: repo}).
+						WithWorktrees(w).
+						WithFilters(filter.Filters{filter.NewFilter(gitExpr, gitExpr.String())}))
+
+					v := venvtest.NewOSWithEmptyEnv()
+					v.Env[discovery.EnvPipeline] = "true"
+
+					_, err = d.Discover(ctx, l, v, new(rewrite.Store), opts)
+					conflict.requireErr(t, err)
+				})
+			}
+		}
 	}
 }
 
