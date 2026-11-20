@@ -106,7 +106,8 @@
 //
 // # Thread Safety
 //
-// The walk, the worktree discovery and the parse workers share no mutable state: they report over channels to one
-// collector, which alone holds the results. The graph traversal and the linking of dependencies each run on one
-// goroutine after the pipeline has drained.
+// The walk, the worktree discovery and the parse workers report over channels to one collector, which alone holds the
+// results. Components are shared between goroutines, such as a unit the collector holds while a worker parses it, and
+// each component guards its fields with its own lock. The graph traversal and the linking of dependencies each run on
+// one goroutine after the pipeline has drained, and read the dependencies of the units at each depth concurrently.
 package discovery

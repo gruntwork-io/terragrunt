@@ -433,8 +433,8 @@ func (w dependentWalk) covers(dir string) bool {
 	return dir == w.boundary || strings.HasPrefix(dir, w.boundary)
 }
 
-// unitToParse returns the unit to parse for candidate. It is published, the unit the shared set already holds for
-// the path of candidate, when parsing that unit reads the same config file, and candidate itself otherwise.
+// unitToParse returns published when it is a unit at the path of candidate with the same config file, and candidate
+// otherwise.
 func unitToParse(published component.Component, candidate *component.Unit) *component.Unit {
 	publishedUnit, ok := published.(*component.Unit)
 	if !ok {

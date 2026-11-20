@@ -31,15 +31,6 @@ import (
 // fromToTasks is the number of tasks a worktree comparison splits into: one for the from side, one for the to side.
 const fromToTasks = 2
 
-// worktreeWorkers returns how many of the discoveries in worktrees run at once, and how many workers each has.
-func (d *Discovery) worktreeWorkers() int {
-	if d.numWorkers <= 0 {
-		return runtime.GOMAXPROCS(0)
-	}
-
-	return d.numWorkers
-}
-
 // discoverInWorktrees discovers the components the Git filters of d select in their worktrees, each classified
 // without a parse. Callers check [Discovery.findsInWorktrees] first.
 func (d *Discovery) discoverInWorktrees(
@@ -62,7 +53,7 @@ func (d *Discovery) discoverInWorktrees(
 	boundary := d.worktreeBoundary(ctx, l, v)
 
 	discoveryGroup, discoveryCtx := errgroup.WithContext(ctx)
-	discoveryGroup.SetLimit(d.worktreeWorkers())
+	discoveryGroup.SetLimit(d.numWorkers)
 
 	for _, pair := range w.WorktreePairs {
 		discoveryGroup.Go(func() error {
@@ -207,7 +198,7 @@ func (d *Discovery) discoverInWorktree(
 	subDiscovery := NewDiscovery(wt.Path).
 		WithFilters(allFilters).
 		WithDiscoveryContext(discoveryContext).
-		WithNumWorkers(d.worktreeWorkers()).
+		WithNumWorkers(d.numWorkers).
 		withParseSettingsFrom(d)
 
 	if boundary != "" {
@@ -439,7 +430,7 @@ func (d *Discovery) walkChangedStack(
 		fromDiscovery := NewDiscovery(fromStack.Path()).
 			WithDiscoveryContext(fromDiscoveryContext).
 			WithFilters(parentFilters).
-			WithNumWorkers(d.worktreeWorkers()).
+			WithNumWorkers(d.numWorkers).
 			withParseSettingsFrom(d)
 
 		var fromDiscoveryErr error
@@ -468,7 +459,7 @@ func (d *Discovery) walkChangedStack(
 		toDiscovery := NewDiscovery(toStack.Path()).
 			WithDiscoveryContext(toDiscoveryContext).
 			WithFilters(parentFilters).
-			WithNumWorkers(d.worktreeWorkers()).
+			WithNumWorkers(d.numWorkers).
 			withParseSettingsFrom(d)
 
 		var toDiscoveryErr error

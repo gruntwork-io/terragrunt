@@ -89,27 +89,6 @@ func NewMissingWorkingDirectoryError(componentPath string) error {
 	}
 }
 
-// ClassificationError represents an error during component classification.
-type ClassificationError struct {
-	ComponentPath string
-	Reason        string
-}
-
-func (e ClassificationError) Error() string {
-	return fmt.Sprintf(
-		"Failed to classify component at '%s': %s",
-		e.ComponentPath, e.Reason,
-	)
-}
-
-// NewClassificationError creates a new ClassificationError.
-func NewClassificationError(componentPath, reason string) error {
-	return ClassificationError{
-		ComponentPath: componentPath,
-		Reason:        reason,
-	}
-}
-
 // CoexistenceError represents an error when a directory contains both
 // a unit configuration file and a stack configuration file.
 type CoexistenceError struct {

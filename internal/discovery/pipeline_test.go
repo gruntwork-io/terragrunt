@@ -486,6 +486,32 @@ func (m *markRecorder) marked() []string {
 	return slices.Clone(m.args)
 }
 
+func TestDiscoveryPipelineTraversesADependencyOnAConfigFile(t *testing.T) {
+	t.Parallel()
+
+	run := pipelineRun{
+		files: map[string]string{
+			"apps/api/terragrunt.hcl":      "dependency \"vpc\" {\n  config_path = \"../../infra/vpc/main.hcl\"\n}\n",
+			"infra/vpc/main.hcl":           dependenciesOn("../network"),
+			"infra/network/terragrunt.hcl": "",
+		},
+		queries: []string{"api..."},
+	}
+
+	got, err := run.discover(t.Context(), t)
+	require.NoError(t, err)
+
+	assert.ElementsMatch(
+		t,
+		[]string{
+			filepath.Join(corpusRepoRoot, "apps", "api"),
+			filepath.Join(corpusRepoRoot, "infra", "vpc", "main.hcl"),
+			filepath.Join(corpusRepoRoot, "infra", "network"),
+		},
+		got.Paths(),
+	)
+}
+
 func TestDiscoveryPipelineSkipsUnitsOutsideTheDependentBoundaryWithRacing(t *testing.T) {
 	t.Parallel()
 

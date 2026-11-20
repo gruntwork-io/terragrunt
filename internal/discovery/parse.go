@@ -34,9 +34,8 @@ const (
 	parsePhaseTagUnknown           = "unknown"
 )
 
-// parseReason tags a contributing cause that discovery parsed components.
-// Multiple causes can apply to one discovery; values are surfaced on the
-// discovery_pipeline telemetry span so the activation cause is auditable.
+// parseReason names one reason discovery parses components. Several can apply
+// to one discovery, and the discovery_pipeline telemetry span records each.
 type parseReason string
 
 const (
@@ -268,9 +267,9 @@ func parseComponent(
 			parseOpts.TerragruntConfigPath = filepath.Join(parseOpts.WorkingDir, configFilename)
 			parseOpts.OriginalTerragruntConfigPath = parseOpts.TerragruntConfigPath
 
-			// Clone v.Env so concurrent parseComponent goroutines launched by
-			// ParsePhase and RelationshipPhase don't race on the shared map when
-			// ObtainCredsForParsing writes auth-provider-cmd output into it.
+			// Clone v.Env so concurrent parseComponent calls don't race on the
+			// shared map when ObtainCredsForParsing writes auth-provider-cmd
+			// output into it.
 			parseV := v.WithEnvCloned().WithWriter(io.Discard).WithErrWriter(io.Discard)
 
 			shellOpts := configbridge.ShellRunOptsFromOpts(v.Exec, v.Env, parseOpts)
