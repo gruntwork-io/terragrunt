@@ -116,16 +116,6 @@ func (s *stringSet) LoadOrStore(key string) (loaded bool) {
 	return false
 }
 
-// Load returns whether the key exists in the set.
-func (s *stringSet) Load(key string) bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	_, ok := s.m[key]
-
-	return ok
-}
-
 // RelPathForComponent renders target through [RelPathOrAbs], relative to the
 // directory c was discovered under and to fallback when c names none. A
 // component matched by a git-range filter is discovered inside a worktree, so
