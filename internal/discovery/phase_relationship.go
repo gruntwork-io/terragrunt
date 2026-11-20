@@ -278,6 +278,7 @@ func (s *relationshipTraversalState) dependencyToDiscover(
 	}
 
 	newUnit := component.NewUnit(path)
+	newUnit.SetConfigFile(unitConfigFilename(fsys, path))
 
 	dep, created := s.interTransientComponents.EnsureComponent(newUnit)
 
