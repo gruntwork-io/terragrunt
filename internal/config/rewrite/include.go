@@ -165,7 +165,14 @@ func (k keptIncludes) included(
 		return nil, err
 	}
 
-	cfg, err := included.assemble(ctx, l, v, pc.forMerge(), keptIncludes{inherited: deps})
+	cfg, err := included.assemble(
+		ctx,
+		l,
+		v,
+		pc.forMerge(),
+		keptIncludes{inherited: deps},
+		included.functions(ctx, l, v),
+	)
 	if err != nil {
 		include := pc.file.includes.List[i]
 
@@ -188,7 +195,7 @@ func (k keptIncludes) autoIncluded(
 		return nil, err
 	}
 
-	return autoInclude.assemble(ctx, l, v, pc, keptIncludes{})
+	return autoInclude.assemble(ctx, l, v, pc, keptIncludes{}, autoInclude.functions(ctx, l, v))
 }
 
 // keptQueue assembles the files a parse kept from their queue parts alone, with no run parts and no outputs. An
@@ -230,7 +237,7 @@ func (q keptQueue) included(
 		return nil, err
 	}
 
-	cfg, err := included.assemble(ctx, l, v, pc.forMerge(), keptQueue{})
+	cfg, err := included.assemble(ctx, l, v, pc.forMerge(), keptQueue{}, included.functions(ctx, l, v))
 	if err != nil {
 		include := pc.file.includes.List[i]
 
@@ -253,7 +260,7 @@ func (q keptQueue) autoIncluded(
 		return nil, err
 	}
 
-	return autoInclude.assemble(ctx, l, v, pc, keptQueue{})
+	return autoInclude.assemble(ctx, l, v, pc, keptQueue{}, autoInclude.functions(ctx, l, v))
 }
 
 // keptUnknownOutputs assembles the files a parse kept with `dependency` unknown, fetching no outputs. It decodes the
@@ -305,7 +312,7 @@ func (k keptUnknownOutputs) included(
 		return nil, err
 	}
 
-	cfg, err := included.assemble(ctx, l, v, pc, k)
+	cfg, err := included.assemble(ctx, l, v, pc, k, included.functions(ctx, l, v))
 	if err != nil {
 		include := pc.file.includes.List[i]
 
@@ -328,7 +335,7 @@ func (k keptUnknownOutputs) autoIncluded(
 		return nil, err
 	}
 
-	return autoInclude.assemble(ctx, l, v, pc, k)
+	return autoInclude.assemble(ctx, l, v, pc, k, autoInclude.functions(ctx, l, v))
 }
 
 // keptInclude returns the parse of the file c's include block i names.
@@ -703,7 +710,7 @@ func (s *Store) resolveExposedInclude(
 		return cty.NilVal, includeParseError(err, include, pc)
 	}
 
-	cfg, err := included.assemble(ctx, l, v, includedPC, src)
+	cfg, err := included.assemble(ctx, l, v, includedPC, src, included.functions(ctx, l, v))
 	if err != nil {
 		return cty.NilVal, includeParseError(err, include, pc)
 	}

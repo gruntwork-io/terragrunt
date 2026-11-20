@@ -42,7 +42,7 @@ func (c *UnitConfig) ToV1(
 	v *venv.Venv,
 	pc *ParseContext,
 ) (*pkgconfig.TerragruntConfig, error) {
-	return c.assemble(ctx, l, v, pc, keptIncludes{})
+	return c.assemble(ctx, l, v, pc, keptIncludes{}, c.functions(ctx, l, v))
 }
 
 // assemble converts c to a config and merges in its autoinclude and included files from src, as
@@ -55,6 +55,7 @@ func (c *UnitConfig) assemble(
 	v *venv.Venv,
 	pc *ParseContext,
 	src includeSource,
+	fns *parseFunctions,
 ) (*pkgconfig.TerragruntConfig, error) {
 	pc = pc.withFile(&c.scope)
 	errs := slices.Clone(c.prepErrs)
@@ -65,7 +66,7 @@ func (c *UnitConfig) assemble(
 	}
 
 	pctx := pc.withDecodedDependencies(deps).parsingContext()
-	evalCtx := c.evalContext(ctx, l, v, pctx)
+	evalCtx := c.evalContext(fns, pctx)
 	bound := c.boundFile(l, v, pc)
 
 	parts := src.parts()
@@ -197,15 +198,14 @@ func (c *UnitConfig) boundFile(l log.Logger, v *venv.Venv, pc *ParseContext) *pk
 	return c.file.Rebind(pkghclparse.NewParser(pc.parserOptions(l, v)...))
 }
 
+// functions returns new functions for a parse of c's file, which use ctx, l, and v when called.
+func (c *UnitConfig) functions(ctx context.Context, l log.Logger, v *venv.Venv) *parseFunctions {
+	return newParseFunctions(ctx, l, v, c.file.ConfigPath)
+}
+
 // evalContext returns an eval context with the variables c's blocks decoded with, the `dependency` value of pctx,
-// and functions built for ctx, l, v, and pctx. It returns nil when the eval context failed to build during the
-// parse.
-func (c *UnitConfig) evalContext(
-	ctx context.Context,
-	l log.Logger,
-	v *venv.Venv,
-	pctx *pkgconfig.ParsingContext,
-) *hcl.EvalContext {
+// and fns, which read pctx when called. It returns nil when the eval context failed to build during the parse.
+func (c *UnitConfig) evalContext(fns *parseFunctions, pctx *pkgconfig.ParsingContext) *hcl.EvalContext {
 	if c.evalVars == nil {
 		return nil
 	}
@@ -217,7 +217,7 @@ func (c *UnitConfig) evalContext(
 		vars[pkgconfig.MetadataDependency] = *pctx.DecodedDependencies
 	}
 
-	return pkgconfig.TerragruntEvalContext(ctx, l, v, pctx, c.file.ConfigPath, vars)
+	return fns.evalContext(pctx, vars)
 }
 
 // joinDecodeErrors returns the error [pkghclparse.File.HandleDiagnostics] would return for the diagnostics of the

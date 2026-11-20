@@ -96,8 +96,11 @@ type entry struct {
 	err error
 	// reads is the paths [NoteReads] reported to the body.
 	reads map[string]struct{}
-	// files is reads plus the path of every file the body parsed through the Store or reported through [NoteFiles].
+	// files is reads plus the path of every file the body parsed through the Store or reported through [NoteFiles],
+	// other than path.
 	files map[string]struct{}
+	// path is the cleaned path of the file the run is keyed by.
+	path string
 	// mu guards reads and files.
 	mu sync.Mutex
 	// abandoned is true when the body returned after its caller's context ended.
@@ -319,8 +322,8 @@ func NoteReads(ctx context.Context, paths ...string) {
 	defer e.mu.Unlock()
 
 	for _, path := range paths {
-		e.reads[path] = struct{}{}
-		e.files[filepath.Clean(path)] = struct{}{}
+		e.reads = addPath(e.reads, path)
+		e.files = addPath(e.files, filepath.Clean(path))
 	}
 }
 
@@ -336,8 +339,19 @@ func NoteFiles(ctx context.Context, paths ...string) {
 	defer e.mu.Unlock()
 
 	for _, path := range paths {
-		e.files[filepath.Clean(path)] = struct{}{}
+		e.files = addPath(e.files, filepath.Clean(path))
 	}
+}
+
+// addPath returns set with path added, making set when it is nil.
+func addPath(set map[string]struct{}, path string) map[string]struct{} {
+	if set == nil {
+		set = make(map[string]struct{})
+	}
+
+	set[path] = struct{}{}
+
+	return set
 }
 
 // fileStamp is the metadata of the file a value was read from.
@@ -386,9 +400,8 @@ func (s *Store) join(k Key) (*entry, bool) {
 	}
 
 	e := &entry{
-		done:  make(chan struct{}),
-		reads: make(map[string]struct{}),
-		files: map[string]struct{}{filepath.Clean(k.Path): {}},
+		done: make(chan struct{}),
+		path: filepath.Clean(k.Path),
 	}
 	s.entries[k] = e
 
@@ -504,8 +517,15 @@ func (e *entry) propagate(ctx context.Context) {
 	parent.mu.Lock()
 	defer parent.mu.Unlock()
 
-	maps.Copy(parent.reads, reads)
-	maps.Copy(parent.files, files)
+	for path := range reads {
+		parent.reads = addPath(parent.reads, path)
+	}
+
+	parent.files = addPath(parent.files, e.path)
+
+	for path := range files {
+		parent.files = addPath(parent.files, path)
+	}
 }
 
 // read reports whether e's body parsed or read path.
@@ -515,7 +535,7 @@ func (e *entry) read(path string) bool {
 
 	_, ok := e.files[path]
 
-	return ok
+	return ok || path == e.path
 }
 
 // readUnder reports whether e's body parsed or read a file in dir or below it.
@@ -524,6 +544,10 @@ func (e *entry) readUnder(dir string) bool {
 	defer e.mu.Unlock()
 
 	prefix := strings.TrimSuffix(dir, string(filepath.Separator)) + string(filepath.Separator)
+
+	if strings.HasPrefix(e.path, prefix) {
+		return true
+	}
 
 	for path := range e.files {
 		if strings.HasPrefix(path, prefix) {

@@ -57,12 +57,7 @@ func wrapStringSliceToStringAsFuncImpl(
 	})
 }
 
-func wrapStringSliceToBoolAsFuncImpl(
-	ctx context.Context,
-	v *venv.Venv,
-	pctx *ParsingContext,
-	toWrap func(ctx context.Context, v *venv.Venv, pctx *ParsingContext, params []string) (bool, error),
-) function.Function {
+func wrapStringSliceToBoolAsFuncImpl(toWrap func(params []string) (bool, error)) function.Function {
 	return function.New(&function.Spec{
 		VarParam: stringVarParam,
 		Type:     returnsBool,
@@ -72,7 +67,7 @@ func wrapStringSliceToBoolAsFuncImpl(
 				return cty.BoolVal(false), err
 			}
 
-			out, err := toWrap(ctx, v, pctx, params)
+			out, err := toWrap(params)
 			if err != nil {
 				return cty.BoolVal(false), err
 			}

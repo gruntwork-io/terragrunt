@@ -268,13 +268,38 @@ func EvalFunctions(evalCtx *hcl.EvalContext) map[string]function.Function {
 
 const funcNameTemplateString = "templatestring"
 
-// sharedFunctions returns the parent context of every context [TerragruntEvalContext] builds. It defines the OpenTofu
-// functions that read nothing from a parse. Nothing may write to it, since parses read it concurrently.
-var sharedFunctions = sync.OnceValue(func() *hcl.EvalContext {
+// openTofuFunctions returns the context that defines the OpenTofu functions that read nothing from a parse. Nothing
+// may write to it, since parses read it concurrently.
+var openTofuFunctions = sync.OnceValue(func() *hcl.EvalContext {
 	functions := lang.MakeBaseFunctionTable("")
 	delete(functions, funcNameTemplateString)
 
 	return &hcl.EvalContext{Functions: functions}
+})
+
+// sharedFunctions returns the parent context of every context [TerragruntEvalContext] builds. It defines the
+// Terragrunt functions that read nothing from a parse, and its parent the OpenTofu ones. Nothing may write to it,
+// since parses read it concurrently.
+var sharedFunctions = sync.OnceValue(func() *hcl.EvalContext {
+	evalCtx := openTofuFunctions().NewChild()
+	evalCtx.Functions = map[string]function.Function{
+		FuncNameGetTerraformCommandsThatNeedVars: wrapStaticValueToStringSliceAsFuncImpl(
+			TerraformCommandsNeedVars,
+		),
+		FuncNameGetTerraformCommandsThatNeedLocking: wrapStaticValueToStringSliceAsFuncImpl(
+			TerraformCommandsNeedLocking,
+		),
+		FuncNameGetTerraformCommandsThatNeedInput: wrapStaticValueToStringSliceAsFuncImpl(
+			TerraformCommandsNeedInput,
+		),
+		FuncNameGetTerraformCommandsThatNeedParallelism: wrapStaticValueToStringSliceAsFuncImpl(
+			TerraformCommandsNeedParallelism,
+		),
+		FuncNameGetDefaultRetryableErrors: wrapStaticValueToStringSliceAsFuncImpl(retry.DefaultRetryableErrors),
+		FuncNameConstraintCheck:           wrapStringSliceToBoolAsFuncImpl(ConstraintCheck),
+	}
+
+	return evalCtx
 })
 
 // ExposedInclude returns the value the `include` variable holds for include, a block with expose set. pctx is the
@@ -355,7 +380,7 @@ func boundFunctions(
 	cfgPath string,
 ) map[string]function.Function {
 	baseDir := filepath.Dir(cfgPath)
-	shared := sharedFunctions().Functions
+	shared := openTofuFunctions().Functions
 
 	var tofuFunctions map[string]function.Function
 
@@ -368,7 +393,7 @@ func boundFunctions(
 
 	// Patch with our version of these OpenTofu functions
 	// so we can thread venv and the logger through.
-	tofuFunctions = patch.Functions(v, l, baseDir, templateFunctions, pctx.FilesRead.Add)
+	tofuFunctions = patch.Functions(v, l, baseDir, templateFunctions, func(path string) { pctx.FilesRead.Add(path) })
 	tofuFunctions[funcNameTemplateString] = funcs.MakeTemplateStringFunc(baseDir, templateFunctions)
 
 	for _, name := range perCallFunctionNames {
@@ -508,18 +533,6 @@ func boundFunctions(
 			pctx,
 			getAWSCallerIdentityUserID,
 		),
-		FuncNameGetTerraformCommandsThatNeedVars: wrapStaticValueToStringSliceAsFuncImpl(
-			TerraformCommandsNeedVars,
-		),
-		FuncNameGetTerraformCommandsThatNeedLocking: wrapStaticValueToStringSliceAsFuncImpl(
-			TerraformCommandsNeedLocking,
-		),
-		FuncNameGetTerraformCommandsThatNeedInput: wrapStaticValueToStringSliceAsFuncImpl(
-			TerraformCommandsNeedInput,
-		),
-		FuncNameGetTerraformCommandsThatNeedParallelism: wrapStaticValueToStringSliceAsFuncImpl(
-			TerraformCommandsNeedParallelism,
-		),
 		FuncNameSopsDecryptFile: wrapStringSliceToStringAsFuncImpl(
 			ctx,
 			l,
@@ -533,13 +546,6 @@ func boundFunctions(
 			v,
 			pctx,
 			getTerragruntSourceCliFlag,
-		),
-		FuncNameGetDefaultRetryableErrors: wrapVoidToStringSliceAsFuncImpl(
-			ctx,
-			l,
-			v,
-			pctx,
-			getDefaultRetryableErrors,
 		),
 		FuncNameReadTfvarsFile: wrapStringSliceToStringAsFuncImpl(
 			ctx,
@@ -568,12 +574,6 @@ func boundFunctions(
 			v,
 			pctx,
 			markGlobAsRead,
-		),
-		FuncNameConstraintCheck: wrapStringSliceToBoolAsFuncImpl(
-			ctx,
-			v,
-			pctx,
-			ConstraintCheck,
 		),
 		FuncNameDeepMerge: deepMergeMapValuesAsFuncImpl(pctx),
 		FuncNameBase64GzipCompat: gzipcompat.Func(func() error {
@@ -1330,16 +1330,6 @@ func getTerraformCliArgs(
 	}
 
 	return pctx.TerraformCliArgs.Slice(), nil
-}
-
-// getDefaultRetryableErrors returns default retryable errors for use in errors.retry blocks
-func getDefaultRetryableErrors(
-	ctx context.Context,
-	l log.Logger,
-	_ *venv.Venv,
-	pctx *ParsingContext,
-) ([]string, error) {
-	return retry.DefaultRetryableErrors, nil
 }
 
 // getAWSField is a common helper for fetching a single AWS field.
@@ -2111,7 +2101,7 @@ func ParseAndDecodeVarFile(l log.Logger, varFile string, fileContents []byte, ou
 }
 
 // ConstraintCheck Implementation of Terraform's StartsWith function
-func ConstraintCheck(ctx context.Context, _ *venv.Venv, pctx *ParsingContext, args []string) (bool, error) {
+func ConstraintCheck(args []string) (bool, error) {
 	if len(args) != matchedPats {
 		return false, WrongNumberOfParamsError{
 			Func:     FuncNameConstraintCheck,

@@ -198,7 +198,7 @@ func (s *Store) resolveFile(
 	cfg := res.Value.cfg
 
 	if res.Hit {
-		cfg, err = c.assemble(ctx, l, v, pc, keptQueue{})
+		cfg, err = c.assemble(ctx, l, v, pc, keptQueue{}, c.functions(ctx, l, v))
 	}
 
 	return c, cfg, err
@@ -244,9 +244,10 @@ func (s *Store) resolveFileOnce(
 				return parseErr
 			}
 
-			c = s.prepare(childCtx, l, v, pc, file, base)
+			fns := newParseFunctions(childCtx, l, v, file.ConfigPath)
+			c = s.prepare(childCtx, l, v, pc, file, base, fns)
 
-			cfg, parseErr = s.assembleFirst(childCtx, l, v, pc, c)
+			cfg, parseErr = s.assembleFirst(childCtx, l, v, pc, c, fns)
 
 			return parseErr
 		},
@@ -319,10 +320,11 @@ func (s *Store) assembleFirst(
 	v *venv.Venv,
 	pc *ParseContext,
 	c *UnitConfig,
+	fns *parseFunctions,
 ) (*pkgconfig.TerragruntConfig, error) {
 	kept := newKeptFiles(c.Includes)
 
-	cfg, err := c.assemble(ctx, l, v, pc, includeResolver{store: s, kept: kept})
+	cfg, err := c.assemble(ctx, l, v, pc, includeResolver{store: s, kept: kept}, fns)
 	c.kept = *kept
 
 	return cfg, err
@@ -487,6 +489,7 @@ func (s *Store) prepare(
 	pc *ParseContext,
 	file *pkghclparse.File,
 	base *unitBase,
+	fns *parseFunctions,
 ) *UnitConfig {
 	pc = pc.withFile(&base.scope)
 	errs := slices.Clone(base.errs)
@@ -506,7 +509,7 @@ func (s *Store) prepare(
 	if pc.file.decodedDeps == nil && !pc.file.inheritsDependencies {
 		depPC := pc.withOwnReads()
 
-		set, err := c.newDependencySet(ctx, l, v, depPC, file, s.includedDependencies(v, depPC))
+		set, err := c.newDependencySet(ctx, l, v, depPC, file, s.includedDependencies(v, depPC), fns)
 		c.dependencyReads = depPC.sinks.filesRead.Paths()
 
 		if err != nil {
@@ -523,7 +526,7 @@ func (s *Store) prepare(
 		errs = append(errs, base.evalErr)
 	}
 
-	evalCtx := c.evalContext(ctx, l, v, pc.parsingContext())
+	evalCtx := c.evalContext(fns, pc.parsingContext())
 	c.prepErrs = errs
 
 	c.decodeErr = file.ApplyFileUpdate()

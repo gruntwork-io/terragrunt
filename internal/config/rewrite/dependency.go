@@ -51,6 +51,7 @@ func (c *UnitConfig) newDependencySet(
 	pc *ParseContext,
 	file *pkghclparse.File,
 	included pkgconfig.IncludedDependencies,
+	fns *parseFunctions,
 ) (*dependencySet, error) {
 	if c.evalVars == nil {
 		return nil, c.evalErr
@@ -60,7 +61,7 @@ func (c *UnitConfig) newDependencySet(
 
 	evalCtx := &hcl.EvalContext{Variables: c.evalVars}
 	if declaresDependencies(file.Body) {
-		evalCtx = dependencyBlockContext(pctx, c.evalContext(ctx, l, v, pctx))
+		evalCtx = dependencyBlockContext(pctx, c.evalContext(fns, pctx))
 	}
 
 	own, err := pkgconfig.DecodeOwnDependencies(ctx, l, v, pctx, file, evalCtx)
@@ -204,6 +205,7 @@ func (c *UnitConfig) dependencyValue(
 			pc,
 			c.boundFile(l, v, pc),
 			pkgconfig.ParsedIncludeDependencies(v, pctx),
+			c.functions(ctx, l, v),
 		)
 		if err != nil {
 			return &resolvedDependencies{value: failedDependencyValue(nil)}, err
