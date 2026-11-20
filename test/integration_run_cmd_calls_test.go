@@ -120,10 +120,10 @@ func TestRunCmdCallsWithRacing(t *testing.T) {
 			command: "run --all plan --non-interactive",
 			cached:  runCached,
 			maxUncached: map[string]int{
-				"app-local-no-cache":    3,
-				"common-local-no-cache": 4,
-				"root-local-no-cache":   18,
-				"vpc-local-no-cache":    8,
+				"app-local-no-cache":    2,
+				"common-local-no-cache": 2,
+				"root-local-no-cache":   11,
+				"vpc-local-no-cache":    7,
 			},
 		},
 		{
@@ -132,9 +132,9 @@ func TestRunCmdCallsWithRacing(t *testing.T) {
 			dir:     "app",
 			cached:  runCached,
 			maxUncached: map[string]int{
-				"app-local-no-cache":    3,
-				"common-local-no-cache": 4,
-				"root-local-no-cache":   17,
+				"app-local-no-cache":    2,
+				"common-local-no-cache": 2,
+				"root-local-no-cache":   11,
 				"vpc-local-no-cache":    5,
 			},
 		},
@@ -154,7 +154,7 @@ func TestRunCmdCallsWithRacing(t *testing.T) {
 			},
 			maxUncached: map[string]int{
 				"app-local-no-cache":    1,
-				"common-local-no-cache": 2,
+				"common-local-no-cache": 1,
 				"root-local-no-cache":   2,
 				"vpc-local-no-cache":    1,
 			},

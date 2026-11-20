@@ -1,10 +1,12 @@
 package config_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -39,5 +41,51 @@ func TestResolveIAMRoleOptionsIdenticalContentInTwoDirectories(t *testing.T) {
 		opts, err := config.ResolveIAMRoleOptions(ctx, logger.CreateLogger(), v, pctx, file, nil)
 		require.NoError(t, err)
 		assert.Equal(t, "arn:aws:iam::123456789012:role/"+name, opts.RoleARN)
+	}
+}
+
+// TestResolveIAMRoleOptionsReadsTheRoleOfAnInclude pins that the role an included file sets reaches the including
+// config unless the include does not merge.
+func TestResolveIAMRoleOptionsReadsTheRoleOfAnInclude(t *testing.T) {
+	t.Parallel()
+
+	const role = "arn:aws:iam::123456789012:role/root"
+
+	testCases := []struct {
+		name     string
+		strategy string
+		want     string
+	}{
+		{name: "default merge", want: role},
+		{name: "deep merge", strategy: `merge_strategy = "deep"`, want: role},
+		{name: "no merge", strategy: `merge_strategy = "no_merge"`},
+	}
+
+	for i, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := venvtest.Root(fmt.Sprintf("/iam-include-%d", i))
+			unit := `
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+  ` + tc.strategy + `
+}
+`
+			cfgPath := filepath.Join(root, "unit", config.DefaultTerragruntConfigPath)
+			v := venv.MemVenv().WithFS(venvtest.NewFS(t, root, map[string]string{
+				"root.hcl": `iam_role = "` + role + `"` + "\n",
+				filepath.Join("unit", config.DefaultTerragruntConfigPath): unit,
+			}))
+
+			file, err := hclparse.NewParser().ParseFromString(unit, cfgPath)
+			require.NoError(t, err)
+
+			ctx, pctx := newTestParsingContext(t, cfgPath)
+
+			opts, err := config.ResolveIAMRoleOptions(ctx, logger.CreateLogger(), v, pctx, file, nil)
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, opts.RoleARN)
+		})
 	}
 }

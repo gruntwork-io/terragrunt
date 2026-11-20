@@ -3,6 +3,8 @@ package config
 import (
 	"bytes"
 	"context"
+	"fmt"
+	"io/fs"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
@@ -93,4 +95,40 @@ func cachedHCLFile(
 	hclCache.Put(ctx, key, settled)
 
 	return settled
+}
+
+// parsedConfigFile returns the syntax tree of the config at path bound to a parser from pctx, from the HCL cache of ctx
+// while the file is unchanged.
+func parsedConfigFile(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
+	path string,
+) (*hclparse.File, error) {
+	hclCache := cache.ContextCache[*CachedHCLFile](ctx, HclCacheContextKey)
+
+	info, err := v.FS.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+
+	key := hclFileCacheKey(path, info)
+
+	return rebindOrParseHCLFile(
+		ctx,
+		l,
+		v,
+		pctx,
+		hclCache,
+		cachedHCLFile(ctx, v.FS, hclCache, key, path),
+		key,
+		path,
+		info.ModTime(),
+	)
+}
+
+// hclFileCacheKey returns the key of the file at path in the HCL cache, for the file's current info.
+func hclFileCacheKey(path string, info fs.FileInfo) string {
+	return fmt.Sprintf("configPath-%v-modTime-%v-size-%v", path, info.ModTime().UnixMicro(), info.Size())
 }

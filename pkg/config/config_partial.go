@@ -617,12 +617,7 @@ func PartialParseConfigFile(
 		return nil, err
 	}
 
-	cacheKey := fmt.Sprintf(
-		"configPath-%v-modTime-%v-size-%v",
-		cfgPath,
-		fileInfo.ModTime().UnixMicro(),
-		fileInfo.Size(),
-	)
+	cacheKey := hclFileCacheKey(cfgPath, fileInfo)
 
 	cached := cachedHCLFile(ctx, v.FS, hclCache, cacheKey, cfgPath)
 

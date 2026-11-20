@@ -2200,6 +2200,10 @@ func ResolveIAMRoleOptions(
 		return pctx.OriginalIAMRoleOptions, nil
 	}
 
+	if !declaresIAMRole(ctx, l, v, pctx, file) {
+		return FileIAMRoleOptions(pctx, iam.RoleOptions{}), nil
+	}
+
 	key := fmt.Sprintf(
 		"%s-%s-%s-%s-%v-%v",
 		file.ConfigPath,
@@ -2229,6 +2233,74 @@ func ResolveIAMRoleOptions(
 	}
 
 	return FileIAMRoleOptions(pctx, config), nil
+}
+
+// iamRoleSchema names the attributes [ResolveIAMRoleOptions] decodes the IAM role options of a config from.
+var iamRoleSchema = &hcl.BodySchema{
+	Attributes: []hcl.AttributeSchema{{Name: MetadataIamRole}, {Name: MetadataIamWebIdentityToken}},
+}
+
+// declaresIAMRole reports whether file, a file one of its include blocks merges, or its sibling autoinclude declares an
+// attribute [ResolveIAMRoleOptions] decodes. Include blocks that fail to decode, and included files that fail to parse,
+// declare none, since the parse of the Terragrunt flags fails on them and leaves the role as it was.
+func declaresIAMRole(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
+	file *hclparse.File,
+) bool {
+	if hasIAMRoleAttribute(file) {
+		return true
+	}
+
+	pctx = pctx.WithTrackInclude(nil).WithDiagnosticsDiscarded()
+
+	evalCtx, err := CreateTerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath, file.FunctionCalls())
+	if err != nil {
+		return false
+	}
+
+	includes, err := decodeAsTerragruntInclude(file.Rebind(pctx.NewParser(l, v)), evalCtx)
+	if err != nil {
+		return false
+	}
+
+	paths := make([]string, 0, len(includes)+1)
+
+	for _, include := range includes {
+		if strategy, err := include.GetMergeStrategy(); err != nil || strategy == NoMerge {
+			continue
+		}
+
+		path := include.Path
+		if !filepath.IsAbs(path) {
+			path = filepath.Join(filepath.Dir(file.ConfigPath), path)
+		}
+
+		paths = append(paths, path)
+	}
+
+	if autoIncludePath, ok := siblingAutoIncludePath(pctx, file.ConfigPath); ok && vfs.Exists(v.FS, autoIncludePath) {
+		paths = append(paths, autoIncludePath)
+	}
+
+	for _, path := range paths {
+		included, err := parsedConfigFile(ctx, l, v, pctx, path)
+		if err == nil && hasIAMRoleAttribute(included) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// hasIAMRoleAttribute reports whether file declares an attribute [ResolveIAMRoleOptions] decodes, or declares one of
+// their names in a way that fails to decode.
+func hasIAMRoleAttribute(file *hclparse.File) bool {
+	content, _, diags := file.Body.PartialContent(iamRoleSchema)
+
+	return diags.HasErrors() || len(content.Attributes) > 0
 }
 
 // FileIAMRoleOptions returns the IAM role options a parse with pctx evaluates a file with when the file's config sets

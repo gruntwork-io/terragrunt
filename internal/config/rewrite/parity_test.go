@@ -1236,6 +1236,7 @@ func TestParityMergedIncludeLocals(t *testing.T) {
 	testCases := []struct {
 		files map[string]string
 		name  string
+		drift []drift
 	}{
 		{
 			name: "locals only the included file declares",
@@ -1352,6 +1353,7 @@ include "root" {
 }
 `,
 			},
+			drift: []drift{driftIncludedErrorRepeated},
 		},
 		{
 			name: "autoinclude of the included file reads an exposed include",
@@ -1408,6 +1410,7 @@ include "root" {
 				newFS:     memFS(root, tc.files),
 				cfgPath:   filepath.Join(root, "app", pkgconfig.DefaultTerragruntConfigPath),
 				configure: func(*pkgconfig.ParsingContext) {},
+				drift:     tc.drift,
 			})
 		})
 	}
