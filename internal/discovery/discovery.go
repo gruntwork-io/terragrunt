@@ -259,8 +259,8 @@ type walked struct {
 }
 
 // walkAndParse finds the components below the working directory and parses the ones that need it, through the
-// pipeline when [EnvPipeline] selects it and no Git filter needs worktrees, and through the filesystem and parse
-// phases otherwise.
+// pipeline when [EnvPipeline] selects it, and through the filesystem and parse phases otherwise. With withWorktree
+// it also finds the components the Git filters select in their worktrees.
 func (d *Discovery) walkAndParse(
 	ctx context.Context,
 	l log.Logger,
@@ -276,10 +276,94 @@ func (d *Discovery) walkAndParse(
 		}
 	}
 
-	if withWorktree || !PipelineEnabled(v.Env) {
+	if !PipelineEnabled(v.Env) {
 		return d.runWalkAndParsePhases(ctx, l, v, s, opts, withWorktree, parseReasons)
 	}
 
+	if withWorktree {
+		return d.runPipelineBesideWorktrees(ctx, l, v, s, opts, parseReasons)
+	}
+
+	return d.runTracedPipeline(ctx, l, v, s, opts, parseReasons)
+}
+
+// runPipelineBesideWorktrees runs the pipeline over the working directory while the worktree phase discovers the
+// components the Git filters select, then parses the ones from the worktrees that need it with the parse phase.
+//
+// Returns the error of the pipeline when it fails. An error from the worktree phase or the parse phase is returned
+// unless suppressParseErrors drops it; a [CoexistenceError] or a [config.AmbiguousConfigError] from the worktree
+// phase is returned either way.
+func (d *Discovery) runPipelineBesideWorktrees(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	s *rewrite.Store,
+	opts *options.TerragruntOptions,
+	parseReasons []parseReason,
+) (walked, error) {
+	var (
+		found        walked
+		pipelineErr  error
+		inWorktrees  *PhaseResults
+		worktreesErr error
+		walks        errgroup.Group
+	)
+
+	walks.Go(func() error {
+		found, pipelineErr = d.runTracedPipeline(ctx, l, v, s, opts, parseReasons)
+
+		return nil
+	})
+
+	walks.Go(func() error {
+		inWorktrees, worktreesErr = d.runWorktreeWalk(ctx, l, v, s, opts)
+
+		return nil
+	})
+
+	// Neither walk returns its error to the group: each records its own.
+	if err := walks.Wait(); err != nil {
+		panic(err)
+	}
+
+	if pipelineErr != nil {
+		return walked{}, pipelineErr
+	}
+
+	if d.returnsPhaseError(worktreesErr) {
+		return walked{}, worktreesErr
+	}
+
+	if inWorktrees == nil {
+		return found, nil
+	}
+
+	if len(parseReasons) > 0 {
+		parsed, err := d.runTracedParsePhase(
+			ctx, l, v, s, opts, inWorktrees.Discovered, inWorktrees.Candidates, parseReasons,
+		)
+		if err != nil && !d.suppressParseErrors {
+			return walked{}, err
+		}
+
+		inWorktrees = parsed
+	}
+
+	found.discovered = deduplicateResults(append(found.discovered, inWorktrees.Discovered...))
+	found.candidates = deduplicateResults(append(found.candidates, inWorktrees.Candidates...))
+
+	return found, nil
+}
+
+// runTracedPipeline runs the pipeline inside its telemetry span.
+func (d *Discovery) runTracedPipeline(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	s *rewrite.Store,
+	opts *options.TerragruntOptions,
+	parseReasons []parseReason,
+) (walked, error) {
 	l.Debugf("Discovery: starting pipeline (workers=%d, parse_reasons=%s)", d.numWorkers, joinParseReasons(parseReasons))
 
 	var found walked
@@ -344,18 +428,37 @@ func (d *Discovery) runWalkAndParsePhases(
 		return walked{}, err
 	}
 
-	discovered, candidates := results.Discovered, results.Candidates
-
 	if len(parseReasons) == 0 {
-		return walked{discovered: discovered, candidates: candidates}, nil
+		return walked{discovered: results.Discovered, candidates: results.Candidates}, nil
 	}
+
+	results, err = d.runTracedParsePhase(ctx, l, v, s, opts, results.Discovered, results.Candidates, parseReasons)
+	if err != nil && !d.suppressParseErrors {
+		return walked{}, err
+	}
+
+	return walked{discovered: results.Discovered, candidates: results.Candidates}, nil
+}
+
+// runTracedParsePhase runs the parse phase inside its telemetry span.
+func (d *Discovery) runTracedParsePhase(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	s *rewrite.Store,
+	opts *options.TerragruntOptions,
+	discovered []DiscoveryResult,
+	candidates []DiscoveryResult,
+	parseReasons []parseReason,
+) (*PhaseResults, error) {
+	var results *PhaseResults
 
 	reasonsStr := joinParseReasons(parseReasons)
 
 	l.Debugf("Discovery: starting parse phase (discovered=%d, candidates=%d, reasons=%s)",
 		len(discovered), len(candidates), reasonsStr)
 
-	err = telemetry.TelemeterFromContext(ctx).
+	err := telemetry.TelemeterFromContext(ctx).
 		Collect(ctx, l, "discovery_phase_parse", map[string]any{
 			"num_workers":       d.numWorkers,
 			"discovered_in":     len(discovered),
@@ -375,11 +478,7 @@ func (d *Discovery) runWalkAndParsePhases(
 
 	logPhaseComplete(l, "parse", results, err)
 
-	if err != nil && !d.suppressParseErrors {
-		return walked{}, err
-	}
-
-	return walked{discovered: results.Discovered, candidates: results.Candidates}, nil
+	return results, err
 }
 
 // logPhaseComplete emits a debug log summarizing a discovery phase's outcome.
@@ -464,32 +563,7 @@ func (d *Discovery) runFilesystemPhase(
 
 	if len(d.gitExpressions) > 0 && d.worktrees != nil {
 		g.Go(func() error {
-			var result *PhaseResults
-
-			l.Debugf(
-				"Discovery: starting worktree walk (git_expressions=%d)",
-				len(d.gitExpressions),
-			)
-
-			err := telemetry.TelemeterFromContext(ctx).
-				Collect(ctx, l, "discovery_worktree_walk", map[string]any{
-					"num_workers":          d.numWorkers,
-					"git_expression_count": len(d.gitExpressions),
-				}, func(childCtx context.Context, l log.Logger) error {
-					phase := NewWorktreePhase(d.gitExpressions, d.numWorkers)
-
-					var phaseErr error
-
-					result, phaseErr = phase.Run(childCtx, l, v, s, &PhaseInput{
-						Opts:       opts,
-						Classifier: d.classifier,
-						Discovery:  d,
-					})
-
-					return phaseErr
-				})
-
-			logPhaseComplete(l, "worktree walk", result, err)
+			result, err := d.runWorktreeWalk(ctx, l, v, s, opts)
 
 			mu.Lock()
 
@@ -527,6 +601,44 @@ func (d *Discovery) runFilesystemPhase(
 		Discovered: allDiscovered,
 		Candidates: allCandidates,
 	}, errors.Join(allErrors...)
+}
+
+// runWorktreeWalk discovers the components the Git filters select in their worktrees.
+func (d *Discovery) runWorktreeWalk(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	s *rewrite.Store,
+	opts *options.TerragruntOptions,
+) (*PhaseResults, error) {
+	var result *PhaseResults
+
+	l.Debugf(
+		"Discovery: starting worktree walk (git_expressions=%d)",
+		len(d.gitExpressions),
+	)
+
+	err := telemetry.TelemeterFromContext(ctx).
+		Collect(ctx, l, "discovery_worktree_walk", map[string]any{
+			"num_workers":          d.numWorkers,
+			"git_expression_count": len(d.gitExpressions),
+		}, func(childCtx context.Context, l log.Logger) error {
+			phase := NewWorktreePhase(d.gitExpressions, d.numWorkers)
+
+			var phaseErr error
+
+			result, phaseErr = phase.Run(childCtx, l, v, s, &PhaseInput{
+				Opts:       opts,
+				Classifier: d.classifier,
+				Discovery:  d,
+			})
+
+			return phaseErr
+		})
+
+	logPhaseComplete(l, "worktree walk", result, err)
+
+	return result, err
 }
 
 // runParsePhase runs the parse phase for candidates that require parsing.
