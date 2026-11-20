@@ -67,7 +67,7 @@ locals {
 }
 ```
 
-In the configuration of a `dependency`, `path.unit` and `path.module` are the paths of that dependency. `path.module` has the same value as `get_working_dir()` called from the unit.
+In the configuration of a `dependency`, `path.unit` and `path.module` are the paths of that dependency.
 
 In the `autoinclude` block of a `unit` block in `terragrunt.stack.hcl`, `path` has the values of the generated unit, so `path.unit` and `path.module` are the paths of that unit:
 

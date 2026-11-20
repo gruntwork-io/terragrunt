@@ -1251,6 +1251,7 @@ func TestParityPathVariable(t *testing.T) {
 					pctx.OriginalTerragruntConfigPath = fixture.path
 
 					require.NoError(t, pctx.Experiments.EnableExperiment(experiment.PathVariable))
+					require.NoError(t, pctx.Experiments.EnableExperiment(experiment.NoDotTerragruntCache))
 				},
 			})
 

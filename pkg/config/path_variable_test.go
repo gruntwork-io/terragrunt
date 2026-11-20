@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
+	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/worker"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -114,6 +115,118 @@ func TestPathVariableModuleMatchesGetWorkingDir(t *testing.T) {
 
 			require.NotEmpty(t, inputs["working_dir"])
 			assert.Equal(t, inputs["working_dir"], inputs["module"])
+		})
+	}
+}
+
+func TestPathVariableModuleInConfiguredDownloadDir(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name        string
+		unit        string
+		source      string
+		option      string
+		downloadDir string
+	}{
+		{
+			name:        "download_dir in the unit",
+			unit:        "download-dir",
+			source:      "../modules//app",
+			downloadDir: filepath.Join("module", "custom-cache"),
+		},
+		{
+			name:        "download_dir in an included file",
+			unit:        "download-dir-include",
+			source:      ".",
+			downloadDir: filepath.Join("module", "custom-cache"),
+		},
+		{
+			name:        "download directory option overrides download_dir",
+			unit:        "download-dir",
+			source:      "../modules//app",
+			option:      "option-cache",
+			downloadDir: "option-cache",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v, root := pathFixture(t)
+			unitDir := filepath.Join(root, "module", tc.unit)
+			cfgPath := filepath.Join(unitDir, config.DefaultTerragruntConfigPath)
+			l := logger.CreateLogger()
+
+			ctx, pctx := newPathParsingContext(t, cfgPath)
+			if tc.option != "" {
+				pctx.DownloadDir = filepath.Join(root, tc.option)
+			}
+
+			cfg, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+			require.NoError(t, err)
+
+			want, err := tf.NewSource(l, v.FS, tc.source, filepath.Join(root, tc.downloadDir), unitDir, false)
+			require.NoError(t, err)
+
+			assert.Equal(t, want.WorkingDir, cfg.Inputs["module"])
+		})
+	}
+}
+
+func TestPathVariableModuleOfInPlaceUnit(t *testing.T) {
+	t.Parallel()
+
+	v, root := pathFixture(t)
+	unitDir := filepath.Join(root, "module", "in-place")
+	cfgPath := filepath.Join(unitDir, config.DefaultTerragruntConfigPath)
+
+	ctx, pctx := newPathParsingContext(t, cfgPath)
+	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.NoDotTerragruntCache))
+
+	cfg, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, cfgPath, nil)
+	require.NoError(t, err)
+
+	assert.Equal(t, unitDir, cfg.Inputs["module"])
+}
+
+func TestPathVariableModuleOfRejectedInPlaceUnit(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name       string
+		option     string
+		source     string
+		experiment bool
+	}{
+		{name: "experiment disabled", source: "."},
+		{name: "source option", option: "../modules//app", source: "../modules//app", experiment: true},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v, root := pathFixture(t)
+			unitDir := filepath.Join(root, "module", "in-place")
+			cfgPath := filepath.Join(unitDir, config.DefaultTerragruntConfigPath)
+			l := logger.CreateLogger()
+
+			ctx, pctx := newPathParsingContext(t, cfgPath)
+			pctx.Source = tc.option
+
+			if tc.experiment {
+				require.NoError(t, pctx.Experiments.EnableExperiment(experiment.NoDotTerragruntCache))
+			}
+
+			cfg, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+			require.NoError(t, err)
+
+			want, err := tf.NewSource(l, v.FS, tc.source, pctx.DownloadDir, unitDir, false)
+			require.NoError(t, err)
+
+			assert.Equal(t, want.WorkingDir, cfg.Inputs["module"])
 		})
 	}
 }

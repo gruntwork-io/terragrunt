@@ -10,7 +10,9 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
@@ -334,7 +336,7 @@ func unitModuleDir(ctx context.Context, l log.Logger, v *venv.Venv, pctx *Parsin
 		return "", err
 	}
 
-	unitPctx = unitPctx.forReadTarget().WithDecodeList(TerraformSource)
+	unitPctx = unitPctx.forReadTarget().WithDecodeList(moduleDirAttributes)
 	unitPctx.stubWorkingDirFunc = true
 	unitPctx.readConfigChain = nil
 
@@ -353,13 +355,27 @@ func unitModuleDir(ctx context.Context, l log.Logger, v *venv.Venv, pctx *Parsin
 		return "", err
 	}
 
+	inPlace, err := runcfg.ShouldSkipCache(
+		unitPctx.Experiments.Evaluate(experiment.NoDotTerragruntCache),
+		unitPctx.Source,
+		unitPctx.TerragruntConfigPath,
+		cfg.ToRunConfig(l, v.FS),
+	)
+	if err != nil {
+		l.Debugf("Resolving path.module of %s in the cache directory: %v", unitPctx.TerragruntConfigPath, err)
+	}
+
+	if inPlace {
+		return unitPctx.WorkingDir, nil
+	}
+
 	sourceURL = tf.RewriteLegacyGCSPublicSource(ctx, l, sourceURL, unitPctx.StrictControls)
 
 	source, err := tf.NewSource(
 		l,
 		v.FS,
 		sourceURL,
-		unitPctx.DownloadDir,
+		unitDownloadDir(unitPctx, cfg),
 		unitPctx.WorkingDir,
 		unitPctx.Experiments.Evaluate(experiment.Symlinks),
 	)
@@ -368,4 +384,15 @@ func unitModuleDir(ctx context.Context, l log.Logger, v *venv.Venv, pctx *Parsin
 	}
 
 	return source.WorkingDir, nil
+}
+
+// unitDownloadDir returns the download directory that the run of the unit uses.
+func unitDownloadDir(pctx *ParsingContext, cfg *TerragruntConfig) string {
+	_, defaultDownloadDir := util.DefaultWorkingAndDownloadDirs(pctx.TerragruntConfigPath)
+
+	if pctx.DownloadDir == defaultDownloadDir && cfg.DownloadDir != "" {
+		return cfg.DownloadDir
+	}
+
+	return pctx.DownloadDir
 }
