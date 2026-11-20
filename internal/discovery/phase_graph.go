@@ -931,10 +931,10 @@ func (p *GraphPhase) processUpstreamCandidate(
 
 				dependsOnTarget = true
 			} else {
-				canonicalCandidate.AddDependency(depComponent)
+				addDependencyOnce(state.graphTraversalState.discovery.paths, canonicalCandidate, depComponent)
 			}
 		default:
-			canonicalCandidate.AddDependency(depComponent)
+			addDependencyOnce(state.graphTraversalState.discovery.paths, canonicalCandidate, depComponent)
 		}
 	}
 
@@ -991,6 +991,19 @@ func (p *GraphPhase) resolveDependency(
 	parent.AddDependency(addedComponent)
 
 	return addedComponent, nil
+}
+
+// addDependencyOnce links c to dep unless c already links a dependency at the path of dep.
+func addDependencyOnce(paths *vfs.PathResolver, c, dep component.Component) {
+	resolved := paths.Resolve(dep.Path())
+
+	if slices.ContainsFunc(c.Dependencies(), func(linked component.Component) bool {
+		return paths.Resolve(linked.Path()) == resolved
+	}) {
+		return
+	}
+
+	c.AddDependency(dep)
 }
 
 // assignGraphDiscoveryContext gives a graph-discovered dependency its discovery
