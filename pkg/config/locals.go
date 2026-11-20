@@ -122,8 +122,10 @@ func evaluateLocalsInOrder(
 	}
 
 	varsPctx := pctx
-	if !readsVariable(attrs, MetadataInclude) {
-		varsPctx = pctx.WithTrackInclude(nil)
+	if exposesInclude(pctx) && !readsVariable(attrs, MetadataInclude) {
+		withoutIncludes := *pctx
+		withoutIncludes.TrackInclude = nil
+		varsPctx = &withoutIncludes
 	}
 
 	vars, err := TerragruntEvalVariables(ctx, l, varsPctx, file.ConfigPath, exposed)
@@ -185,6 +187,17 @@ func evaluateLocalsInOrder(
 	}
 
 	return evaluatedLocals, nil
+}
+
+// exposesInclude reports whether an include block of the config pctx parses exposes the file it includes.
+func exposesInclude(pctx *ParsingContext) bool {
+	if pctx.TrackInclude == nil {
+		return false
+	}
+
+	return slices.ContainsFunc(pctx.TrackInclude.CurrentList, func(include IncludeConfig) bool {
+		return include.GetExpose()
+	})
 }
 
 // readsVariable reports whether an expression of attrs references the variable name.

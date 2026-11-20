@@ -1054,7 +1054,7 @@ type dependencyPathsKey struct {
 	skipOutputsResolution bool
 }
 
-// dependencyPathsScan is the dependency paths of a config, and the files reading them read.
+// dependencyPathsScan is the dependency paths of a config, with the files the parse that found them read.
 type dependencyPathsScan struct {
 	paths     []string
 	filesRead []string

@@ -2257,20 +2257,64 @@ func mergesDeclaration(
 	file *hclparse.File,
 	schemas ...*hcl.BodySchema,
 ) bool {
-	if declares(file, schemas) {
+	if declares(file.Body, schemas) {
 		return true
+	}
+
+	paths := mergedIncludePaths(ctx, l, v, pctx, file)
+
+	if autoIncludePath, ok := siblingAutoIncludePath(pctx, file.ConfigPath); ok && vfs.Exists(v.FS, autoIncludePath) {
+		paths = append(paths, autoIncludePath)
+	}
+
+	if len(paths) == 0 {
+		return false
+	}
+
+	pctx = pctx.WithDiagnosticsDiscarded()
+
+	for _, path := range paths {
+		body, err := configBody(ctx, l, v, pctx, path)
+		if err == nil && declares(body, schemas) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// mergedIncludePaths returns the absolute paths of the files the include blocks of file merge, evaluated with pctx.
+// An include block that fails to decode or names an invalid merge_strategy merges nothing.
+func mergedIncludePaths(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pctx *ParsingContext,
+	file *hclparse.File,
+) []string {
+	body, native := file.Body.(*hclsyntax.Body)
+	if native && !slices.ContainsFunc(body.Blocks, isIncludeBlock) {
+		return nil
 	}
 
 	pctx = pctx.WithTrackInclude(nil).WithDiagnosticsDiscarded()
 
 	evalCtx, err := CreateTerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath, file.FunctionCalls())
 	if err != nil {
-		return false
+		return nil
 	}
 
-	includes, err := decodeAsTerragruntInclude(file.Rebind(pctx.NewParser(l, v)), evalCtx)
-	if err != nil {
-		return false
+	var includes IncludeConfigs
+
+	if native {
+		includes = nativeIncludes(body, evalCtx)
+	}
+
+	if !native {
+		includes, err = decodeAsTerragruntInclude(file.Rebind(pctx.NewParser(l, v)), evalCtx)
+		if err != nil {
+			return nil
+		}
 	}
 
 	paths := make([]string, 0, len(includes)+1)
@@ -2288,28 +2332,89 @@ func mergesDeclaration(
 		paths = append(paths, path)
 	}
 
-	if autoIncludePath, ok := siblingAutoIncludePath(pctx, file.ConfigPath); ok && vfs.Exists(v.FS, autoIncludePath) {
-		paths = append(paths, autoIncludePath)
-	}
-
-	for _, path := range paths {
-		included, err := parsedConfigFile(ctx, l, v, pctx, path)
-		if err == nil && declares(included, schemas) {
-			return true
-		}
-	}
-
-	return false
+	return paths
 }
 
-// declares reports whether file declares an attribute or block of one of schemas, or declares one of their names in a
+// nativeIncludes returns the path and merge_strategy of each include block of body that evaluates with evalCtx.
+func nativeIncludes(body *hclsyntax.Body, evalCtx *hcl.EvalContext) IncludeConfigs {
+	var includes IncludeConfigs
+
+	for _, block := range body.Blocks {
+		if !isIncludeBlock(block) {
+			continue
+		}
+
+		path, ok := stringAttribute(block.Body, "path", evalCtx)
+		if !ok {
+			continue
+		}
+
+		include := IncludeConfig{Path: path}
+
+		if _, declared := block.Body.Attributes["merge_strategy"]; declared {
+			strategy, ok := stringAttribute(block.Body, "merge_strategy", evalCtx)
+			if !ok {
+				continue
+			}
+
+			include.MergeStrategy = &strategy
+		}
+
+		includes = append(includes, include)
+	}
+
+	return includes
+}
+
+// isIncludeBlock reports whether block is an include block.
+func isIncludeBlock(block *hclsyntax.Block) bool {
+	return block.Type == MetadataInclude
+}
+
+// stringAttribute returns the value of the attribute name of body as a string, and false when body has no such
+// attribute or it does not evaluate with evalCtx to a known string.
+func stringAttribute(body *hclsyntax.Body, name string, evalCtx *hcl.EvalContext) (string, bool) {
+	attr, ok := body.Attributes[name]
+	if !ok {
+		return "", false
+	}
+
+	value, diags := attr.Expr.Value(evalCtx)
+	if diags.HasErrors() || value.IsNull() || !value.IsKnown() || !value.Type().Equals(cty.String) {
+		return "", false
+	}
+
+	return value.AsString(), true
+}
+
+// declares reports whether body declares an attribute or block of one of schemas, or declares one of their names in a
 // way that fails to decode.
-func declares(file *hclparse.File, schemas []*hcl.BodySchema) bool {
+func declares(body hcl.Body, schemas []*hcl.BodySchema) bool {
+	native, isNative := body.(*hclsyntax.Body)
+
 	return slices.ContainsFunc(schemas, func(schema *hcl.BodySchema) bool {
-		content, _, diags := file.Body.PartialContent(schema)
+		if isNative {
+			return declaresNatively(native, schema)
+		}
+
+		content, _, diags := body.PartialContent(schema)
 
 		return diags.HasErrors() || len(content.Attributes) > 0 || len(content.Blocks) > 0
 	})
+}
+
+// declaresNatively reports whether body has an attribute or block named like an attribute or block of schema.
+func declaresNatively(body *hclsyntax.Body, schema *hcl.BodySchema) bool {
+	named := func(name string) bool {
+		_, isAttribute := body.Attributes[name]
+
+		return isAttribute || slices.ContainsFunc(body.Blocks, func(block *hclsyntax.Block) bool {
+			return block.Type == name
+		})
+	}
+
+	return slices.ContainsFunc(schema.Attributes, func(attr hcl.AttributeSchema) bool { return named(attr.Name) }) ||
+		slices.ContainsFunc(schema.Blocks, func(block hcl.BlockHeaderSchema) bool { return named(block.Type) })
 }
 
 // declaresRemoteState reports whether the config at cfgPath, which pctx parses, merges a remote_state block or
