@@ -15,7 +15,7 @@ import (
 func TestDirsDiffer(t *testing.T) {
 	t.Parallel()
 
-	const blockSize = 64 * 1024
+	const blockSize = 4
 
 	sameSizeTail := func(last byte) []byte {
 		content := make([]byte, 2*blockSize+1)
@@ -127,9 +127,10 @@ func TestDirsDiffer(t *testing.T) {
 		})
 	}
 
-	ignore := []vfs.DirsDifferOption{
+	opts := []vfs.DirsDifferOption{
 		vfs.WithIgnore(func(d fs.DirEntry) bool { return d.Name() == "ignored" }),
 		vfs.WithIgnore(func(d fs.DirEntry) bool { return d.Name() == "skipped" }),
+		vfs.WithBlockSize(blockSize),
 	}
 
 	writeFiles := func(t *testing.T, fsys vfs.FS, dir string, files []file) {
@@ -184,11 +185,11 @@ func TestDirsDiffer(t *testing.T) {
 				writeFiles(t, fsys, fromDir, tc.from)
 				writeFiles(t, fsys, toDir, tc.to)
 
-				differ, err := vfs.DirsDiffer(fsys, fromDir, toDir, ignore...)
+				differ, err := vfs.DirsDiffer(fsys, fromDir, toDir, opts...)
 				require.NoError(t, err)
 				assert.Equal(t, tc.differ, differ)
 
-				differ, err = vfs.DirsDiffer(fsys, toDir, fromDir, ignore...)
+				differ, err = vfs.DirsDiffer(fsys, toDir, fromDir, opts...)
 				require.NoError(t, err)
 				assert.Equal(t, tc.differ, differ)
 			})
@@ -206,4 +207,21 @@ func TestDirsDiffer(t *testing.T) {
 			require.ErrorIs(t, err, os.ErrNotExist)
 		})
 	}
+}
+
+func TestDirsDifferSymlinkToADirectory(t *testing.T) {
+	t.Parallel()
+
+	fsys := vfs.NewOSFS()
+	root := t.TempDir()
+	fromDir := filepath.Join(root, "from")
+	toDir := filepath.Join(root, "to")
+
+	for _, dir := range []string{fromDir, toDir} {
+		require.NoError(t, fsys.MkdirAll(filepath.Join(dir, "target"), 0755))
+		require.NoError(t, vfs.Symlink(fsys, filepath.Join(dir, "target"), filepath.Join(dir, "link")))
+	}
+
+	_, err := vfs.DirsDiffer(fsys, fromDir, toDir)
+	require.ErrorIs(t, err, vfs.ErrNotRegularFile)
 }

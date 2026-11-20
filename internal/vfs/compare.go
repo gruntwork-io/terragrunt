@@ -18,10 +18,7 @@ const compareBlock = 64 * 1024
 // compareBuffersPool holds the buffers of finished [DirsDiffer] calls for later ones to read into.
 var compareBuffersPool = sync.Pool{
 	New: func() any {
-		return &compareBuffers{
-			from: make([]byte, compareBlock),
-			to:   make([]byte, compareBlock),
-		}
+		return newCompareBuffers(compareBlock)
 	},
 }
 
@@ -36,11 +33,22 @@ func WithIgnore(ignore func(fs.DirEntry) bool) DirsDifferOption {
 	}
 }
 
+// WithBlockSize sets the size of the blocks in which [DirsDiffer] reads and compares the contents of two files. A
+// value of zero or less keeps the default of 64 KiB.
+func WithBlockSize(n int) DirsDifferOption {
+	return func(c *dirsDifferConfig) {
+		c.blockSize = n
+	}
+}
+
 // DirsDiffer reports whether the directories fromDir and toDir hold different files, by relative path, permissions
 // or content.
 //
 // File contents are read only when both directories hold the same paths with the same sizes and permissions, and
 // only up to the first difference.
+//
+// Returns [ErrNotRegularFile] when a file below either directory is neither a regular file nor a symbolic link to
+// one.
 func DirsDiffer(fsys FS, fromDir, toDir string, opts ...DirsDifferOption) (bool, error) {
 	var cfg dirsDifferConfig
 	for _, opt := range opts {
@@ -65,6 +73,10 @@ func DirsDiffer(fsys FS, fromDir, toDir string, opts ...DirsDifferOption) (bool,
 		return false, nil
 	}
 
+	if cfg.blockSize > 0 {
+		return filesDiffer(fsys, fromDir, toDir, fromFiles, newCompareBuffers(cfg.blockSize))
+	}
+
 	bufs, ok := compareBuffersPool.Get().(*compareBuffers)
 	if !ok {
 		panic("vfs: compareBuffersPool holds a value that is not *compareBuffers")
@@ -72,35 +84,27 @@ func DirsDiffer(fsys FS, fromDir, toDir string, opts ...DirsDifferOption) (bool,
 
 	defer compareBuffersPool.Put(bufs)
 
-	for _, file := range fromFiles {
-		differ, err := fileContentsDiffer(
-			fsys,
-			filepath.Join(fromDir, file.relPath),
-			filepath.Join(toDir, file.relPath),
-			bufs.from,
-			bufs.to,
-		)
-		if err != nil {
-			return false, err
-		}
-
-		if differ {
-			return true, nil
-		}
-	}
-
-	return false, nil
+	return filesDiffer(fsys, fromDir, toDir, fromFiles, bufs)
 }
 
 // dirsDifferConfig is what the options of a [DirsDiffer] call set.
 type dirsDifferConfig struct {
-	ignore []func(fs.DirEntry) bool
+	ignore    []func(fs.DirEntry) bool
+	blockSize int
 }
 
 // compareBuffers is the pair of equally long buffers the two files of a comparison are read into.
 type compareBuffers struct {
 	from []byte
 	to   []byte
+}
+
+// newCompareBuffers returns a pair of buffers that each hold one block of size bytes.
+func newCompareBuffers(size int) *compareBuffers {
+	return &compareBuffers{
+		from: make([]byte, size),
+		to:   make([]byte, size),
+	}
 }
 
 // dirFile is a file below a directory being compared with another.
@@ -140,6 +144,10 @@ func listDirFiles(fsys FS, rootDir string, ignore []func(fs.DirEntry) bool) ([]d
 			}
 		}
 
+		if !info.Mode().IsRegular() {
+			return fmt.Errorf("%w: %s", ErrNotRegularFile, path)
+		}
+
 		relPath, err := filepath.Rel(rootDir, path)
 		if err != nil {
 			return fmt.Errorf("could not compute relative path for %s: %w", path, err)
@@ -160,9 +168,31 @@ func listDirFiles(fsys FS, rootDir string, ignore []func(fs.DirEntry) bool) ([]d
 	return files, nil
 }
 
+// filesDiffer reports whether any of files, found below both fromDir and toDir, holds different bytes on the two
+// sides.
+func filesDiffer(fsys FS, fromDir, toDir string, files []dirFile, bufs *compareBuffers) (bool, error) {
+	for _, file := range files {
+		differ, err := fileContentsDiffer(
+			fsys,
+			filepath.Join(fromDir, file.relPath),
+			filepath.Join(toDir, file.relPath),
+			bufs,
+		)
+		if err != nil {
+			return false, err
+		}
+
+		if differ {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
 // fileContentsDiffer reports whether the files at fromPath and toPath hold different bytes, reading them a block at
-// a time into fromBuf and toBuf, which are the same length.
-func fileContentsDiffer(fsys FS, fromPath, toPath string, fromBuf, toBuf []byte) (_ bool, retErr error) {
+// a time into bufs.
+func fileContentsDiffer(fsys FS, fromPath, toPath string, bufs *compareBuffers) (_ bool, retErr error) {
 	from, err := fsys.Open(fromPath)
 	if err != nil {
 		return false, fmt.Errorf("could not open file %s: %w", fromPath, err)
@@ -186,21 +216,21 @@ func fileContentsDiffer(fsys FS, fromPath, toPath string, fromBuf, toBuf []byte)
 	}()
 
 	for {
-		fromN, err := readBlock(from, fromBuf)
+		fromN, err := readBlock(from, bufs.from)
 		if err != nil {
 			return false, fmt.Errorf("could not read file %s: %w", fromPath, err)
 		}
 
-		toN, err := readBlock(to, toBuf)
+		toN, err := readBlock(to, bufs.to)
 		if err != nil {
 			return false, fmt.Errorf("could not read file %s: %w", toPath, err)
 		}
 
-		if !bytes.Equal(fromBuf[:fromN], toBuf[:toN]) {
+		if !bytes.Equal(bufs.from[:fromN], bufs.to[:toN]) {
 			return true, nil
 		}
 
-		if fromN < len(fromBuf) {
+		if fromN < len(bufs.from) {
 			return false, nil
 		}
 	}

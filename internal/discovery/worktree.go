@@ -31,7 +31,7 @@ const fromToTasks = 2
 // compared concurrently, and each comparison holds two files open.
 const pairComparisons = 2
 
-// stackManifestFile is the name of the file a generated stack lists its absolute paths in.
+// stackManifestFile is the name of the manifest stack generation writes into each directory it copies into.
 const stackManifestFile = ".terragrunt-stack-manifest"
 
 // discoverInWorktrees discovers the components the Git filters of d select in their worktrees, each classified
@@ -693,8 +693,8 @@ func workingDirSuffix(c component.Component) (string, error) {
 	return filepath.Clean(strings.TrimPrefix(c.Path(), dc.WorkingDir)), nil
 }
 
-// isStackManifest reports whether d is the file a generated stack lists its absolute paths in, which differs
-// between two worktrees whose stacks are otherwise the same.
+// isStackManifest reports whether d is a stack generation manifest, whose absolute paths differ between two worktrees
+// whose stacks are otherwise the same.
 func isStackManifest(d fs.DirEntry) bool {
 	return d.Name() == stackManifestFile
 }
