@@ -149,6 +149,10 @@ const (
 	// empty object when the dependency has no outputs or has not been applied
 	// and no mock outputs apply, where Terragrunt otherwise returns an error.
 	EmptyDependencyOutputs = "empty-dependency-outputs"
+	// AuthProviderCache gates the cache object of the --auth-provider-cmd
+	// response, which lets Terragrunt reuse the response for every unit whose
+	// directory matches its globs.
+	AuthProviderCache = "auth-provider-cache"
 )
 
 const (
@@ -302,6 +306,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: EmptyDependencyOutputs,
+		},
+		{
+			Name: AuthProviderCache,
 		},
 	}
 }
