@@ -249,7 +249,7 @@ func (s *Store) resolveFileOnce(
 				return parseErr
 			}
 
-			fns := newParseFunctions(childCtx, l, v, file.ConfigPath)
+			fns := newParseFunctions(childCtx, l, v, file)
 			c = s.prepare(childCtx, l, v, pc, file, base, fns)
 
 			cfg, parseErr = s.assembleFirst(childCtx, l, v, pc, c, fns)
@@ -561,7 +561,7 @@ func (s *Store) prepare(
 		}
 	}
 
-	c.file = withoutParser(file)
+	c.file = file.WithoutParser()
 
 	return c
 }
@@ -575,12 +575,6 @@ func unsupportedContent(body hcl.Body, c *UnitConfig) hcl.Diagnostics {
 	_, _, partial := body.PartialContent(schema)
 
 	return excludeDiagnostics(all, partial)
-}
-
-// withoutParser returns file with no parser, for keeping in a stage's result. Using it before [pkghclparse.File.Rebind]
-// panics.
-func withoutParser(file *pkghclparse.File) *pkghclparse.File {
-	return &pkghclparse.File{File: file.File, ConfigPath: file.ConfigPath}
 }
 
 // absInclude returns pc's include block with its path made absolute, in a copy.

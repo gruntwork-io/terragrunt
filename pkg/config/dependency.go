@@ -604,7 +604,7 @@ func DecodeTerragruntDependencies(
 	pctx *ParsingContext,
 	file *hclparse.File,
 ) (*TerragruntDependency, error) {
-	evalCtx, err := CreateTerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath)
+	evalCtx, err := CreateTerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath, file.FunctionCalls())
 	if err != nil {
 		return nil, err
 	}
@@ -3056,7 +3056,7 @@ func foldSiblingAutoIncludeDeps(
 		autoPctx = autoPctx.WithLocals(baseBlocks.Locals)
 	}
 
-	evalCtx, err := CreateTerragruntEvalContext(ctx, l, v, autoPctx, autoIncludePath)
+	evalCtx, err := CreateTerragruntEvalContext(ctx, l, v, autoPctx, autoIncludePath, autoFile.FunctionCalls())
 	if err != nil {
 		return nil, err
 	}

@@ -343,6 +343,7 @@ func resolveStackAutoIncludes(
 		v,
 		scopedPctx,
 		stackFilePath,
+		hclparse.AnyFunctionCalls(),
 	)
 	if evalCtxErr != nil {
 		return nil, nil, AutoIncludeParserStageError{
@@ -1514,7 +1515,16 @@ func ParseStackConfig(
 		return nil, err
 	}
 
-	evalParsingContext, err := CreateTerragruntEvalContext(ctx, l, v, parser, file.ConfigPath)
+	// The context also evaluates the files the stack includes and its stack autoinclude file, whose calls file does not
+	// name.
+	evalParsingContext, err := CreateTerragruntEvalContext(
+		ctx,
+		l,
+		v,
+		parser,
+		file.ConfigPath,
+		hclparse.AnyFunctionCalls(),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -2386,7 +2396,7 @@ func ReadValues(
 		return nil, err
 	}
 
-	evalParsingContext, err := CreateTerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath)
+	evalParsingContext, err := CreateTerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath, file.FunctionCalls())
 	if err != nil {
 		return nil, err
 	}

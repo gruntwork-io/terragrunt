@@ -8,10 +8,11 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	pkgconfig "github.com/gruntwork-io/terragrunt/pkg/config"
+	pkghclparse "github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-// parseFunctions is the functions one caller's parse of a file evaluates with, built on first use and shared by the
+// parseFunctions is the functions one caller's parse of a file calls, built on first use and shared by the
 // stages of that parse. Each stage gives its own parsing context, which the functions read when called, so the stages
 // that share them must run one after another.
 type parseFunctions struct {
@@ -20,12 +21,12 @@ type parseFunctions struct {
 	v       *venv.Venv
 	pctx    *pkgconfig.ParsingContext
 	evalCtx *hcl.EvalContext
-	cfgPath string
+	file    *pkghclparse.File
 }
 
-// newParseFunctions returns the functions of a parse of the file at cfgPath, which use ctx, l, and v when called.
-func newParseFunctions(ctx context.Context, l log.Logger, v *venv.Venv, cfgPath string) *parseFunctions {
-	return &parseFunctions{ctx: ctx, l: l, v: v, cfgPath: cfgPath}
+// newParseFunctions returns the functions of a parse of file that file calls, which use ctx, l, and v when called.
+func newParseFunctions(ctx context.Context, l log.Logger, v *venv.Venv, file *pkghclparse.File) *parseFunctions {
+	return &parseFunctions{ctx: ctx, l: l, v: v, file: file}
 }
 
 // evalContext returns an eval context with vars and the functions, which read a copy of pctx when called until the
@@ -34,7 +35,7 @@ func (f *parseFunctions) evalContext(pctx *pkgconfig.ParsingContext, vars map[st
 	if f.evalCtx == nil {
 		bound := *pctx
 		f.pctx = &bound
-		f.evalCtx = pkgconfig.TerragruntEvalContext(f.ctx, f.l, f.v, f.pctx, f.cfgPath, nil)
+		f.evalCtx = pkgconfig.TerragruntEvalContext(f.ctx, f.l, f.v, f.pctx, f.file.ConfigPath, f.file.FunctionCalls(), nil)
 	}
 
 	*f.pctx = *pctx

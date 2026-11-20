@@ -300,7 +300,7 @@ func DecodeBaseBlocks(
 ) (*DecodedBaseBlocks, error) {
 	var errs []error
 
-	evalParsingContext, err := CreateTerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath)
+	evalParsingContext, err := CreateTerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath, file.FunctionCalls())
 	if err != nil {
 		return nil, err
 	}
@@ -824,7 +824,7 @@ func PartialParseConfig(
 		pctx.DecodedDependencies = &dynamicVal
 	}
 
-	evalParsingContext, err := CreateTerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath)
+	evalParsingContext, err := CreateTerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath, file.FunctionCalls())
 	if err != nil {
 		return nil, err
 	}

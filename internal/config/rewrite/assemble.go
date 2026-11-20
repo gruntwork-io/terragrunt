@@ -200,7 +200,7 @@ func (c *UnitConfig) boundFile(l log.Logger, v *venv.Venv, pc *ParseContext) *pk
 
 // functions returns new functions for a parse of c's file, which use ctx, l, and v when called.
 func (c *UnitConfig) functions(ctx context.Context, l log.Logger, v *venv.Venv) *parseFunctions {
-	return newParseFunctions(ctx, l, v, c.file.ConfigPath)
+	return newParseFunctions(ctx, l, v, c.file)
 }
 
 // evalContext returns an eval context with the variables c's blocks decoded with, the `dependency` value of pctx,

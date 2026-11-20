@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 
+	"github.com/hashicorp/hcl/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
@@ -129,6 +130,62 @@ func TestHCLTemplateFileCannotCallTerragruntFunctions(t *testing.T) {
 
 	_, err := config.ParseConfigString(ctx, l, v, pctx, memConfigPath, hcl, nil)
 	require.Error(t, err)
+}
+
+func TestHCLTemplatesCallFunctionsTheConfigDoesNotCall(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		hcl  string
+	}{
+		{name: "templatefile", hcl: `locals {
+  data = templatefile("data.tmpl", {})
+}`},
+		{name: "templatestring", hcl: `locals {
+  data = templatestring(file("data.tmpl"), {})
+}`},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			l := logger.CreateLogger()
+			v := venv.MemVenv().WithFS(memUnitFS(t, map[string]string{
+				"data.tmpl": `${filebase64("data.txt")}`,
+				"data.txt":  "from a file the config never names",
+			}))
+			ctx, pctx := newTestParsingContext(t, memConfigPath)
+			ctx = config.WithCaches(ctx)
+
+			out, err := config.ParseConfigString(ctx, l, v, pctx, memConfigPath, tc.hcl, nil)
+			require.NoError(t, err)
+			require.NotNil(t, out.Locals)
+			assert.Equal(t, "ZnJvbSBhIGZpbGUgdGhlIGNvbmZpZyBuZXZlciBuYW1lcw==", out.Locals["data"])
+		})
+	}
+}
+
+func TestHCLUnknownFunctionSuggestsATerragruntFunction(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+	v := venv.MemVenv().WithFS(memUnitFS(t, nil))
+	ctx, pctx := newTestParsingContext(t, memConfigPath)
+	ctx = config.WithCaches(ctx)
+
+	const content = `locals {
+  dir = get_terragrunt_dri()
+}`
+
+	_, err := config.ParseConfigString(ctx, l, v, pctx, memConfigPath, content, nil)
+
+	var diags hcl.Diagnostics
+	require.ErrorAs(t, err, &diags)
+	require.NotEmpty(t, diags)
+	assert.Equal(t, "Call to unknown function", diags[0].Summary)
+	assert.Contains(t, diags[0].Detail, `Did you mean "get_terragrunt_dir"?`)
 }
 
 func TestHCLConcurrentParsesCallSharedAndBoundFunctionsWithRacing(t *testing.T) {

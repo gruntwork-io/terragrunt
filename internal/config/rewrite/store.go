@@ -216,7 +216,7 @@ func (s *Store) ParseUnitAST(
 			return nil, err
 		}
 
-		return withoutParser(file), nil
+		return file.WithoutParser(), nil
 	})
 	if err != nil {
 		return nil, err

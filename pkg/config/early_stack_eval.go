@@ -9,6 +9,7 @@ import (
 	"github.com/zclconf/go-cty/cty/function"
 
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -25,8 +26,8 @@ func StackParseFunctionsFrom(
 
 // EarlyStackParseFunctions returns the HCL function map used to evaluate
 // expressions inside a terragrunt.stack.hcl. The keyset matches
-// CreateTerragruntEvalContext and each function is bound to a parsing context
-// rescoped to baseDir.
+// CreateTerragruntEvalContext given [hclparse.AnyFunctionCalls], and each
+// function is bound to a parsing context rescoped to baseDir.
 //
 // get_working_dir is overridden to return baseDir: the production impl
 // re-parses the current config to compute a Terraform source URL, which a
@@ -52,7 +53,7 @@ func EarlyStackParseFunctions(
 		return nil, err
 	}
 
-	evalCtx, err := CreateTerragruntEvalContext(ctx, l, v, scoped, stackFilePath)
+	evalCtx, err := CreateTerragruntEvalContext(ctx, l, v, scoped, stackFilePath, hclparse.AnyFunctionCalls())
 	if err != nil {
 		return nil, err
 	}
