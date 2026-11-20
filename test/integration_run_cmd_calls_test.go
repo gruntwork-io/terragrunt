@@ -134,7 +134,7 @@ func TestRunCmdCallsWithRacing(t *testing.T) {
 			maxUncached: map[string]int{
 				"app-local-no-cache":    2,
 				"common-local-no-cache": 2,
-				"root-local-no-cache":   11,
+				"root-local-no-cache":   10,
 				"vpc-local-no-cache":    5,
 			},
 		},

@@ -121,7 +121,12 @@ func evaluateLocalsInOrder(
 		return evaluatedLocals, nil
 	}
 
-	vars, err := TerragruntEvalVariables(ctx, l, pctx, file.ConfigPath, exposed)
+	varsPctx := pctx
+	if !readsVariable(attrs, MetadataInclude) {
+		varsPctx = pctx.WithTrackInclude(nil)
+	}
+
+	vars, err := TerragruntEvalVariables(ctx, l, varsPctx, file.ConfigPath, exposed)
 	if err != nil {
 		l.Errorf(
 			"Could not convert include to the execution ctx to evaluate additional locals in file %s",
@@ -180,6 +185,15 @@ func evaluateLocalsInOrder(
 	}
 
 	return evaluatedLocals, nil
+}
+
+// readsVariable reports whether an expression of attrs references the variable name.
+func readsVariable(attrs hclparse.Attributes, name string) bool {
+	return slices.ContainsFunc(attrs, func(attr *hclparse.Attribute) bool {
+		return slices.ContainsFunc(attr.Expr.Variables(), func(traversal hcl.Traversal) bool {
+			return traversal.RootName() == name
+		})
+	})
 }
 
 // localsGraph returns a graph over the names of attrs, in which each local waits on the locals it references, along
