@@ -784,10 +784,6 @@ func (p *GraphPhase) processUpstreamCandidate(
 		return nil
 	}
 
-	if state.graphTraversalState.seenComponents.Load(candidate.Path()) {
-		return nil
-	}
-
 	if candidate.Path() == state.target.Path() {
 		return nil
 	}

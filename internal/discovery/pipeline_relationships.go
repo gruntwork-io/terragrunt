@@ -321,12 +321,12 @@ type traversedFrom struct {
 	boundary string
 }
 
-// discoverDependenciesFromRelations adds each of targets to the results of state, and with it the dependencies its
-// graph expression traverses to, as [GraphPhase.discoverDependencies] does. It runs on one goroutine and reads the
-// dependencies of the components at each depth together.
+// discoverDependenciesFromRelations adds each of targets to the results of state, and with it the dependencies that
+// every graph expression of the target's filter traverses to, as the graph phase's own dependency traversal does. It
+// runs on one goroutine and reads the dependencies of the components at each depth together.
 //
-// A component that several traversals reach is traversed from again only by one with more depth left than any
-// before it, so the results do not depend on the order of the traversals.
+// A component that several traversals reach is traversed from again only by one within the same boundary with more
+// depth left than any before it, so the results do not depend on the order of the traversals.
 //
 // Returns the errors of reading and resolving the dependencies.
 func (p *GraphPhase) discoverDependenciesFromRelations(
@@ -343,39 +343,46 @@ func (p *GraphPhase) discoverDependenciesFromRelations(
 
 	depthLeft := map[traversedFrom]int{}
 
-	exprs := make(map[int]*filter.GraphExpressionInfo, len(graphExprs))
 	for _, graphExpr := range graphExprs {
-		exprs[graphExpr.Index] = graphExpr
-	}
+		for _, target := range targets {
+			if target.GraphExpressionIndex != graphExpr.Index {
+				continue
+			}
 
-	for _, target := range targets {
-		graphExpr, ok := exprs[target.GraphExpressionIndex]
-		if !ok {
-			continue
+			errs = append(errs, p.traverseDependencies(ctx, l, v, state, depthLeft, graphExpr, target.Component)...)
 		}
-
-		c := target.Component
-
-		state.addReached(c)
-
-		if !graphExpr.Dependencies.Include {
-			continue
-		}
-
-		boundary, err := dependencyBoundary(v.FS, state.discovery, c, graphExpr)
-		if err != nil {
-			errs = append(errs, err)
-
-			continue
-		}
-
-		traversal := &dependencyTraversal{phase: p, state: state, depthLeft: depthLeft, boundary: boundary}
-		traversal.run(ctx, l, v, c, p.dependencyDepth(graphExpr))
-
-		errs = append(errs, traversal.errs...)
 	}
 
 	return errs
+}
+
+// traverseDependencies adds c to the results of state, and with it the dependencies graphExpr traverses to from c.
+//
+// Returns the errors of reading and resolving the dependencies.
+func (p *GraphPhase) traverseDependencies(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	state *graphTraversalState,
+	depthLeft map[traversedFrom]int,
+	graphExpr *filter.GraphExpressionInfo,
+	c component.Component,
+) []error {
+	state.addReached(c)
+
+	if !graphExpr.Dependencies.Include {
+		return nil
+	}
+
+	boundary, err := dependencyBoundary(v.FS, state.discovery, c, graphExpr)
+	if err != nil {
+		return []error{err}
+	}
+
+	traversal := &dependencyTraversal{phase: p, state: state, depthLeft: depthLeft, boundary: boundary}
+	traversal.run(ctx, l, v, c, p.dependencyDepth(graphExpr))
+
+	return traversal.errs
 }
 
 // dependencyTraversal is the traversal of one graph expression from one of its targets to its dependencies.
@@ -420,8 +427,8 @@ func (t *dependencyTraversal) run(
 	}
 }
 
-// dependenciesOf adds the dependencies of c to the results and returns the ones the traversal continues from with
-// left more depth.
+// dependenciesOf adds the dependencies of c to the results and returns the ones the traversal continues from, each
+// with left depth to go.
 func (t *dependencyTraversal) dependenciesOf(
 	l log.Logger,
 	fsys vfs.FS,
@@ -475,7 +482,7 @@ func (t *dependencyTraversal) reach(
 	return dep, true
 }
 
-// continuesFrom reports whether the traversal goes on from c, which it reached with left more depth: it does when
+// continuesFrom reports whether the traversal goes on from c, which it reached with left depth to go: it does when
 // no traversal of the phase within the same boundary went on from c with as much. It records left when it does.
 func (t *dependencyTraversal) continuesFrom(c component.Component, left int) bool {
 	from := traversedFrom{c: c, boundary: t.boundary}

@@ -734,7 +734,7 @@ func TestDiscoveryPipelineSkipsUnitsOutsideTheDependentBoundaryWithRacing(t *tes
 	require.ErrorAs(t, err, new(hcl.Diagnostics))
 }
 
-func TestDiscoveryPipelineTraversesASharedDependencyToTheGreatestDepth(t *testing.T) {
+func TestDiscoveryPipelineTraversesASharedDependencyToTheGreatestDepthWithRacing(t *testing.T) {
 	t.Parallel()
 
 	run := pipelineRun{
@@ -760,7 +760,101 @@ func TestDiscoveryPipelineTraversesASharedDependencyToTheGreatestDepth(t *testin
 		got, err := run.discover(t.Context(), t)
 		require.NoError(t, err)
 
-		assert.ElementsMatch(t, want, got.Paths())
+		assert.ElementsMatch(t, want, got.Paths(), "queries %q", queries)
+	}
+}
+
+func TestDiscoveryPipelineTraversesEveryGraphExpressionOfAFilterWithRacing(t *testing.T) {
+	t.Parallel()
+
+	run := pipelineRun{
+		files: map[string]string{
+			"apps/web/terragrunt.hcl":    dependenciesOn("../../infra/db"),
+			"apps/worker/terragrunt.hcl": dependenciesOn("../../infra/vpc"),
+			"infra/db/terragrunt.hcl":    dependenciesOn("../vpc"),
+			"infra/vpc/terragrunt.hcl":   "",
+		},
+		usePipeline: true,
+	}
+
+	want := []string{
+		filepath.Join(corpusRepoRoot, "apps", "web"),
+		filepath.Join(corpusRepoRoot, "infra", "db"),
+		filepath.Join(corpusRepoRoot, "infra", "vpc"),
+	}
+
+	for _, queries := range [][]string{{"web... | worker...1", "web..."}, {"worker...1 | web...", "web..."}} {
+		run.queries = queries
+
+		got, err := run.discover(t.Context(), t)
+		require.NoError(t, err)
+
+		assert.ElementsMatch(t, want, got.Paths(), "queries %q", queries)
+	}
+}
+
+func TestDiscoveryTraversesDependentsOfAUnitAnotherFilterReachedWithRacing(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		files   map[string]string
+		name    string
+		queries []string
+		want    []string
+	}{
+		{
+			name: "dependent of a target in the working directory",
+			files: map[string]string{
+				"apps/worker/terragrunt.hcl": dependenciesOn("../../infra/web"),
+				"infra/web/terragrunt.hcl":   dependenciesOn("../db"),
+				"infra/db/terragrunt.hcl":    "",
+			},
+			queries: []string{"...db", "web...1"},
+			want: []string{
+				filepath.Join(corpusRepoRoot, "infra", "db"),
+				filepath.Join(corpusRepoRoot, "infra", "web"),
+				filepath.Join(corpusRepoRoot, "apps", "worker"),
+			},
+		},
+		{
+			name: "dependent of a dependent outside the working directory",
+			files: map[string]string{
+				"apps/worker/terragrunt.hcl": dependenciesOn("../web"),
+				"apps/web/terragrunt.hcl":    dependenciesOn("../../infra/db"),
+				"infra/app/terragrunt.hcl":   dependenciesOn("../../apps/web"),
+				"infra/db/terragrunt.hcl":    "",
+			},
+			queries: []string{"...db", "app...1"},
+			want: []string{
+				filepath.Join(corpusRepoRoot, "infra", "app"),
+				filepath.Join(corpusRepoRoot, "infra", "db"),
+				filepath.Join(corpusRepoRoot, "apps", "web"),
+				filepath.Join(corpusRepoRoot, "apps", "worker"),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		for _, usePipeline := range []bool{false, true} {
+			t.Run(tt.name+" pipeline "+strconv.FormatBool(usePipeline), func(t *testing.T) {
+				t.Parallel()
+
+				run := pipelineRun{
+					files:       tt.files,
+					workingDir:  "infra",
+					usePipeline: usePipeline,
+				}
+
+				for _, queries := range [][]string{tt.queries, {tt.queries[1], tt.queries[0]}} {
+					run.queries = queries
+
+					got, err := run.discover(t.Context(), t)
+					require.NoError(t, err)
+
+					assert.ElementsMatch(t, tt.want, got.Paths(), "queries %q", queries)
+				}
+			})
+		}
 	}
 }
 
