@@ -130,6 +130,67 @@ func TestDiscoveryPipelineMatchesPhasesForGitFiltersWithRacing(t *testing.T) {
 	}
 }
 
+func TestDiscoveryReportsAmbiguousConfigsInGitFilterWorktreesWithRacing(t *testing.T) {
+	t.Parallel()
+
+	flows := []struct {
+		name     string
+		pipeline string
+	}{
+		{name: "phases", pipeline: "false"},
+		{name: "pipeline", pipeline: "true"},
+	}
+
+	for _, flow := range flows {
+		t.Run(flow.name, func(t *testing.T) {
+			t.Parallel()
+
+			repo, runner := setupGitRepo(t)
+
+			createUnit(t, repo, "app", "")
+			createUnit(t, repo, "both", "")
+
+			require.NoError(t, os.WriteFile(filepath.Join(repo, "both", "terragrunt.hcl.json"), []byte("{}"), 0o644))
+
+			commitChanges(t, runner, "Initial commit")
+
+			require.NoError(t, os.Remove(filepath.Join(repo, "both", "terragrunt.hcl.json")))
+
+			commitChanges(t, runner, "Remove the JSON config")
+
+			l := logger.CreateLogger()
+			ctx := config.WithCaches(t.Context())
+
+			gitExpr := filter.NewGitExpression("HEAD~1", "HEAD")
+
+			w, err := worktrees.NewWorktrees(ctx, l, venvtest.NewOSWithEmptyEnv(), worktrees.WorktreeOpts{
+				WorkingDir:     repo,
+				GitExpressions: filter.GitExpressions{gitExpr},
+			})
+			require.NoError(t, err)
+
+			t.Cleanup(func() {
+				require.NoError(t, w.Cleanup(context.WithoutCancel(ctx), l, venvtest.NewOSWithEmptyEnv()))
+			})
+
+			opts := options.NewTerragruntOptions()
+			opts.WorkingDir = repo
+			opts.RootWorkingDir = repo
+
+			v := venvtest.NewOSWithEmptyEnv()
+			v.Env[discovery.EnvPipeline] = flow.pipeline
+
+			_, err = discovery.NewDiscovery(repo).
+				WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: repo}).
+				WithWorktrees(w).
+				WithFilters(filter.Filters{filter.NewFilter(gitExpr, gitExpr.String())}).
+				WithSuppressParseErrors().
+				Discover(ctx, l, v, new(rewrite.Store), opts)
+			require.ErrorAs(t, err, new(config.AmbiguousConfigError))
+		})
+	}
+}
+
 // dependenciesByPath maps the path of each of components to the sorted paths of its dependencies.
 func dependenciesByPath(components component.Components) map[string][]string {
 	byPath := make(map[string][]string, len(components))
