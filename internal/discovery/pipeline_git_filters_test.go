@@ -25,9 +25,11 @@ func TestDiscoveryPipelineMatchesPhasesForGitFiltersWithRacing(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		configure func(d *discovery.Discovery) *discovery.Discovery
-		name      string
-		queries   []string
+		configure         func(d *discovery.Discovery) *discovery.Discovery
+		name              string
+		queries           []string
+		omitGitFilter     bool
+		absoluteDependent bool
 	}{
 		{name: "git filter"},
 		{name: "git filter beside a path filter", queries: []string{"./untouched"}},
@@ -52,6 +54,19 @@ func TestDiscoveryPipelineMatchesPhasesForGitFiltersWithRacing(t *testing.T) {
 				return d.WithRelationships().WithSuppressParseErrors()
 			},
 		},
+		{
+			name:          "dependencies and dependents of the changed units, without them",
+			queries:       []string{"...^[HEAD~1...HEAD]..."},
+			omitGitFilter: true,
+		},
+		{name: "dependents of the changed units", queries: []string{"...[HEAD~1...HEAD]"}},
+		{name: "direct dependents of the changed units", queries: []string{"1...[HEAD~1...HEAD]"}},
+		{name: "dependents of the changed units within a boundary", queries: []string{"(./web)...[HEAD~1...HEAD]"}},
+		{
+			name:              "direct dependents of the changed units by absolute paths",
+			queries:           []string{"1...[HEAD~1...HEAD]"},
+			absoluteDependent: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -63,6 +78,12 @@ func TestDiscoveryPipelineMatchesPhasesForGitFiltersWithRacing(t *testing.T) {
 			createUnit(t, repo, "db", "")
 			createUnit(t, repo, "app", dependenciesOn("../db"))
 			createUnit(t, repo, "web", dependenciesOn("../app"))
+			createUnit(t, repo, "edge", dependenciesOn("../web"))
+
+			if tt.absoluteDependent {
+				createUnit(t, repo, "pinned", dependenciesOn(filepath.Join(repo, "app"), filepath.Join(repo, "db")))
+			}
+
 			createUnit(t, repo, "untouched", `locals { shared = read_terragrunt_config("../shared.hcl") }`)
 			createUnit(t, repo, "removed", "")
 
@@ -97,7 +118,9 @@ func TestDiscoveryPipelineMatchesPhasesForGitFiltersWithRacing(t *testing.T) {
 			filters, err := filter.ParseFilterQueries(l, tt.queries)
 			require.NoError(t, err)
 
-			filters = append(filter.Filters{filter.NewFilter(gitExpr, gitExpr.String())}, filters...)
+			if !tt.omitGitFilter {
+				filters = append(filter.Filters{filter.NewFilter(gitExpr, gitExpr.String())}, filters...)
+			}
 
 			discover := func(pipeline string) map[string][]string {
 				opts := options.NewTerragruntOptions()
@@ -187,6 +210,84 @@ func TestDiscoveryReportsAmbiguousConfigsInGitFilterWorktreesWithRacing(t *testi
 				WithSuppressParseErrors().
 				Discover(ctx, l, v, new(rewrite.Store), opts)
 			require.ErrorAs(t, err, new(config.AmbiguousConfigError))
+		})
+	}
+}
+
+func TestDiscoveryPipelineFindsWorktreeDependentsOfAnAbsolutePath(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		workingDir string
+	}{
+		{name: "working directory at the Git root"},
+		{name: "working directory below the Git root", workingDir: "live"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			repo, runner := setupGitRepo(t)
+			workingDir := filepath.Join(repo, tt.workingDir)
+
+			createUnit(t, workingDir, "app", "")
+			createUnit(t, workingDir, "shared", "")
+			createUnit(t, workingDir, "pinned", dependenciesOn(
+				filepath.Join(workingDir, "app"),
+				filepath.Join(workingDir, "shared"),
+			))
+
+			commitChanges(t, runner, "Initial commit")
+
+			require.NoError(t, os.WriteFile(filepath.Join(workingDir, "app", "terragrunt.hcl"), []byte("locals {}\n"), 0o644))
+
+			commitChanges(t, runner, "Change app")
+
+			l := logger.CreateLogger()
+			ctx := config.WithCaches(t.Context())
+
+			w, err := worktrees.NewWorktrees(ctx, l, venvtest.NewOSWithEmptyEnv(), worktrees.WorktreeOpts{
+				WorkingDir:     workingDir,
+				GitExpressions: filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")},
+			})
+			require.NoError(t, err)
+
+			t.Cleanup(func() {
+				require.NoError(t, w.Cleanup(context.WithoutCancel(ctx), l, venvtest.NewOSWithEmptyEnv()))
+			})
+
+			filters, err := filter.ParseFilterQueries(l, []string{"...[HEAD~1...HEAD]"})
+			require.NoError(t, err)
+
+			opts := options.NewTerragruntOptions()
+			opts.WorkingDir = workingDir
+			opts.RootWorkingDir = workingDir
+
+			v := venvtest.NewOSWithEmptyEnv()
+			v.Env[discovery.EnvPipeline] = "true"
+
+			components, err := discovery.NewDiscovery(workingDir).
+				WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: workingDir}).
+				WithWorktrees(w).
+				WithFilters(filters).
+				Discover(ctx, l, v, new(rewrite.Store), opts)
+			require.NoError(t, err)
+
+			require.Len(t, w.WorktreePairs, 1)
+
+			var head string
+			for _, pair := range w.WorktreePairs {
+				head = filepath.Join(pair.ToWorktree.Path, tt.workingDir)
+			}
+
+			app := filepath.Join(head, "app")
+
+			assert.Equal(t, map[string][]string{
+				app:                           {},
+				filepath.Join(head, "pinned"): {filepath.Join(workingDir, "shared"), app},
+			}, dependenciesByPath(components))
 		})
 	}
 }

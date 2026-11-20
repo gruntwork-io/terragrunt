@@ -90,6 +90,16 @@
 // depth left, so its results depend on which traversal gets there first. The pipeline continues from such a
 // component when it has more depth left.
 //
+// Phase 3 finds the dependents of a target outside the working directory by walking up from it to the dependent
+// boundary and reading the configs below each directory on the way, once per target and again for each dependent
+// it finds. The pipeline walks to each boundary once, reads the dependencies of the units there together, and
+// leaves the dependents to the traversal of the links. The depth of a filter such as 1...vpc then counts
+// dependencies only, where phase 3 also spends one for each directory it climbs. For a target found in a Git
+// worktree, both search that worktree within the boundary there.
+//
+// The traversal of those links to the dependents of each target then runs on one goroutine as well, while the
+// configs below each boundary are parsed together on the pipeline's workers.
+//
 // # Filter Expressions
 //
 // The package supports several filter expression types:
