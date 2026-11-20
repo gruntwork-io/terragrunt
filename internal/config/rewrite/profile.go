@@ -64,7 +64,7 @@ func runDigest(v *venv.Venv, run *pkgconfig.ParsingContext) (string, bool) {
 	d.bool(run.SkipAutoIncludeMerge)
 	d.bool(run.FilesRead.Tracking())
 	d.sections(run.PartialParseDecodeList)
-	d.strMap(v.Env)
+	d.uint64(pkgconfig.HashEnv(v.Env))
 	d.bool(v.Writers.Writer == io.Discard)
 
 	return d.sum(), true
@@ -126,6 +126,11 @@ func (d *digest) int(n int) {
 
 func (d *digest) int64(n int64) {
 	d.buf = strconv.AppendInt(d.buf, n, decimal)
+	d.buf = append(d.buf, 0)
+}
+
+func (d *digest) uint64(n uint64) {
+	d.buf = strconv.AppendUint(d.buf, n, decimal)
 	d.buf = append(d.buf, 0)
 }
 

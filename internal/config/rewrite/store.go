@@ -42,8 +42,10 @@ type Key struct {
 	Stage Stage
 }
 
-// Store runs the stages of config parses and memoizes those a [Stage] names, for the life of a process. The zero value
-// is ready to use, and every method is safe for concurrent use.
+// Store runs the stages of config parses and memoizes those a [Stage] names. It retains a result whose [Key] has no
+// Context for the life of a process. [Store.ResolveUnitConfig] and [Store.ResolveUnitQueueConfig] release the results
+// with a Context that their runs led when they return. The zero value is ready to use, and every method is safe for
+// concurrent use.
 //
 // A unit's stages are [Store.ParseUnitAST], [Store.ResolveUnitBaseVariables], [Store.ResolveUnitQueueConfig], and
 // [Store.ResolveRunConfig], each reading more of the file than the last.
@@ -58,8 +60,6 @@ type Key struct {
 // call one of them.
 //
 // A body that memoizes its own key, directly or through the bodies it calls, waits for itself.
-//
-// The Store never releases what it holds.
 type Store struct {
 	entries map[Key]*entry
 	mu      sync.Mutex
@@ -169,6 +169,7 @@ func (s *Store) Memoize[T any](
 		e, lead := s.join(k)
 		if lead {
 			s.misses.Add(1)
+			noteRelease(ctx, k)
 
 			return s.run(ctx, k, e, fn)
 		}
@@ -463,6 +464,63 @@ func (s *Store) finish(k Key, e *entry, val any, err error, end flightEnd) {
 	s.mu.Unlock()
 
 	close(e.done)
+}
+
+// releaseScope is the keys with a Context that the runs under one resolution led, which the resolution releases when
+// it ends.
+type releaseScope struct {
+	keys []Key
+	mu   sync.Mutex
+}
+
+// releaseScopeKey is the context key of the [releaseScope] a run belongs to.
+type releaseScopeKey struct{}
+
+// withReleaseScope returns a copy of ctx whose runs note their keys to a new scope, and the scope.
+func withReleaseScope(ctx context.Context) (context.Context, *releaseScope) {
+	scope := new(releaseScope)
+
+	return context.WithValue(ctx, releaseScopeKey{}, scope), scope
+}
+
+// noteRelease adds k to the scope of ctx when k has a Context. It does nothing outside a scope.
+func noteRelease(ctx context.Context, k Key) {
+	if k.Context == "" {
+		return
+	}
+
+	scope, ok := ctx.Value(releaseScopeKey{}).(*releaseScope)
+	if !ok {
+		return
+	}
+
+	scope.mu.Lock()
+	defer scope.mu.Unlock()
+
+	scope.keys = append(scope.keys, k)
+}
+
+// releaseScope drops the retained value of each key of scope. A run in progress is left alone.
+func (s *Store) releaseScope(scope *releaseScope) {
+	scope.mu.Lock()
+	keys := scope.keys
+	scope.mu.Unlock()
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for _, k := range keys {
+		e, ok := s.entries[k]
+		if !ok {
+			continue
+		}
+
+		select {
+		case <-e.done:
+			delete(s.entries, k)
+		default:
+		}
+	}
 }
 
 // dropStale drops the retained value of k when info no longer matches the file it was read from. A run in

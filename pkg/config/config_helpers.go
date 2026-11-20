@@ -2121,5 +2121,5 @@ func ConstraintCheck(args []string) (bool, error) {
 // element boundary survives: ("x y") and ("x", "y") get different keys. NUL separates the parts
 // because it cannot occur in a path, in hex, or unescaped inside a %q string.
 func runCmdCacheKey(scope string, env map[string]string, args []string) string {
-	return fmt.Sprintf("%s\x00%x\x00%q", scope, hashEnv(env), args)
+	return fmt.Sprintf("%s\x00%x\x00%q", scope, HashEnv(env), args)
 }

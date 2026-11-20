@@ -11,11 +11,10 @@
 // The engine block is the one part of both: a parse decodes it with `dependency` unknown, as discovery needs it, and
 // ToV1 decodes it again with the outputs.
 //
-// Every parse goes through a [Store], which shares a file's syntax tree across the units that include it
-// and reuses a unit's parse for a later caller with the same context. What the context covers is the
-// contract of the run digest in profile.go. A memoized result holds nothing of its caller's: each stage takes the
-// settings and sinks of a [ParseContext], and assembles a [pkgconfig.TerragruntConfig] of the caller's own, which the
-// merges change in place.
+// Every parse goes through a [Store], which shares a file's syntax tree across the units that include it, and shares
+// a unit's parse with the callers that wait on it while it runs. What the context covers is the contract of the run
+// digest in profile.go. A memoized result holds nothing of its caller's: each stage takes the settings and sinks of a
+// [ParseContext], and assembles a [pkgconfig.TerragruntConfig] of the caller's own, which the merges change in place.
 //
 // pkg/config must never import this package, which depguard enforces. Merge the package into pkg/config once its
 // parity test has passed across the fixture corpus for one release.

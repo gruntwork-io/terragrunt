@@ -82,7 +82,7 @@ func parseForBenchmark(b *testing.B, l log.Logger, v *venv.Venv, store *config.S
 	require.NoError(b, err)
 }
 
-func TestResolveUnitConfigSharesTheParse(t *testing.T) {
+func TestResolveUnitConfigServesALaterCallTheTreesAndScan(t *testing.T) {
 	t.Parallel()
 
 	root := vfs.MemRoot
@@ -117,9 +117,9 @@ func TestResolveUnitConfigSharesTheParse(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(
 		t,
-		config.Stats{Hits: 7, Misses: 7},
+		config.Stats{Hits: 15, Misses: 11},
 		store.Stats(),
-		"the unit's parse is served whole",
+		"both files' base and queue stages run again, served the trees and the root's scan",
 	)
 
 	assert.Equal(t, firstCfg, secondCfg)
@@ -137,7 +137,6 @@ func TestResolveUnitConfigSharesTheParse(t *testing.T) {
 
 	second, err := store.ResolveUnitConfig(secondCtx, l, v, secondPC, paths[0])
 	require.NoError(t, err)
-	assert.Same(t, first, second, "callers share one parse")
 
 	firstV1, err := first.ToV1(ctx, l, v, firstPC)
 	require.NoError(t, err)
@@ -515,7 +514,7 @@ include "r" {
 	assert.NotNil(t, cfg)
 }
 
-func TestResolveRunConfigAddsTheRunPartsToTheSharedParse(t *testing.T) {
+func TestResolveRunConfigAddsTheRunParts(t *testing.T) {
 	t.Parallel()
 
 	root := vfs.MemRoot
@@ -537,7 +536,7 @@ func TestResolveRunConfigAddsTheRunPartsToTheSharedParse(t *testing.T) {
 		map[string]any{"name": "unit", "region": "us-east-1", "unit": "unit-0"},
 		runCfg.Inputs,
 	)
-	assert.Equal(t, config.Stats{Hits: 7, Misses: 7}, store.Stats())
+	assert.Equal(t, config.Stats{Hits: 15, Misses: 11}, store.Stats())
 }
 
 func TestResolveRunConfigReturnsNoConfigForAMissingFile(t *testing.T) {
@@ -595,35 +594,6 @@ func TestDependencyReadsReachOnlyARun(t *testing.T) {
 	_, err = store.ResolveRunConfig(runCtx, l, v, config.NewParseContext(v, run), path)
 	require.NoError(t, err)
 	assert.Contains(t, run.FilesRead.Paths(), readByDependency)
-}
-
-func TestInvalidateKeepsAParseWhenAFileItsDependencyReadChanges(t *testing.T) {
-	t.Parallel()
-
-	root := vfs.MemRoot
-	fsys, path, readByDependency := dependencyReadsRepo(t, root)
-	v := venv.MemVenv().WithFS(fsys)
-	l := logger.CreateLogger()
-	store := &config.Store{}
-
-	resolve := func() {
-		ctx, run := newTestParsingContext(t, path)
-		run = run.WithFileReadTracking()
-
-		_, err := store.ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(v, run), path)
-		require.NoError(t, err)
-	}
-
-	resolve()
-
-	misses := store.Stats().Misses
-
-	resolve()
-	assert.Equal(t, misses, store.Stats().Misses, "the parse is served")
-
-	store.Invalidate(readByDependency)
-	resolve()
-	assert.Equal(t, misses, store.Stats().Misses, "the parse is still served")
 }
 
 func TestResolveUnitBaseVariablesStopsBeforeTheDependencyBlocks(t *testing.T) {
@@ -921,7 +891,7 @@ include {
 	}
 }
 
-func TestResolveUnitConfigParsesAgainAfterInvalidate(t *testing.T) {
+func TestResolveUnitQueueConfigReadsAChangedFileOnTheNextCall(t *testing.T) {
 	t.Parallel()
 
 	root := vfs.MemRoot
@@ -944,15 +914,6 @@ func TestResolveUnitConfigParsesAgainAfterInvalidate(t *testing.T) {
 
 	common := filepath.Join(root, "common.yaml")
 	require.NoError(t, vfs.WriteFile(fsys, common, []byte("region: eu-west-1\n"), 0o644))
-
-	assert.Equal(
-		t,
-		"us-east-1",
-		region(),
-		"the unit's parse is served until its reads are invalidated",
-	)
-
-	store.Invalidate(common)
 
 	assert.Equal(t, "eu-west-1", region())
 }

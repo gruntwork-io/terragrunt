@@ -22,11 +22,10 @@ import (
 
 // ResolveUnitConfig resolves the config file at cfgPath and the files it merges in, fetching no dependency outputs.
 //
-// The result is memoized in s by file and context: a second call for the same file and context shares the first's
-// evaluation. [Store.Invalidate] finds a memoized result by the config files it parsed, and by a file it read through
-// a function such as file only when pc's run records its reads.
+// Calls for the same file and context while one is running share its evaluation. A later call evaluates the file
+// again, served the syntax trees and dependency scans s retained.
 //
-// The [UnitConfig] is shared with every caller of the same file and context, and must not be changed.
+// The [UnitConfig] is shared with every call that shares its evaluation, and must not be changed.
 //
 // Returns the errors of the parse, which [UnitConfig.ToV1] returns again with those of resolving the outputs. Returns
 // nil when the parse produced no config.
@@ -37,6 +36,9 @@ func (s *Store) ResolveUnitConfig(
 	pc *ParseContext,
 	cfgPath string,
 ) (*UnitConfig, error) {
+	ctx, scope := withReleaseScope(ctx)
+	defer s.releaseScope(scope)
+
 	c, cfg, err := s.resolveFile(ctx, l, v, pc, cfgPath)
 	if cfg == nil {
 		return nil, err
@@ -100,6 +102,9 @@ func (s *Store) ResolveUnitQueueConfig(
 	pc *ParseContext,
 	cfgPath string,
 ) (*pkgconfig.TerragruntConfig, error) {
+	ctx, scope := withReleaseScope(ctx)
+	defer s.releaseScope(scope)
+
 	_, cfg, err := s.resolveFile(ctx, l, v, pc, cfgPath)
 
 	return cfg, err

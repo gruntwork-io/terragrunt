@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -162,12 +163,20 @@ type componentView struct {
 	Excluded     bool
 }
 
-// discoverCorpus runs discovery over rewriteCorpus, parsing through store, and returns what it found in path order.
-func discoverCorpus(t *testing.T, store *rewrite.Store) []componentView {
+// corpusVenv returns an in-memory venv holding rewriteCorpus.
+func corpusVenv(t *testing.T) *venv.Venv {
 	t.Helper()
 
 	v := memRepoRootVenv(t, corpusRepoRoot)
 	writeFixture(t, v, prefixPaths(rewriteCorpus))
+
+	return v
+}
+
+// discoverCorpus runs discovery over the corpus v holds, parsing through store, and returns what it found in path
+// order.
+func discoverCorpus(t *testing.T, store *rewrite.Store, v *venv.Venv) []componentView {
+	t.Helper()
 
 	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = corpusRepoRoot
@@ -234,12 +243,13 @@ func componentViews(components component.Components) []componentView {
 	return views
 }
 
-func TestDiscoveryReusesTheParsesOfAnEarlierDiscovery(t *testing.T) {
+func TestDiscoveryReusesTheTreesOfAnEarlierDiscovery(t *testing.T) {
 	t.Parallel()
 
 	store := new(rewrite.Store)
+	v := corpusVenv(t)
 
-	want := discoverCorpus(t, store)
+	want := discoverCorpus(t, store, v)
 
 	dependencies := map[string][]string{}
 
@@ -262,9 +272,12 @@ func TestDiscoveryReusesTheParsesOfAnEarlierDiscovery(t *testing.T) {
 	misses := store.Stats().Misses
 	require.Positive(t, misses, "the discovery parsed through the store")
 
-	again := discoverCorpus(t, store)
+	hits := store.Stats().Hits
+
+	again := discoverCorpus(t, store, v)
 	assert.Equal(t, want, again)
-	assert.Equal(t, misses, store.Stats().Misses, "the second discovery parsed nothing")
+	assert.Less(t, store.Stats().Misses-misses, misses, "the second discovery parsed no syntax tree again")
+	assert.Greater(t, store.Stats().Hits-hits, hits, "the second discovery was served every syntax tree")
 }
 
 // prefixPaths returns files with each path joined onto the corpus repo root.
