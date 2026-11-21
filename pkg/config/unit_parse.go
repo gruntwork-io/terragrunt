@@ -35,8 +35,8 @@ func (s *Store) ResolveUnitConfig(
 	pc *ParseContext,
 	cfgPath string,
 ) (*UnitConfig, error) {
-	ctx, scope := withReleaseScope(ctx)
-	defer s.releaseScope(scope)
+	ctx, release := s.withReleaseScope(ctx)
+	defer release()
 
 	c, cfg, err := s.resolveFile(ctx, l, v, pc, cfgPath)
 	if cfg == nil {
@@ -101,12 +101,52 @@ func (s *Store) ResolveUnitQueueConfig(
 	pc *ParseContext,
 	cfgPath string,
 ) (*TerragruntConfig, error) {
-	ctx, scope := withReleaseScope(ctx)
-	defer s.releaseScope(scope)
+	ctx, release := s.withReleaseScope(ctx)
+	defer release()
 
 	_, cfg, err := s.resolveFile(ctx, l, v, pc, cfgPath)
 
 	return cfg, err
+}
+
+// ResolvePartialConfig returns the merged config of the file at cfgPath with the run parts that a section of pc's
+// decode list decodes and that read no `dependency`, resolving the file as [Store.ResolveUnitConfig] does. It fetches
+// no outputs. The config also holds every queue part, and the errors are those of the queue parts and the requested
+// run parts, whatever the decode list names.
+//
+// Returns [PartialParseReadsDependencyError], with the config, for each merged file with a requested run part that
+// reads `dependency`, unless pc skips resolving outputs. Returns a partial config with the error when part of the
+// parse fails, and no config when the parse produced none.
+func (s *Store) ResolvePartialConfig(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pc *ParseContext,
+	cfgPath string,
+) (*TerragruntConfig, error) {
+	ctx, release := s.withReleaseScope(ctx)
+	defer release()
+
+	c, cfg, err := s.resolveFile(ctx, l, v, pc, cfgPath)
+
+	decodeList := pc.settings.PartialParseDecodeList
+	if c == nil || !slices.ContainsFunc(decodeList, decodesRunParts) {
+		return cfg, err
+	}
+
+	src := keptUnknownOutputs{decodeList: decodeList}
+
+	var readers []error
+	if !pc.settings.SkipOutputsResolution {
+		src.readers = &readers
+	}
+
+	cfg, err = c.assemble(ctx, l, v, s, pc, src, c.functions(ctx, l, v, s))
+	if len(readers) == 0 {
+		return cfg, err
+	}
+
+	return cfg, errors.Join(append([]error{err}, readers...)...)
 }
 
 // ResolveRunConfig fetches the dependency outputs of the file at cfgPath and returns its merged config with the run

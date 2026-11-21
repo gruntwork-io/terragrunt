@@ -230,14 +230,12 @@ func CheckUnitVersionConstraints(
 
 		var err error
 
-		unitConfig, err = config.PartialParseConfigFile(
+		unitConfig, err = s.ResolvePartialConfig(
 			ctx,
 			l,
 			v,
-			s,
-			pctx,
+			config.NewParseContext(v, pctx),
 			unitOpts.TerragruntConfigPath,
-			nil,
 		)
 		if err != nil {
 			return fmt.Errorf("failed to parse config for unit %s: %w", unit.DisplayPath(), err)

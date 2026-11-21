@@ -1241,7 +1241,7 @@ func TestParseContextStoreContextCoversEachInput(t *testing.T) {
 	}
 }
 
-func TestParseContextStoreContextKeysTheSectionsOfTheDecodeList(t *testing.T) {
+func TestParseContextStoreContextKeysWhetherTheParseIsPartial(t *testing.T) {
 	t.Parallel()
 
 	cfgPath := filepath.Join(t.TempDir(), config.DefaultTerragruntConfigPath)
@@ -1261,13 +1261,9 @@ func TestParseContextStoreContextKeysTheSectionsOfTheDecodeList(t *testing.T) {
 
 	excludeOnly := key(t, config.ExcludeBlock)
 
-	assert.NotEqual(t, excludeOnly, key(t, config.RemoteStateBlock))
-	assert.NotEqual(t, excludeOnly, key(t, config.ExcludeBlock, config.RemoteStateBlock))
-	assert.Equal(
-		t,
-		key(t, config.ExcludeBlock, config.RemoteStateBlock),
-		key(t, config.RemoteStateBlock, config.ExcludeBlock, config.ExcludeBlock),
-	)
+	assert.NotEqual(t, key(t), excludeOnly)
+	assert.Equal(t, excludeOnly, key(t, config.RemoteStateBlock))
+	assert.Equal(t, excludeOnly, key(t, config.ExcludeBlock, config.RemoteStateBlock))
 }
 
 func TestParityFixturesSharedStoreWithRacing(t *testing.T) {

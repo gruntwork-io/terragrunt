@@ -278,6 +278,9 @@ func (q keptQueue) autoIncluded(
 // run parts that a section of decodeList decodes and that read no `dependency`, and leaves out the rest. An assembly
 // that gets further than the parse did returns [UnparsedIncludeError].
 type keptUnknownOutputs struct {
+	// readers collects a [PartialParseReadsDependencyError] for each file whose parts it leaves out for reading
+	// `dependency`, and is nil to collect none.
+	readers    *[]error
 	decodeList []PartialDecodeSectionType
 }
 
@@ -289,6 +292,10 @@ func (k keptUnknownOutputs) file(
 	c *UnitConfig,
 	evalCtx *hcl.EvalContext,
 ) (*TerragruntConfigFile, hcl.Diagnostics) {
+	if parts := c.requestedDependencyReaders(k.decodeList); k.readers != nil && len(parts) > 0 {
+		*k.readers = append(*k.readers, PartialParseReadsDependencyError{ConfigPath: c.file.ConfigPath, Parts: parts})
+	}
+
 	c = c.withRequestedRunParts(k.decodeList)
 
 	run, diags := c.decodeRun(evalCtx)
@@ -644,8 +651,8 @@ func (s *Store) includedDependencies(v *venv.Venv, pc *ParseContext) IncludedDep
 //
 // The file resolves as merging it does, with its dependency outputs fetched and every run part decoded. A partial
 // parse fetches no outputs of a file with a dependency or dependencies block, and decodes only the run parts of that
-// file that a requested section decodes and that read no `dependency`. A partial parse of a file without such a
-// block evaluates it with the IAM role options the file sets.
+// file that read no `dependency`, whatever the decode list, so every partial parse shares one resolution. A partial
+// parse of a file without such a block evaluates it with the IAM role options the file sets.
 //
 // The second function returns the errors of the blocks that failed to resolve, in name order, each annotated by
 // [ExposedIncludeError].
@@ -715,7 +722,7 @@ func (s *Store) resolveExposedInclude(
 	switch {
 	case partial && includedCtx.hasDependencyBlock:
 		included, _, err = s.resolveFile(ctx, l, v, includedPC, include.Path)
-		src = keptUnknownOutputs{decodeList: pc.settings.PartialParseDecodeList}
+		src = keptUnknownOutputs{decodeList: runSections}
 	case partial:
 		included, err = s.resolveWithFileIAMRole(ctx, l, v, includedPC, include.Path)
 	default:

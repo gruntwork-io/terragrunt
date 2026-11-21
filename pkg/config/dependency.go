@@ -696,7 +696,7 @@ func DecodeOwnDependencies(
 }
 
 // LoadDependencyConfigs checks the dependency blocks of the config at pctx.TerragruntConfigPath for cycles, then
-// reads the config of each one and sets its inputs on the block.
+// reads the config of each one and sets its inputs on the block. Both read each config through one parse in s.
 func LoadDependencyConfigs(
 	ctx context.Context,
 	l log.Logger,
@@ -706,6 +706,9 @@ func LoadDependencyConfigs(
 	dependencies Dependencies,
 ) (Dependencies, error) {
 	decodedDependency := TerragruntDependency{Dependencies: dependencies}
+
+	ctx, release := s.withReleaseScope(ctx)
+	defer release()
 
 	if err := checkForDependencyBlockCycles(
 		ctx,
@@ -851,16 +854,12 @@ func decodeDependencies(
 			return nil, err
 		}
 
-		if depCtx.IAMRoleOptions != depCtx.OriginalIAMRoleOptions {
-			depCtx.IAMRoleOptions = iam.RoleOptions{}
-		}
-
-		depCtx = depCtx.WithDecodeList(TerragruntFlags).WithDiagnosticsSuppressed()
+		depCtx = depCtx.WithDecodeList(TerragruntFlags).WithSkipOutputsResolution().WithDiagnosticsSuppressed()
 		if pctx.Experiments.Evaluate(experiment.OutputsBlock) {
-			depCtx = depCtx.WithDecodeList(TerragruntFlags, OutputsBlock).WithSkipOutputsResolution()
+			depCtx = depCtx.WithDecodeList(TerragruntFlags, OutputsBlock)
 		}
 
-		depConfig, err := PartialParseConfigFile(ctx, l, v, s, depCtx, depPath, nil)
+		depConfig, err := s.ResolvePartialConfig(ctx, l, v, NewParseContext(v, depCtx), depPath)
 		if err != nil {
 			l.Warnf(
 				"Error reading partial config for dependency %s at %s: %v",
@@ -940,7 +939,7 @@ func checkForDependencyBlockCycles(
 			return err
 		}
 
-		if err := checkForDependencyBlockCyclesUsingDFS(
+		err = checkForDependencyBlockCyclesUsingDFS(
 			ctx,
 			l,
 			v,
@@ -949,9 +948,16 @@ func checkForDependencyBlockCycles(
 			dependencyPath,
 			&visitedPaths,
 			&currentTraversalPaths,
-		); err != nil {
+		)
+		if err == nil {
+			continue
+		}
+
+		if errors.As(err, new(DependencyCycleError)) {
 			return err
 		}
+
+		return DependencyBlockError{Name: dependency.Name, ConfigPath: cfgPath, Err: err}
 	}
 
 	return nil
@@ -2011,11 +2017,6 @@ func resolveOutputJSON(
 	pctx.TerraformCommand = "output"
 	pctx.TerraformCliArgs = iacargs.New().SetCommand("output").AppendFlag("-json")
 
-	// Clear IAM if changed from original
-	if pctx.IAMRoleOptions != pctx.OriginalIAMRoleOptions {
-		pctx.IAMRoleOptions = iam.RoleOptions{}
-	}
-
 	pctx.dependencyOutputEnvKeys = nil
 
 	credentialGetter, err := creds.ObtainCredsForParsing(
@@ -2033,15 +2034,16 @@ func resolveOutputJSON(
 
 	// Decode dependency blocks, terraform source and extra_arguments, and terraform_binary, skipping hooks that may
 	// reference the dependency namespace.
-	partialTerragruntConfig, err := PartialParseConfigFile(
+	partialTerragruntConfig, err := s.ResolvePartialConfig(
 		ctx,
 		l,
 		v,
-		s,
-		pctx.WithDecodeList(DependencyBlock, TerraformExtraArgs, TerragruntVersionConstraints).
-			WithDiagnosticsSuppressed(),
+		NewParseContext(
+			v,
+			pctx.WithDecodeList(DependencyBlock, TerraformExtraArgs, TerragruntVersionConstraints).
+				WithDiagnosticsSuppressed(),
+		),
 		targetConfig,
-		nil,
 	)
 	if err != nil {
 		// The config being parsed may reference dependency outputs that this lightweight parse can't resolve; the
@@ -2083,18 +2085,16 @@ func resolveOutputJSON(
 
 	if declaresRemoteState(ctx, l, v, pctx, targetConfig, partialTerragruntConfig.ProcessedIncludes) {
 		// we need to suspend logging diagnostic errors on this attempt
-		remoteStateTGConfig, err = PartialParseConfigFile(
+		remoteStateTGConfig, err = s.ResolvePartialConfig(
 			ctx,
 			l,
 			v,
-			s,
-			pctx.WithDiagnosticsDiscarded().WithDecodeList(
+			NewParseContext(v, pctx.WithDiagnosticsDiscarded().WithDecodeList(
 				RemoteStateBlock,
 				TerragruntFlags,
 				EngineBlock,
-			),
+			)),
 			targetConfig,
-			nil,
 		)
 	}
 
@@ -2528,14 +2528,12 @@ func terragruntAlreadyInit(
 ) (bool, string, error) {
 	// We need to first determine the working directory where the terraform source should be located. This is dependent
 	// on the source field of the terraform block in the config.
-	terraformBlockTGConfig, err := PartialParseConfigFile(
+	terraformBlockTGConfig, err := s.ResolvePartialConfig(
 		ctx,
 		l,
 		v,
-		s,
-		pctx.WithDecodeList(TerraformSource),
+		NewParseContext(v, pctx.WithDecodeList(TerraformSource)),
 		cfgPath,
-		nil,
 	)
 	if err != nil {
 		return false, "", err
@@ -2806,7 +2804,7 @@ func runTerragruntOutputJSON(
 	pctx.JSONLogFormat = false
 	v = v.WithEnvCloned().WithWriter(stdoutBufferWriter)
 
-	cfg, err := ParseConfigFile(ctx, l, v, s, pctx, pctx.TerragruntConfigPath, nil)
+	cfg, err := s.ResolveRunConfig(ctx, l, v, NewParseContext(v, pctx), pctx.TerragruntConfigPath)
 	if err != nil {
 		return nil, err
 	}

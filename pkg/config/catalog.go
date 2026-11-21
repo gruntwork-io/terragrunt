@@ -16,6 +16,8 @@ import (
 )
 
 const (
+	catalogStubPerms = 0o644
+
 	rootConfigFmt = `
 include "root" {
   path = find_in_parent_folders("%s")
@@ -103,7 +105,20 @@ func ReadCatalogConfig(
 	pctx.Parser.HaltOnErrorOnlyInBlocks = append(pctx.Parser.HaltOnErrorOnlyInBlocks, MetadataCatalog)
 	pctx.catalogOnly = true
 
-	config, err := ParseConfigString(parentCtx, l, v, s, pctx, cfgPath, configString, nil)
+	catalogV := v
+
+	if !vfs.Exists(v.FS, cfgPath) {
+		pctx.catalogStubDir = filepath.Dir(cfgPath)
+
+		fsys := vfs.NewOverlayFS(v.FS, vfs.NewMemMapFS())
+		if err := vfs.WriteFile(fsys, cfgPath, []byte(configString), catalogStubPerms); err != nil {
+			return nil, err
+		}
+
+		catalogV = v.WithFS(fsys)
+	}
+
+	config, err := s.ResolveUnitQueueConfig(parentCtx, l, catalogV, NewParseContext(catalogV, pctx), cfgPath)
 	if err != nil {
 		return nil, err
 	}

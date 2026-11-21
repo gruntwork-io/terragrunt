@@ -169,8 +169,8 @@ type MockStrategyHCL struct {
 
 // OutputHCL is an output block of an outputs block.
 type OutputHCL struct {
-	MockValue *cty.Value `hcl:"mock_value,optional"`
-	Name      string     `hcl:"name,label"`
+	MockValue *hcl.Attribute `hcl:"mock_value,optional"`
+	Name      string         `hcl:"name,label"`
 }
 
 // FeatureFlagHCL is a feature block.

@@ -741,8 +741,7 @@ func runCommandImpl(
 
 	currentPath := filepath.Dir(pctx.TerragruntConfigPath)
 
-	// The child config [ReadCatalogConfig] generates sits in a directory that doesn't exist.
-	if pctx.catalogOnly && !vfs.IsDir(v.FS, currentPath) {
+	if pctx.catalogStubDir != "" && currentPath == pctx.catalogStubDir {
 		currentPath = filepath.Dir(currentPath)
 	}
 

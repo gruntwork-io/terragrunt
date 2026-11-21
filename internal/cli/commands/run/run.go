@@ -169,15 +169,7 @@ func ParseVersionCheckConfig(
 		config.EngineBlock,
 	)
 
-	return config.PartialParseConfigFile(
-		ctx,
-		l,
-		v,
-		s,
-		configCtx,
-		opts.TerragruntConfigPath,
-		nil,
-	)
+	return s.ResolvePartialConfig(ctx, l, v, config.NewParseContext(v, configCtx), opts.TerragruntConfigPath)
 }
 
 // runVersionCommand runs the version command. We do this instead of going through the normal run flow because

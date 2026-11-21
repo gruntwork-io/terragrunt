@@ -42,9 +42,9 @@ type Key struct {
 }
 
 // Store runs the stages of config parses and memoizes those a [Stage] names. It retains a result whose [Key] has no
-// Context for the life of a process. [Store.ResolveUnitConfig] and [Store.ResolveUnitQueueConfig] release the results
-// with a Context that their runs led when they return. The zero value is ready to use, and every method is safe for
-// concurrent use.
+// Context for the life of a process. A resolution releases the results with a Context that its runs led when it
+// returns, unless it runs under another resolution, which releases them instead. The zero value is ready to use, and
+// every method is safe for concurrent use.
 //
 // A unit's stages are [Store.ParseUnitAST], [Store.ResolveUnitBaseVariables], [Store.ResolveUnitQueueConfig], and
 // [Store.ResolveRunConfig], each reading more of the file than the last.
@@ -475,11 +475,17 @@ type releaseScope struct {
 // releaseScopeKey is the context key of the [releaseScope] a run belongs to.
 type releaseScopeKey struct{}
 
-// withReleaseScope returns a copy of ctx whose runs note their keys to a new scope, and the scope.
-func withReleaseScope(ctx context.Context) (context.Context, *releaseScope) {
+// withReleaseScope returns a copy of ctx whose runs note their keys to a new scope, and the func that releases them.
+// Under a scope already, it returns ctx and a func that does nothing, so the results stay shared until the outermost
+// resolution returns.
+func (s *Store) withReleaseScope(ctx context.Context) (context.Context, func()) {
+	if _, ok := ctx.Value(releaseScopeKey{}).(*releaseScope); ok {
+		return ctx, func() {}
+	}
+
 	scope := new(releaseScope)
 
-	return context.WithValue(ctx, releaseScopeKey{}, scope), scope
+	return context.WithValue(ctx, releaseScopeKey{}, scope), func() { s.releaseScope(scope) }
 }
 
 // noteRelease adds k to the scope of ctx when k has a Context. It does nothing outside a scope.

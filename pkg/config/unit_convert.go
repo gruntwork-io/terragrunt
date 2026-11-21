@@ -5,6 +5,8 @@ import (
 	"slices"
 
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
+
+	"github.com/zclconf/go-cty/cty"
 )
 
 // queueFile builds a new [TerragruntConfigFile] from the tagged fields of c and its queue parts q, with
@@ -28,7 +30,7 @@ func (c *UnitConfig) queueFile(q *QueueBodies) *TerragruntConfigFile {
 		Exclude:                     c.Exclude.v1(q.Exclude),
 		Engine:                      c.Engine.v1(q.Engine),
 		Errors:                      c.Errors.v1(q),
-		Outputs:                     c.Outputs.v1(),
+		Outputs:                     c.Outputs.v1(q.MockValues),
 	}
 }
 
@@ -47,6 +49,7 @@ func (r *RunBodies) fill(c *UnitConfig, file *TerragruntConfigFile) {
 	file.Engine = c.Engine.v1(r.Engine)
 	file.GenerateBlocks = convertEach(c.GenerateBlocks, r.Generate, (*GenerateHCL).v1)
 	file.Variables = convertEach(c.VariablesBlocks, r.Variables, (*VariablesHCL).v1)
+	file.Outputs = c.Outputs.v1(r.MockValues)
 
 	if c.Terraform == nil {
 		return
@@ -203,14 +206,14 @@ func (i *IgnoreHCL) v1(body *IgnoreBody) *IgnoreBlock {
 	}
 }
 
-func (o *OutputsHCL) v1() *OutputsConfig {
+func (o *OutputsHCL) v1(mockValues []*cty.Value) *OutputsConfig {
 	if o == nil {
 		return nil
 	}
 
 	return &OutputsConfig{
 		MockStrategy: o.MockStrategy.v1(),
-		Outputs:      convertAll(o.Output, (*OutputHCL).v1),
+		Outputs:      convertEach(o.Output, mockValues, (*OutputHCL).v1),
 	}
 }
 
@@ -225,9 +228,9 @@ func (s *MockStrategyHCL) v1() *OutputsMockStrategy {
 	}
 }
 
-func (d *OutputHCL) v1() *OutputDeclaration {
+func (d *OutputHCL) v1(mockValue **cty.Value) *OutputDeclaration {
 	return &OutputDeclaration{
-		MockValue: clonePtr(d.MockValue),
+		MockValue: clonePtr(*mockValue),
 		Name:      d.Name,
 	}
 }

@@ -15,14 +15,16 @@ import (
 // an absent part, or an exclude block that reads `dependency`, which [RunBodies] holds instead. Each slice aligns by
 // index with the HCL slice it decodes.
 //
-// Engine is the exception to that scope: the parse decodes it with `dependency` unknown, as
-// [PartialParseConfigFile] does when it skips resolving outputs, and [RunBodies] holds it again decoded with
-// the outputs.
+// Engine and MockValues are the exceptions to that scope: the parse decodes them with `dependency` unknown, as
+// [PartialParseConfigFile] does when it skips resolving outputs, and [RunBodies] holds them again decoded with
+// the outputs. MockValues aligns by index with the output blocks of the outputs block, and holds nil for an output
+// with no mock value.
 type QueueBodies struct {
-	Exclude *ExcludeBody
-	Engine  *EngineBody
-	Retry   []RetryBody
-	Ignore  []IgnoreBody
+	Exclude    *ExcludeBody
+	Engine     *EngineBody
+	Retry      []RetryBody
+	Ignore     []IgnoreBody
+	MockValues []*cty.Value
 }
 
 // RunBodies is the parts of a [UnitConfig] that only the run reads, decoded. [UnitConfig.ToV1] decodes them with
@@ -44,6 +46,7 @@ type RunBodies struct {
 	ErrorHooks               []ErrorHookBody
 	Generate                 []GenerateBody
 	Variables                []VariablesBody
+	MockValues               []*cty.Value
 }
 
 // decodeQueue decodes the queue parts of c with evalCtx, which defines no `dependency` variable in the parse.
@@ -62,7 +65,29 @@ func (c *UnitConfig) decodeQueue(evalCtx *hcl.EvalContext) (QueueBodies, hcl.Dia
 		diags = append(diags, decodeEach(evalCtx, c.Errors.Ignore, &q.Ignore, (*IgnoreHCL).remain)...)
 	}
 
+	diags = append(diags, c.decodeMockValues(withUnknownDependency(evalCtx), &q.MockValues)...)
+
 	return q, diags
+}
+
+// decodeMockValues evaluates the mock value of each output block of c's outputs block with evalCtx into *target,
+// which stays nil when c has no outputs block.
+func (c *UnitConfig) decodeMockValues(evalCtx *hcl.EvalContext, target *[]*cty.Value) hcl.Diagnostics {
+	if c.Outputs == nil {
+		return nil
+	}
+
+	var diags hcl.Diagnostics
+
+	values := make([]*cty.Value, len(c.Outputs.Output))
+
+	for i, output := range c.Outputs.Output {
+		diags = append(diags, decodeAttr(evalCtx, output.MockValue, &values[i])...)
+	}
+
+	*target = values
+
+	return diags
 }
 
 // decodeQueueEngine decodes the engine block of c with evalCtx and `dependency` unknown. It decodes nothing when c
@@ -151,6 +176,7 @@ func (c *UnitConfig) decodeRun(evalCtx *hcl.EvalContext) (*RunBodies, hcl.Diagno
 
 	diags = append(diags, decodeEach(evalCtx, c.GenerateBlocks, &r.Generate, (*GenerateHCL).remain)...)
 	diags = append(diags, decodeEach(evalCtx, c.VariablesBlocks, &r.Variables, (*VariablesHCL).remain)...)
+	diags = append(diags, c.decodeMockValues(evalCtx, &r.MockValues)...)
 
 	return &r, diags
 }
@@ -249,6 +275,55 @@ func (c *UnitConfig) withRequestedRunParts(decodeList []PartialDecodeSectionType
 	terraform.ErrorHooks = dropDependencyReaders[ErrorHookBody](c.Terraform.ErrorHooks, (*ErrorHookHCL).remain)
 
 	return &requested
+}
+
+// requestedDependencyReaders returns the names of the run parts of c that a section of decodeList decodes and that
+// read `dependency`, which [UnitConfig.withRequestedRunParts] leaves out.
+func (c *UnitConfig) requestedDependencyReaders(decodeList []PartialDecodeSectionType) []string {
+	var parts []string
+
+	if slices.Contains(decodeList, RemoteStateBlock) && (attrReadsDependency(c.RemoteStateAttr) ||
+		c.RemoteState != nil && bodyReadsDependency[RemoteStateBody](c.RemoteState.Remain)) {
+		parts = append(parts, MetadataRemoteState)
+	}
+
+	if c.Terraform == nil {
+		return parts
+	}
+
+	wholeTerraform := slices.Contains(decodeList, TerraformBlock)
+
+	if (wholeTerraform || slices.Contains(decodeList, TerraformExtraArgs)) &&
+		readsDependencyIn[ExtraArgumentsBody](c.Terraform.ExtraArgs, (*ExtraArgumentsHCL).remain) {
+		parts = append(parts, "terraform.extra_arguments")
+	}
+
+	if wholeTerraform && (readsDependencyIn[HookBody](c.Terraform.BeforeHooks, (*HookHCL).remain) ||
+		readsDependencyIn[HookBody](c.Terraform.AfterHooks, (*HookHCL).remain) ||
+		readsDependencyIn[ErrorHookBody](c.Terraform.ErrorHooks, (*ErrorHookHCL).remain)) {
+		parts = append(parts, "terraform hooks")
+	}
+
+	return parts
+}
+
+// readsDependencyIn reports whether the remain body of an item of items, which decodes into B, reads `dependency`.
+func readsDependencyIn[B, T any](items []T, remain func(*T) hcl.Body) bool {
+	for i := range items {
+		if bodyReadsDependency[B](remain(&items[i])) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// runSections is the decode list sections that ask for every run part [UnitConfig.withRequestedRunParts] can keep.
+var runSections = []PartialDecodeSectionType{RemoteStateBlock, TerraformBlock}
+
+// decodesRunParts reports whether section decodes run parts, which [UnitConfig.withRequestedRunParts] keeps.
+func decodesRunParts(section PartialDecodeSectionType) bool {
+	return section == RemoteStateBlock || section == TerraformBlock || section == TerraformExtraArgs
 }
 
 // dropDependencyReaders returns a copy of items without those whose remain body, which decodes into B, reads the

@@ -42,9 +42,6 @@ const (
 	// RunCmdLocksContextKey is the context key of the per-command locks that make concurrent identical `run_cmd`
 	// calls wait for the first.
 	RunCmdLocksContextKey configKey = iota
-	// DependencyPathsCacheContextKey is the context key of the scans of the dependency paths the dependency cycle check
-	// reads from each config.
-	DependencyPathsCacheContextKey configKey = iota
 
 	hclCacheName               = "hclCache"
 	configCacheName            = "configCache"
@@ -105,7 +102,6 @@ func withConfigValues(ctx context.Context) context.Context {
 		ReadTerragruntConfigCacheContextKey,
 		cache.NewCache[*readTerragruntConfigResult](readTerragruntConfigName),
 	)
-	ctx = context.WithValue(ctx, DependencyPathsCacheContextKey, newDependencyPathsScans())
 
 	return ctx
 }

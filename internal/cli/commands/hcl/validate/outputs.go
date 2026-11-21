@@ -300,14 +300,12 @@ func includedFiles(
 
 	autoPctx.SkipAutoIncludeMerge = true
 
-	autoCfg, err := config.PartialParseConfigFile(
+	autoCfg, err := s.ResolvePartialConfig(
 		ctx,
 		l,
 		v,
-		s,
-		autoPctx.WithDecodeList(config.TerragruntFlags),
+		config.NewParseContext(v, autoPctx.WithDecodeList(config.TerragruntFlags)),
 		autoInclude.ConfigPath,
-		nil,
 	)
 	if err != nil {
 		return nil, err

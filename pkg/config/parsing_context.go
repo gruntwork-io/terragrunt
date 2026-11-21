@@ -70,6 +70,10 @@ type ParsingContext struct {
 	ScaffoldRootFileName         string
 	TerragruntStackConfigPath    string
 
+	// catalogStubDir is the directory of the child config [ReadCatalogConfig] generates, which exists only in
+	// memory, so run_cmd runs in its parent beside the root config. It is empty when no child was generated.
+	catalogStubDir string
+
 	IAMRoleOptions         iam.RoleOptions
 	OriginalIAMRoleOptions iam.RoleOptions
 
@@ -122,8 +126,7 @@ type ParsingContext struct {
 	// the unit being parsed and prevents an autoinclude that includes another file from recursing.
 	SkipAutoIncludeMerge bool
 
-	// catalogOnly decodes only the catalog block, for [ReadCatalogConfig], and
-	// runs run_cmd beside the root config when parsing the child it generates.
+	// catalogOnly decodes only the catalog block, for [ReadCatalogConfig].
 	catalogOnly bool
 
 	// stubWorkingDirFunc makes get_working_dir return an empty string, for the parse
@@ -332,13 +335,13 @@ func (ctx *ParsingContext) WithConfigPath(
 	return l, c, nil
 }
 
-// WithDependencyConfigPath returns a new ParsingContext for parsing a dependency
-// as an independent unit.
+// WithDependencyConfigPath returns a new ParsingContext for parsing a dependency as an independent unit.
 //
-// It performs the same path and logger updates as [ParsingContext.WithConfigPath],
-// and additionally resets OriginalTerragruntConfigPath to the dependency's path.
-// This ensures that get_original_terragrunt_dir() resolves to the dependency's
-// own directory rather than the caller's.
+// It performs the same path and logger updates as [ParsingContext.WithConfigPath], and resets
+// OriginalTerragruntConfigPath to the dependency's path, so get_original_terragrunt_dir() resolves to the
+// dependency's own directory. The dependency evaluates its own locals, feature flags, values, includes, and
+// dependency blocks, never those of the config whose dependency it is, and assumes no IAM role that config
+// assumed beyond the one the command started with.
 func (ctx *ParsingContext) WithDependencyConfigPath(
 	l log.Logger,
 	cfgPath string,
@@ -349,6 +352,16 @@ func (ctx *ParsingContext) WithDependencyConfigPath(
 	}
 
 	c.OriginalTerragruntConfigPath = c.TerragruntConfigPath
+	c.DependencyBlocks = nil
+	c.DecodedDependencies = nil
+	c.Locals = nil
+	c.Features = nil
+	c.Values = nil
+	c.TrackInclude = nil
+
+	if c.IAMRoleOptions != c.OriginalIAMRoleOptions {
+		c.IAMRoleOptions = iam.RoleOptions{}
+	}
 
 	return l, c, nil
 }
@@ -382,18 +395,6 @@ func readConfigChainPaths(chain []readConfigFrame, last readConfigFrame) []strin
 	}
 
 	return append(paths, last.path)
-}
-
-// forDependencyScan returns a copy for reading the dependency blocks of a dependency, without the evaluation state of
-// the config whose dependency it is.
-func (ctx *ParsingContext) forDependencyScan() *ParsingContext {
-	c := ctx.Clone()
-	c.DependencyBlocks = nil
-	c.DecodedDependencies = nil
-	c.Locals = nil
-	c.Features = nil
-
-	return c
 }
 
 // forReadTarget returns a copy for parsing a config that read_terragrunt_config reads, without the evaluation state

@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zclconf/go-cty/cty"
 
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -132,6 +133,7 @@ func TestSchemaMatchesPkgConfig(t *testing.T) {
 			block:  config.MetadataOutput,
 			v1:     reflect.TypeFor[config.OutputDeclaration](),
 			header: reflect.TypeFor[config.OutputHCL](),
+			bodies: []reflect.Type{reflect.TypeFor[outputMockValue]()},
 		},
 		{
 			block:  config.MetadataGenerateConfigs,
@@ -569,6 +571,12 @@ func labelNames(ty reflect.Type) []string {
 	}
 
 	return names
+}
+
+// outputMockValue is what [config.OutputHCL.MockValue] decodes into. The Store evaluates the attribute on its own,
+// not through a body, so no body type declares it.
+type outputMockValue struct {
+	MockValue *cty.Value
 }
 
 // attributeTypes maps each attribute of header and body to its field type. A header [hcl.Attribute] field takes the

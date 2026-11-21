@@ -354,7 +354,7 @@ func outputsStateReadViable(
 		WithDecodeList(config.RemoteStateBlock, config.TerragruntFlags, config.EngineBlock).
 		WithDiagnosticsSuppressed()
 
-	cfg, err := config.PartialParseConfigFile(ctx, l, v, s, probeCtx, configPath, nil)
+	cfg, err := s.ResolvePartialConfig(ctx, l, v, config.NewParseContext(v, probeCtx), configPath)
 	if err != nil {
 		// A remote_state block that references dependency outputs cannot be
 		// parsed standalone, which also rules out the direct state read.

@@ -3501,7 +3501,7 @@ func ParseRemoteState(
 			err,
 		)
 
-		cfg, err = ReadTerragruntConfig(ctx, l, v, s, pctx)
+		cfg, err = s.ReadTerragruntConfig(ctx, l, v, pctx)
 		if err != nil {
 			return nil, err
 		}
@@ -3533,14 +3533,12 @@ func readBackendConfig(
 	// A whole-config read resolves `iam_role` before decoding anything, so that functions such as
 	// get_aws_account_id() called from `remote_state` run under the assumed role.
 	if iamRoleOptions.RoleARN == "" {
-		flags, err := PartialParseConfigFile(
+		flags, err := s.ResolvePartialConfig(
 			ctx,
 			l,
 			v,
-			s,
-			quietCtx.WithDecodeList(TerragruntFlags),
+			NewParseContext(v, quietCtx.WithDecodeList(TerragruntFlags)),
 			pctx.TerragruntConfigPath,
-			nil,
 		)
 		if err != nil {
 			return nil, err
@@ -3555,7 +3553,7 @@ func readBackendConfig(
 	backendCtx := quietCtx.WithDecodeList(RemoteStateBlock, TerraformSource)
 	backendCtx.IAMRoleOptions = iamRoleOptions
 
-	return PartialParseConfigFile(ctx, l, v, s, backendCtx, pctx.TerragruntConfigPath, nil)
+	return s.ResolvePartialConfig(ctx, l, v, NewParseContext(v, backendCtx), pctx.TerragruntConfigPath)
 }
 
 // siblingAutoIncludePath returns the path of the sibling terragrunt.autoinclude.hcl beside cfgPath
