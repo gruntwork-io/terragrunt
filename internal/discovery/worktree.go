@@ -2,15 +2,11 @@ package discovery
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
-	"io"
 	"io/fs"
 	"path/filepath"
 	"runtime"
 	"slices"
-	"sort"
 	"strings"
 	"sync"
 
@@ -24,76 +20,43 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"golang.org/x/sync/errgroup"
 )
 
 // fromToTasks is the number of tasks a worktree comparison splits into: one for the from side, one for the to side.
 const fromToTasks = 2
 
-// WorktreePhase discovers components in Git worktrees for Git-based filters.
-type WorktreePhase struct {
-	// gitExpressions contains Git filter expressions that require worktree discovery.
-	gitExpressions filter.GitExpressions
-	// numWorkers is the number of concurrent workers.
-	numWorkers int
-}
+// pairComparisons is the number of component pairs of one changed stack compared at once. Changed stacks are already
+// compared concurrently, and each comparison holds two files open.
+const pairComparisons = 2
 
-// NewWorktreePhase creates a new WorktreePhase.
-func NewWorktreePhase(gitExpressions filter.GitExpressions, numWorkers int) *WorktreePhase {
-	// Default to available CPUs when no explicit worker count is given.
-	if numWorkers <= 0 {
-		numWorkers = runtime.GOMAXPROCS(0)
-	}
+// stackManifestFile is the name of the manifest stack generation writes into each directory it copies into.
+const stackManifestFile = ".terragrunt-stack-manifest"
 
-	return &WorktreePhase{
-		gitExpressions: gitExpressions,
-		numWorkers:     numWorkers,
-	}
-}
-
-// Name returns the human-readable name of the phase.
-func (p *WorktreePhase) Name() string {
-	return "worktree"
-}
-
-// Kind returns the PhaseKind identifier.
-func (p *WorktreePhase) Kind() PhaseKind {
-	return PhaseWorktree
-}
-
-// NumWorkers returns the number of concurrent workers.
-func (p *WorktreePhase) NumWorkers() int {
-	return p.numWorkers
-}
-
-// Run executes the worktree discovery phase.
-func (p *WorktreePhase) Run(
+// discoverInWorktrees discovers the components the Git filters of d select in their worktrees, each classified
+// without a parse. Callers check [Discovery.findsInWorktrees] first.
+func (d *Discovery) discoverInWorktrees(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	s *rewrite.Store,
-	input *PhaseInput,
-) (*PhaseResults, error) {
-	results := NewPhaseResults()
+	opts *options.TerragruntOptions,
+) (*foundResults, error) {
+	results := new(foundResults)
 
-	discovery := input.Discovery
-	if discovery == nil || discovery.worktrees == nil {
-		l.Debug("No worktrees provided, skipping worktree discovery")
-		return results, nil
-	}
-
-	w := discovery.worktrees
+	w := d.worktrees
 	if len(w.WorktreePairs) == 0 {
 		l.Debug("No worktree pairs available, skipping worktree discovery")
 		return results, nil
 	}
 
-	discoveredComponents := component.NewThreadSafeComponents(input.Discovery.paths, component.Components{})
+	discoveredComponents := component.NewThreadSafeComponents(d.paths, component.Components{})
 
-	boundary := discovery.worktreeBoundary(ctx, l, v)
+	boundary := d.worktreeBoundary(ctx, l, v)
 
 	discoveryGroup, discoveryCtx := errgroup.WithContext(ctx)
-	discoveryGroup.SetLimit(p.numWorkers)
+	discoveryGroup.SetLimit(d.numWorkers)
 
 	for _, pair := range w.WorktreePairs {
 		discoveryGroup.Go(func() error {
@@ -106,8 +69,8 @@ func (p *WorktreePhase) Run(
 
 			if len(removalFilters) > 0 {
 				fromToG.Go(func() error {
-					components, err := p.discoverInWorktree(
-						fromToCtx, l, v, s, input, pair.FromWorktree, removalFilters, FromWorktreeKind, boundary,
+					components, err := d.discoverInWorktree(
+						fromToCtx, l, v, s, opts, pair.FromWorktree, removalFilters, FromWorktreeKind, boundary,
 					)
 					if err != nil {
 						return err
@@ -126,8 +89,8 @@ func (p *WorktreePhase) Run(
 					finalToFilters := pair.ToFilters
 
 					if len(deletedReadFilters) > 0 {
-						translated, err := p.deletedReadingComponentsToFilters(
-							fromToCtx, l, v, s, input, pair.FromWorktree, deletedReadFilters, boundary,
+						translated, err := d.deletedReadingComponentsToFilters(
+							fromToCtx, l, v, s, opts, pair.FromWorktree, deletedReadFilters, boundary,
 						)
 						if err != nil {
 							return err
@@ -140,12 +103,12 @@ func (p *WorktreePhase) Run(
 						return nil
 					}
 
-					components, err := p.discoverInWorktree(
+					components, err := d.discoverInWorktree(
 						fromToCtx,
 						l,
 						v,
 						s,
-						input,
+						opts,
 						pair.ToWorktree,
 						finalToFilters,
 						ToWorktreeKind,
@@ -168,7 +131,7 @@ func (p *WorktreePhase) Run(
 	}
 
 	discoveryGroup.Go(func() error {
-		components, err := p.discoverChangesInWorktreeStacks(discoveryCtx, l, v, s, input, w, boundary)
+		components, err := d.discoverChangesInWorktreeStacks(discoveryCtx, l, v, s, opts, w, boundary)
 		if err != nil {
 			return err
 		}
@@ -185,49 +148,35 @@ func (p *WorktreePhase) Run(
 	}
 
 	for _, c := range discoveredComponents.ToComponents() {
-		status, reason, graphIdx := filter.StatusReadyForFilter, filter.CandidacyReasonNone, -1
-
-		if input.Classifier != nil {
-			classCtx := filter.ClassificationContext{}
-			status, reason, graphIdx = input.Classifier.Classify(c, classCtx)
+		status, reason, graphIdx := d.classifier.Classify(c, filter.ClassificationContext{})
+		if status == filter.StatusExcluded {
+			continue
 		}
 
-		result := DiscoveryResult{
+		results.add(DiscoveryResult{
 			Component:            c,
 			Status:               status,
 			Reason:               reason,
-			Phase:                PhaseWorktree,
 			GraphExpressionIndex: graphIdx,
-		}
-
-		switch result.Status {
-		case filter.StatusReadyForFilter:
-			results.AddDiscovered(result)
-		case filter.StatusCandidate:
-			results.AddCandidate(result)
-		case filter.StatusExcluded:
-			// Excluded components are not added
-		}
+		})
 	}
 
 	return results, nil
 }
 
 // discoverInWorktree discovers components in a single worktree, narrowed to boundary when set.
-func (p *WorktreePhase) discoverInWorktree(
+func (d *Discovery) discoverInWorktree(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	s *rewrite.Store,
-	input *PhaseInput,
+	opts *options.TerragruntOptions,
 	wt worktrees.Worktree,
 	filters filter.Filters,
 	kind WorktreeKind,
 	boundary string,
 ) (component.Components, error) {
-	discovery := input.Discovery
-
-	discoveryContext := discovery.discoveryContext.Copy()
+	discoveryContext := d.discoveryContext.Copy()
 	discoveryContext.Ref = wt.Ref
 	discoveryContext.WorkingDir = wt.Path
 	discoveryContext.SuggestOrigin(component.OriginWorktreeDiscovery)
@@ -244,16 +193,16 @@ func (p *WorktreePhase) discoverInWorktree(
 	}
 
 	// Propagate non-git filters from the parent discovery to the worktree sub-discovery.
-	// Git expressions are excluded to avoid infinite recursion (the worktree phase is
+	// Git expressions are excluded to avoid infinite recursion (the worktree discovery is
 	// already handling them). All other filters (path, attribute, negation) are included
 	// so that exclusions and type constraints apply within sub-discoveries.
-	allFilters := slices.Concat(filters, discovery.filters.ExcludingGitFilters())
+	allFilters := slices.Concat(filters, d.filters.ExcludingGitFilters())
 
 	subDiscovery := NewDiscovery(wt.Path).
 		WithFilters(allFilters).
 		WithDiscoveryContext(discoveryContext).
-		WithNumWorkers(p.numWorkers).
-		withParseSettingsFrom(discovery)
+		WithNumWorkers(d.numWorkers).
+		withParseSettingsFrom(d)
 
 	if boundary != "" {
 		walkRoot, ok, err := WorktreeWalkRoot(v.FS, wt.Path, boundary)
@@ -268,12 +217,12 @@ func (p *WorktreePhase) discoverInWorktree(
 		subDiscovery = subDiscovery.WithWalkRoot(walkRoot)
 	}
 
-	return subDiscovery.Discover(ctx, l, v, s, input.Opts)
+	return subDiscovery.Discover(ctx, l, v, s, opts)
 }
 
 // withParseSettingsFrom carries a parent discovery's parse settings onto a worktree
 // sub-discovery. A sub-discovery that parses more strictly than the parent turns a parse
-// error the parent would tolerate into an aborted worktree phase.
+// error the parent would tolerate into an aborted worktree discovery.
 func (d *Discovery) withParseSettingsFrom(parent *Discovery) *Discovery {
 	if parent.suppressParseErrors {
 		d = d.WithSuppressParseErrors()
@@ -293,22 +242,22 @@ func (d *Discovery) withParseSettingsFrom(parent *Discovery) *Discovery {
 // another filter already covers. Stacks are intentionally skipped: a stack reading a deleted file is
 // routed through ReadingAffectedStacks during generation so its generated units get walked, which a
 // plain path filter (matching only the stack file) would not achieve.
-func (p *WorktreePhase) deletedReadingComponentsToFilters(
+func (d *Discovery) deletedReadingComponentsToFilters(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	s *rewrite.Store,
-	input *PhaseInput,
+	opts *options.TerragruntOptions,
 	fromWorktree worktrees.Worktree,
 	readingFilters filter.Filters,
 	boundary string,
 ) (filter.Filters, error) {
-	affected, err := p.discoverInWorktree(
+	affected, err := d.discoverInWorktree(
 		ctx,
 		l,
 		v,
 		s,
-		input,
+		opts,
 		fromWorktree,
 		readingFilters,
 		FromWorktreeKind,
@@ -350,16 +299,16 @@ func (p *WorktreePhase) deletedReadingComponentsToFilters(
 }
 
 // discoverChangesInWorktreeStacks discovers changes in worktree stacks.
-func (p *WorktreePhase) discoverChangesInWorktreeStacks(
+func (d *Discovery) discoverChangesInWorktreeStacks(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	s *rewrite.Store,
-	input *PhaseInput,
+	opts *options.TerragruntOptions,
 	w *worktrees.Worktrees,
 	boundary string,
 ) (component.Components, error) {
-	discoveredComponents := component.NewThreadSafeComponents(input.Discovery.paths, component.Components{})
+	discoveredComponents := component.NewThreadSafeComponents(d.paths, component.Components{})
 
 	stackDiff := w.Stacks()
 
@@ -396,12 +345,12 @@ func (p *WorktreePhase) discoverChangesInWorktreeStacks(
 
 	for _, changed := range allChanged {
 		g.Go(func() error {
-			components, err := p.walkChangedStack(
+			components, err := d.walkChangedStack(
 				ctx,
 				l,
 				v,
 				s,
-				input,
+				opts,
 				changed.FromStack,
 				changed.ToStack,
 			)
@@ -435,18 +384,16 @@ func (p *WorktreePhase) discoverChangesInWorktreeStacks(
 }
 
 // walkChangedStack walks a changed stack and discovers components within it.
-func (p *WorktreePhase) walkChangedStack(
+func (d *Discovery) walkChangedStack(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	s *rewrite.Store,
-	input *PhaseInput,
+	opts *options.TerragruntOptions,
 	fromStack *component.Stack,
 	toStack *component.Stack,
 ) (component.Components, error) {
-	discovery := input.Discovery
-
-	fromDiscoveryContext := discovery.discoveryContext.Copy()
+	fromDiscoveryContext := d.discoveryContext.Copy()
 	fromDiscoveryContext.WorkingDir = fromStack.Path()
 	fromDiscoveryContext.Ref = fromStack.DiscoveryContext().Ref
 
@@ -458,7 +405,7 @@ func (p *WorktreePhase) walkChangedStack(
 		return nil, err
 	}
 
-	toDiscoveryContext := discovery.discoveryContext.Copy()
+	toDiscoveryContext := d.discoveryContext.Copy()
 	toDiscoveryContext.WorkingDir = toStack.Path()
 	toDiscoveryContext.Ref = toStack.DiscoveryContext().Ref
 
@@ -480,18 +427,18 @@ func (p *WorktreePhase) walkChangedStack(
 		errs = make([]error, 0, fromToTasks)
 	)
 
-	parentFilters := discovery.filters.ExcludingGitFilters()
+	parentFilters := d.filters.ExcludingGitFilters()
 
 	discoveryGroup.Go(func() error {
 		fromDiscovery := NewDiscovery(fromStack.Path()).
 			WithDiscoveryContext(fromDiscoveryContext).
 			WithFilters(parentFilters).
-			WithNumWorkers(p.numWorkers).
-			withParseSettingsFrom(discovery)
+			WithNumWorkers(d.numWorkers).
+			withParseSettingsFrom(d)
 
 		var fromDiscoveryErr error
 
-		fromComponents, fromDiscoveryErr = fromDiscovery.Discover(discoveryCtx, l, v, s, input.Opts)
+		fromComponents, fromDiscoveryErr = fromDiscovery.Discover(discoveryCtx, l, v, s, opts)
 		if fromDiscoveryErr != nil {
 			mu.Lock()
 
@@ -515,12 +462,12 @@ func (p *WorktreePhase) walkChangedStack(
 		toDiscovery := NewDiscovery(toStack.Path()).
 			WithDiscoveryContext(toDiscoveryContext).
 			WithFilters(parentFilters).
-			WithNumWorkers(p.numWorkers).
-			withParseSettingsFrom(discovery)
+			WithNumWorkers(d.numWorkers).
+			withParseSettingsFrom(d)
 
 		var toDiscoveryErr error
 
-		toComponents, toDiscoveryErr = toDiscovery.Discover(discoveryCtx, l, v, s, input.Opts)
+		toComponents, toDiscoveryErr = toDiscovery.Discover(discoveryCtx, l, v, s, opts)
 		if toDiscoveryErr != nil {
 			mu.Lock()
 
@@ -553,56 +500,38 @@ func (p *WorktreePhase) walkChangedStack(
 		return nil, err
 	}
 
+	matchedFrom := make(map[component.Component]struct{}, len(componentPairs))
+	matchedTo := make(map[component.Component]struct{}, len(componentPairs))
+
+	for _, pair := range componentPairs {
+		matchedFrom[pair.FromComponent] = struct{}{}
+		matchedTo[pair.ToComponent] = struct{}{}
+	}
+
 	finalComponents := make(component.Components, 0, max(len(fromComponents), len(toComponents)))
 
 	for _, fromComponent := range fromComponents {
-		if !slices.ContainsFunc(componentPairs, func(cp ComponentPair) bool {
-			return cp.FromComponent == fromComponent
-		}) {
+		if _, ok := matchedFrom[fromComponent]; !ok {
 			finalComponents = append(finalComponents, fromComponent)
 		}
 	}
 
 	for _, toComponent := range toComponents {
-		if !slices.ContainsFunc(componentPairs, func(cp ComponentPair) bool {
-			return cp.ToComponent == toComponent
-		}) {
+		if _, ok := matchedTo[toComponent]; !ok {
 			finalComponents = append(finalComponents, toComponent)
 		}
 	}
 
-	for _, pair := range componentPairs {
-		var fromSHA, toSHA string
+	changed, err := changedPairs(ctx, v.FS, componentPairs)
+	if err != nil {
+		return nil, err
+	}
 
-		shaGroup, _ := errgroup.WithContext(ctx)
-		shaGroup.SetLimit(min(runtime.GOMAXPROCS(0), fromToTasks))
-
-		shaGroup.Go(func() error {
-			var localErr error
-
-			fromSHA, localErr = GenerateDirSHA256(v.FS, pair.FromComponent.Path())
-
-			return localErr
-		})
-
-		shaGroup.Go(func() error {
-			var localErr error
-
-			toSHA, localErr = GenerateDirSHA256(v.FS, pair.ToComponent.Path())
-
-			return localErr
-		})
-
-		if err := shaGroup.Wait(); err != nil {
-			return nil, err
-		}
-
-		if fromSHA != toSHA {
-			dc := pair.ToComponent.DiscoveryContext().
-				CopyWithNewOrigin(component.OriginWorktreeDiscovery)
-			pair.ToComponent.SetDiscoveryContext(dc)
-			finalComponents = append(finalComponents, pair.ToComponent)
-		}
+	for _, pair := range changed {
+		dc := pair.ToComponent.DiscoveryContext().
+			CopyWithNewOrigin(component.OriginWorktreeDiscovery)
+		pair.ToComponent.SetDiscoveryContext(dc)
+		finalComponents = append(finalComponents, pair.ToComponent)
 	}
 
 	return finalComponents, nil
@@ -615,39 +544,40 @@ type ComponentPair struct {
 }
 
 // MatchComponentPairs matches components between from and to stacks by their relative paths.
+//
+// Returns a [MissingDiscoveryContextError] when a component has no discovery context.
 func MatchComponentPairs(
 	fromComponents component.Components,
 	toComponents component.Components,
 ) ([]ComponentPair, error) {
-	componentPairs := make([]ComponentPair, 0, max(len(fromComponents), len(toComponents)))
+	toBySuffix := make(map[string]component.Component, len(toComponents))
+
+	for _, toComponent := range toComponents {
+		suffix, err := workingDirSuffix(toComponent)
+		if err != nil {
+			return nil, err
+		}
+
+		toBySuffix[suffix] = toComponent
+	}
+
+	componentPairs := make([]ComponentPair, 0, min(len(fromComponents), len(toComponents)))
 
 	for _, fromComponent := range fromComponents {
-		if fromComponent.DiscoveryContext() == nil {
-			return nil, NewMissingDiscoveryContextError(fromComponent.Path())
+		suffix, err := workingDirSuffix(fromComponent)
+		if err != nil {
+			return nil, err
 		}
 
-		fromComponentSuffix := strings.TrimPrefix(
-			fromComponent.Path(),
-			fromComponent.DiscoveryContext().WorkingDir,
-		)
-
-		for _, toComponent := range toComponents {
-			if toComponent.DiscoveryContext() == nil {
-				return nil, NewMissingDiscoveryContextError(toComponent.Path())
-			}
-
-			toComponentSuffix := strings.TrimPrefix(
-				toComponent.Path(),
-				toComponent.DiscoveryContext().WorkingDir,
-			)
-
-			if filepath.Clean(fromComponentSuffix) == filepath.Clean(toComponentSuffix) {
-				componentPairs = append(componentPairs, ComponentPair{
-					FromComponent: fromComponent,
-					ToComponent:   toComponent,
-				})
-			}
+		toComponent, ok := toBySuffix[suffix]
+		if !ok {
+			continue
 		}
+
+		componentPairs = append(componentPairs, ComponentPair{
+			FromComponent: fromComponent,
+			ToComponent:   toComponent,
+		})
 	}
 
 	return componentPairs, nil
@@ -709,65 +639,62 @@ func TranslateDiscoveryContextArgsForWorktree(
 	}
 }
 
-// GenerateDirSHA256 calculates a single SHA256 checksum for all files in a directory.
-func GenerateDirSHA256(fsys vfs.FS, rootDir string) (string, error) {
-	var filePaths []string
+// changedPairs returns the pairs whose two directories differ, in the order of pairs.
+func changedPairs(ctx context.Context, fsys vfs.FS, pairs []ComponentPair) ([]ComponentPair, error) {
+	differs := make([]bool, len(pairs))
 
-	err := vfs.WalkDir(fsys, rootDir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
+	g, ctx := errgroup.WithContext(ctx)
+	g.SetLimit(pairComparisons)
 
-		if d.IsDir() {
+	for i, pair := range pairs {
+		g.Go(func() error {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+
+			differ, err := vfs.DirsDiffer(
+				fsys,
+				pair.FromComponent.Path(),
+				pair.ToComponent.Path(),
+				vfs.WithIgnore(isStackManifest),
+			)
+			if err != nil {
+				return err
+			}
+
+			differs[i] = differ
+
 			return nil
-		}
-
-		// Ignore .terragrunt-stack-manifest as it contains absolute paths
-		if filepath.Base(path) == ".terragrunt-stack-manifest" {
-			return nil
-		}
-
-		filePaths = append(filePaths, path)
-
-		return nil
-	})
-	if err != nil {
-		return "", fmt.Errorf("error walking directory: %w", err)
+		})
 	}
 
-	sort.Strings(filePaths)
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
 
-	hash := sha256.New()
+	changed := make([]ComponentPair, 0, len(pairs))
 
-	for _, path := range filePaths {
-		relPath, err := filepath.Rel(rootDir, path)
-		if err != nil {
-			return "", fmt.Errorf("could not compute relative path for %s: %w", path, err)
-		}
-
-		normalizedPath := filepath.ToSlash(relPath)
-
-		// These writes are guaranteed to succeed. They just return errors because of the
-		// Writer interface, but we don't care about those errors.
-		_, _ = hash.Write([]byte(normalizedPath))
-		_, _ = hash.Write([]byte{0})
-
-		f, err := fsys.Open(path)
-		if err != nil {
-			return "", fmt.Errorf("could not open file %s: %w", path, err)
-		}
-
-		_, err = io.Copy(hash, f)
-		closeErr := f.Close()
-
-		if err != nil {
-			return "", fmt.Errorf("could not copy file %s to hash: %w", path, err)
-		}
-
-		if closeErr != nil {
-			return "", fmt.Errorf("could not close file %s: %w", path, closeErr)
+	for i, pair := range pairs {
+		if differs[i] {
+			changed = append(changed, pair)
 		}
 	}
 
-	return hex.EncodeToString(hash.Sum(nil)), nil
+	return changed, nil
+}
+
+// workingDirSuffix returns the path of c below the working directory of its discovery context.
+func workingDirSuffix(c component.Component) (string, error) {
+	dc := c.DiscoveryContext()
+	if dc == nil {
+		return "", NewMissingDiscoveryContextError(c.Path())
+	}
+
+	return filepath.Clean(strings.TrimPrefix(c.Path(), dc.WorkingDir)), nil
+}
+
+// isStackManifest reports whether d is a stack generation manifest, whose absolute paths differ between two worktrees
+// whose stacks are otherwise the same.
+func isStackManifest(d fs.DirEntry) bool {
+	return d.Name() == stackManifestFile
 }

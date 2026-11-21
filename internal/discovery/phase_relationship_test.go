@@ -163,54 +163,47 @@ include "root" {
 
 // TestRelationshipPhase_StopsWhenCanceledWithRacing pins that discovery of a
 // unit with many dependencies stops once its context is canceled, wherever in
-// parsing or relationship discovery the cancellation lands, with the discovery
-// pipeline off and on. It counts the stats of dependency directories in a full
-// run, then cancels at points spread across that count, and expects no more
-// than the dependency in progress to be stat'd after each.
+// parsing or relationship discovery the cancellation lands. It counts the stats
+// of dependency directories in a full run, then cancels at points spread across
+// that count, and expects no more than the dependency in progress to be stat'd
+// after each.
 func TestRelationshipPhase_StopsWhenCanceledWithRacing(t *testing.T) {
 	t.Parallel()
 
 	const cuts = 8
 
-	for _, pipeline := range []string{"false", "true"} {
-		t.Run("pipeline "+pipeline, func(t *testing.T) {
+	full := &cancelOnShardFS{}
+	require.NoError(t, discoverShards(t, t.Context(), full))
+
+	for i := 1; i < cuts; i++ {
+		cancelAt := full.stats * i / cuts
+
+		t.Run(fmt.Sprintf("cancel at stat %d of %d", cancelAt, full.stats), func(t *testing.T) {
 			t.Parallel()
 
-			full := &cancelOnShardFS{}
-			require.NoError(t, discoverShards(t, t.Context(), pipeline, full))
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
 
-			for i := 1; i < cuts; i++ {
-				cancelAt := full.stats * i / cuts
+			fsys := &cancelOnShardFS{cancel: cancel, cancelAt: cancelAt}
 
-				t.Run(fmt.Sprintf("cancel at stat %d of %d", cancelAt, full.stats), func(t *testing.T) {
-					t.Parallel()
+			err := discoverShards(t, ctx, fsys)
+			require.ErrorIs(t, err, context.Canceled)
 
-					ctx, cancel := context.WithCancel(t.Context())
-					defer cancel()
-
-					fsys := &cancelOnShardFS{cancel: cancel, cancelAt: cancelAt}
-
-					err := discoverShards(t, ctx, pipeline, fsys)
-					require.ErrorIs(t, err, context.Canceled)
-
-					assert.LessOrEqual(t, len(fsys.statsAfterCancel), 1)
-				})
-			}
+			assert.LessOrEqual(t, len(fsys.statsAfterCancel), 1)
 		})
 	}
 }
 
 // discoverShards discovers the relationships of a unit that depends on 1000
-// shard-* units, with every filesystem call going through fsys and pipeline as
-// the value of [discovery.EnvPipeline], and returns the error of discovery.
-// Discovery runs on one worker, so one dependency at a time is in progress.
-func discoverShards(t *testing.T, ctx context.Context, pipeline string, fsys *cancelOnShardFS) error {
+// shard-* units, with every filesystem call going through fsys, and returns the
+// error of discovery. Discovery runs on one worker, so one dependency at a time
+// is in progress.
+func discoverShards(t *testing.T, ctx context.Context, fsys *cancelOnShardFS) error {
 	t.Helper()
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	v := memRepoRootVenv(t, tmpDir)
-	v.Env[discovery.EnvPipeline] = pipeline
 
 	writeUnits(t, v.FS, map[string]string{
 		filepath.Join(tmpDir, "app"): `
