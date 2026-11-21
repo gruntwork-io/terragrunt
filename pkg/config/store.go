@@ -29,6 +29,10 @@ const (
 	StageQueue
 	// StageDependencyScan is a file scanned for dependency and dependencies blocks, whose [Key] has no Context.
 	StageDependencyScan
+	// StageDependencyPaths is the config paths of a file's dependency blocks, read as the dependency of another
+	// config, once per [Key.Context]. Unlike the other stages with a Context, no resolution releases it, so every
+	// config in a command that depends on the file shares one read.
+	StageDependencyPaths
 )
 
 // Key identifies one memoized result.
@@ -42,8 +46,9 @@ type Key struct {
 }
 
 // Store runs the stages of config parses and memoizes those a [Stage] names. It retains a result whose [Key] has no
-// Context for the life of a process. A resolution releases the results with a Context that its runs led when it
-// returns, unless it runs under another resolution, which releases them instead. The zero value is ready to use, and
+// Context, and a [StageDependencyPaths] result, for the life of a process. A resolution releases the other results
+// with a Context that its runs led when it returns, unless it runs under another resolution, which releases them
+// instead. The zero value is ready to use, and
 // every method is safe for concurrent use.
 //
 // A unit's stages are [Store.ParseUnitAST], [Store.ResolveUnitBaseVariables], [Store.ResolveUnitQueueConfig], and
@@ -554,9 +559,10 @@ func (s *Store) withReleaseScope(ctx context.Context) (context.Context, func()) 
 	return context.WithValue(ctx, releaseScopeKey{}, scope), func() { s.releaseScope(scope) }
 }
 
-// noteRelease adds k to the scope of ctx when k has a Context. It does nothing outside a scope.
+// noteRelease adds k to the scope of ctx when k has a Context and a stage a resolution releases. It does nothing
+// outside a scope.
 func noteRelease(ctx context.Context, k Key) {
-	if k.Context == "" {
+	if k.Context == "" || k.Stage == StageDependencyPaths {
 		return
 	}
 

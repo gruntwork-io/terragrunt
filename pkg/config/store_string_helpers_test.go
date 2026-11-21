@@ -12,8 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-// resolveRunConfigString parses content as the config at cfgPath with [config.Store.ResolveRunConfig], reading it
-// from a memory layer over the filesystem of v.
+// resolveRunConfigString parses content as the config at cfgPath with [config.Store.ResolveRunConfigFromBytes].
 func resolveRunConfigString(
 	tb testing.TB,
 	ctx context.Context,
@@ -25,9 +24,7 @@ func resolveRunConfigString(
 ) (*config.TerragruntConfig, error) {
 	tb.Helper()
 
-	v = withConfigFile(tb, v, cfgPath, content)
-
-	return s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), cfgPath)
+	return s.ResolveRunConfigFromBytes(ctx, l, v, config.NewParseContext(v, pctx), cfgPath, []byte(content))
 }
 
 // resolvePartialConfigString parses content as the config at cfgPath with [config.Store.ResolvePartialConfig],

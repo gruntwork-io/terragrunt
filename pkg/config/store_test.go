@@ -152,6 +152,67 @@ func TestResolveUnitConfigServesALaterCallTheTreesAndScan(t *testing.T) {
 	)
 }
 
+func TestResolveRunConfigFromBytesResolvesTheContentInPlaceOfTheFile(t *testing.T) {
+	t.Parallel()
+
+	const content = `
+include "root" {
+  path   = find_in_parent_folders("root.hcl")
+  expose = true
+}
+
+inputs = {
+  name   = "from-content"
+  region = include.root.locals.region
+}
+`
+
+	testCases := []struct {
+		files  map[string]string
+		name   string
+		onDisk bool
+	}{
+		{
+			name: "file on disk with other content",
+			files: map[string]string{
+				"root.hcl":            `locals { region = "us-east-1" }`,
+				"unit/terragrunt.hcl": `inputs = { name = "from-disk" }`,
+			},
+			onDisk: true,
+		},
+		{
+			name:  "directory not on disk",
+			files: map[string]string{"root.hcl": `locals { region = "us-east-1" }`},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := vfs.MemRoot
+			path := filepath.Join(root, "unit", config.DefaultTerragruntConfigPath)
+			v := venv.MemVenv().WithFS(memFS(root, tc.files)(t))
+			ctx, run := newTestUnitParsingContext(t, path)
+
+			cfg, err := new(config.Store).ResolveRunConfigFromBytes(
+				ctx,
+				logger.CreateLogger(),
+				v,
+				config.NewParseContext(v, run),
+				path,
+				[]byte(content),
+			)
+			require.NoError(t, err)
+			assert.Equal(t, map[string]any{"name": "from-content", "region": "us-east-1"}, cfg.Inputs)
+
+			exists, err := vfs.FileExists(v.FS, path)
+			require.NoError(t, err)
+			assert.Equal(t, tc.onDisk, exists, "the content never reaches the filesystem of v")
+		})
+	}
+}
+
 func TestResolveUnitQueueConfigReturnsPartialConfigWithParseError(t *testing.T) {
 	t.Parallel()
 

@@ -16,6 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -170,6 +171,29 @@ func (s *Store) ResolveRunConfig(
 
 	return c.ToV1(ctx, l, v, s, pc)
 }
+
+// ResolveRunConfigFromBytes resolves the config file at cfgPath as [Store.ResolveRunConfig] does, as if the file held
+// content, e.g. an unsaved editor buffer. Every read of cfgPath sees content, including an include or
+// read_terragrunt_config that comes back to it, and every other file is read from v. The directory of cfgPath need
+// not exist.
+func (s *Store) ResolveRunConfigFromBytes(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pc *ParseContext,
+	cfgPath string,
+	content []byte,
+) (*TerragruntConfig, error) {
+	layer := vfs.NewMemMapFS()
+	if err := vfs.WriteFile(layer, cfgPath, content, configContentPerm); err != nil {
+		return nil, err
+	}
+
+	return s.ResolveRunConfig(ctx, l, v.WithFS(vfs.NewOverlayFS(v.FS, layer)), pc, cfgPath)
+}
+
+// configContentPerm is the mode of the file [Store.ResolveRunConfigFromBytes] puts content in.
+const configContentPerm = 0o644
 
 // ReadTerragruntConfig reads the config file of run, resolving it as [Store.ResolveRunConfig] does.
 //
