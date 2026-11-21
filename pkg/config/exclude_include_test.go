@@ -69,7 +69,7 @@ include "root" {
 
 			s := new(config.Store)
 
-			parsed, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), childPath)
+			parsed, err := s.ResolveRunConfig(ctx, l, v, pctx, childPath)
 			require.NoError(t, err)
 			require.NotNil(t, parsed)
 
@@ -148,7 +148,7 @@ exclude {
 
 			s := new(config.Store)
 
-			parsed, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), childPath)
+			parsed, err := s.ResolveRunConfig(ctx, l, v, pctx, childPath)
 			require.NoError(t, err)
 			require.NotNil(t, parsed)
 
@@ -215,7 +215,7 @@ include "root" {
 
 			s := new(config.Store)
 
-			parsed, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), childPath)
+			parsed, err := s.ResolveRunConfig(ctx, l, v, pctx, childPath)
 			require.NoError(t, err)
 			require.NotNil(t, parsed)
 
@@ -277,7 +277,7 @@ include "root" {
 
 			s := new(config.Store)
 
-			parsed, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), childPath)
+			parsed, err := s.ResolveRunConfig(ctx, l, v, pctx, childPath)
 			require.NoError(t, err)
 			require.NotNil(t, parsed)
 
@@ -338,7 +338,7 @@ include "root" {
 
 			s := new(config.Store)
 
-			parsed, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), childPath)
+			parsed, err := s.ResolveRunConfig(ctx, l, v, pctx, childPath)
 			require.NoError(t, err)
 			require.NotNil(t, parsed)
 

@@ -1764,7 +1764,7 @@ func TestTerragruntDeepMergeFunctionFilesetJSONEndToEnd(t *testing.T) {
 
 	s := new(config.Store)
 
-	cfg, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), cfgPath)
+	cfg, err := s.ResolveRunConfig(ctx, l, v, pctx, cfgPath)
 	require.NoError(t, err)
 	require.NotNil(t, cfg)
 	require.NotNil(t, cfg.Inputs)
@@ -2132,7 +2132,7 @@ func TestReadTerragruntConfigResolvesRelativeToOriginalTerragruntDir(t *testing.
 
 	s := new(config.Store)
 
-	cfg, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, pctx), unitFilename)
+	cfg, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, unitFilename)
 	require.NoError(t, err)
 	require.NotNil(t, cfg)
 	assert.Equal(t, "hello from original terragrunt dir", cfg.Inputs["input"])
@@ -2152,7 +2152,7 @@ func TestReadTerragruntConfigResolvesRelativeToOriginalTerragruntDir(t *testing.
 		ctxWrong,
 		logger.CreateLogger(),
 		vWrong,
-		config.NewParseContext(vWrong, pctxWrong),
+		pctxWrong,
 		unitFilename,
 	)
 	require.Error(t, err)
@@ -2294,6 +2294,8 @@ func getTrackIncludeFromTestData(
 	currentList := make([]config.IncludeConfig, 0, len(includeMap))
 
 	for name, val := range includeMap {
+		val.Name = name
+
 		if val.Path != "" && !filepath.IsAbs(val.Path) {
 			val.Path = filepath.Clean(filepath.Join(configDir, val.Path))
 		}
@@ -2521,7 +2523,7 @@ dependency "net" {
 
 			s := new(config.Store)
 
-			cfg, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, pctx), cfgPath)
+			cfg, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, cfgPath)
 
 			if tc.chain != nil {
 				chain := make([]string, 0, len(tc.chain))
@@ -2605,7 +2607,7 @@ inputs = { region = local.v.locals.region }`,
 
 			s := new(config.Store)
 
-			cfg, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, pctx), cfgPath)
+			cfg, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, cfgPath)
 			require.NoError(t, err)
 			assert.Equal(t, "eu-west-1", cfg.Inputs["region"])
 		})
@@ -2651,7 +2653,7 @@ dependency "vpc" {
 		ctx,
 		logger.CreateLogger(),
 		v,
-		config.NewParseContext(v, pctx.WithDecodeList(config.DependencyBlock)),
+		pctx.WithDecodeList(config.DependencyBlock),
 		cfgPath,
 	)
 	require.NoError(t, err)

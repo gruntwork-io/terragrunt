@@ -71,7 +71,7 @@ unit "app" {
 
 	s := new(config.Store)
 
-	_, err = s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), unitConfig)
+	_, err = s.ResolveRunConfig(ctx, l, v, pctx, unitConfig)
 
 	var diags hcl.Diagnostics
 

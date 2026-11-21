@@ -325,7 +325,7 @@ remote_state {
 
 	s := new(config.Store)
 
-	cfg, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, pctx), configPath)
+	cfg, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, configPath)
 	require.NoError(t, err)
 	assert.Equal(t, "from-assumed-role", cfg.Inputs["result"])
 
@@ -503,7 +503,7 @@ func TestDependencyStateUnsupportedConfigFallsBackToNativeOutput(t *testing.T) {
 
 			s := new(config.Store)
 
-			cfg, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, pctx), configPath)
+			cfg, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, configPath)
 			require.NoError(t, err)
 			assert.Equal(t, "from-native-output", cfg.Inputs["result"])
 			assert.Empty(t, recorder.requestPaths(), "an unsupported config must not use the direct state client")
@@ -768,7 +768,7 @@ func TestDependencyStateMissingDirectStateRequiresEligibleMockOutputs(t *testing
 
 			s := new(config.Store)
 
-			_, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, pctx), configPath)
+			_, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, configPath)
 
 			require.Error(t, err)
 
@@ -819,7 +819,7 @@ inputs = {
 
 			s := new(config.Store)
 
-			cfg, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, pctx), configPath)
+			cfg, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, configPath)
 
 			require.NoError(t, err)
 			assert.Empty(t, cfg.Inputs["output_names"])
@@ -891,7 +891,7 @@ inputs = {
 
 			s := new(config.Store)
 
-			_, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, pctx), configPath)
+			_, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, configPath)
 
 			var noOutputs config.TerragruntOutputTargetNoOutputs
 			require.ErrorAs(t, err, &noOutputs)
@@ -918,7 +918,7 @@ inputs = {
 
 	s := new(config.Store)
 
-	_, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, pctx), configPath)
+	_, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, configPath)
 
 	var diags hcl.Diagnostics
 	require.ErrorAs(t, err, &diags)
@@ -945,7 +945,7 @@ func TestDependencyStateEmptyDependencyOutputsExperimentKeepsMockOutputs(t *test
 
 	s := new(config.Store)
 
-	cfg, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, pctx), configPath)
+	cfg, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, configPath)
 
 	require.NoError(t, err)
 	assert.Equal(t, "from-mock", cfg.Inputs["result"])
@@ -1088,7 +1088,7 @@ func TestDependencyStateRenderDirectReadFailureUsesMockOutputs(t *testing.T) {
 
 			s := new(config.Store)
 
-			cfg, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, pctx), configPath)
+			cfg, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, configPath)
 
 			require.NoError(t, err)
 			assert.Equal(t, "from-mock", cfg.Inputs["result"])
@@ -1137,7 +1137,7 @@ func TestDependencyStateEncryptedFallbackUsesRelativeDataDirInitFolder(t *testin
 
 	s := new(config.Store)
 
-	cfg, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), configPath)
+	cfg, err := s.ResolveRunConfig(ctx, l, v, pctx, configPath)
 
 	require.NoError(t, err)
 	assert.Equal(t, "from-native-output", cfg.Inputs["result"])
@@ -1296,7 +1296,7 @@ func parseDependencyStateFixture(
 
 	s := new(config.Store)
 
-	return s.ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, pctx), configPath)
+	return s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, configPath)
 }
 
 func prepareDependencyStateFixture(

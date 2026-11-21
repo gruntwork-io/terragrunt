@@ -277,7 +277,7 @@ dependency "shard" {
 
 			s := new(config.Store)
 
-			cfg, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, pctx), configPath)
+			cfg, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, configPath)
 			require.NoError(t, err)
 
 			keys := make([]string, 0, len(cfg.TerragruntDependencies))

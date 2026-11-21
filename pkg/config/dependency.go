@@ -701,7 +701,7 @@ func decodeDependencies(
 			depCtx = depCtx.WithDecodeList(TerragruntFlags, OutputsBlock)
 		}
 
-		depConfig, err := s.ResolvePartialConfig(ctx, l, v, NewParseContext(v, depCtx), depPath)
+		depConfig, err := s.ResolvePartialConfig(ctx, l, v, depCtx, depPath)
 		if err != nil {
 			l.Warnf(
 				"Error reading partial config for dependency %s at %s: %v",
@@ -1880,11 +1880,8 @@ func resolveOutputJSON(
 		ctx,
 		l,
 		v,
-		NewParseContext(
-			v,
-			pctx.WithDecodeList(DependencyBlock, TerraformExtraArgs, TerragruntVersionConstraints).
-				WithDiagnosticsSuppressed(),
-		),
+		pctx.WithDecodeList(DependencyBlock, TerraformExtraArgs, TerragruntVersionConstraints).
+			WithDiagnosticsSuppressed(),
 		targetConfig,
 	)
 	if err != nil {
@@ -1931,11 +1928,11 @@ func resolveOutputJSON(
 			ctx,
 			l,
 			v,
-			NewParseContext(v, pctx.WithDiagnosticsDiscarded().WithDecodeList(
+			pctx.WithDiagnosticsDiscarded().WithDecodeList(
 				RemoteStateBlock,
 				TerragruntFlags,
 				EngineBlock,
-			)),
+			),
 			targetConfig,
 		)
 	}
@@ -2374,7 +2371,7 @@ func terragruntAlreadyInit(
 		ctx,
 		l,
 		v,
-		NewParseContext(v, pctx.WithDecodeList(TerraformSource)),
+		pctx.WithDecodeList(TerraformSource),
 		cfgPath,
 	)
 	if err != nil {
@@ -2646,7 +2643,7 @@ func runTerragruntOutputJSON(
 	pctx.JSONLogFormat = false
 	v = v.WithEnvCloned().WithWriter(stdoutBufferWriter)
 
-	cfg, err := s.ResolveRunConfig(ctx, l, v, NewParseContext(v, pctx), pctx.TerragruntConfigPath)
+	cfg, err := s.ResolveRunConfig(ctx, l, v, pctx, pctx.TerragruntConfigPath)
 	if err != nil {
 		return nil, err
 	}
@@ -2942,7 +2939,7 @@ func siblingAutoIncludeDepOverrides(
 		l,
 		v,
 		pctx,
-		pctx.TrackInclude.AutoIncludeOverride.Path,
+		pctx.includes.AutoIncludePath,
 	)
 	if err != nil {
 		return nil, err

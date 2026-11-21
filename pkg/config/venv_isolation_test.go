@@ -75,7 +75,7 @@ func TestDependencyOutputAuthAndExtraArgsEnvLeaveCallerEnv(t *testing.T) {
 
 	s := new(config.Store)
 
-	cfg, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, pctx), configPath)
+	cfg, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, configPath)
 	require.NoError(t, err)
 	assert.Equal(t, "from-native-output", cfg.Inputs["result0"])
 
@@ -102,7 +102,7 @@ func TestDependencyOutputsWithRunCmdLeaveCallerEnvWithRacing(t *testing.T) {
 
 	s := new(config.Store)
 
-	cfg, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, pctx), configPath)
+	cfg, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, configPath)
 	require.NoError(t, err)
 
 	for i := range producers {

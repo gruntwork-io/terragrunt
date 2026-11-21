@@ -181,7 +181,7 @@ func TestPartialParseFailsOnABrokenBlockOutsideTheDecodeListInParent(t *testing.
 	pctx = pctx.WithDecodeList(config.TerragruntFlags)
 	s := new(config.Store)
 
-	_, err = s.ResolvePartialConfig(ctx, l, v, config.NewParseContext(v, pctx), configPath)
+	_, err = s.ResolvePartialConfig(ctx, l, v, pctx, configPath)
 	require.Error(t, err)
 }
 
@@ -341,7 +341,7 @@ include "grandparent" {
 
 			s := new(config.Store)
 
-			_, err := s.ResolvePartialConfig(ctx, l, v, config.NewParseContext(v, pctx), childPath)
+			_, err := s.ResolvePartialConfig(ctx, l, v, pctx, childPath)
 			require.Error(
 				t,
 				err,
@@ -478,7 +478,7 @@ func TestPartialParseCacheWithInvalidFile(t *testing.T) {
 	// Parse should fail and not cache an invalid file
 	s := new(config.Store)
 
-	_, err := s.ResolvePartialConfig(ctx, l, v, config.NewParseContext(v, pctx), configPath)
+	_, err := s.ResolvePartialConfig(ctx, l, v, pctx, configPath)
 	require.Error(t, err, "parsing invalid HCL should fail")
 
 	// Verify nothing was cached
@@ -863,7 +863,7 @@ include "root" {
 
 	s := new(config.Store)
 
-	_, err := s.ResolvePartialConfig(ctx, l, v, config.NewParseContext(v, pctx), childPath)
+	_, err := s.ResolvePartialConfig(ctx, l, v, pctx, childPath)
 
 	var strategyErr config.IncludeMergeStrategyNotSupportedError
 
@@ -992,7 +992,7 @@ exclude {
 
 			s := new(config.Store)
 
-			terragruntConfig, err := s.ResolvePartialConfig(ctx, l, v, config.NewParseContext(v, pctx), childPath)
+			terragruntConfig, err := s.ResolvePartialConfig(ctx, l, v, pctx, childPath)
 			if tc.expectedErr != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tc.expectedErr)
@@ -1046,7 +1046,7 @@ feature "tags" {
 
 	s := new(config.Store)
 
-	cfg, err := s.ResolvePartialConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, pctx), unitPath)
+	cfg, err := s.ResolvePartialConfig(ctx, logger.CreateLogger(), v, pctx, unitPath)
 	require.NoError(t, err)
 
 	require.Len(t, cfg.FeatureFlags, 1)
@@ -1132,7 +1132,7 @@ exclude {
 
 			s := new(config.Store)
 
-			cfg, err := s.ResolvePartialConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, pctx), unitPath)
+			cfg, err := s.ResolvePartialConfig(ctx, logger.CreateLogger(), v, pctx, unitPath)
 			require.NoError(t, err)
 
 			require.Len(t, cfg.TerragruntDependencies, 1)
@@ -1159,7 +1159,7 @@ func TestParseDoesNotParseNoMergeInclude(t *testing.T) {
 			parse: func(ctx context.Context, v *venv.Venv, pctx *config.ParsingContext, path string) (*config.TerragruntConfig, error) {
 				s := new(config.Store)
 
-				return s.ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, pctx), path)
+				return s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, path)
 			},
 		},
 		{
@@ -1169,7 +1169,7 @@ func TestParseDoesNotParseNoMergeInclude(t *testing.T) {
 
 				s := new(config.Store)
 
-				return s.ResolvePartialConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, pctx), path)
+				return s.ResolvePartialConfig(ctx, logger.CreateLogger(), v, pctx, path)
 			},
 		},
 	}

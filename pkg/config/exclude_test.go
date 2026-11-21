@@ -34,7 +34,7 @@ exclude {
 
 	s := new(config.Store)
 
-	_, err := s.ResolvePartialConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, pctx), cfgPath)
+	_, err := s.ResolvePartialConfig(ctx, logger.CreateLogger(), v, pctx, cfgPath)
 
 	var diags hcl.Diagnostics
 
@@ -133,7 +133,7 @@ include "root" {
 
 			s := new(config.Store)
 
-			_, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, pctx), cfgPath)
+			_, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, cfgPath)
 
 			var excludeErr config.ExcludeReferencesDependencyError
 			require.ErrorAs(t, err, &excludeErr)
@@ -256,7 +256,7 @@ exclude {
 
 			s := new(config.Store)
 
-			parsed, err := s.ResolvePartialConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, pctx), cfgPath)
+			parsed, err := s.ResolvePartialConfig(ctx, logger.CreateLogger(), v, pctx, cfgPath)
 			if tt.wantErrAs != nil {
 				require.ErrorAs(t, err, tt.wantErrAs)
 				return
@@ -314,7 +314,7 @@ exclude {
 
 			s := new(config.Store)
 
-			_, partialErr := s.ResolvePartialConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, pctx), cfgPath)
+			_, partialErr := s.ResolvePartialConfig(ctx, logger.CreateLogger(), v, pctx, cfgPath)
 
 			var partialDiags hcl.Diagnostics
 
@@ -323,7 +323,7 @@ exclude {
 			assert.Equal(t, tt.wantSummary, partialDiags[0].Summary)
 
 			fullCtx, fullPctx := newTestParsingContext(t, cfgPath)
-			_, fullErr := s.ResolveRunConfig(fullCtx, logger.CreateLogger(), v, config.NewParseContext(v, fullPctx), cfgPath)
+			_, fullErr := s.ResolveRunConfig(fullCtx, logger.CreateLogger(), v, fullPctx, cfgPath)
 
 			var fullDiags hcl.Diagnostics
 
@@ -361,7 +361,7 @@ include "root" {
 
 	s := new(config.Store)
 
-	_, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, pctx), cfgPath)
+	_, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, cfgPath)
 	require.ErrorContains(t, err, "null value is not allowed")
 	assert.ErrorContains(t, err, filepath.Join(root, "root.hcl"))
 }

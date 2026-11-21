@@ -15,7 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
 
-func TestResolveUnitConfigLeavesParseContextUnchanged(t *testing.T) {
+func TestResolveUnitConfigLeavesTheCallersContextUnchanged(t *testing.T) {
 	t.Parallel()
 
 	v := venv.MemVenv()
@@ -51,7 +51,7 @@ inputs = {
 	run.Locals = &runLocals
 
 	want := run.Clone()
-	pc := config.NewParseContext(v, run)
+	pc := run
 	l := logger.CreateLogger()
 
 	s := new(config.Store)
@@ -71,15 +71,7 @@ inputs = {
 	assert.Equal(t, firstCfg, secondCfg)
 	assert.Equal(t, map[string]any{"name": "unit", "region": "us-east-1"}, firstCfg.Inputs)
 
-	assert.Equal(t, want.TrackInclude, run.TrackInclude)
-	assert.Equal(t, want.Values, run.Values)
-	assert.Equal(t, want.Features, run.Features)
-	assert.Equal(t, want.Locals, run.Locals)
-	assert.Equal(t, want.DecodedDependencies, run.DecodedDependencies)
-	assert.Equal(t, want.IAMRoleOptions, run.IAMRoleOptions)
-	assert.Equal(t, want.ParseDepth, run.ParseDepth)
-	assert.Equal(t, want.SkipAutoIncludeMerge, run.SkipAutoIncludeMerge)
-	assert.Equal(t, want.Parser, run.Parser)
+	assert.Equal(t, want, run)
 }
 
 func TestResolveUnitConfigAppliesRunScopedValues(t *testing.T) {
@@ -104,7 +96,7 @@ inputs = {
 
 	l := logger.CreateLogger()
 
-	pc := config.NewParseContext(v, run)
+	pc := run
 
 	s := new(config.Store)
 

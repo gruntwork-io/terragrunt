@@ -17,15 +17,6 @@ type dependencyResolution struct {
 	blocks Dependencies
 }
 
-// runDependencies returns the `dependency` value run supplied with its blocks, and nil when run supplied none.
-func runDependencies(run *ParsingContext) *dependencyResolution {
-	if run.DecodedDependencies == nil {
-		return nil
-	}
-
-	return &dependencyResolution{value: run.DecodedDependencies, blocks: run.DependencyBlocks}
-}
-
 // dependencySet is the dependency blocks of a file that resolves its own dependencies.
 type dependencySet struct {
 	// included maps the name of each include block of the file to the dependency blocks of the file it names.
@@ -48,7 +39,7 @@ func (c *UnitConfig) newDependencySet(
 	l log.Logger,
 	v *venv.Venv,
 	s *Store,
-	pc *ParseContext,
+	pc *ParsingContext,
 	file *hclparse.File,
 	included IncludedDependencies,
 	fns *parseFunctions,
@@ -57,7 +48,7 @@ func (c *UnitConfig) newDependencySet(
 		return nil, c.evalErr
 	}
 
-	pctx := pc.parsingContext()
+	pctx := pc.detach()
 
 	evalCtx := &hcl.EvalContext{Variables: c.evalVars}
 	if declaresDependencies(file.Body) {
@@ -76,7 +67,7 @@ func (c *UnitConfig) newDependencySet(
 		included:   map[string]Dependencies{},
 	}
 
-	if pctx.TrackInclude == nil {
+	if pctx.includes == nil {
 		return set, nil
 	}
 
@@ -162,7 +153,7 @@ func (set *dependencySet) loaded(
 		return nil, err
 	}
 
-	if pctx.TrackInclude == nil {
+	if pctx.includes == nil {
 		return own, nil
 	}
 
@@ -185,20 +176,20 @@ func (c *UnitConfig) dependencyValue(
 	l log.Logger,
 	v *venv.Venv,
 	s *Store,
-	pc *ParseContext,
+	pc *ParsingContext,
 ) (*dependencyResolution, error) {
-	if pc.file.decodedDeps != nil {
-		return pc.file.decodedDeps, nil
+	if pc.decodedDependencies() != nil {
+		return pc.decodedDependencies(), nil
 	}
 
 	for _, path := range c.dependencyReads {
-		pc.sinks.filesRead.Add(path)
+		pc.FilesRead.Add(path)
 	}
 
-	pctx := pc.parsingContext()
+	pctx := pc.detach()
 	set := c.deps
 
-	if pc.file.inheritsDependencies {
+	if pc.inheritsDependencies {
 		var err error
 
 		set, err = c.newDependencySet(
@@ -243,7 +234,7 @@ func (s *Store) decodeOwnDependencies(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	pc *ParseContext,
+	pc *ParsingContext,
 	pctx *ParsingContext,
 	file *hclparse.File,
 	evalCtx *hcl.EvalContext,
@@ -284,10 +275,10 @@ func (s *Store) foldAutoIncludeDependencies(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	pc *ParseContext,
+	pc *ParsingContext,
 	deps Dependencies,
 ) (Dependencies, error) {
-	includes := pc.file.includes
+	includes := pc.includes
 	if includes == nil || includes.AutoIncludePath == "" {
 		return deps, nil
 	}

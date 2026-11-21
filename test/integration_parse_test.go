@@ -92,7 +92,7 @@ func TestParseAllFixtureFiles(t *testing.T) {
 
 			s := new(config.Store)
 
-			cfg, _ := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), file)
+			cfg, _ := s.ResolveRunConfig(ctx, l, v, pctx, file)
 
 			assert.NotNil(t, cfg)
 

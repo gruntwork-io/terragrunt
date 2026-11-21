@@ -1362,7 +1362,7 @@ func TestStackDepsAutoIncludeArbitraryRetryBlock(t *testing.T) {
 
 	s := new(config.Store)
 
-	parsed, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), unitConfigPath)
+	parsed, err := s.ResolveRunConfig(ctx, l, v, pctx, unitConfigPath)
 	require.NoError(
 		t,
 		err,
@@ -1419,7 +1419,7 @@ func TestStackDepsAutoIncludeFeatureBlock(t *testing.T) {
 
 	s := new(config.Store)
 
-	parsed, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), unitConfigPath)
+	parsed, err := s.ResolveRunConfig(ctx, l, v, pctx, unitConfigPath)
 	require.NoError(
 		t,
 		err,
@@ -1480,7 +1480,7 @@ func TestStackDepsAutoIncludeIgnoreBlock(t *testing.T) {
 
 	s := new(config.Store)
 
-	parsed, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), unitConfigPath)
+	parsed, err := s.ResolveRunConfig(ctx, l, v, pctx, unitConfigPath)
 	require.NoError(
 		t,
 		err,
@@ -2007,7 +2007,7 @@ func partialParseDiscovery(t *testing.T, l log.Logger, configPath string) *confi
 
 	s := new(config.Store)
 
-	parsed, err := s.ResolvePartialConfig(ctx, l, v, config.NewParseContext(v, pctx), configPath)
+	parsed, err := s.ResolvePartialConfig(ctx, l, v, pctx, configPath)
 	require.NoError(t, err, "discovery-style partial parse of the merged unit config must succeed")
 
 	return parsed

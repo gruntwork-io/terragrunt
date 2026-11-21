@@ -43,7 +43,7 @@ func EvaluateLocalsBlock(
 		varsPctx := pctx
 		if exposesInclude(pctx) && !readsVariable(attrs, MetadataInclude) {
 			withoutIncludes := *pctx
-			withoutIncludes.TrackInclude = nil
+			withoutIncludes.includes = nil
 			varsPctx = &withoutIncludes
 		}
 
@@ -218,11 +218,11 @@ func evaluateLocalsInOrder(
 
 // exposesInclude reports whether an include block of the config pctx parses exposes the file it includes.
 func exposesInclude(pctx *ParsingContext) bool {
-	if pctx.TrackInclude == nil {
+	if pctx.includes == nil {
 		return false
 	}
 
-	return slices.ContainsFunc(pctx.TrackInclude.CurrentList, func(include IncludeConfig) bool {
+	return slices.ContainsFunc(pctx.includes.List, func(include IncludeConfig) bool {
 		return include.GetExpose()
 	})
 }

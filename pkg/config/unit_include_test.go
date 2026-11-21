@@ -61,7 +61,7 @@ exclude {
 		ctx,
 		logger.CreateLogger(),
 		v,
-		config.NewParseContext(v, run),
+		run,
 		path,
 	)
 	require.NoError(t, err)
@@ -110,7 +110,7 @@ locals {
 		ctx,
 		logger.CreateLogger(),
 		v,
-		config.NewParseContext(v, run),
+		run,
 		path,
 	)
 	require.NoError(t, err)
@@ -158,7 +158,7 @@ locals {
 		ctx,
 		logger.CreateLogger(),
 		v,
-		config.NewParseContext(v, run),
+		run,
 		path,
 	)
 	require.NoError(t, err)
@@ -206,7 +206,7 @@ locals {
 		ctx,
 		logger.CreateLogger(),
 		v,
-		config.NewParseContext(v, run),
+		run,
 		path,
 	)
 	require.NoError(t, err)
@@ -255,7 +255,7 @@ locals {
 		ctx,
 		logger.CreateLogger(),
 		v,
-		config.NewParseContext(v, run),
+		run,
 		path,
 	)
 	require.NoError(t, err)
@@ -304,7 +304,7 @@ exclude {
 		ctx,
 		logger.CreateLogger(),
 		v,
-		config.NewParseContext(v, run),
+		run,
 		path,
 	)
 	require.Error(t, err)

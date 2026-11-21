@@ -126,7 +126,7 @@ func resolveUnit(t *testing.T, tc unitCase) unitResult {
 	ctx, pctx := newTestUnitParsingContext(t, tc.cfgPath)
 	tc.configure(pctx)
 
-	pc := config.NewParseContext(v, pctx)
+	pc := pctx
 
 	parsed, parseErr := new(config.Store).ResolveUnitConfig(ctx, l, v, pc, tc.cfgPath)
 

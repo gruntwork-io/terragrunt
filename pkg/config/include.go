@@ -38,14 +38,14 @@ func MergeIncludedDependencies(
 	childDependencies Dependencies,
 	included IncludedDependencies,
 ) (Dependencies, error) {
-	if pctx.TrackInclude == nil {
+	if pctx.includes == nil {
 		return nil, errors.New(
 			"you reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: HANDLE_INCLUDE_DEPENDENCY_NIL_INCLUDE_CONFIG",
 		)
 	}
 	// We merge in the include blocks in reverse order here. The expectation is that the bottom most elements override
 	// those in earlier includes, so we need to merge bottom up instead of top down to ensure this.
-	includeList := pctx.TrackInclude.CurrentList
+	includeList := pctx.includes.List
 	baseDependencyBlock := childDependencies
 
 	for _, includeConfig := range slices.Backward(includeList) {

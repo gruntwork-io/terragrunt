@@ -234,7 +234,7 @@ func CheckUnitVersionConstraints(
 			ctx,
 			l,
 			v,
-			config.NewParseContext(v, pctx),
+			pctx,
 			unitOpts.TerragruntConfigPath,
 		)
 		if err != nil {

@@ -351,7 +351,7 @@ func TerragruntEvalVariables(
 ) (map[string]cty.Value, error) {
 	vars := evalVariablesWithoutIncludes(pctx)
 
-	if pctx.TrackInclude != nil && len(pctx.TrackInclude.CurrentList) > 0 {
+	if pctx.includes != nil && len(pctx.includes.List) > 0 {
 		// For each include block, check if we want to expose the included config, and if so, add under the include
 		// variable.
 		exposedInclude, err := includeMapAsCtyVal(ctx, l, pctx, exposed)
@@ -1220,18 +1220,18 @@ func PathRelativeToInclude(
 	pctx *ParsingContext,
 	params []string,
 ) (string, error) {
-	if pctx.TrackInclude == nil {
+	if pctx.includes == nil {
 		return ".", nil
 	}
 
 	var included IncludeConfig
 
 	switch {
-	case pctx.TrackInclude.Original != nil:
-		included = *pctx.TrackInclude.Original
-	case len(pctx.TrackInclude.CurrentList) > 0:
+	case pctx.includes.IncludedVia != nil:
+		included = *pctx.includes.IncludedVia
+	case len(pctx.includes.List) > 0:
 		// Called in child ctx, so we need to select the right include file.
-		selected, err := getSelectedIncludeBlock(*pctx.TrackInclude, params)
+		selected, err := getSelectedIncludeBlock(pctx.includes, params)
 		if err != nil {
 			return "", err
 		}
@@ -1265,11 +1265,11 @@ func PathRelativeFromInclude(
 	pctx *ParsingContext,
 	params []string,
 ) (string, error) {
-	if pctx.TrackInclude == nil {
+	if pctx.includes == nil {
 		return ".", nil
 	}
 
-	included, err := getSelectedIncludeBlock(*pctx.TrackInclude, params)
+	included, err := getSelectedIncludeBlock(pctx.includes, params)
 	if err != nil {
 		return "", err
 	}
@@ -1309,7 +1309,7 @@ func getWorkingDir(ctx context.Context, l log.Logger, v *venv.Venv, s *Store, pc
 	sourcePctx := pctx.Clone()
 	sourcePctx.stubWorkingDirFunc = true
 
-	cfg, err := s.ResolveRunConfig(ctx, l, v, NewParseContext(v, sourcePctx), pctx.TerragruntConfigPath)
+	cfg, err := s.ResolveRunConfig(ctx, l, v, sourcePctx, pctx.TerragruntConfigPath)
 	if err != nil {
 		return "", err
 	}
@@ -1808,12 +1808,12 @@ func getTerragruntSourceCliFlag(
 //   - If there is only one include block, no param is required and that is automatically returned.
 //   - If there is more than one include block, 1 param is required to use as the label name to lookup the include block
 //     to use.
-func getSelectedIncludeBlock(trackInclude TrackInclude, params []string) (*IncludeConfig, error) {
-	importMap := trackInclude.CurrentMap
-
-	if trackInclude.Original != nil {
-		return trackInclude.Original, nil
+func getSelectedIncludeBlock(includes *Includes, params []string) (*IncludeConfig, error) {
+	if includes.IncludedVia != nil {
+		return includes.IncludedVia, nil
 	}
+
+	importMap := includes.ByName()
 
 	if len(importMap) == 0 {
 		return nil, nil

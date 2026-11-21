@@ -40,7 +40,7 @@ func TestIncludeConfigAsCtyValWrapsErrorWithIncludeNameAndPath(t *testing.T) {
 	expose := true
 	inc := IncludeConfig{Name: "root", Path: parentPath, Expose: &expose}
 
-	exposed, _ := new(Store).exposedInclude(v, NewParseContext(v, pctx))
+	exposed, _ := new(Store).exposedInclude(v, pctx)
 
 	_, err := includeConfigAsCtyVal(ctx, l, pctx, inc, exposed)
 	require.Error(t, err)

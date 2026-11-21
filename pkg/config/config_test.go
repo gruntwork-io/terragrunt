@@ -1005,7 +1005,7 @@ func TestParseTerragruntConfigIncludeNoDotTerragruntCache(t *testing.T) {
 
 			s := new(config.Store)
 
-			terragruntConfig, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), cfgPath)
+			terragruntConfig, err := s.ResolveRunConfig(ctx, l, v, pctx, cfgPath)
 			require.NoError(t, err)
 			require.NotNil(t, terragruntConfig.Terraform)
 

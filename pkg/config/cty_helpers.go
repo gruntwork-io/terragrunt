@@ -348,15 +348,17 @@ func includeMapAsCtyVal(
 	pctx *ParsingContext,
 	exposed ExposedInclude,
 ) (cty.Value, error) {
-	bareInclude, hasBareInclude := pctx.TrackInclude.CurrentMap[bareIncludeKey]
-	if len(pctx.TrackInclude.CurrentMap) == 1 && hasBareInclude {
+	byName := pctx.includes.ByName()
+
+	bareInclude, hasBareInclude := byName[bareIncludeKey]
+	if len(byName) == 1 && hasBareInclude {
 		l.Debug("Detected single bare include block - exposing as top level")
 		return includeConfigAsCtyVal(ctx, l, pctx, bareInclude, exposed)
 	}
 
 	exposedIncludeMap := map[string]cty.Value{}
 
-	for key, included := range pctx.TrackInclude.CurrentMap {
+	for key, included := range byName {
 		parsedIncludedCty, err := includeConfigAsCtyVal(ctx, l, pctx, included, exposed)
 		if err != nil {
 			return cty.NilVal, err

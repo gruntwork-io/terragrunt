@@ -34,9 +34,11 @@ func (s *Store) ResolveUnitConfig(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	pc *ParseContext,
+	pc *ParsingContext,
 	cfgPath string,
 ) (*UnitConfig, error) {
+	pc = pc.forStore(v)
+
 	ctx, release := s.withReleaseScope(ctx)
 	defer release()
 
@@ -60,9 +62,11 @@ func (s *Store) ResolveUnitBaseVariables(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	pc *ParseContext,
+	pc *ParsingContext,
 	cfgPath string,
 ) (map[string]cty.Value, error) {
+	pc = pc.forStore(v)
+
 	pc, err := pc.incrementDepth()
 	if err != nil {
 		return nil, err
@@ -78,7 +82,7 @@ func (s *Store) ResolveUnitBaseVariables(
 		v.FS,
 		cfgPath,
 		info,
-		hclparse.NewParser(pc.parserOptions(l, v)...),
+		hclparse.NewParser(pc.ParserOptions(l, v)...),
 	)
 	if err != nil {
 		return nil, err
@@ -100,9 +104,11 @@ func (s *Store) ResolveUnitQueueConfig(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	pc *ParseContext,
+	pc *ParsingContext,
 	cfgPath string,
 ) (*TerragruntConfig, error) {
+	pc = pc.forStore(v)
+
 	ctx, release := s.withReleaseScope(ctx)
 	defer release()
 
@@ -123,15 +129,17 @@ func (s *Store) ResolvePartialConfig(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	pc *ParseContext,
+	pc *ParsingContext,
 	cfgPath string,
 ) (*TerragruntConfig, error) {
+	pc = pc.forStore(v)
+
 	ctx, release := s.withReleaseScope(ctx)
 	defer release()
 
 	c, cfg, err := s.resolveFile(ctx, l, v, pc, cfgPath)
 
-	decodeList := pc.settings.PartialParseDecodeList
+	decodeList := pc.PartialParseDecodeList
 	if c == nil || !slices.ContainsFunc(decodeList, decodesRunParts) {
 		return cfg, err
 	}
@@ -139,7 +147,7 @@ func (s *Store) ResolvePartialConfig(
 	src := keptUnknownOutputs{decodeList: decodeList}
 
 	var readers []error
-	if !pc.settings.SkipOutputsResolution {
+	if !pc.SkipOutputsResolution {
 		src.readers = &readers
 	}
 
@@ -161,9 +169,11 @@ func (s *Store) ResolveRunConfig(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	pc *ParseContext,
+	pc *ParsingContext,
 	cfgPath string,
 ) (*TerragruntConfig, error) {
+	pc = pc.forStore(v)
+
 	c, err := s.ResolveUnitConfig(ctx, l, v, pc, cfgPath)
 	if c == nil {
 		return nil, err
@@ -180,7 +190,7 @@ func (s *Store) ResolveRunConfigFromBytes(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	pc *ParseContext,
+	pc *ParsingContext,
 	cfgPath string,
 	content []byte,
 ) (*TerragruntConfig, error) {
@@ -213,7 +223,7 @@ func (s *Store) ReadTerragruntConfig(
 		util.RelPathForLog(run.RootWorkingDir, run.TerragruntConfigPath, run.LogShowAbsPaths),
 	)
 
-	return s.ResolveRunConfig(ctx, l, v, NewParseContext(v, run), run.TerragruntConfigPath)
+	return s.ResolveRunConfig(ctx, l, v, run, run.TerragruntConfigPath)
 }
 
 // resolvedFile is what a memoized resolution produces.
@@ -230,7 +240,7 @@ func (s *Store) resolveFile(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	pc *ParseContext,
+	pc *ParsingContext,
 	cfgPath string,
 ) (*UnitConfig, *TerragruntConfig, error) {
 	pc, err := pc.incrementDepth()
@@ -242,12 +252,12 @@ func (s *Store) resolveFile(
 		return s.resolveFileOnce(ctx, l, v, pc, cfgPath)
 	}
 
-	key := Key{Path: filepath.Clean(cfgPath), Context: pc.file.key, Stage: StageQueue}
+	key := Key{Path: filepath.Clean(cfgPath), Context: pc.key, Stage: StageQueue}
 	flight := pc.withOwnReads()
 
 	res, err := s.Memoize(ctx, key, func(ctx context.Context) (*resolvedFile, error) {
 		c, cfg, err := s.resolveFileOnce(ctx, l, v, flight, cfgPath)
-		NoteReads(ctx, flight.sinks.filesRead.Paths()...)
+		NoteReads(ctx, flight.FilesRead.Paths()...)
 
 		if c != nil {
 			NoteFiles(ctx, c.dependencyReads...)
@@ -257,7 +267,7 @@ func (s *Store) resolveFile(
 	})
 
 	for _, path := range res.Reads {
-		pc.sinks.filesRead.Add(path)
+		pc.FilesRead.Add(path)
 	}
 
 	if res.Value == nil || res.Value.c == nil {
@@ -279,7 +289,7 @@ func (s *Store) resolveFileOnce(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	pc *ParseContext,
+	pc *ParsingContext,
 	cfgPath string,
 ) (*UnitConfig, *TerragruntConfig, error) {
 	info, err := statConfig(v, cfgPath)
@@ -296,13 +306,13 @@ func (s *Store) resolveFileOnce(
 		ctx,
 		l,
 		cfgPath,
-		pc.settings.WorkingDir,
-		len(pc.settings.PartialParseDecodeList) > 0,
-		pc.settings.PartialParseDecodeList,
-		pc.file.include,
+		pc.WorkingDir,
+		len(pc.PartialParseDecodeList) > 0,
+		pc.PartialParseDecodeList,
+		pc.include,
 		false,
 		func(childCtx context.Context, l log.Logger) error {
-			parser := hclparse.NewParser(pc.parserOptions(l, v)...)
+			parser := hclparse.NewParser(pc.ParserOptions(l, v)...)
 
 			file, parseErr := s.ParseUnitAST(childCtx, v.FS, cfgPath, info, parser)
 			if parseErr != nil {
@@ -334,19 +344,19 @@ func (s *Store) resolveBase(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	pc *ParseContext,
+	pc *ParsingContext,
 	file *hclparse.File,
 ) (*unitBase, error) {
 	if !pc.memoized {
 		return s.prepareBase(ctx, l, v, pc, file)
 	}
 
-	key := Key{Path: filepath.Clean(file.ConfigPath), Context: pc.file.key, Stage: StageBase}
+	key := Key{Path: filepath.Clean(file.ConfigPath), Context: pc.key, Stage: StageBase}
 	flight := pc.withOwnReads()
 
 	res, err := s.Memoize(ctx, key, func(ctx context.Context) (*unitBase, error) {
 		base, err := s.prepareBase(ctx, l, v, flight, file)
-		NoteReads(ctx, flight.sinks.filesRead.Paths()...)
+		NoteReads(ctx, flight.FilesRead.Paths()...)
 
 		if base == nil {
 			return nil, err
@@ -356,7 +366,7 @@ func (s *Store) resolveBase(
 	})
 
 	for _, path := range res.Reads {
-		pc.sinks.filesRead.Add(path)
+		pc.FilesRead.Add(path)
 	}
 
 	if res.Value == nil {
@@ -388,7 +398,7 @@ func (s *Store) assembleFirst(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	pc *ParseContext,
+	pc *ParsingContext,
 	c *UnitConfig,
 	fns *parseFunctions,
 ) (*TerragruntConfig, error) {
@@ -413,7 +423,7 @@ type unitBase struct {
 	// featureBlocks is the feature blocks the file declares, nil when the base blocks failed to decode.
 	featureBlocks FeatureFlags
 	// scope is the file's state with its base applied.
-	scope fileScope
+	scope ParsingContext
 }
 
 // err returns every error of b, joined.
@@ -439,10 +449,10 @@ func (s *Store) prepareBase(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	pc *ParseContext,
+	pc *ParsingContext,
 	file *hclparse.File,
 ) (*unitBase, error) {
-	pctx := pc.parsingContext()
+	pctx := pc.detach()
 
 	if err := DetectDeprecatedConfigurations(ctx, pctx, l, file); err != nil {
 		return nil, err
@@ -475,15 +485,15 @@ func (s *Store) prepareBase(
 		errs = append(errs, err)
 	}
 
-	pctx = pc.parsingContext()
+	pctx = pc.detach()
 
 	unitValues, err := ReadValues(ctx, l, v, s, pctx, filepath.Dir(file.ConfigPath))
 	if err != nil {
 		return nil, err
 	}
 
-	pc = pc.withValues(unitValues)
-	pctx = pc.parsingContext()
+	pc = pc.withUnitValues(unitValues)
+	pctx = pc.detach()
 
 	exposed, exposedErr := s.exposedInclude(v, pc)
 
@@ -514,18 +524,18 @@ func (s *Store) prepareBase(
 	base.evalVars, base.evalErr = TerragruntEvalVariables(
 		ctx,
 		l,
-		pc.parsingContext(),
+		pc.detach(),
 		file.ConfigPath,
 		exposed,
 	)
 
-	if len(pc.settings.PartialParseDecodeList) > 0 {
+	if len(pc.PartialParseDecodeList) > 0 {
 		if err := exposedErr(); err != nil {
 			base.errs = append(base.errs, err)
 		}
 	}
 
-	base.scope = pc.file
+	base.scope = pc.scope()
 
 	return base, nil
 }
@@ -541,14 +551,14 @@ func (s *Store) withFileIAMRole(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	pc *ParseContext,
+	pc *ParsingContext,
 	file *hclparse.File,
-) (*ParseContext, error) {
-	if len(pc.settings.PartialParseDecodeList) > 0 {
+) (*ParsingContext, error) {
+	if len(pc.PartialParseDecodeList) > 0 {
 		return pc, nil
 	}
 
-	pctx := pc.parsingContext()
+	pctx := pc.detach()
 
 	if pctx.OriginalIAMRoleOptions.RoleARN != "" || !mayMergeDeclaration(ctx, l, v, s, pctx, file, iamRoleSchema) {
 		return pc.withIAMRole(FileIAMRoleOptions(pctx, iam.RoleOptions{})), nil
@@ -568,7 +578,7 @@ func (s *Store) prepare(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	pc *ParseContext,
+	pc *ParsingContext,
 	file *hclparse.File,
 	base *unitBase,
 	fns *parseFunctions,
@@ -581,18 +591,18 @@ func (s *Store) prepare(
 		Locals:   base.locals,
 		evalVars: base.evalVars,
 		evalErr:  base.evalErr,
-		scope:    pc.file,
+		scope:    pc.scope(),
 	}
 
-	if includes := pc.file.includes; includes != nil {
+	if includes := pc.includes; includes != nil {
 		c.Includes = includes
 	}
 
-	if pc.file.decodedDeps == nil && !pc.file.inheritsDependencies {
+	if pc.decodedDependencies() == nil && !pc.inheritsDependencies {
 		depPC := pc.withOwnReads()
 
 		set, err := c.newDependencySet(ctx, l, v, s, depPC, file, s.includedDependencies(v, depPC), fns)
-		c.dependencyReads = depPC.sinks.filesRead.Paths()
+		c.dependencyReads = depPC.FilesRead.Paths()
 
 		if err != nil {
 			errs = append(errs, err)
@@ -608,7 +618,7 @@ func (s *Store) prepare(
 		errs = append(errs, base.evalErr)
 	}
 
-	evalCtx := c.evalContext(fns, pc.parsingContext())
+	evalCtx := c.evalContext(fns, pc.detach())
 	c.prepErrs = errs
 
 	c.decodeErr = file.ApplyFileUpdate()
@@ -655,14 +665,14 @@ func unsupportedContent(body hcl.Body, c *UnitConfig) hcl.Diagnostics {
 }
 
 // absInclude returns pc's include block with its path made absolute, in a copy.
-func absInclude(pc *ParseContext) *IncludeConfig {
-	include := pc.file.include
+func absInclude(pc *ParsingContext) *IncludeConfig {
+	include := pc.include
 	if include == nil || include.Path == "" || filepath.IsAbs(include.Path) {
 		return include
 	}
 
 	abs := *include
-	abs.Path = filepath.Clean(filepath.Join(filepath.Dir(pc.settings.TerragruntConfigPath), abs.Path))
+	abs.Path = filepath.Clean(filepath.Join(filepath.Dir(pc.TerragruntConfigPath), abs.Path))
 
 	return &abs
 }

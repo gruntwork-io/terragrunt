@@ -24,7 +24,7 @@ func resolveRunConfigString(
 ) (*config.TerragruntConfig, error) {
 	tb.Helper()
 
-	return s.ResolveRunConfigFromBytes(ctx, l, v, config.NewParseContext(v, pctx), cfgPath, []byte(content))
+	return s.ResolveRunConfigFromBytes(ctx, l, v, pctx, cfgPath, []byte(content))
 }
 
 // resolvePartialConfigString parses content as the config at cfgPath with [config.Store.ResolvePartialConfig],
@@ -42,7 +42,7 @@ func resolvePartialConfigString(
 
 	v = withConfigFile(tb, v, cfgPath, content)
 
-	return s.ResolvePartialConfig(ctx, l, v, config.NewParseContext(v, pctx), cfgPath)
+	return s.ResolvePartialConfig(ctx, l, v, pctx, cfgPath)
 }
 
 // withConfigFile returns a copy of v whose filesystem holds content at cfgPath in a memory layer over that of v.

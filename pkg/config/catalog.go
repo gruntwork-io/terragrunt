@@ -118,7 +118,7 @@ func ReadCatalogConfig(
 		catalogV = v.WithFS(fsys)
 	}
 
-	config, err := s.ResolveUnitQueueConfig(parentCtx, l, catalogV, NewParseContext(catalogV, pctx), cfgPath)
+	config, err := s.ResolveUnitQueueConfig(parentCtx, l, catalogV, pctx, cfgPath)
 	if err != nil {
 		return nil, err
 	}

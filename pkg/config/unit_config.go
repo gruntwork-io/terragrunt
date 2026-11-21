@@ -110,7 +110,7 @@ type UnitConfig struct {
 	// kept is the files the parse merged.
 	kept keptFiles
 	// scope is the file's state after its base blocks decoded.
-	scope fileScope
+	scope ParsingContext
 }
 
 // keptFiles is the files a parse reached while merging a config.

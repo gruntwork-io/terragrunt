@@ -284,7 +284,7 @@ func parseTerragruntConfigAsCty(
 	s *Store,
 	pctx *ParsingContext,
 ) (cty.Value, error) {
-	config, err := s.ResolveRunConfig(ctx, l, v, NewParseContext(v, pctx), pctx.TerragruntConfigPath)
+	config, err := s.ResolveRunConfig(ctx, l, v, pctx, pctx.TerragruntConfigPath)
 	if err != nil {
 		return cty.NilVal, err
 	}

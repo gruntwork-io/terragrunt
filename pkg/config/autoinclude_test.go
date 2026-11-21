@@ -64,7 +64,7 @@ inputs = {
 	require.NotPanics(t, func() {
 		s := new(config.Store)
 
-		_, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), cfgPath)
+		_, err := s.ResolveRunConfig(ctx, l, v, pctx, cfgPath)
 		require.Error(t, err, "a malformed sibling autoinclude must surface as an error")
 	})
 }
@@ -128,7 +128,7 @@ dependency "foo" {
 
 	s := new(config.Store)
 
-	parsed, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), cfgPath)
+	parsed, err := s.ResolveRunConfig(ctx, l, v, pctx, cfgPath)
 	require.NoError(
 		t,
 		err,
@@ -208,7 +208,7 @@ include "base" {
 
 	s := new(config.Store)
 
-	parsed, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), cfgPath)
+	parsed, err := s.ResolveRunConfig(ctx, l, v, pctx, cfgPath)
 	require.NoError(
 		t,
 		err,
@@ -261,7 +261,7 @@ include "common" {
 	require.NotPanics(t, func() {
 		s := new(config.Store)
 
-		parsed, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), cfgPath)
+		parsed, err := s.ResolveRunConfig(ctx, l, v, pctx, cfgPath)
 		require.NoError(t, err, "a same-dir autoinclude include must terminate, not recurse")
 		require.NotNil(t, parsed)
 		// The included sibling's inputs still flow through the autoinclude into the unit.
@@ -340,7 +340,7 @@ dependency "leak" {
 
 	s := new(config.Store)
 
-	parsed, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, pctx), cfgPath)
+	parsed, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, cfgPath)
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
 
@@ -394,7 +394,7 @@ exclude {
 
 	s := new(config.Store)
 
-	parsedFull, err := s.ResolveRunConfig(ctxFull, l, v, config.NewParseContext(v, pctxFull), cfgPath)
+	parsedFull, err := s.ResolveRunConfig(ctxFull, l, v, pctxFull, cfgPath)
 	require.NoError(t, err)
 	require.NotNil(t, parsedFull)
 	require.NotNil(t, parsedFull.Exclude)
@@ -409,7 +409,7 @@ exclude {
 	pctxPartial.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctxPartial = pctxPartial.WithDecodeList(config.ExcludeBlock).WithSkipOutputsResolution()
 
-	parsedPartial, err := s.ResolvePartialConfig(ctxPartial, l, v, config.NewParseContext(v, pctxPartial), cfgPath)
+	parsedPartial, err := s.ResolvePartialConfig(ctxPartial, l, v, pctxPartial, cfgPath)
 	require.NoError(t, err)
 	require.NotNil(t, parsedPartial)
 	require.NotNil(t, parsedPartial.Exclude)
@@ -444,7 +444,7 @@ inputs = {
 
 	s := new(config.Store)
 
-	parsed, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), cfgPath)
+	parsed, err := s.ResolveRunConfig(ctx, l, v, pctx, cfgPath)
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
 
@@ -485,7 +485,7 @@ inputs = {
 
 	s := new(config.Store)
 
-	parsed, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), cfgPath)
+	parsed, err := s.ResolveRunConfig(ctx, l, v, pctx, cfgPath)
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
 
@@ -528,7 +528,7 @@ inputs = {
 
 	s := new(config.Store)
 
-	parsed, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), cfgPath)
+	parsed, err := s.ResolveRunConfig(ctx, l, v, pctx, cfgPath)
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
 
@@ -581,7 +581,7 @@ dependency "foo" {
 
 	s := new(config.Store)
 
-	_, err := s.ResolvePartialConfig(ctx, l, v, config.NewParseContext(v, pctx), cfgPath)
+	_, err := s.ResolvePartialConfig(ctx, l, v, pctx, cfgPath)
 	require.NoError(t, err)
 }
 
@@ -639,7 +639,7 @@ dependency "foo" {
 
 	s := new(config.Store)
 
-	parsed, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), cfgPath)
+	parsed, err := s.ResolveRunConfig(ctx, l, v, pctx, cfgPath)
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
 	require.NotNil(t, parsed.RemoteState)
@@ -684,7 +684,7 @@ dependency "foo" {
 
 	s := new(config.Store)
 
-	parsed, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), autoIncludePath)
+	parsed, err := s.ResolveRunConfig(ctx, l, v, pctx, autoIncludePath)
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
 }
@@ -721,7 +721,7 @@ inputs = {
 
 	s := new(config.Store)
 
-	parsed, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), cfgPath)
+	parsed, err := s.ResolveRunConfig(ctx, l, v, pctx, cfgPath)
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
 
@@ -781,7 +781,7 @@ inputs = {
 
 	s := new(config.Store)
 
-	parsedFull, err := s.ResolveRunConfig(ctxFull, l, v, config.NewParseContext(v, pctxFull), cfgPath)
+	parsedFull, err := s.ResolveRunConfig(ctxFull, l, v, pctxFull, cfgPath)
 	require.NoError(t, err)
 	require.NotNil(t, parsedFull)
 	assert.Equal(
@@ -803,7 +803,7 @@ inputs = {
 	pctxPartial.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctxPartial = pctxPartial.WithDecodeList(config.TerraformSource).WithSkipOutputsResolution()
 
-	parsedPartial, err := s.ResolvePartialConfig(ctxPartial, l, v, config.NewParseContext(v, pctxPartial), cfgPath)
+	parsedPartial, err := s.ResolvePartialConfig(ctxPartial, l, v, pctxPartial, cfgPath)
 	require.NoError(t, err)
 	require.NotNil(t, parsedPartial)
 	require.NotNil(t, parsedPartial.Terraform)
@@ -869,7 +869,7 @@ errors {
 
 	s := new(config.Store)
 
-	parsed, err := s.ResolvePartialConfig(ctx, l, v, config.NewParseContext(v, pctx), cfgPath)
+	parsed, err := s.ResolvePartialConfig(ctx, l, v, pctx, cfgPath)
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
 
@@ -932,7 +932,7 @@ dependency "foo" {
 
 	s := new(config.Store)
 
-	parsed, err := s.ResolvePartialConfig(ctx, l, v, config.NewParseContext(v, pctx), cfgPath)
+	parsed, err := s.ResolvePartialConfig(ctx, l, v, pctx, cfgPath)
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
 
@@ -988,7 +988,7 @@ dependency "foo" {
 
 	s := new(config.Store)
 
-	parsed, err := s.ResolvePartialConfig(ctx, l, v, config.NewParseContext(v, pctx), autoIncludePath)
+	parsed, err := s.ResolvePartialConfig(ctx, l, v, pctx, autoIncludePath)
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
 }
@@ -1028,7 +1028,7 @@ inputs = {
 	// First parse populates the cache while no autoinclude exists.
 	s := new(config.Store)
 
-	before, err := s.ResolvePartialConfig(ctx, l, v, config.NewParseContext(v, pctx), cfgPath)
+	before, err := s.ResolvePartialConfig(ctx, l, v, pctx, cfgPath)
 	require.NoError(t, err)
 	require.NotNil(t, before)
 	assert.Nil(t, before.RemoteState, "no autoinclude yet: no remote_state should be merged")
@@ -1055,7 +1055,7 @@ remote_state {
 `), 0644))
 
 	// Second parse must reflect the freshly created autoinclude, not the stale pre-autoinclude entry.
-	after, err := s.ResolvePartialConfig(ctx, l, v, config.NewParseContext(v, pctx), cfgPath)
+	after, err := s.ResolvePartialConfig(ctx, l, v, pctx, cfgPath)
 	require.NoError(t, err)
 	require.NotNil(t, after)
 	require.NotNil(
@@ -1113,7 +1113,7 @@ inputs = {
 
 			s := new(config.Store)
 
-			first, err := s.ResolvePartialConfig(ctx, l, v, config.NewParseContext(v, pctx), cfgPath)
+			first, err := s.ResolvePartialConfig(ctx, l, v, pctx, cfgPath)
 			require.NoError(t, err)
 			require.NotNil(t, first)
 			require.NotNil(t, first.RemoteState)
@@ -1127,7 +1127,7 @@ inputs = {
 			require.NoError(t, vfs.WriteFile(v.FS, autoIncludePath, autoIncludeRemoteStateHCL(tc.edited), 0644))
 			require.NoError(t, v.FS.Chtimes(autoIncludePath, firstModTime, firstModTime))
 
-			second, err := s.ResolvePartialConfig(ctx, l, v, config.NewParseContext(v, pctx), cfgPath)
+			second, err := s.ResolvePartialConfig(ctx, l, v, pctx, cfgPath)
 			require.NoError(t, err)
 			require.NotNil(t, second)
 			require.NotNil(t, second.RemoteState)
@@ -1202,7 +1202,7 @@ dependency "bar" {
 
 	s := new(config.Store)
 
-	parsed, err := s.ResolvePartialConfig(ctx, l, v, config.NewParseContext(v, pctx), cfgPath)
+	parsed, err := s.ResolvePartialConfig(ctx, l, v, pctx, cfgPath)
 	require.NoError(t, err)
 	require.NotNil(t, parsed.Dependencies)
 	assert.Contains(
@@ -1410,7 +1410,7 @@ inputs = {
 
 	s := new(config.Store)
 
-	parsed, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), cfgPath)
+	parsed, err := s.ResolveRunConfig(ctx, l, v, pctx, cfgPath)
 	require.NoError(t, err, "parsing must not fail on values.vpc_id when autoinclude overrides vpc_id")
 	require.NotNil(t, parsed)
 
@@ -1480,7 +1480,7 @@ region = "us-east-1"
 
 	s := new(config.Store)
 
-	parsed, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), cfgPath)
+	parsed, err := s.ResolveRunConfig(ctx, l, v, pctx, cfgPath)
 	require.NoError(t, err, "autoinclude dependency override must suppress the unresolvable values.vpc_path")
 	require.NotNil(t, parsed)
 	assert.Equal(t, marker, parsed.Inputs["vpc_id"], "autoinclude's mock output must win")
@@ -1552,7 +1552,7 @@ dependency "vpc" {
 
 	s := new(config.Store)
 
-	parsed, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), cfgPath)
+	parsed, err := s.ResolveRunConfig(ctx, l, v, pctx, cfgPath)
 	require.NoError(t, err, "mixed deps must resolve when autoinclude overrides the unresolvable one")
 	require.NotNil(t, parsed)
 	assert.Equal(t, "autoinclude-vpc", parsed.Inputs["vpc_id"], "autoinclude must win for vpc")
@@ -1609,7 +1609,7 @@ dependency "other" {
 
 	s := new(config.Store)
 
-	_, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), cfgPath)
+	_, err := s.ResolveRunConfig(ctx, l, v, pctx, cfgPath)
 	require.Error(t, err, "a non-overridden dep with unresolvable config_path must still fail")
 }
 
@@ -1649,7 +1649,7 @@ inputs = {
 
 	s := new(config.Store)
 
-	_, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), cfgPath)
+	_, err := s.ResolveRunConfig(ctx, l, v, pctx, cfgPath)
 	require.Error(t, err, "without autoinclude the values.vpc_path error must not be swallowed")
 
 	var diags hcl.Diagnostics
@@ -1710,7 +1710,7 @@ dependency "vpc" {
 
 	s := new(config.Store)
 
-	parsed, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), cfgPath)
+	parsed, err := s.ResolveRunConfig(ctx, l, v, pctx, cfgPath)
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
 	assert.Equal(t, "from-autoinclude", parsed.Inputs["vpc_id"])
@@ -1770,7 +1770,7 @@ dependency "vpc" {
 
 	s := new(config.Store)
 
-	_, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), cfgPath)
+	_, err := s.ResolveRunConfig(ctx, l, v, pctx, cfgPath)
 
 	var collision config.DependencyLabelCollisionError
 	require.ErrorAs(t, err, &collision)
@@ -1825,6 +1825,6 @@ dependency "vpc" {
 
 	s := new(config.Store)
 
-	_, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), cfgPath)
+	_, err := s.ResolveRunConfig(ctx, l, v, pctx, cfgPath)
 	require.Error(t, err)
 }

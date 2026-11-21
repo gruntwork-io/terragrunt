@@ -33,7 +33,7 @@ func runDigest(v *venv.Venv, run *ParsingContext) (string, bool) {
 		return "", false
 	}
 
-	if run.TrackInclude != nil || run.Parser.DiagnosticsHandler != nil {
+	if run.includes != nil || run.Parser.DiagnosticsHandler != nil {
 		return "", false
 	}
 

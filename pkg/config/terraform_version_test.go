@@ -150,7 +150,7 @@ include "root" {
 
 			s := new(config.Store)
 
-			terragruntConfig, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), childPath)
+			terragruntConfig, err := s.ResolveRunConfig(ctx, l, v, pctx, childPath)
 
 			if tc.expectedErr != nil {
 				require.ErrorAs(t, err, tc.expectedErr)

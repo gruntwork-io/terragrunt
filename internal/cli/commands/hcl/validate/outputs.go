@@ -304,7 +304,7 @@ func includedFiles(
 		ctx,
 		l,
 		v,
-		config.NewParseContext(v, autoPctx.WithDecodeList(config.TerragruntFlags)),
+		autoPctx.WithDecodeList(config.TerragruntFlags),
 		autoInclude.ConfigPath,
 	)
 	if err != nil {

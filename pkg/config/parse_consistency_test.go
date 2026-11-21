@@ -465,7 +465,7 @@ dependency "db" {
 		v := venvtest.NewWithOSFS()
 		s := new(config.Store)
 
-		cfg, err := s.ResolvePartialConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, pctx), cfgPath)
+		cfg, err := s.ResolvePartialConfig(ctx, logger.CreateLogger(), v, pctx, cfgPath)
 		require.NoError(t, err)
 		assert.Empty(t, cfg.TerragruntDependencies)
 	})
@@ -480,7 +480,7 @@ dependency "db" {
 		v := venvtest.NewWithOSFS()
 		s := new(config.Store)
 
-		cfg, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, pctx), cfgPath)
+		cfg, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, cfgPath)
 		require.NoError(t, err)
 		assert.Empty(t, cfg.TerragruntDependencies)
 	})
@@ -519,7 +519,7 @@ func parseFull(t *testing.T, cfgPath string) (*config.TerragruntConfig, error) {
 	v := venvtest.NewWithOSFS()
 	s := new(config.Store)
 
-	return s.ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, pctx), cfgPath)
+	return s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, cfgPath)
 }
 
 // parsePartial returns the config at cfgPath from a partial parse with discovery's decode list and settings.
@@ -543,7 +543,7 @@ func parsePartial(t *testing.T, cfgPath string) (*config.TerragruntConfig, error
 	v := venvtest.NewWithOSFS()
 	s := new(config.Store)
 
-	return s.ResolvePartialConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, pctx), cfgPath)
+	return s.ResolvePartialConfig(ctx, logger.CreateLogger(), v, pctx, cfgPath)
 }
 
 // dependencyEnabled reports whether dep is enabled, which it is unless it sets enabled to false.

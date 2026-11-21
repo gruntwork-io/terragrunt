@@ -69,13 +69,14 @@ const (
 	logTextOnly        = "it only changes how paths appear in logs and errors"
 	sameForCommand     = "it's the same for every unit in a command, and the cache lasts one command"
 	stacksAndDepsOnly  = "only stack generation and dependency runs read it"
+	resetByStore       = "the Store resets it when it resolves the read"
 	dependencyRunsOnly = "only dependency output fetches read it, and files with dependency blocks aren't shared"
 )
 
 // parsingContextFieldsOutsideKey gives, for each [config.ParsingContext] field left out of
 // [config.ReadTerragruntConfigKey], why a change to it can't change the value a read_terragrunt_config read returns.
 var parsingContextFieldsOutsideKey = map[string]string{
-	"TrackInclude":                 "the parse clears it before decoding the file",
+	"includes":                     "the parse clears it before decoding the file",
 	"DependencyBlocks":             clearedByRead,
 	"DecodedDependencies":          clearedByRead,
 	"SkipOutputsResolution":        clearedByRead,
@@ -122,6 +123,12 @@ var parsingContextFieldsOutsideKey = map[string]string{
 	"NoDependencyFetchOutputFromState": dependencyRunsOnly,
 	"dependencyOutputEnvKeys":          dependencyRunsOnly,
 	"Parser.DiagnosticsHandler":        "a read with a diagnostics handler skips the cache",
+	"include":                          resetByStore,
+	"inheritsDependencies":             resetByStore,
+	"merging":                          resetByStore,
+	"key":                              resetByStore,
+	"keyed":                            resetByStore,
+	"memoized":                         resetByStore,
 }
 
 // TestReadTerragruntConfigKeyCoversParsingContext pins that every ParsingContext field is either part of the

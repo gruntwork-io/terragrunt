@@ -20,24 +20,24 @@ func getDependencyBlockConfigPathsByFilepath(
 	cfgPath string,
 ) ([]string, error) {
 	scanPctx := pctx.WithDecodeList(DependencyBlock).WithSkipOutputsResolution().WithDiagnosticsSuppressed()
-	pc := NewParseContext(v, scanPctx)
+	pc := scanPctx.forStore(v)
 
 	if !pc.memoized {
 		return readDependencyBlockConfigPaths(ctx, l, v, s, pc, cfgPath)
 	}
 
-	key := Key{Path: filepath.Clean(cfgPath), Context: pc.file.key, Stage: StageDependencyPaths}
+	key := Key{Path: filepath.Clean(cfgPath), Context: pc.key, Stage: StageDependencyPaths}
 	flight := pc.withOwnReads()
 
 	res, err := s.Memoize(ctx, key, func(ctx context.Context) ([]string, error) {
 		paths, err := readDependencyBlockConfigPaths(ctx, l, v, s, flight, cfgPath)
-		NoteReads(ctx, flight.sinks.filesRead.Paths()...)
+		NoteReads(ctx, flight.FilesRead.Paths()...)
 
 		return paths, err
 	})
 
 	for _, path := range res.Reads {
-		pc.sinks.filesRead.Add(path)
+		pc.FilesRead.Add(path)
 	}
 
 	return res.Value, err
@@ -50,7 +50,7 @@ func readDependencyBlockConfigPaths(
 	l log.Logger,
 	v *venv.Venv,
 	s *Store,
-	pc *ParseContext,
+	pc *ParsingContext,
 	cfgPath string,
 ) ([]string, error) {
 	tgConfig, err := s.ResolvePartialConfig(ctx, l, v, pc, cfgPath)

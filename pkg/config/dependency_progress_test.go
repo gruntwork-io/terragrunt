@@ -91,7 +91,7 @@ func TestDependencyOutputFetchProgress(t *testing.T) {
 
 			s := new(config.Store)
 
-			cfg, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, pctx), configPath)
+			cfg, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, configPath)
 			require.NoError(t, err)
 
 			assert.Equal(t, tc.wantResult, cfg.Inputs["result"])
@@ -142,7 +142,7 @@ func TestDependencyOutputParseFailureProgress(t *testing.T) {
 
 	s := new(config.Store)
 
-	_, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), configPath)
+	_, err := s.ResolveRunConfig(ctx, l, v, pctx, configPath)
 	require.ErrorAs(t, err, new(config.TerragruntOutputParsingError))
 
 	assert.NotEmpty(t, term.String())

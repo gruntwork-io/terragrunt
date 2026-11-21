@@ -177,7 +177,7 @@ include "root" {
 
 			s := new(config.Store)
 
-			parsed, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), childPath)
+			parsed, err := s.ResolveRunConfig(ctx, l, v, pctx, childPath)
 			require.NoError(t, err)
 
 			fromConfig, err := parsed.ErrorsConfig()
@@ -192,7 +192,7 @@ include "root" {
 				partialCtx,
 				l,
 				v,
-				config.NewParseContext(v, partialPctx.WithDecodeList(config.ErrorsBlock)),
+				partialPctx.WithDecodeList(config.ErrorsBlock),
 				childPath,
 			)
 			require.NoError(t, err)

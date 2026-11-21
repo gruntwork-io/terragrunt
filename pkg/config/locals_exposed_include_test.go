@@ -67,7 +67,7 @@ locals {
 
 			s := new(config.Store)
 
-			_, err := s.ResolvePartialConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, pctx), cfgPath)
+			_, err := s.ResolvePartialConfig(ctx, logger.CreateLogger(), v, pctx, cfgPath)
 			require.NoError(t, err)
 			assert.Equal(t, int64(1), evaluations.Load())
 		})

@@ -12,7 +12,7 @@
 // The Store shares a file's syntax tree across the units that include it, and shares a unit's parse with the callers
 // that wait on it while it runs. Which parts of a caller's context a memoized stage depends on is the contract of the
 // run digest in store_profile.go. A memoized result holds nothing of its caller's: each stage takes the settings and
-// sinks of a [ParseContext], and assembles a [TerragruntConfig] of the caller's own, which the merges change in place.
+// sinks of a [ParsingContext], and assembles a [TerragruntConfig] of the caller's own, which the merges change in place.
 package config
 
 import (
@@ -3046,7 +3046,7 @@ func readBackendConfig(
 			ctx,
 			l,
 			v,
-			NewParseContext(v, quietCtx.WithDecodeList(TerragruntFlags)),
+			quietCtx.WithDecodeList(TerragruntFlags),
 			pctx.TerragruntConfigPath,
 		)
 		if err != nil {
@@ -3062,7 +3062,7 @@ func readBackendConfig(
 	backendCtx := quietCtx.WithDecodeList(RemoteStateBlock, TerraformSource)
 	backendCtx.IAMRoleOptions = iamRoleOptions
 
-	return s.ResolvePartialConfig(ctx, l, v, NewParseContext(v, backendCtx), pctx.TerragruntConfigPath)
+	return s.ResolvePartialConfig(ctx, l, v, backendCtx, pctx.TerragruntConfigPath)
 }
 
 // siblingAutoIncludePath returns the path of the sibling terragrunt.autoinclude.hcl beside cfgPath
@@ -3086,5 +3086,5 @@ func siblingAutoIncludePath(pctx *ParsingContext, cfgPath string) (string, bool)
 
 // hasSiblingAutoInclude reports whether a sibling autoinclude is registered for this parse.
 func hasSiblingAutoInclude(pctx *ParsingContext) bool {
-	return pctx.TrackInclude != nil && pctx.TrackInclude.AutoIncludeOverride != nil
+	return pctx.includes != nil && pctx.includes.AutoIncludePath != ""
 }

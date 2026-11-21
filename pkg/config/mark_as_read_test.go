@@ -266,7 +266,7 @@ func TestMarkManyAsReadIncludedRelativeSourceResolvesFromUnit(t *testing.T) {
 
 				s := new(config.Store)
 
-				out, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), unitPath)
+				out, err := s.ResolveRunConfig(ctx, l, v, pctx, unitPath)
 				require.NoError(t, err)
 				require.NotNil(t, out)
 
@@ -285,7 +285,7 @@ func TestMarkManyAsReadIncludedRelativeSourceResolvesFromUnit(t *testing.T) {
 
 				s := new(config.Store)
 
-				out, err := s.ResolvePartialConfig(ctx, l, v, config.NewParseContext(v, pctx), unitPath)
+				out, err := s.ResolvePartialConfig(ctx, l, v, pctx, unitPath)
 				require.NoError(t, err)
 				require.NotNil(t, out)
 
@@ -326,7 +326,7 @@ func TestMarkManyAsReadReadConfigRelativeSourceResolvesFromReadFile(t *testing.T
 
 		s := new(config.Store)
 
-		out, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), unitPath)
+		out, err := s.ResolveRunConfig(ctx, l, v, pctx, unitPath)
 		require.NoError(t, err)
 		require.NotNil(t, out)
 
@@ -345,7 +345,7 @@ func TestMarkManyAsReadReadConfigRelativeSourceResolvesFromReadFile(t *testing.T
 
 		s := new(config.Store)
 
-		out, err := s.ResolvePartialConfig(ctx, l, v, config.NewParseContext(v, pctx), unitPath)
+		out, err := s.ResolvePartialConfig(ctx, l, v, pctx, unitPath)
 		require.NoError(t, err)
 		require.NotNil(t, out)
 
@@ -427,7 +427,7 @@ func TestMarkManyAsReadPartialParseIncludedSource(t *testing.T) {
 
 			s := new(config.Store)
 
-			out, err := s.ResolvePartialConfig(ctx, l, v, config.NewParseContext(v, pctx), childPath)
+			out, err := s.ResolvePartialConfig(ctx, l, v, pctx, childPath)
 			require.NoError(t, err)
 			require.NotNil(t, out)
 			require.NotNil(t, pctx.FilesRead)

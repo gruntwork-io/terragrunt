@@ -235,24 +235,6 @@ func (d *OutputHCL) v1(mockValue **cty.Value) *OutputDeclaration {
 	}
 }
 
-func (i *Includes) v1() *TrackInclude {
-	if i == nil {
-		return nil
-	}
-
-	trackInclude := &TrackInclude{
-		CurrentMap:  i.ByName(),
-		Original:    i.IncludedVia,
-		CurrentList: i.List,
-	}
-
-	if i.AutoIncludePath != "" {
-		trackInclude.AutoIncludeOverride = &IncludeConfig{Path: i.AutoIncludePath}
-	}
-
-	return trackInclude
-}
-
 func (f *FeatureFlagHCL) v1() *FeatureFlag {
 	return &FeatureFlag{
 		Default: clonePtr(f.Default),

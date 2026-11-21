@@ -310,7 +310,7 @@ func resolveDependencyAttributeQueueConfig(t *testing.T, name, content string) (
 		ctx,
 		logger.CreateLogger(),
 		v,
-		config.NewParseContext(v, run),
+		run,
 		cfgPath,
 	)
 }
@@ -430,7 +430,7 @@ exclude {
 				ctx, run := newQueueParsingContext(t, cfgPath)
 				v := venv.MemVenv().WithFS(newFS(t))
 				_, err := new(config.Store).ResolveUnitQueueConfig(
-					ctx, logger.CreateLogger(), v, config.NewParseContext(v, run), cfgPath,
+					ctx, logger.CreateLogger(), v, run, cfgPath,
 				)
 				require.NoError(t, err)
 
@@ -473,7 +473,7 @@ terraform_binary = include.root.locals.binary
 	ctx, run := newQueueParsingContext(t, cfgPath)
 
 	_, err := new(config.Store).ResolveUnitQueueConfig(
-		ctx, logger.CreateLogger(), v, config.NewParseContext(v, run), cfgPath,
+		ctx, logger.CreateLogger(), v, run, cfgPath,
 	)
 
 	var unsupported []string

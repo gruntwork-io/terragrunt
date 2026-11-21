@@ -25,7 +25,7 @@ func TestResolveRunConfigChecksTheDependenciesDirsOfEachFileItParses(t *testing.
 			l := logger.CreateLogger()
 			ctx, run := newTestUnitParsingContext(t, path)
 
-			_, err := (&config.Store{}).ResolveRunConfig(ctx, l, v, config.NewParseContext(v, run), path)
+			_, err := (&config.Store{}).ResolveRunConfig(ctx, l, v, run, path)
 			require.ErrorAs(t, err, new(config.DependencyDirNotFoundError))
 		})
 	}
@@ -48,7 +48,7 @@ func TestResolveUnitQueueConfigChecksNoDependenciesDir(t *testing.T) {
 				config.DependencyBlock,
 			}
 
-			cfg, err := (&config.Store{}).ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(v, run), path)
+			cfg, err := (&config.Store{}).ResolveUnitQueueConfig(ctx, l, v, run, path)
 			require.NoError(t, err)
 			require.NotNil(t, cfg)
 		})

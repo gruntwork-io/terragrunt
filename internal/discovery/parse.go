@@ -294,7 +294,7 @@ func parseComponent(
 				ctx,
 				l,
 				parseV,
-				config.NewParseContext(parseV, parsingCtx),
+				parsingCtx,
 				parseOpts.TerragruntConfigPath,
 			)
 			if err != nil {

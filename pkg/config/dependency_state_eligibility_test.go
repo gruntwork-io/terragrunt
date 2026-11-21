@@ -517,7 +517,7 @@ inputs = {
 
 	s := new(config.Store)
 
-	return s.ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, pctx), consumerPath)
+	return s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, consumerPath)
 }
 
 func eligibilityS3Config() map[string]string {
@@ -650,7 +650,7 @@ inputs = {
 
 			s := new(config.Store)
 
-			cfg, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, pctx), consumerPath)
+			cfg, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, consumerPath)
 			require.NoError(t, err)
 
 			if tc.wantDirect {

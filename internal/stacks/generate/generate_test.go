@@ -338,7 +338,7 @@ func TestGenerateStacksDropsRegeneratedUnitsFromTheParseStore(t *testing.T) {
 		_, pctx, err := configbridge.NewParsingContext(opts).WithConfigPath(l, generated)
 		require.NoError(t, err)
 
-		cfg, err := s.ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(v, pctx), generated)
+		cfg, err := s.ResolveUnitQueueConfig(ctx, l, v, pctx, generated)
 		require.NoError(t, err)
 
 		return cfg.Locals["name"]

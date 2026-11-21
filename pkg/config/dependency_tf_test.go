@@ -39,7 +39,7 @@ func TestTFExposedIncludeFullParseSurfacesNoOutputsError(t *testing.T) {
 
 	s := new(config.Store)
 
-	_, err = s.ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, pctx), childPath)
+	_, err = s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, childPath)
 	require.Error(t, err)
 
 	var noOutputs config.TerragruntOutputTargetNoOutputs

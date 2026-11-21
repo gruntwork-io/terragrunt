@@ -47,7 +47,7 @@ iam_web_identity_token = "fake-token"
 		cfgPath := filepath.Join(root, name, config.DefaultTerragruntConfigPath)
 		ctx, pctx := newIAMParsingContext(t, cfgPath)
 
-		cfg, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, pctx), cfgPath)
+		cfg, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, cfgPath)
 		require.NoError(t, err)
 		assert.Equal(t, "arn:aws:iam::123456789012:role/"+name, cfg.Locals["arn"])
 	}
@@ -99,7 +99,7 @@ func TestResolveRunConfigAssumesTheRoleOfAnInclude(t *testing.T) {
 				ctx,
 				logger.CreateLogger(),
 				v,
-				config.NewParseContext(v, pctx),
+				pctx,
 				cfgPath,
 			)
 			require.NoError(t, err)
@@ -142,7 +142,7 @@ include "root" {
 		ctx,
 		logger.CreateLogger(),
 		v,
-		config.NewParseContext(v, pctx),
+		pctx,
 		cfgPath,
 	)
 	require.NoError(t, err)

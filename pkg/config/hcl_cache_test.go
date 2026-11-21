@@ -67,7 +67,7 @@ func TestParseConfigFileReadsBackOnlyRecentFileOnCacheHit(t *testing.T) {
 			for range 2 {
 				_, pctx := newTestParsingContext(t, cfgPath)
 
-				cfg, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, pctx), cfgPath)
+				cfg, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, cfgPath)
 				require.NoError(t, err)
 				assert.Equal(t, "first", cfg.Inputs["value"])
 			}

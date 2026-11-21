@@ -56,7 +56,7 @@ dependency "vpc" {
 			ctx, pctx := newTestUnitParsingContext(t, cfgPath)
 			l := logger.CreateLogger()
 
-			pc := config.NewParseContext(v, pctx)
+			pc := pctx
 
 			s := new(config.Store)
 

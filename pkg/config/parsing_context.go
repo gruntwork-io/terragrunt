@@ -34,14 +34,19 @@ const (
 // A context derived with a With method shares its settings unless the method changes one, so a write to a field of
 // [RunSettings] goes only to a context from [NewParsingContext] or [ParsingContext.Clone].
 //
+// A [Store] resolves a context it is given as a clone, so a resolution leaves the caller's context unchanged.
+//
 // Note: context.Context should be passed explicitly as the first parameter to functions, not embedded in this struct.
 type ParsingContext struct {
 	// RunSettings is the settings of the run, which contexts derived from this one share.
 	*RunSettings
 
-	// TrackInclude is the include blocks of the file and the include that functions such as
-	// get_parent_terragrunt_dir() resolve against.
-	TrackInclude *TrackInclude
+	// includes is the include blocks of the file and the include block it is parsed through, nil until the include
+	// blocks decode.
+	includes *Includes
+
+	// include is the include block the Store parses the file through, nil for the component's own config.
+	include *IncludeConfig
 
 	// FilesRead records every file the parse reads. Nil keeps no record.
 	FilesRead *FilesRead
@@ -67,16 +72,20 @@ type ParsingContext struct {
 	// memory, so run_cmd runs in its parent beside the root config. It is empty when no child was generated.
 	catalogStubDir string
 
+	// key is [Key.Context] for the file: the digest of the run's settings and of the chain of files the parse
+	// went through to reach it. Set only when keyed is.
+	key string
+
 	// IAMRoleOptions is the IAM role the file's functions and dependency output fetches assume.
 	IAMRoleOptions iam.RoleOptions
-
-	// DependencyBlocks are the dependency blocks DecodedDependencies was resolved from.
-	DependencyBlocks []Dependency
 
 	// readConfigChain lists the configs being parsed by nested read_terragrunt_config calls,
 	// outermost first: each read target, plus each config a dependency block parses in between.
 	// Clones share it, so it is only ever extended with slices.Concat.
 	readConfigChain []readConfigFrame
+
+	// DependencyBlocks are the dependency blocks DecodedDependencies was resolved from.
+	DependencyBlocks []Dependency
 
 	// Parser configures the HCL parsers this context builds.
 	Parser ParserSettings
@@ -99,6 +108,18 @@ type ParsingContext struct {
 	// stubWorkingDirFunc makes get_working_dir return an empty string, for the parse
 	// get_working_dir runs to find the terraform source.
 	stubWorkingDirFunc bool
+
+	// keyed reports that a [Store] keyed the context for its resolution.
+	keyed bool
+
+	// memoized reports that the Store shares the stages of the parse with other callers.
+	memoized bool
+
+	// merging marks a parse whose config only merges into the config of the including file.
+	merging bool
+
+	// inheritsDependencies marks an included file whose `dependency` value the including file resolves in ToV1.
+	inheritsDependencies bool
 }
 
 // RunSettings is the settings of the run a [ParsingContext] parses for.
@@ -266,9 +287,8 @@ func NewParsingContext(opts ...Option) *ParsingContext {
 
 // Clone returns a copy of the ParsingContext with its own settings. Its maps and slices are deep-copied.
 func (ctx *ParsingContext) Clone() *ParsingContext {
-	clone := ctx.derive()
-	settings := *ctx.RunSettings
-	clone.RunSettings = &settings
+	clone := ctx.detach()
+	clone.RunSettings = new(*ctx.RunSettings)
 
 	if ctx.SourceMap != nil {
 		clone.SourceMap = maps.Clone(ctx.SourceMap)
@@ -286,7 +306,8 @@ func (ctx *ParsingContext) Clone() *ParsingContext {
 
 // WithDecodeList returns a copy whose partial parses decode only the sections in decodeList.
 func (ctx *ParsingContext) WithDecodeList(decodeList ...PartialDecodeSectionType) *ParsingContext {
-	c := ctx.withOwnSettings()
+	c := ctx.detach()
+	c.RunSettings = new(*ctx.RunSettings)
 	c.PartialParseDecodeList = decodeList
 
 	return c
@@ -294,7 +315,7 @@ func (ctx *ParsingContext) WithDecodeList(decodeList ...PartialDecodeSectionType
 
 // WithLocals returns a copy that exposes locals to expressions as `local`.
 func (ctx *ParsingContext) WithLocals(locals *cty.Value) *ParsingContext {
-	c := ctx.derive()
+	c := ctx.detach()
 	c.Locals = locals
 
 	return c
@@ -302,7 +323,7 @@ func (ctx *ParsingContext) WithLocals(locals *cty.Value) *ParsingContext {
 
 // WithValues returns a copy that exposes values to expressions as `values`.
 func (ctx *ParsingContext) WithValues(values *cty.Value) *ParsingContext {
-	c := ctx.derive()
+	c := ctx.detach()
 	c.Values = values
 
 	return c
@@ -310,7 +331,7 @@ func (ctx *ParsingContext) WithValues(values *cty.Value) *ParsingContext {
 
 // WithFeatures sets the feature flags to be used in evaluation context.
 func (ctx *ParsingContext) WithFeatures(features *cty.Value) *ParsingContext {
-	c := ctx.derive()
+	c := ctx.detach()
 	c.Features = features
 
 	return c
@@ -318,15 +339,15 @@ func (ctx *ParsingContext) WithFeatures(features *cty.Value) *ParsingContext {
 
 // WithTrackInclude returns a copy that resolves includes and include functions against trackInclude.
 func (ctx *ParsingContext) WithTrackInclude(trackInclude *TrackInclude) *ParsingContext {
-	c := ctx.derive()
-	c.TrackInclude = trackInclude
+	c := ctx.detach()
+	c.includes = newIncludes(trackInclude)
 
 	return c
 }
 
 // WithParserSettings returns a copy whose parsers use s.
 func (ctx *ParsingContext) WithParserSettings(s ParserSettings) *ParsingContext {
-	c := ctx.derive()
+	c := ctx.detach()
 	c.Parser = s
 	c.Parser.HaltOnErrorOnlyInBlocks = slices.Clone(s.HaltOnErrorOnlyInBlocks)
 
@@ -337,7 +358,7 @@ func (ctx *ParsingContext) WithParserSettings(s ParserSettings) *ParsingContext 
 // level and discard them otherwise. This avoids false positive "There is no variable named
 // dependency" errors while dependency outputs are not yet resolved.
 func (ctx *ParsingContext) WithDiagnosticsSuppressed() *ParsingContext {
-	c := ctx.derive()
+	c := ctx.detach()
 	c.Parser.Diagnostics = DiagnosticsSuppressed
 
 	return c
@@ -345,7 +366,7 @@ func (ctx *ParsingContext) WithDiagnosticsSuppressed() *ParsingContext {
 
 // WithDiagnosticsDiscarded returns a copy whose parsers discard diagnostics.
 func (ctx *ParsingContext) WithDiagnosticsDiscarded() *ParsingContext {
-	c := ctx.derive()
+	c := ctx.detach()
 	c.Parser.Diagnostics = DiagnosticsDiscarded
 
 	return c
@@ -365,7 +386,7 @@ func (ctx *ParsingContext) NewParser(l log.Logger, v *venv.Venv) *hclparse.Parse
 // the caller can read them back off [ParsingContext.FilesRead] once parsing is
 // done. Clones made from the returned context share the one record.
 func (ctx *ParsingContext) WithFileReadTracking() *ParsingContext {
-	c := ctx.derive()
+	c := ctx.detach()
 	c.FilesRead = NewFilesRead()
 
 	return c
@@ -374,7 +395,7 @@ func (ctx *ParsingContext) WithFileReadTracking() *ParsingContext {
 // WithSkipOutputsResolution returns a copy for parses that do not fetch dependency outputs. A partial parse with no
 // decoded dependencies then evaluates `dependency` references to unknown values.
 func (ctx *ParsingContext) WithSkipOutputsResolution() *ParsingContext {
-	c := ctx.derive()
+	c := ctx.detach()
 	c.SkipOutputsResolution = true
 
 	return c
@@ -390,7 +411,7 @@ func (ctx *ParsingContext) WithIncrementedDepth() (*ParsingContext, error) {
 		}
 	}
 
-	c := ctx.derive()
+	c := ctx.detach()
 	c.ParseDepth = ctx.ParseDepth + 1
 
 	return c, nil
@@ -421,7 +442,8 @@ func (ctx *ParsingContext) WithConfigPath(
 		l = l.WithField(placeholders.WorkDirKeyName, workingDir)
 	}
 
-	c := ctx.withOwnSettings()
+	c := ctx.detach()
+	c.RunSettings = new(*ctx.RunSettings)
 
 	// Keep DownloadDir in sync with TerragruntConfigPath: if the current context was
 	// using the default download dir for the old config, update it to the default for
@@ -462,7 +484,7 @@ func (ctx *ParsingContext) WithDependencyConfigPath(
 	c.Locals = nil
 	c.Features = nil
 	c.Values = nil
-	c.TrackInclude = nil
+	c.includes = nil
 
 	if c.IAMRoleOptions != c.OriginalIAMRoleOptions {
 		c.IAMRoleOptions = iam.RoleOptions{}
@@ -483,11 +505,12 @@ func (ctx *ParsingContext) derive() *ParsingContext {
 	return &c
 }
 
-// withOwnSettings returns a copy of ctx with a copy of its settings, which the caller may change.
-func (ctx *ParsingContext) withOwnSettings() *ParsingContext {
+// detach returns a copy of ctx that shares its settings, which a [Store] keys afresh when it resolves it.
+func (ctx *ParsingContext) detach() *ParsingContext {
 	c := ctx.derive()
-	settings := *ctx.RunSettings
-	c.RunSettings = &settings
+	c.key = ""
+	c.keyed = false
+	c.memoized = false
 
 	return c
 }
@@ -531,7 +554,7 @@ func readConfigChainPaths(chain []readConfigFrame, last readConfigFrame) []strin
 // target evaluates its own locals and feature flags, and its include and feature blocks would otherwise see the
 // reading config's values.
 func (ctx *ParsingContext) forReadTarget() *ParsingContext {
-	c := ctx.derive()
+	c := ctx.detach()
 	c.DependencyBlocks = nil
 	c.DecodedDependencies = nil
 	c.SkipOutputsResolution = false

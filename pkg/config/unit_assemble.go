@@ -37,8 +37,10 @@ func (c *UnitConfig) ToV1(
 	l log.Logger,
 	v *venv.Venv,
 	s *Store,
-	pc *ParseContext,
+	pc *ParsingContext,
 ) (*TerragruntConfig, error) {
+	pc = pc.forStore(v)
+
 	return c.assemble(ctx, l, v, s, pc, keptIncludes{}, c.functions(ctx, l, v, s))
 }
 
@@ -51,7 +53,7 @@ func (c *UnitConfig) assemble(
 	l log.Logger,
 	v *venv.Venv,
 	s *Store,
-	pc *ParseContext,
+	pc *ParsingContext,
 	src includeSource,
 	fns *parseFunctions,
 ) (*TerragruntConfig, error) {
@@ -63,7 +65,7 @@ func (c *UnitConfig) assemble(
 		errs = append(errs, err)
 	}
 
-	pctx := pc.withDecodedDependencies(deps).parsingContext()
+	pctx := pc.withDecodedDependencies(deps).detach()
 	evalCtx := c.evalContext(fns, pctx)
 	bound := c.boundFile(l, v, pc)
 
@@ -118,7 +120,7 @@ func (c *UnitConfig) assemble(
 		}
 	}
 
-	includes := pc.file.includes
+	includes := pc.includes
 
 	if includes != nil && cfg != nil {
 		mergedCfg, err := c.mergeIncludes(ctx, l, v, s, pc, src, deps, cfg)
@@ -142,7 +144,7 @@ func (c *UnitConfig) assemble(
 		cfg = mergedCfg
 	}
 
-	if pc.file.include == nil && cfg != nil {
+	if pc.include == nil && cfg != nil {
 		if err := cfg.Terraform.ValidateVersion(c.file.ConfigPath); err != nil {
 			errs = append(errs, err)
 		}
@@ -165,7 +167,7 @@ func (c *UnitConfig) parseDecodeErr(parts assemblyParts) error {
 // including file. Locals that can fail to convert are still converted, so their error is reported.
 func (c *UnitConfig) convert(
 	v *venv.Venv,
-	pc *ParseContext,
+	pc *ParsingContext,
 	pctx *ParsingContext,
 	cfgFile *TerragruntConfigFile,
 ) (*TerragruntConfig, error) {
@@ -192,8 +194,8 @@ func (c *UnitConfig) convert(
 }
 
 // boundFile returns c's file bound to a parser of pc, which logs through l and writes through v.
-func (c *UnitConfig) boundFile(l log.Logger, v *venv.Venv, pc *ParseContext) *hclparse.File {
-	return c.file.Rebind(hclparse.NewParser(pc.parserOptions(l, v)...))
+func (c *UnitConfig) boundFile(l log.Logger, v *venv.Venv, pc *ParsingContext) *hclparse.File {
+	return c.file.Rebind(hclparse.NewParser(pc.ParserOptions(l, v)...))
 }
 
 // functions returns new functions for a parse of c's file, which use ctx, l, v, and s when called.

@@ -134,7 +134,7 @@ func TestParseDependencyBlockMultiple(t *testing.T) {
 	v.Env = venvtest.NewOSWithEmptyEnv().Env
 	s := new(config.Store)
 
-	tfConfig, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, pctx), filename)
+	tfConfig, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, filename)
 	require.NoError(t, err)
 	assert.Len(t, tfConfig.TerragruntDependencies, 2)
 	assert.Equal(t, "dependency_1", tfConfig.TerragruntDependencies[0].Name)
@@ -235,7 +235,7 @@ func TestDependencyOriginalTerragruntDir(t *testing.T) {
 
 	s := new(config.Store)
 
-	tfConfig, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, pctx), filename)
+	tfConfig, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, filename)
 	require.NoError(t, err)
 	require.NotNil(t, tfConfig)
 
@@ -262,7 +262,7 @@ func TestDependencyOriginalTerragruntDir(t *testing.T) {
 		ctxB,
 		logger.CreateLogger(),
 		vB,
-		config.NewParseContext(vB, pctxB),
+		pctxB,
 		unitBFilename,
 	)
 	require.NoError(t, err)

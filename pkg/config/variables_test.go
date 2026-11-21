@@ -1139,7 +1139,7 @@ func parseDuplicateInputFixture(
 
 	s := new(config.Store)
 
-	_, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, pctx), cfgPath)
+	_, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, cfgPath)
 
 	return collected, err
 }
@@ -1183,5 +1183,5 @@ func parseVariablesFixture(
 
 	s := new(config.Store)
 
-	return s.ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, pctx), cfgPath)
+	return s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, cfgPath)
 }

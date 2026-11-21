@@ -363,7 +363,7 @@ outputs {
 
 			s := new(config.Store)
 
-			cfg, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), cfgPath)
+			cfg, err := s.ResolveRunConfig(ctx, l, v, pctx, cfgPath)
 			require.NoError(t, err)
 			require.NotNil(t, cfg.Outputs)
 
@@ -1239,7 +1239,7 @@ inputs = {
 
 			s := new(config.Store)
 
-			cfg, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), appConfigPath)
+			cfg, err := s.ResolveRunConfig(ctx, l, v, pctx, appConfigPath)
 			tc.check(t, cfg, err)
 		})
 	}
@@ -1297,7 +1297,7 @@ func TestUnitsWithoutOutputsNamesTheUnitsDependenciesRead(t *testing.T) {
 
 			s := new(config.Store)
 
-			cfg, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), appConfigPath)
+			cfg, err := s.ResolveRunConfig(ctx, l, v, pctx, appConfigPath)
 			require.NoError(t, err)
 
 			targets, err := config.UnitsWithoutOutputs(ctx, l, v, new(config.Store), pctx, cfg)
@@ -1376,7 +1376,7 @@ outputs {
 
 			s := new(config.Store)
 
-			cfg, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), appConfigPath)
+			cfg, err := s.ResolveRunConfig(ctx, l, v, pctx, appConfigPath)
 			require.NoError(t, err)
 			assert.Equal(t, tc.expectedVPCID, cfg.Inputs["vpc_id"])
 			assert.Equal(t, []any{"subnet-mock-1", "subnet-mock-2"}, cfg.Inputs["subnet_ids"])
@@ -1426,7 +1426,7 @@ include "root" {
 
 	s := new(config.Store)
 
-	cfg, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), appConfigPath)
+	cfg, err := s.ResolveRunConfig(ctx, l, v, pctx, appConfigPath)
 	require.NoError(t, err)
 	assert.Equal(t, "vpc-mock", cfg.Inputs["vpc_id"])
 }
@@ -1476,7 +1476,7 @@ inputs = {
 
 	s := new(config.Store)
 
-	cfg, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), appConfigPath)
+	cfg, err := s.ResolveRunConfig(ctx, l, v, pctx, appConfigPath)
 	require.NoError(t, err)
 	assert.Equal(t, "stack-mock", cfg.Inputs["vpc_id"])
 
@@ -1523,7 +1523,7 @@ unit "network" {
 
 	s := new(config.Store)
 
-	cfg, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), appConfigPath)
+	cfg, err := s.ResolveRunConfig(ctx, l, v, pctx, appConfigPath)
 	require.NoError(t, err)
 	require.Len(t, cfg.TerragruntDependencies, 1)
 
@@ -1573,7 +1573,7 @@ outputs {
 
 	s := new(config.Store)
 
-	cfg, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), appConfigPath)
+	cfg, err := s.ResolveRunConfig(ctx, l, v, pctx, appConfigPath)
 	require.NoError(t, err)
 	assert.Equal(t, "from-tfvars", cfg.Inputs["vpc_id"])
 	assert.Contains(t, pctx.FilesRead.Paths(), tfvarsPath)
@@ -1616,7 +1616,7 @@ outputs {
 
 		s := new(config.Store)
 
-		cfg, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), appConfigPath)
+		cfg, err := s.ResolveRunConfig(ctx, l, v, pctx, appConfigPath)
 		require.NoError(t, err)
 		assert.Equal(t, dependent, cfg.Inputs["vpc_id"])
 	}
@@ -1692,7 +1692,7 @@ inputs = {
 
 	s := new(config.Store)
 
-	cfg, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), appConfigPath)
+	cfg, err := s.ResolveRunConfig(ctx, l, v, pctx, appConfigPath)
 	require.NoError(t, err)
 	assert.Equal(t, "222222222222", cfg.Inputs["vpc_id"])
 
@@ -1729,7 +1729,7 @@ func TestDependencyDeclaredOutputsConcurrentReadsWithRacing(t *testing.T) {
 
 	s := new(config.Store)
 
-	cfg, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), appConfigPath)
+	cfg, err := s.ResolveRunConfig(ctx, l, v, pctx, appConfigPath)
 	require.NoError(t, err)
 	require.Len(t, cfg.TerragruntDependencies, 1)
 
