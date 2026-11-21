@@ -1515,8 +1515,13 @@ func ParseStackConfig(
 		return nil, err
 	}
 
-	if err := processLocals(ctx, l, v, s, parser, file); err != nil {
+	locals, err := evaluateStackLocals(ctx, l, v, s, parser, file)
+	if err != nil {
 		return nil, err
+	}
+
+	if locals != nil {
+		parser = parser.WithLocals(locals)
 	}
 
 	// The context also evaluates the files the stack includes and its stack autoinclude file, whose calls file does not
@@ -1551,8 +1556,6 @@ func ParseStackConfig(
 	if decodeErr := file.Decode(config, evalParsingContext); decodeErr != nil {
 		return nil, decodeErr
 	}
-
-	var err error
 
 	config.Units, config.Stacks, err = decodeComponents(ctx, file, evalParsingContext)
 	if err != nil {
@@ -2414,38 +2417,24 @@ func ReadValues(
 	return &result, nil
 }
 
-// processLocals processes the locals block in the stack file.
-func processLocals(
+// evaluateStackLocals evaluates the locals block of the stack file as [EvaluateLocalsBlock] does for a unit config
+// file. It returns nil when the file has no locals block.
+//
+// Returns [CouldNotEvaluateAllLocalsError] when a local can never be evaluated.
+func evaluateStackLocals(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	s *Store,
 	parser *ParsingContext,
 	file *hclparse.File,
-) error {
-	localsBlock, err := file.Blocks(MetadataLocals, false)
-	if err != nil {
-		return err
+) (*cty.Value, error) {
+	attrs, err := localsAttributes(l, file)
+	if attrs == nil {
+		return nil, err
 	}
 
-	if len(localsBlock) == 0 {
-		return nil
-	}
-
-	if len(localsBlock) > 1 {
-		return fmt.Errorf(
-			"up to one locals block is allowed per stack file, but found %d in %s",
-			len(localsBlock),
-			file.ConfigPath,
-		)
-	}
-
-	attrs, err := localsBlock[0].JustAttributes()
-	if err != nil {
-		return err
-	}
-
-	evaluatedLocals, err := evaluateLocalsInOrder(
+	evaluatedLocals, err := evaluateLocals(
 		ctx,
 		l,
 		v,
@@ -2456,22 +2445,15 @@ func processLocals(
 		func() (map[string]cty.Value, error) { return evalVariablesWithoutIncludes(parser), nil },
 	)
 	if err != nil {
-		l.Debugf(
-			"Encountered error while evaluating locals in file %s",
-			util.RelPathForLog(parser.RootWorkingDir, file.ConfigPath, parser.LogShowAbsPaths),
-		)
-
-		return err
+		return nil, err
 	}
 
-	localsAsCtyVal, err := ConvertValuesMapToCtyVal(evaluatedLocals)
+	locals, err := ConvertValuesMapToCtyVal(evaluatedLocals)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	parser.Locals = &localsAsCtyVal
-
-	return nil
+	return &locals, nil
 }
 
 // validateTargetDir errors unless destDir holds expectedFile as a regular file.

@@ -142,7 +142,7 @@ func TestEvaluateLocalsBlockImpossibleWillFail(t *testing.T) {
 	require.True(t, ok, "Did not get expected error: %s", err)
 }
 
-func TestEvaluateLocalsBlockUnresolvableWillFail(t *testing.T) {
+func TestLocalsThatNeverEvaluateFailInUnitsAndStacks(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -195,7 +195,7 @@ locals {
 	}
 
 	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(tc.name+"/unit", func(t *testing.T) {
 			t.Parallel()
 
 			file, err := hclparse.NewParser().ParseFromString(tc.config, config.DefaultTerragruntConfigPath)
@@ -212,6 +212,15 @@ locals {
 				file,
 				noExposedInclude(t),
 			)
+
+			_, ok := errors.AsType[config.CouldNotEvaluateAllLocalsError](err)
+			require.True(t, ok, "Did not get expected error: %v", err)
+		})
+
+		t.Run(tc.name+"/stack", func(t *testing.T) {
+			t.Parallel()
+
+			_, err := parseStackString(t, tc.config)
 
 			_, ok := errors.AsType[config.CouldNotEvaluateAllLocalsError](err)
 			require.True(t, ok, "Did not get expected error: %v", err)
