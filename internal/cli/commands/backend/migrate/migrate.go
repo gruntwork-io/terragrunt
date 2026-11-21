@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -28,7 +27,7 @@ func Run(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	srcPath, dstPath string,
 	opts *options.TerragruntOptions,
 ) error {

@@ -4,15 +4,14 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 
-	pkgconfig "github.com/gruntwork-io/terragrunt/pkg/config"
-	pkghclparse "github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
+	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 )
 
 // UnitConfig is a parsed config file with the autoinclude and included files it merges.
-// [UnitConfig.ToV1] assembles them into the config [pkgconfig.ParseConfigFile] returns.
+// [UnitConfig.ToV1] assembles them into the config [ParseConfigFile] returns.
 //
 // The tagged fields decode in the parse, which fetches no dependency outputs, so an attribute among them cannot
-// read `dependency`. The exceptions are the top-level attributes [pkgconfig.ParseConfig] decodes after it resolves
+// read `dependency`. The exceptions are the top-level attributes [ParseConfig] decodes after it resolves
 // the outputs, which discovery never reads: each of those is a run part. The Remain of each block, and each
 // [hcl.Attribute] field, is a queue part or a run part. The parse decodes the queue parts, which [QueueBodies] names,
 // into Queue, with no `dependency` variable in scope, or an unknown one for the engine block.
@@ -78,14 +77,14 @@ type UnitConfig struct {
 	Queue QueueBodies
 	// DependencyConfigs is the decoded dependency blocks, merged with those of includes and the autoinclude. It is
 	// empty for an included file.
-	DependencyConfigs pkgconfig.Dependencies
+	DependencyConfigs Dependencies
 	// Includes is the evaluated include blocks, nil when the base blocks failed to decode.
 	Includes *Includes
 	// Locals is the evaluated locals block.
 	Locals *cty.Value
 
 	// file is the parsed file, with no parser.
-	file *pkghclparse.File
+	file *hclparse.File
 	// evalVars is the variables the blocks decoded with, nil when the eval context failed to build.
 	evalVars map[string]cty.Value
 	// evalErr is the error of building the eval context, which prepErrs also holds.
@@ -99,7 +98,7 @@ type UnitConfig struct {
 	// parse's decode diagnostics.
 	decodeErr error
 	// queueDecodeErr is decodeErr without the diagnostics of the top-level arguments and blocks the schema does not
-	// name, which [pkgconfig.PartialParseConfig] does not report.
+	// name, which [PartialParseConfig] does not report.
 	queueDecodeErr error
 	// runAttrs is the top-level attributes ToV1 decodes with the outputs, by name. The tagged field of each stays nil.
 	runAttrs map[string]*hcl.Attribute
@@ -134,15 +133,15 @@ func newKeptFiles(includes *Includes) *keptFiles {
 // Includes is the include blocks of a file and, for an included file, the include block it is parsed through.
 type Includes struct {
 	// IncludedVia is the include block that pulls the file in, nil for a component's own config.
-	IncludedVia *pkgconfig.IncludeConfig
+	IncludedVia *IncludeConfig
 	// AutoIncludePath is the sibling terragrunt.autoinclude.hcl, empty when there is none. List leaves it out.
 	AutoIncludePath string
 	// List is the include blocks, in source order.
-	List pkgconfig.IncludeConfigs
+	List IncludeConfigs
 }
 
 // newIncludes converts the includes pkg/config decoded, or returns nil for none.
-func newIncludes(trackInclude *pkgconfig.TrackInclude) *Includes {
+func newIncludes(trackInclude *TrackInclude) *Includes {
 	if trackInclude == nil {
 		return nil
 	}
@@ -160,8 +159,8 @@ func newIncludes(trackInclude *pkgconfig.TrackInclude) *Includes {
 }
 
 // ByName returns the include blocks of List by label. A repeated label keeps the last block.
-func (i *Includes) ByName() pkgconfig.IncludeConfigsMap {
-	byName := make(pkgconfig.IncludeConfigsMap, len(i.List))
+func (i *Includes) ByName() IncludeConfigsMap {
+	byName := make(IncludeConfigsMap, len(i.List))
 
 	for _, include := range i.List {
 		byName[include.Name] = include

@@ -9,7 +9,6 @@ import (
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/discoverysetup"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -21,7 +20,7 @@ import (
 // Run creates the backend resources declared in the remote_state block of the
 // unit at opts.TerragruntConfigPath, or of every discovered unit when
 // opts.RunAll is set. A unit without a remote_state block is skipped.
-func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *config.Store, opts *options.TerragruntOptions) error {
 	if opts.RunAll {
 		return runAll(ctx, l, v, s, opts)
 	}
@@ -54,7 +53,7 @@ func runAll(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 ) error {
 	units, cleanupWorktrees, err := discoverysetup.Units(ctx, l, v, s, opts)

@@ -14,8 +14,7 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	pkgconfig "github.com/gruntwork-io/terragrunt/pkg/config"
-	pkghclparse "github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
+	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 )
 
 // Stage names a step of a config parse whose result the Store memoizes.
@@ -206,11 +205,11 @@ func (s *Store) ParseUnitAST(
 	fsys vfs.FS,
 	path string,
 	info fs.FileInfo,
-	parser *pkghclparse.Parser,
-) (*pkghclparse.File, error) {
+	parser *hclparse.Parser,
+) (*hclparse.File, error) {
 	k := Key{Path: filepath.Clean(path), Stage: StageAST}
 
-	file, err := s.memoizeStamped(ctx, k, info, func(context.Context) (*pkghclparse.File, error) {
+	file, err := s.memoizeStamped(ctx, k, info, func(context.Context) (*hclparse.File, error) {
 		file, err := parser.ParseFromFile(fsys, path)
 		if err != nil {
 			return nil, err
@@ -228,11 +227,11 @@ func (s *Store) ParseUnitAST(
 // hasDependencyBlock reports whether the file at path declares a dependency or dependencies block. The first caller
 // scans the file, and it is scanned again when its size or modification time changes.
 //
-// Returns [pkgconfig.DependencyFileNotFoundError] when the file does not exist.
+// Returns [DependencyFileNotFoundError] when the file does not exist.
 func (s *Store) hasDependencyBlock(ctx context.Context, fsys vfs.FS, path string) (bool, error) {
 	info, err := fsys.Stat(path)
 	if errors.Is(err, fs.ErrNotExist) {
-		return false, pkgconfig.DependencyFileNotFoundError{Path: path}
+		return false, DependencyFileNotFoundError{Path: path}
 	}
 
 	if err != nil {
@@ -242,7 +241,7 @@ func (s *Store) hasDependencyBlock(ctx context.Context, fsys vfs.FS, path string
 	k := Key{Path: filepath.Clean(path), Stage: StageDependencyScan}
 
 	return s.memoizeStamped(ctx, k, info, func(context.Context) (bool, error) {
-		return pkgconfig.ConfigFileHasDependencyBlock(fsys, path)
+		return ConfigFileHasDependencyBlock(fsys, path)
 	})
 }
 
@@ -257,7 +256,7 @@ func (s *Store) memoizeStamped[T any](
 ) (T, error) {
 	s.dropStale(k, info)
 
-	stamp := stampOf(info)
+	stamp := entryStampOf(info)
 
 	res, err := s.Memoize(ctx, k, func(ctx context.Context) (*stampedValue[T], error) {
 		val, err := fn(ctx)
@@ -355,35 +354,35 @@ func addPath(set map[string]struct{}, path string) map[string]struct{} {
 	return set
 }
 
-// fileStamp is the metadata of the file a value was read from.
-type fileStamp struct {
+// entryStamp is the metadata of the file a value was read from.
+type entryStamp struct {
 	modTime time.Time
 	size    int64
 }
 
-// stampOf returns the stamp of the file info describes.
-func stampOf(info fs.FileInfo) fileStamp {
-	return fileStamp{modTime: info.ModTime(), size: info.Size()}
+// entryStampOf returns the stamp of the file info describes.
+func entryStampOf(info fs.FileInfo) entryStamp {
+	return entryStamp{modTime: info.ModTime(), size: info.Size()}
 }
 
 // matches reports whether info describes the file as it was when the stamp was taken.
-func (stamp fileStamp) matches(info fs.FileInfo) bool {
+func (stamp entryStamp) matches(info fs.FileInfo) bool {
 	return stamp.size == info.Size() && stamp.modTime.Equal(info.ModTime())
 }
 
 // stamped is a value that goes stale when the file it was read from changes.
 type stamped interface {
 	// readFrom returns the stamp of the file the value was read from.
-	readFrom() fileStamp
+	readFrom() entryStamp
 }
 
 // stampedValue is a value read from a file, with the stamp of the file it was read from.
 type stampedValue[T any] struct {
 	value T
-	stamp fileStamp
+	stamp entryStamp
 }
 
-func (v *stampedValue[T]) readFrom() fileStamp {
+func (v *stampedValue[T]) readFrom() entryStamp {
 	return v.stamp
 }
 

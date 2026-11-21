@@ -14,7 +14,6 @@ import (
 	hclparser "github.com/hashicorp/hcl/v2/hclparse"
 
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
@@ -95,7 +94,7 @@ func validateOutputsContractsPrepared(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	cfg *config.TerragruntConfig,
 	moduleDir string,
@@ -123,7 +122,7 @@ func outputsContractChecks(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	pctx *config.ParsingContext,
 	cfg *config.TerragruntConfig,
@@ -155,7 +154,7 @@ func referenceChecks(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	pctx *config.ParsingContext,
 	cfg *config.TerragruntConfig,
@@ -203,7 +202,7 @@ func fileReferenceCheck(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	pctx *config.ParsingContext,
 	cfg *config.TerragruntConfig,
 	contracts dependencyContracts,
@@ -240,7 +239,7 @@ func syntaxTree(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	pctx *config.ParsingContext,
 	path string,
 ) (*hclparse.File, error) {
@@ -257,7 +256,7 @@ func autoIncludeTree(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	pctx *config.ParsingContext,
 	configPath string,
 ) (*hclparse.File, error) {
@@ -395,7 +394,7 @@ func declaredOutputsChecks(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	pctx *config.ParsingContext,
 	cfg *config.TerragruntConfig,

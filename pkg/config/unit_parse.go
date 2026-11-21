@@ -15,8 +15,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	pkgconfig "github.com/gruntwork-io/terragrunt/pkg/config"
-	pkghclparse "github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
+	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -48,7 +47,7 @@ func (s *Store) ResolveUnitConfig(
 }
 
 // ResolveUnitBaseVariables returns the variables the file at cfgPath evaluates its blocks with: its unit values and
-// the locals, feature, and include blocks [pkgconfig.DecodeBaseBlocks] decodes. It stops before the dependency blocks
+// the locals, feature, and include blocks [DecodeBaseBlocks] decodes. It stops before the dependency blocks
 // that order the queue.
 //
 // The variables are memoized in s by file and context, and [Store.ResolveUnitQueueConfig] builds on them. Each call
@@ -77,7 +76,7 @@ func (s *Store) ResolveUnitBaseVariables(
 		v.FS,
 		cfgPath,
 		info,
-		pkghclparse.NewParser(pc.parserOptions(l, v)...),
+		hclparse.NewParser(pc.parserOptions(l, v)...),
 	)
 	if err != nil {
 		return nil, err
@@ -101,7 +100,7 @@ func (s *Store) ResolveUnitQueueConfig(
 	v *venv.Venv,
 	pc *ParseContext,
 	cfgPath string,
-) (*pkgconfig.TerragruntConfig, error) {
+) (*TerragruntConfig, error) {
 	ctx, scope := withReleaseScope(ctx)
 	defer s.releaseScope(scope)
 
@@ -122,7 +121,7 @@ func (s *Store) ResolveRunConfig(
 	v *venv.Venv,
 	pc *ParseContext,
 	cfgPath string,
-) (*pkgconfig.TerragruntConfig, error) {
+) (*TerragruntConfig, error) {
 	c, err := s.ResolveUnitConfig(ctx, l, v, pc, cfgPath)
 	if c == nil {
 		return nil, err
@@ -131,15 +130,15 @@ func (s *Store) ResolveRunConfig(
 	return c.ToV1(ctx, l, v, pc)
 }
 
-// ReadTerragruntConfig reads the config file of run as [pkgconfig.ReadTerragruntConfig] does, resolving the file as
+// ReadTerragruntConfig reads the config file of run as [ReadTerragruntConfig] does, resolving the file as
 // [Store.ResolveRunConfig] does.
 func (s *Store) ReadTerragruntConfig(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	run *pkgconfig.ParsingContext,
-) (*pkgconfig.TerragruntConfig, error) {
-	if err := pkgconfig.RejectAmbiguousUnitConfig(v.FS, run); err != nil {
+	run *ParsingContext,
+) (*TerragruntConfig, error) {
+	if err := RejectAmbiguousUnitConfig(v.FS, run); err != nil {
 		return nil, err
 	}
 
@@ -156,7 +155,7 @@ type resolvedFile struct {
 	// c is the parse, nil when it failed before decoding the file.
 	c *UnitConfig
 	// cfg is the config of the parse, nil when it produced none.
-	cfg *pkgconfig.TerragruntConfig
+	cfg *TerragruntConfig
 }
 
 // resolveFile resolves the file at cfgPath one level deeper than pc, through s when pc is memoized.
@@ -167,7 +166,7 @@ func (s *Store) resolveFile(
 	v *venv.Venv,
 	pc *ParseContext,
 	cfgPath string,
-) (*UnitConfig, *pkgconfig.TerragruntConfig, error) {
+) (*UnitConfig, *TerragruntConfig, error) {
 	pc, err := pc.incrementDepth()
 	if err != nil {
 		return nil, nil, err
@@ -216,7 +215,7 @@ func (s *Store) resolveFileOnce(
 	v *venv.Venv,
 	pc *ParseContext,
 	cfgPath string,
-) (*UnitConfig, *pkgconfig.TerragruntConfig, error) {
+) (*UnitConfig, *TerragruntConfig, error) {
 	info, err := statConfig(v, cfgPath)
 	if err != nil {
 		return nil, nil, err
@@ -224,10 +223,10 @@ func (s *Store) resolveFileOnce(
 
 	var (
 		c   *UnitConfig
-		cfg *pkgconfig.TerragruntConfig
+		cfg *TerragruntConfig
 	)
 
-	err = pkgconfig.TraceParseConfigFile(
+	err = TraceParseConfigFile(
 		ctx,
 		l,
 		cfgPath,
@@ -237,7 +236,7 @@ func (s *Store) resolveFileOnce(
 		pc.file.include,
 		false,
 		func(childCtx context.Context, l log.Logger) error {
-			parser := pkghclparse.NewParser(pc.parserOptions(l, v)...)
+			parser := hclparse.NewParser(pc.parserOptions(l, v)...)
 
 			file, parseErr := s.ParseUnitAST(childCtx, v.FS, cfgPath, info, parser)
 			if parseErr != nil {
@@ -270,7 +269,7 @@ func (s *Store) resolveBase(
 	l log.Logger,
 	v *venv.Venv,
 	pc *ParseContext,
-	file *pkghclparse.File,
+	file *hclparse.File,
 ) (*unitBase, error) {
 	if !pc.memoized {
 		return s.prepareBase(ctx, l, v, pc, file)
@@ -303,7 +302,7 @@ func (s *Store) resolveBase(
 
 // statConfig returns the metadata of the config file at cfgPath.
 //
-// Returns [pkgconfig.TerragruntConfigNotFoundError] when the file does not exist.
+// Returns [TerragruntConfigNotFoundError] when the file does not exist.
 func statConfig(v *venv.Venv, cfgPath string) (fs.FileInfo, error) {
 	info, err := v.FS.Stat(cfgPath)
 	if err == nil {
@@ -311,7 +310,7 @@ func statConfig(v *venv.Venv, cfgPath string) (fs.FileInfo, error) {
 	}
 
 	if errors.Is(err, fs.ErrNotExist) {
-		return nil, pkgconfig.TerragruntConfigNotFoundError{Path: cfgPath}
+		return nil, TerragruntConfigNotFoundError{Path: cfgPath}
 	}
 
 	return nil, fmt.Errorf("failed to get file info: %w", err)
@@ -326,7 +325,7 @@ func (s *Store) assembleFirst(
 	pc *ParseContext,
 	c *UnitConfig,
 	fns *parseFunctions,
-) (*pkgconfig.TerragruntConfig, error) {
+) (*TerragruntConfig, error) {
 	kept := newKeptFiles(c.Includes)
 
 	cfg, err := c.assemble(ctx, l, v, pc, includeResolver{store: s, kept: kept}, fns)
@@ -346,7 +345,7 @@ type unitBase struct {
 	// errs is the non-fatal errors of the stages before the eval context.
 	errs []error
 	// featureBlocks is the feature blocks the file declares, nil when the base blocks failed to decode.
-	featureBlocks pkgconfig.FeatureFlags
+	featureBlocks FeatureFlags
 	// scope is the file's state with its base applied.
 	scope fileScope
 }
@@ -365,7 +364,7 @@ func (b *unitBase) firstErr() error {
 	return b.evalErr
 }
 
-// prepareBase runs the stages of [pkgconfig.ParseConfig] through the base blocks.
+// prepareBase runs the stages of [ParseConfig] through the base blocks.
 //
 // Returns an error and no base where pkg/config returns no config.
 func (s *Store) prepareBase(
@@ -373,27 +372,27 @@ func (s *Store) prepareBase(
 	l log.Logger,
 	v *venv.Venv,
 	pc *ParseContext,
-	file *pkghclparse.File,
+	file *hclparse.File,
 ) (*unitBase, error) {
 	pctx := pc.parsingContext()
 
-	if err := pkgconfig.DetectDeprecatedConfigurations(ctx, pctx, l, file); err != nil {
+	if err := DetectDeprecatedConfigurations(ctx, pctx, l, file); err != nil {
 		return nil, err
 	}
 
-	if err := pkgconfig.ValidateExpansionSpelling(file); err != nil {
+	if err := ValidateExpansionSpelling(file); err != nil {
 		return nil, err
 	}
 
-	if pkgconfig.TerraformSourceReferencesDependency(file) {
-		return nil, pkgconfig.TerraformSourceReferencesDependencyError{ConfigPath: file.ConfigPath}
+	if TerraformSourceReferencesDependency(file) {
+		return nil, TerraformSourceReferencesDependencyError{ConfigPath: file.ConfigPath}
 	}
 
-	if err := pkgconfig.ValidateExcludeReferences(file); err != nil {
+	if err := ValidateExcludeReferences(file); err != nil {
 		return nil, err
 	}
 
-	if err := pkgconfig.ValidateVersionAttributeReferences(file); err != nil {
+	if err := ValidateVersionAttributeReferences(file); err != nil {
 		return nil, err
 	}
 
@@ -410,7 +409,7 @@ func (s *Store) prepareBase(
 
 	pctx = pc.parsingContext()
 
-	unitValues, err := pkgconfig.ReadValues(ctx, l, v, pctx, filepath.Dir(file.ConfigPath))
+	unitValues, err := ReadValues(ctx, l, v, pctx, filepath.Dir(file.ConfigPath))
 	if err != nil {
 		return nil, err
 	}
@@ -420,7 +419,7 @@ func (s *Store) prepareBase(
 
 	exposed, exposedErr := s.exposedInclude(v, pc)
 
-	baseBlocks, err := pkgconfig.DecodeBaseBlocks(
+	baseBlocks, err := DecodeBaseBlocks(
 		ctx,
 		l,
 		v,
@@ -443,7 +442,7 @@ func (s *Store) prepareBase(
 		base.featureBlocks = baseBlocks.FeatureFlagBlocks
 	}
 
-	base.evalVars, base.evalErr = pkgconfig.TerragruntEvalVariables(
+	base.evalVars, base.evalErr = TerragruntEvalVariables(
 		ctx,
 		l,
 		pc.parsingContext(),
@@ -462,8 +461,8 @@ func (s *Store) prepareBase(
 	return base, nil
 }
 
-// withFileIAMRole returns pc with the IAM role options file sets, as [pkgconfig.ParseConfig] resolves them. A partial
-// parse keeps the role of pc, as [pkgconfig.PartialParseConfig] does.
+// withFileIAMRole returns pc with the IAM role options file sets, as [ParseConfig] resolves them. A partial
+// parse keeps the role of pc, as [PartialParseConfig] does.
 //
 // Returns pc unchanged with the error when the options fail to resolve.
 func withFileIAMRole(
@@ -471,13 +470,13 @@ func withFileIAMRole(
 	l log.Logger,
 	v *venv.Venv,
 	pc *ParseContext,
-	file *pkghclparse.File,
+	file *hclparse.File,
 ) (*ParseContext, error) {
 	if len(pc.settings.PartialParseDecodeList) > 0 {
 		return pc, nil
 	}
 
-	iamRoleOptions, err := pkgconfig.ResolveIAMRoleOptions(ctx, l, v, pc.parsingContext(), file, pc.file.include)
+	iamRoleOptions, err := ResolveIAMRoleOptions(ctx, l, v, pc.parsingContext(), file, pc.file.include)
 	if err != nil {
 		return pc, err
 	}
@@ -485,14 +484,14 @@ func withFileIAMRole(
 	return pc.withIAMRole(iamRoleOptions), nil
 }
 
-// prepare runs the stages of [pkgconfig.ParseConfig] after base through the block decode. It decodes file's dependency
+// prepare runs the stages of [ParseConfig] after base through the block decode. It decodes file's dependency
 // blocks when file resolves its own dependencies, and every part when the run supplied the `dependency` value.
 func (s *Store) prepare(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	pc *ParseContext,
-	file *pkghclparse.File,
+	file *hclparse.File,
 	base *unitBase,
 	fns *parseFunctions,
 ) *UnitConfig {
@@ -578,7 +577,7 @@ func unsupportedContent(body hcl.Body, c *UnitConfig) hcl.Diagnostics {
 }
 
 // absInclude returns pc's include block with its path made absolute, in a copy.
-func absInclude(pc *ParseContext) *pkgconfig.IncludeConfig {
+func absInclude(pc *ParseContext) *IncludeConfig {
 	include := pc.file.include
 	if include == nil || include.Path == "" || filepath.IsAbs(include.Path) {
 		return include

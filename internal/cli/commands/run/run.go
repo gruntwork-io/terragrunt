@@ -4,7 +4,6 @@ import (
 	"context"
 	"path/filepath"
 
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/report"
@@ -26,7 +25,7 @@ import (
 )
 
 // Run runs the run command.
-func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *rewrite.Store) error {
+func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *config.Store) error {
 	tips.GiveStackTargetTip(l, v.FS, opts.WorkingDir, opts.Filters, opts.Tips)
 
 	if opts.TerraformCliArgs.IsDestroy(opts.TofuCommand) {
@@ -281,7 +280,7 @@ func confirmActionWithDependentUnits(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	cfg *config.TerragruntConfig,
 ) bool {
@@ -318,7 +317,7 @@ func findDependentUnits(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	cfg *config.TerragruntConfig,
 ) []string {

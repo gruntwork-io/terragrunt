@@ -8,9 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	config "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	pkgconfig "github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
@@ -53,8 +52,8 @@ dependency "vpc" {
 
 			stub := &tofuStub{}
 			v := venv.MemVenv().WithFS(memFS(root, files)(t)).WithHandler(stub.handler())
-			cfgPath := filepath.Join(root, "app", pkgconfig.DefaultTerragruntConfigPath)
-			ctx, pctx := newTestParsingContext(t, cfgPath)
+			cfgPath := filepath.Join(root, "app", config.DefaultTerragruntConfigPath)
+			ctx, pctx := newTestUnitParsingContext(t, cfgPath)
 			l := logger.CreateLogger()
 
 			pc := config.NewParseContext(v, pctx)
@@ -62,7 +61,7 @@ dependency "vpc" {
 			parsed, parseErr := new(config.Store).ResolveUnitConfig(ctx, l, v, pc, cfgPath)
 			require.Error(t, parseErr)
 			assert.Contains(t, parseErr.Error(), "Unknown variable")
-			assert.Contains(t, parseErr.Error(), pkgconfig.MetadataDependency)
+			assert.Contains(t, parseErr.Error(), config.MetadataDependency)
 			require.NotNil(t, parsed)
 
 			assert.Zero(t, stub.parseExecs.Load(), "the parse ran tofu")

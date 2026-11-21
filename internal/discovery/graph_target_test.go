@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -62,7 +61,7 @@ dependency "db" {
 		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
 		v,
-		new(rewrite.Store),
+		new(config.Store),
 		opts,
 	)
 	require.NoError(t, err)
@@ -115,14 +114,14 @@ dependency "db" {
 	configsA, err := discovery.NewDiscovery(tmpDir).
 		WithFilters(depsFilters).
 		WithFilters(filters).
-		Discover(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(rewrite.Store), opts)
+		Discover(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(config.Store), opts)
 	require.NoError(t, err)
 
 	// Path B: graph target marker
 	configsB, err := discovery.NewDiscovery(tmpDir).
 		WithFilters(depsFilters).
 		WithGraphTarget(vpcDir).
-		Discover(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(rewrite.Store), opts)
+		Discover(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(config.Store), opts)
 	require.NoError(t, err)
 
 	assert.ElementsMatch(
@@ -163,7 +162,7 @@ func TestDiscoveryWithGraphTarget_NoDependents(t *testing.T) {
 		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
 		v,
-		new(rewrite.Store),
+		new(config.Store),
 		opts,
 	)
 	require.NoError(t, err)
@@ -209,7 +208,7 @@ dependency "vpc" {
 		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
 		v,
-		new(rewrite.Store),
+		new(config.Store),
 		opts,
 	)
 	require.NoError(t, err)

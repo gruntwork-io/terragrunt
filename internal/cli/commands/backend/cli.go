@@ -6,7 +6,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/backend/delete"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/backend/migrate"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -17,7 +17,7 @@ const CommandName = "backend"
 
 // NewCommand returns the `terragrunt backend` command, which groups the
 // bootstrap, delete, and migrate subcommands and prints help when run alone.
-func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *rewrite.Store) *clihelper.Command {
+func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *config.Store) *clihelper.Command {
 	return &clihelper.Command{
 		Name:  CommandName,
 		Usage: "Interact with OpenTofu/Terraform backend infrastructure.",

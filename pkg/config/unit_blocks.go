@@ -5,7 +5,6 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
-	pkgconfig "github.com/gruntwork-io/terragrunt/pkg/config"
 )
 
 // CatalogHCL is a catalog block.
@@ -165,7 +164,7 @@ type OutputsHCL struct {
 // MockStrategyHCL is the mock_strategy block of an outputs block.
 type MockStrategyHCL struct {
 	AllowedCommands *[]string                    `hcl:"allowed_commands,attr"`
-	MergeWithState  *pkgconfig.MergeStrategyType `hcl:"merge_with_state,attr"`
+	MergeWithState  *MergeStrategyType `hcl:"merge_with_state,attr"`
 }
 
 // OutputHCL is an output block of an outputs block.

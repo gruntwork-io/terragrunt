@@ -17,7 +17,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	config "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
@@ -27,7 +26,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	pkgconfig "github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
@@ -61,7 +60,7 @@ type parityCase struct {
 	// newFS returns a fresh filesystem with the case's files.
 	newFS func(t *testing.T) vfs.FS
 	// configure adjusts each side's parsing context.
-	configure func(*pkgconfig.ParsingContext)
+	configure func(*config.ParsingContext)
 	// outputs maps a target directory to its `tofu output -json`.
 	outputs map[string]string
 	// store is the Store the rewrite parses through, shared with other cases when set.
@@ -133,7 +132,7 @@ type parityResult struct {
 	// parsed is the parsed config, nil when the parse produced none.
 	parsed *config.UnitConfig
 	// cfg is the config ToV1 returned, nil when the parse produced none.
-	cfg *pkgconfig.TerragruntConfig
+	cfg *config.TerragruntConfig
 	// parseErr is the error of the parse.
 	parseErr error
 	// toV1Err is the error of ToV1, or parseErr when the parse produced no config.
@@ -155,17 +154,17 @@ func assertParity(t *testing.T, tc parityCase) parityResult {
 
 	v1Stub := &tofuStub{outputs: tc.outputs}
 	v1Venv := venv.MemVenv().WithFS(tc.newFS(t)).WithHandler(v1Stub.handler())
-	v1Ctx, v1Pctx := newTestParsingContext(t, tc.cfgPath)
+	v1Ctx, v1Pctx := newTestUnitParsingContext(t, tc.cfgPath)
 	tc.configure(v1Pctx)
 	v1Pctx = v1Pctx.WithFileReadTracking()
 
 	stub := &tofuStub{outputs: tc.outputs}
 	v := venv.MemVenv().WithFS(tc.newFS(t)).WithHandler(stub.handler())
-	ctx, pctx := newTestParsingContext(t, tc.cfgPath)
+	ctx, pctx := newTestUnitParsingContext(t, tc.cfgPath)
 	tc.configure(pctx)
 	pctx = pctx.WithFileReadTracking()
 
-	wantCfg, wantErr := pkgconfig.ParseConfigFile(v1Ctx, l, v1Venv, v1Pctx, tc.cfgPath, nil)
+	wantCfg, wantErr := config.ParseConfigFile(v1Ctx, l, v1Venv, v1Pctx, tc.cfgPath, nil)
 	if wantErr != nil {
 		t.Logf("pkg/config returned an error: %v", wantErr)
 	}
@@ -181,7 +180,7 @@ func assertParity(t *testing.T, tc parityCase) parityResult {
 
 	stub.inToV1.Store(true)
 
-	var gotCfg *pkgconfig.TerragruntConfig
+	var gotCfg *config.TerragruntConfig
 
 	gotErr := parseErr
 
@@ -554,7 +553,7 @@ func loadFixtures(t *testing.T, rootNames []string, excluded map[string]struct{}
 					return err
 				}
 
-				if d.Name() == pkgconfig.DefaultTerragruntConfigPath {
+				if d.Name() == config.DefaultTerragruntConfigPath {
 					set.configs = append(
 						set.configs,
 						fixtureConfig{path: path, name: filepath.ToSlash(filepath.Dir(rel))},
@@ -585,15 +584,15 @@ func (s *fixtureSet) newFS(t *testing.T) vfs.FS {
 	return fsys
 }
 
-// newTestParsingContext mirrors pkg/config's test helper of the same name, with its own caches.
-func newTestParsingContext(
+// newTestUnitParsingContext mirrors pkg/config's test helper of the same name, with its own caches.
+func newTestUnitParsingContext(
 	tb testing.TB,
 	cfgPath string,
-) (context.Context, *pkgconfig.ParsingContext) {
+) (context.Context, *config.ParsingContext) {
 	tb.Helper()
 
-	ctx := pkgconfig.WithCaches(tb.Context())
-	pctx := pkgconfig.NewParsingContext(pkgconfig.WithStrictControls(controls.New()))
+	ctx := config.WithCaches(tb.Context())
+	pctx := config.NewParsingContext(config.WithStrictControls(controls.New()))
 
 	workingDir, downloadDir := util.DefaultWorkingAndDownloadDirs(cfgPath)
 

@@ -14,12 +14,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	config "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
-	pkgconfig "github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
 
@@ -27,7 +26,7 @@ func TestResolveUnitQueueConfigExposesAnIncludeWithAMissingDependenciesDir(t *te
 	t.Parallel()
 
 	root := vfs.MemRoot
-	path := filepath.Join(root, "unit", pkgconfig.DefaultTerragruntConfigPath)
+	path := filepath.Join(root, "unit", config.DefaultTerragruntConfigPath)
 
 	fsys := memFS(root, map[string]string{
 		"root.hcl": `
@@ -54,8 +53,8 @@ exclude {
 	})(t)
 
 	v := venv.MemVenv().WithFS(fsys)
-	ctx, run := newTestParsingContext(t, path)
-	run.PartialParseDecodeList = []pkgconfig.PartialDecodeSectionType{pkgconfig.ExcludeBlock}
+	ctx, run := newTestUnitParsingContext(t, path)
+	run.PartialParseDecodeList = []config.PartialDecodeSectionType{config.ExcludeBlock}
 
 	cfg, err := (&config.Store{}).ResolveUnitQueueConfig(
 		ctx,
@@ -73,7 +72,7 @@ func TestResolveUnitQueueConfigDecodesNoUnrequestedRunPartOfAnExposedInclude(t *
 	t.Parallel()
 
 	root := vfs.MemRoot
-	path := filepath.Join(root, "unit", pkgconfig.DefaultTerragruntConfigPath)
+	path := filepath.Join(root, "unit", config.DefaultTerragruntConfigPath)
 
 	fsys := memFS(root, map[string]string{
 		"root.hcl": `
@@ -103,8 +102,8 @@ locals {
 	})(t)
 
 	v := venv.MemVenv().WithFS(fsys)
-	ctx, run := newTestParsingContext(t, path)
-	run.PartialParseDecodeList = []pkgconfig.PartialDecodeSectionType{pkgconfig.DependencyBlock}
+	ctx, run := newTestUnitParsingContext(t, path)
+	run.PartialParseDecodeList = []config.PartialDecodeSectionType{config.DependencyBlock}
 
 	cfg, err := (&config.Store{}).ResolveUnitQueueConfig(
 		ctx,
@@ -121,7 +120,7 @@ func TestResolveUnitQueueConfigExposesTheRequestedRemoteState(t *testing.T) {
 	t.Parallel()
 
 	root := vfs.MemRoot
-	path := filepath.Join(root, "unit", pkgconfig.DefaultTerragruntConfigPath)
+	path := filepath.Join(root, "unit", config.DefaultTerragruntConfigPath)
 
 	fsys := memFS(root, map[string]string{
 		"root.hcl": `
@@ -151,8 +150,8 @@ locals {
 	})(t)
 
 	v := venv.MemVenv().WithFS(fsys)
-	ctx, run := newTestParsingContext(t, path)
-	run.PartialParseDecodeList = []pkgconfig.PartialDecodeSectionType{pkgconfig.RemoteStateBlock}
+	ctx, run := newTestUnitParsingContext(t, path)
+	run.PartialParseDecodeList = []config.PartialDecodeSectionType{config.RemoteStateBlock}
 
 	cfg, err := (&config.Store{}).ResolveUnitQueueConfig(
 		ctx,
@@ -169,7 +168,7 @@ func TestResolveUnitQueueConfigEvaluatesAnExposedIncludeWithTheIAMRoleItSets(t *
 	t.Parallel()
 
 	root := vfs.MemRoot
-	path := filepath.Join(root, "unit", pkgconfig.DefaultTerragruntConfigPath)
+	path := filepath.Join(root, "unit", config.DefaultTerragruntConfigPath)
 
 	fsys := memFS(root, map[string]string{
 		"root.hcl": `
@@ -195,8 +194,8 @@ locals {
 	sts, _ := memSTS()
 
 	v := venv.MemVenv().WithFS(fsys).WithHTTP(sts).WithEnv(map[string]string{"AWS_REGION": "us-east-1"})
-	ctx, run := newTestParsingContext(t, path)
-	run.PartialParseDecodeList = []pkgconfig.PartialDecodeSectionType{pkgconfig.ExcludeBlock}
+	ctx, run := newTestUnitParsingContext(t, path)
+	run.PartialParseDecodeList = []config.PartialDecodeSectionType{config.ExcludeBlock}
 	run.IAMRoleOptions = iam.RoleOptions{
 		RoleARN:          "arn:aws:iam::111111111111:role/run",
 		WebIdentityToken: "run-token",
@@ -217,7 +216,7 @@ func TestResolveUnitQueueConfigAssumesTheRoleOfAnExposedIncludeWithoutItsSession
 	t.Parallel()
 
 	root := vfs.MemRoot
-	path := filepath.Join(root, "unit", pkgconfig.DefaultTerragruntConfigPath)
+	path := filepath.Join(root, "unit", config.DefaultTerragruntConfigPath)
 
 	fsys := memFS(root, map[string]string{
 		"root.hcl": `
@@ -244,8 +243,8 @@ locals {
 	sts, sessions := memSTS()
 
 	v := venv.MemVenv().WithFS(fsys).WithHTTP(sts).WithEnv(map[string]string{"AWS_REGION": "us-east-1"})
-	ctx, run := newTestParsingContext(t, path)
-	run.PartialParseDecodeList = []pkgconfig.PartialDecodeSectionType{pkgconfig.ExcludeBlock}
+	ctx, run := newTestUnitParsingContext(t, path)
+	run.PartialParseDecodeList = []config.PartialDecodeSectionType{config.ExcludeBlock}
 	run.IAMRoleOptions = iam.RoleOptions{
 		RoleARN:          "arn:aws:iam::111111111111:role/run",
 		WebIdentityToken: "run-token",
@@ -267,7 +266,7 @@ func TestResolveUnitQueueConfigReportsWhyAnExposedIncludeFailedToResolve(t *test
 	t.Parallel()
 
 	root := vfs.MemRoot
-	path := filepath.Join(root, "unit", pkgconfig.DefaultTerragruntConfigPath)
+	path := filepath.Join(root, "unit", config.DefaultTerragruntConfigPath)
 
 	fsys := memFS(root, map[string]string{
 		"root.hcl": `
@@ -297,8 +296,8 @@ exclude {
 	})(t)
 
 	v := venv.MemVenv().WithFS(fsys)
-	ctx, run := newTestParsingContext(t, path)
-	run.PartialParseDecodeList = []pkgconfig.PartialDecodeSectionType{pkgconfig.ExcludeBlock}
+	ctx, run := newTestUnitParsingContext(t, path)
+	run.PartialParseDecodeList = []config.PartialDecodeSectionType{config.ExcludeBlock}
 
 	_, err := (&config.Store{}).ResolveUnitQueueConfig(
 		ctx,

@@ -10,7 +10,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	pkgconfig "github.com/gruntwork-io/terragrunt/pkg/config"
 )
 
 // runDigest returns the digest of what a parse of run through v reads beyond the file, and false when run carries
@@ -27,7 +26,7 @@ import (
 //
 // The parse runs unmemoized for a supplied `dependency`, values, feature, or locals value, a supplied include
 // list, and a diagnostics handler.
-func runDigest(v *venv.Venv, run *pkgconfig.ParsingContext) (string, bool) {
+func runDigest(v *venv.Venv, run *ParsingContext) (string, bool) {
 	if run.DecodedDependencies != nil || run.Values != nil || run.Features != nil || run.Locals != nil {
 		return "", false
 	}
@@ -64,7 +63,7 @@ func runDigest(v *venv.Venv, run *pkgconfig.ParsingContext) (string, bool) {
 	d.bool(run.SkipAutoIncludeMerge)
 	d.bool(run.FilesRead.Tracking())
 	d.sections(run.PartialParseDecodeList)
-	d.uint64(pkgconfig.HashEnv(v.Env))
+	d.uint64(HashEnv(v.Env))
 	d.bool(v.Writers.Writer == io.Discard)
 
 	return d.sum(), true
@@ -141,7 +140,7 @@ func (d *digest) roleOptions(o iam.RoleOptions) {
 	d.int64(o.AssumeRoleDuration)
 }
 
-func (d *digest) sections(list []pkgconfig.PartialDecodeSectionType) {
+func (d *digest) sections(list []PartialDecodeSectionType) {
 	sections := slices.Compact(slices.Sorted(slices.Values(list)))
 
 	d.int(len(sections))
@@ -151,7 +150,7 @@ func (d *digest) sections(list []pkgconfig.PartialDecodeSectionType) {
 	}
 }
 
-func (d *digest) parserSettings(s pkgconfig.ParserSettings) {
+func (d *digest) parserSettings(s ParserSettings) {
 	d.int(int(s.Diagnostics))
 	d.bool(s.RewriteBareInclude)
 	d.bool(s.IgnoreDiagnostics)

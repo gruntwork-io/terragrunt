@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -86,7 +85,7 @@ func TestFindDependentUnits(t *testing.T) {
 				config.WithCaches(t.Context()),
 				thlogger.CreateLogger(),
 				v,
-				new(rewrite.Store),
+				new(config.Store),
 				opts,
 				tc.cfg,
 			)

@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/zclconf/go-cty/cty"
 
-	pkgconfig "github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
@@ -597,13 +597,13 @@ inputs = {
 
 			cfgPath := tc.cfgPath
 			if cfgPath == "" {
-				cfgPath = "app/" + pkgconfig.DefaultTerragruntConfigPath
+				cfgPath = "app/" + config.DefaultTerragruntConfigPath
 			}
 
 			result := assertParity(t, parityCase{
 				newFS:   memFS(root, files),
 				cfgPath: filepath.Join(root, filepath.FromSlash(cfgPath)),
-				configure: func(pctx *pkgconfig.ParsingContext) {
+				configure: func(pctx *config.ParsingContext) {
 					pctx.SkipOutput = tc.skipOutput
 					pctx.DecodedDependencies = tc.runDeps
 				},
@@ -700,8 +700,8 @@ dependency "vpc" {
 
 			result := assertParity(t, parityCase{
 				newFS:     memFS(root, files),
-				cfgPath:   filepath.Join(root, "app", pkgconfig.DefaultTerragruntConfigPath),
-				configure: func(*pkgconfig.ParsingContext) {},
+				cfgPath:   filepath.Join(root, "app", config.DefaultTerragruntConfigPath),
+				configure: func(*config.ParsingContext) {},
 				outputs:   outputs,
 			})
 

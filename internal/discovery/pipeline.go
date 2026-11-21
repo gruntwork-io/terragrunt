@@ -13,7 +13,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -77,7 +77,7 @@ type pipeline struct {
 	// opts is the options every parse runs with.
 	opts *options.TerragruntOptions
 	// store memoizes the parses.
-	store *rewrite.Store
+	store *config.Store
 	// work carries the components the finders queue for the workers.
 	work chan DiscoveryResult
 	// events carries what the workers report to the collector.
@@ -105,7 +105,7 @@ func (d *Discovery) runPipeline(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	parseRequested bool,
 ) (walked, error) {

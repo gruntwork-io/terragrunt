@@ -13,12 +13,11 @@ import (
 	"github.com/zclconf/go-cty/cty"
 	"golang.org/x/sync/errgroup"
 
-	config "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	pkgconfig "github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
@@ -45,7 +44,7 @@ inputs = {
 	paths := make([]string, 0, n)
 
 	for i := range n {
-		rel := filepath.Join(fmt.Sprintf("unit-%d", i), pkgconfig.DefaultTerragruntConfigPath)
+		rel := filepath.Join(fmt.Sprintf("unit-%d", i), config.DefaultTerragruntConfigPath)
 		files[rel] = `
 include "root" {
   path = find_in_parent_folders("root.hcl")
@@ -76,7 +75,7 @@ inputs = {
 func parseForBenchmark(b *testing.B, l log.Logger, v *venv.Venv, store *config.Store, path string) {
 	b.Helper()
 
-	ctx, run := newTestParsingContext(b, path)
+	ctx, run := newTestUnitParsingContext(b, path)
 
 	_, err := store.ResolveUnitConfig(ctx, l, v, config.NewParseContext(v, run), path)
 	require.NoError(b, err)
@@ -91,7 +90,7 @@ func TestResolveUnitConfigServesALaterCallTheTreesAndScan(t *testing.T) {
 	l := logger.CreateLogger()
 	store := &config.Store{}
 
-	ctx, run := newTestParsingContext(t, paths[0])
+	ctx, run := newTestUnitParsingContext(t, paths[0])
 	run = run.WithFileReadTracking()
 
 	firstCfg, err := store.ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(v, run), paths[0])
@@ -104,7 +103,7 @@ func TestResolveUnitConfigServesALaterCallTheTreesAndScan(t *testing.T) {
 			"served the root's scan, tree, and base",
 	)
 
-	secondCtx, secondRun := newTestParsingContext(t, paths[0])
+	secondCtx, secondRun := newTestUnitParsingContext(t, paths[0])
 	secondRun = secondRun.WithFileReadTracking()
 
 	secondCfg, err := store.ResolveUnitQueueConfig(
@@ -159,12 +158,12 @@ func TestResolveUnitQueueConfigReturnsPartialConfigWithParseError(t *testing.T) 
 	v := venv.MemVenv().WithFS(fsys)
 	l := logger.CreateLogger()
 
-	ctx, run := newTestParsingContext(t, path)
+	ctx, run := newTestUnitParsingContext(t, path)
 
 	cfg, err := new(
 		config.Store,
 	).ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(v, run), path)
-	require.ErrorAs(t, err, new(pkgconfig.IncludeConfigNotFoundError))
+	require.ErrorAs(t, err, new(config.IncludeConfigNotFoundError))
 	require.NotNil(t, cfg)
 	assert.Equal(t, "us-east-1", cfg.Locals["region"])
 }
@@ -180,13 +179,13 @@ func TestResolveUnitQueueConfigGivesCallersOfAFailedParseTheirOwnConfigWithRacin
 
 	for range 50 {
 		store := &config.Store{}
-		cfgs := make([]*pkgconfig.TerragruntConfig, callers)
+		cfgs := make([]*config.TerragruntConfig, callers)
 
 		var g errgroup.Group
 
 		for i := range callers {
 			g.Go(func() error {
-				ctx, run := newTestParsingContext(t, path)
+				ctx, run := newTestUnitParsingContext(t, path)
 
 				cfg, err := store.ResolveUnitQueueConfig(
 					ctx,
@@ -195,7 +194,7 @@ func TestResolveUnitQueueConfigGivesCallersOfAFailedParseTheirOwnConfigWithRacin
 					config.NewParseContext(v, run),
 					path,
 				)
-				assert.ErrorAs(t, err, new(pkgconfig.IncludeConfigNotFoundError))
+				assert.ErrorAs(t, err, new(config.IncludeConfigNotFoundError))
 
 				cfgs[i] = cfg
 
@@ -205,7 +204,7 @@ func TestResolveUnitQueueConfigGivesCallersOfAFailedParseTheirOwnConfigWithRacin
 
 		require.NoError(t, g.Wait())
 
-		seen := make(map[*pkgconfig.TerragruntConfig]struct{}, callers)
+		seen := make(map[*config.TerragruntConfig]struct{}, callers)
 
 		for _, cfg := range cfgs {
 			require.NotNil(t, cfg)
@@ -221,7 +220,7 @@ func TestResolveUnitQueueConfigGivesCallersOfAFailedParseTheirOwnConfigWithRacin
 func dependencyReadsRepo(t *testing.T, root string) (vfs.FS, string, string) {
 	t.Helper()
 
-	path := filepath.Join(root, "app", pkgconfig.DefaultTerragruntConfigPath)
+	path := filepath.Join(root, "app", config.DefaultTerragruntConfigPath)
 	readByDependency := filepath.Join(root, "dep.hcl")
 
 	fsys := vfs.NewMemMapFS()
@@ -234,7 +233,7 @@ dependency "dep" {
 `), 0o644))
 	require.NoError(t, vfs.WriteFile(
 		fsys,
-		filepath.Join(root, "dep", pkgconfig.DefaultTerragruntConfigPath),
+		filepath.Join(root, "dep", config.DefaultTerragruntConfigPath),
 		[]byte("include \"dep\" {\n  path = find_in_parent_folders(\"dep.hcl\")\n}\n"),
 		0o644,
 	))
@@ -248,7 +247,7 @@ func missingIncludeRepo(t *testing.T) (vfs.FS, string) {
 	t.Helper()
 
 	root := vfs.MemRoot
-	path := filepath.Join(root, pkgconfig.DefaultTerragruntConfigPath)
+	path := filepath.Join(root, config.DefaultTerragruntConfigPath)
 
 	fsys := vfs.NewMemMapFS()
 	require.NoError(t, vfs.WriteFile(fsys, path, []byte(`
@@ -270,7 +269,7 @@ func TestToV1WritesToTheSinksOfItsCallerWithRacing(t *testing.T) {
 	const callers = 8
 
 	root := vfs.MemRoot
-	path := filepath.Join(root, "unit", pkgconfig.DefaultTerragruntConfigPath)
+	path := filepath.Join(root, "unit", config.DefaultTerragruntConfigPath)
 	readByInputs := filepath.Join(root, "unit", "read-by-inputs.txt")
 
 	fsys := vfs.NewMemMapFS()
@@ -289,7 +288,7 @@ inputs = {
 	v := venv.MemVenv().WithFS(fsys)
 	l := logger.CreateLogger()
 
-	ctx, parseRun := newTestParsingContext(t, path)
+	ctx, parseRun := newTestUnitParsingContext(t, path)
 	parseRun = parseRun.WithFileReadTracking()
 
 	parsed, err := new(config.Store).ResolveUnitConfig(ctx, l, v, config.NewParseContext(v, parseRun), path)
@@ -299,7 +298,7 @@ inputs = {
 
 	for range callers {
 		g.Go(func() error {
-			runCtx, run := newTestParsingContext(t, path)
+			runCtx, run := newTestUnitParsingContext(t, path)
 			run = run.WithFileReadTracking()
 
 			if _, err := parsed.ToV1(runCtx, l, v, config.NewParseContext(v, run)); err != nil {
@@ -320,13 +319,13 @@ inputs = {
 func TestResolveUnitConfigSendsDiagnosticsToItsCallersHandler(t *testing.T) {
 	t.Parallel()
 
-	path := filepath.Join(vfs.MemRoot, pkgconfig.DefaultTerragruntConfigPath)
+	path := filepath.Join(vfs.MemRoot, config.DefaultTerragruntConfigPath)
 
 	fsys := vfs.NewMemMapFS()
 	require.NoError(t, vfs.WriteFile(fsys, path, []byte("terraform_binary = local.missing\n"), 0o644))
 
 	v := venv.MemVenv().WithFS(fsys)
-	ctx, run := newTestParsingContext(t, path)
+	ctx, run := newTestUnitParsingContext(t, path)
 
 	var received hcl.Diagnostics
 
@@ -378,13 +377,13 @@ engine {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			path := filepath.Join(vfs.MemRoot, "app", pkgconfig.DefaultTerragruntConfigPath)
+			path := filepath.Join(vfs.MemRoot, "app", config.DefaultTerragruntConfigPath)
 
 			fsys := vfs.NewMemMapFS()
 			require.NoError(t, vfs.WriteFile(fsys, path, []byte(unit), 0o644))
 
 			v := venv.MemVenv().WithFS(fsys)
-			ctx, run := newTestParsingContext(t, path)
+			ctx, run := newTestUnitParsingContext(t, path)
 			run.DecodedDependencies = tc.supplied
 
 			cfg, err := new(config.Store).ResolveUnitQueueConfig(
@@ -411,7 +410,7 @@ func TestResolveUnitQueueConfigKeepsMergedSignalsApartWithRacing(t *testing.T) {
 	const callers = 16
 
 	root := vfs.MemRoot
-	path := filepath.Join(root, "app", pkgconfig.DefaultTerragruntConfigPath)
+	path := filepath.Join(root, "app", config.DefaultTerragruntConfigPath)
 
 	fsys := vfs.NewMemMapFS()
 	require.NoError(t, vfs.WriteFile(fsys, filepath.Join(root, "root.hcl"), []byte(`
@@ -440,7 +439,7 @@ errors {
 	l := logger.CreateLogger()
 	store := &config.Store{}
 
-	ctx, run := newTestParsingContext(t, path)
+	ctx, run := newTestUnitParsingContext(t, path)
 
 	_, err := store.ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(v, run), path)
 	require.NoError(t, err)
@@ -453,7 +452,7 @@ errors {
 
 	for range callers {
 		g.Go(func() error {
-			callerCtx, callerRun := newTestParsingContext(t, path)
+			callerCtx, callerRun := newTestUnitParsingContext(t, path)
 
 			cfg, err := store.ResolveUnitQueueConfig(callerCtx, l, v, config.NewParseContext(v, callerRun), path)
 			if err != nil {
@@ -473,7 +472,7 @@ func TestResolveRunConfigReportsAnIncludeTheParseStoppedBefore(t *testing.T) {
 	t.Parallel()
 
 	root := vfs.MemRoot
-	path := filepath.Join(root, "app", pkgconfig.DefaultTerragruntConfigPath)
+	path := filepath.Join(root, "app", config.DefaultTerragruntConfigPath)
 
 	files := map[string]string{
 		"a.hcl": "locals {}\n",
@@ -503,7 +502,7 @@ include "r" {
 	}
 
 	v := venv.MemVenv().WithFS(fsys)
-	ctx, run := newTestParsingContext(t, path)
+	ctx, run := newTestUnitParsingContext(t, path)
 
 	cfg, err := new(config.Store).ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, run), path)
 
@@ -523,7 +522,7 @@ func TestResolveRunConfigAddsTheRunParts(t *testing.T) {
 	l := logger.CreateLogger()
 	store := &config.Store{}
 
-	ctx, run := newTestParsingContext(t, paths[0])
+	ctx, run := newTestUnitParsingContext(t, paths[0])
 
 	queueCfg, err := store.ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(v, run), paths[0])
 	require.NoError(t, err)
@@ -542,14 +541,14 @@ func TestResolveRunConfigAddsTheRunParts(t *testing.T) {
 func TestResolveRunConfigReturnsNoConfigForAMissingFile(t *testing.T) {
 	t.Parallel()
 
-	path := filepath.Join(vfs.MemRoot, pkgconfig.DefaultTerragruntConfigPath)
+	path := filepath.Join(vfs.MemRoot, config.DefaultTerragruntConfigPath)
 	v := venv.MemVenv().WithFS(vfs.NewMemMapFS())
-	ctx, run := newTestParsingContext(t, path)
+	ctx, run := newTestUnitParsingContext(t, path)
 
 	cfg, err := new(
 		config.Store,
 	).ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, run), path)
-	require.ErrorAs(t, err, new(pkgconfig.TerragruntConfigNotFoundError))
+	require.ErrorAs(t, err, new(config.TerragruntConfigNotFoundError))
 	assert.Nil(t, cfg)
 }
 
@@ -560,7 +559,7 @@ func TestReadTerragruntConfigReadsThroughTheStore(t *testing.T) {
 	v := venv.MemVenv().WithFS(fsys)
 	store := &config.Store{}
 
-	ctx, run := newTestParsingContext(t, paths[0])
+	ctx, run := newTestUnitParsingContext(t, paths[0])
 
 	cfg, err := store.ReadTerragruntConfig(ctx, logger.CreateLogger(), v, run)
 	require.NoError(t, err)
@@ -581,14 +580,14 @@ func TestDependencyReadsReachOnlyARun(t *testing.T) {
 	l := logger.CreateLogger()
 	store := &config.Store{}
 
-	ctx, queueRun := newTestParsingContext(t, path)
+	ctx, queueRun := newTestUnitParsingContext(t, path)
 	queueRun = queueRun.WithFileReadTracking()
 
 	_, err := store.ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(v, queueRun), path)
 	require.NoError(t, err)
 	assert.NotContains(t, queueRun.FilesRead.Paths(), readByDependency)
 
-	runCtx, run := newTestParsingContext(t, path)
+	runCtx, run := newTestUnitParsingContext(t, path)
 	run = run.WithFileReadTracking()
 
 	_, err = store.ResolveRunConfig(runCtx, l, v, config.NewParseContext(v, run), path)
@@ -599,7 +598,7 @@ func TestDependencyReadsReachOnlyARun(t *testing.T) {
 func TestResolveUnitBaseVariablesStopsBeforeTheDependencyBlocks(t *testing.T) {
 	t.Parallel()
 
-	path := filepath.Join(vfs.MemRoot, pkgconfig.DefaultTerragruntConfigPath)
+	path := filepath.Join(vfs.MemRoot, config.DefaultTerragruntConfigPath)
 
 	fsys := vfs.NewMemMapFS()
 	require.NoError(t, vfs.WriteFile(fsys, path, []byte(`
@@ -616,11 +615,11 @@ dependency "vpc" {
 	l := logger.CreateLogger()
 	store := &config.Store{}
 
-	ctx, run := newTestParsingContext(t, path)
+	ctx, run := newTestUnitParsingContext(t, path)
 
 	vars, err := store.ResolveUnitBaseVariables(ctx, l, v, config.NewParseContext(v, run), path)
 	require.NoError(t, err)
-	assert.Equal(t, "us-east-1", vars[pkgconfig.MetadataLocal].GetAttr("region").AsString())
+	assert.Equal(t, "us-east-1", vars[config.MetadataLocal].GetAttr("region").AsString())
 
 	_, err = store.ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(v, run), path)
 	require.Error(t, err)
@@ -635,7 +634,7 @@ func TestResolveUnitQueueConfigBuildsOnTheBaseVariables(t *testing.T) {
 	l := logger.CreateLogger()
 	store := &config.Store{}
 
-	ctx, run := newTestParsingContext(t, paths[0])
+	ctx, run := newTestUnitParsingContext(t, paths[0])
 
 	_, err := store.ResolveUnitBaseVariables(ctx, l, v, config.NewParseContext(v, run), paths[0])
 	require.NoError(t, err)
@@ -674,7 +673,7 @@ func TestResolveUnitBaseVariablesEvaluatesOnceWithRacing(t *testing.T) {
 
 	for range callers {
 		g.Go(func() error {
-			ctx, run := newTestParsingContext(t, paths[0])
+			ctx, run := newTestUnitParsingContext(t, paths[0])
 			run = run.WithFileReadTracking()
 
 			vars, err := store.ResolveUnitBaseVariables(ctx, l, v, config.NewParseContext(v, run), paths[0])
@@ -682,7 +681,7 @@ func TestResolveUnitBaseVariablesEvaluatesOnceWithRacing(t *testing.T) {
 				return err
 			}
 
-			assert.Equal(t, "unit", vars[pkgconfig.MetadataLocal].GetAttr("name").AsString())
+			assert.Equal(t, "unit", vars[config.MetadataLocal].GetAttr("name").AsString())
 			assert.Contains(t, run.FilesRead.Paths(), filepath.Join(root, "common.yaml"))
 
 			return nil
@@ -707,22 +706,22 @@ func TestResolveUnitBaseVariablesGivesEachCallerItsOwnMap(t *testing.T) {
 	l := logger.CreateLogger()
 	store := &config.Store{}
 
-	ctx, run := newTestParsingContext(t, paths[0])
+	ctx, run := newTestUnitParsingContext(t, paths[0])
 
 	first, err := store.ResolveUnitBaseVariables(ctx, l, v, config.NewParseContext(v, run), paths[0])
 	require.NoError(t, err)
 
-	delete(first, pkgconfig.MetadataLocal)
+	delete(first, config.MetadataLocal)
 
 	second, err := store.ResolveUnitBaseVariables(ctx, l, v, config.NewParseContext(v, run), paths[0])
 	require.NoError(t, err)
-	assert.Contains(t, second, pkgconfig.MetadataLocal)
+	assert.Contains(t, second, config.MetadataLocal)
 }
 
 func TestResolveUnitBaseVariablesDoesNotRetainAFailedBase(t *testing.T) {
 	t.Parallel()
 
-	path := filepath.Join(vfs.MemRoot, pkgconfig.DefaultTerragruntConfigPath)
+	path := filepath.Join(vfs.MemRoot, config.DefaultTerragruntConfigPath)
 
 	fsys := vfs.NewMemMapFS()
 	require.NoError(t, vfs.WriteFile(fsys, path, []byte(`
@@ -736,7 +735,7 @@ locals {
 	store := &config.Store{}
 
 	resolve := func() error {
-		ctx, run := newTestParsingContext(t, path)
+		ctx, run := newTestUnitParsingContext(t, path)
 
 		_, err := store.ResolveUnitBaseVariables(ctx, l, v, config.NewParseContext(v, run), path)
 
@@ -755,7 +754,7 @@ func TestResolveUnitBaseVariablesReportsAnEvalContextFailure(t *testing.T) {
 	t.Parallel()
 
 	root := vfs.MemRoot
-	path := filepath.Join(root, "app", pkgconfig.DefaultTerragruntConfigPath)
+	path := filepath.Join(root, "app", config.DefaultTerragruntConfigPath)
 
 	fsys := vfs.NewMemMapFS()
 	require.NoError(t, vfs.WriteFile(
@@ -776,7 +775,7 @@ include "exposed" {
 	store := &config.Store{}
 
 	resolve := func() (map[string]cty.Value, error) {
-		ctx, run := newTestParsingContext(t, path)
+		ctx, run := newTestUnitParsingContext(t, path)
 
 		return store.ResolveUnitBaseVariables(ctx, l, v, config.NewParseContext(v, run), path)
 	}
@@ -795,9 +794,9 @@ include "exposed" {
 func TestResolveUnitBaseVariablesReturnsNoVariablesForAMissingFile(t *testing.T) {
 	t.Parallel()
 
-	path := filepath.Join(vfs.MemRoot, pkgconfig.DefaultTerragruntConfigPath)
+	path := filepath.Join(vfs.MemRoot, config.DefaultTerragruntConfigPath)
 	v := venv.MemVenv().WithFS(vfs.NewMemMapFS())
-	ctx, run := newTestParsingContext(t, path)
+	ctx, run := newTestUnitParsingContext(t, path)
 
 	vars, err := new(config.Store).ResolveUnitBaseVariables(
 		ctx,
@@ -806,7 +805,7 @@ func TestResolveUnitBaseVariablesReturnsNoVariablesForAMissingFile(t *testing.T)
 		config.NewParseContext(v, run),
 		path,
 	)
-	require.ErrorAs(t, err, new(pkgconfig.TerragruntConfigNotFoundError))
+	require.ErrorAs(t, err, new(config.TerragruntConfigNotFoundError))
 	assert.Nil(t, vars)
 }
 
@@ -820,7 +819,7 @@ func TestResolveUnitConfigSharesIncludedFilesAcrossUnits(t *testing.T) {
 	store := &config.Store{}
 
 	for _, path := range paths {
-		ctx, run := newTestParsingContext(t, path)
+		ctx, run := newTestUnitParsingContext(t, path)
 
 		pc := config.NewParseContext(v, run)
 
@@ -850,7 +849,7 @@ func TestResolveUnitConfigLabelsBareIncludeUnderTwoContextsWithRacing(t *testing
 		vfs.WriteFile(fsys, filepath.Join(root, "root.hcl"), []byte("inputs = { a = 1 }\n"), 0o644),
 	)
 
-	unit := filepath.Join(root, "unit", pkgconfig.DefaultTerragruntConfigPath)
+	unit := filepath.Join(root, "unit", config.DefaultTerragruntConfigPath)
 	require.NoError(t, vfs.WriteFile(fsys, unit, []byte(`
 include {
   path = find_in_parent_folders("root.hcl")
@@ -867,7 +866,7 @@ include {
 
 		for _, workingDir := range []string{filepath.Dir(unit), filepath.Join(root, "other")} {
 			g.Go(func() error {
-				ctx, run := newTestParsingContext(t, unit)
+				ctx, run := newTestUnitParsingContext(t, unit)
 				run.WorkingDir = workingDir
 
 				cfg, err := store.ResolveUnitQueueConfig(
@@ -901,7 +900,7 @@ func TestResolveUnitQueueConfigReadsAChangedFileOnTheNextCall(t *testing.T) {
 	store := &config.Store{}
 
 	region := func() any {
-		ctx, run := newTestParsingContext(t, paths[0])
+		ctx, run := newTestUnitParsingContext(t, paths[0])
 		run = run.WithFileReadTracking()
 
 		cfg, err := store.ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(v, run), paths[0])
@@ -941,7 +940,7 @@ func TestResolveUnitQueueConfigScansAnIncludedFileAgainWhenItChanges(t *testing.
 			store := &config.Store{}
 
 			resolve := func(path string) {
-				ctx, run := newTestParsingContext(t, path)
+				ctx, run := newTestUnitParsingContext(t, path)
 
 				_, err := store.ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(v, run), path)
 				require.NoError(t, err)
@@ -976,7 +975,7 @@ func TestResolveUnitQueueConfigMergesAnExposedIncludeFromTheResolutionOfItsVaria
 	t.Parallel()
 
 	root := vfs.MemRoot
-	path := filepath.Join(root, "app", pkgconfig.DefaultTerragruntConfigPath)
+	path := filepath.Join(root, "app", config.DefaultTerragruntConfigPath)
 
 	fsys := vfs.NewMemMapFS()
 	require.NoError(t, vfs.WriteFile(
@@ -998,7 +997,7 @@ locals {
 
 	v := venv.MemVenv().WithFS(fsys)
 	store := &config.Store{}
-	ctx, run := newTestParsingContext(t, path)
+	ctx, run := newTestUnitParsingContext(t, path)
 
 	cfg, err := store.ResolveUnitQueueConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, run), path)
 	require.NoError(t, err)
@@ -1022,7 +1021,7 @@ func TestResolveUnitConfigRunsUnmemoizedForSuppliedValues(t *testing.T) {
 	l := logger.CreateLogger()
 	store := &config.Store{}
 
-	ctx, run := newTestParsingContext(t, paths[0])
+	ctx, run := newTestUnitParsingContext(t, paths[0])
 	locals := cty.ObjectVal(map[string]cty.Value{"from_run": cty.StringVal("run")})
 	run.Locals = &locals
 
@@ -1042,7 +1041,7 @@ func TestResolveUnitConfigRunsUnmemoizedForSuppliedValues(t *testing.T) {
 func TestResolveUnitQueueConfigParsesAgainForAnotherEnvironment(t *testing.T) {
 	t.Parallel()
 
-	path := filepath.Join(vfs.MemRoot, "unit", pkgconfig.DefaultTerragruntConfigPath)
+	path := filepath.Join(vfs.MemRoot, "unit", config.DefaultTerragruntConfigPath)
 
 	fsys := vfs.NewMemMapFS()
 	require.NoError(t, vfs.WriteFile(fsys, path, []byte(`
@@ -1056,7 +1055,7 @@ locals {
 
 	for _, token := range []string{"fake-token", "fake-refreshed-token"} {
 		v := venv.MemVenv().WithFS(fsys).WithEnv(map[string]string{"AWS_SESSION_TOKEN": token})
-		ctx, run := newTestParsingContext(t, path)
+		ctx, run := newTestUnitParsingContext(t, path)
 
 		cfg, err := store.ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(v, run), path)
 		require.NoError(t, err)
@@ -1067,50 +1066,50 @@ locals {
 func TestParseContextStoreContextCoversEachInput(t *testing.T) {
 	t.Parallel()
 
-	cfgPath := filepath.Join(vfs.MemRoot, pkgconfig.DefaultTerragruntConfigPath)
+	cfgPath := filepath.Join(vfs.MemRoot, config.DefaultTerragruntConfigPath)
 	v := venv.MemVenv().WithWriter(new(bytes.Buffer))
 
-	_, base := newTestParsingContext(t, cfgPath)
+	_, base := newTestUnitParsingContext(t, cfgPath)
 	baseKey, memoized := config.NewParseContext(v, base).StoreContext()
 	require.True(t, memoized)
 	require.NotEmpty(t, baseKey)
 
-	keyed := map[string]func(*pkgconfig.ParsingContext){
-		"config path":          func(p *pkgconfig.ParsingContext) { p.TerragruntConfigPath += ".other" },
-		"original config path": func(p *pkgconfig.ParsingContext) { p.OriginalTerragruntConfigPath += ".other" },
-		"working dir":          func(p *pkgconfig.ParsingContext) { p.WorkingDir += "-other" },
-		"root working dir":     func(p *pkgconfig.ParsingContext) { p.RootWorkingDir += "-other" },
-		"download dir":         func(p *pkgconfig.ParsingContext) { p.DownloadDir += "-other" },
-		"source":               func(p *pkgconfig.ParsingContext) { p.Source = "git::other" },
-		"source map":           func(p *pkgconfig.ParsingContext) { p.SourceMap = map[string]string{"a": "b"} },
-		"command":              func(p *pkgconfig.ParsingContext) { p.TerraformCommand = "apply" },
-		"original command":     func(p *pkgconfig.ParsingContext) { p.OriginalTofuCommand = "apply" },
-		"cli args":             func(p *pkgconfig.ParsingContext) { p.TerraformCliArgs = iacargs.New("-lock=false") },
-		"iam role": func(p *pkgconfig.ParsingContext) {
+	keyed := map[string]func(*config.ParsingContext){
+		"config path":          func(p *config.ParsingContext) { p.TerragruntConfigPath += ".other" },
+		"original config path": func(p *config.ParsingContext) { p.OriginalTerragruntConfigPath += ".other" },
+		"working dir":          func(p *config.ParsingContext) { p.WorkingDir += "-other" },
+		"root working dir":     func(p *config.ParsingContext) { p.RootWorkingDir += "-other" },
+		"download dir":         func(p *config.ParsingContext) { p.DownloadDir += "-other" },
+		"source":               func(p *config.ParsingContext) { p.Source = "git::other" },
+		"source map":           func(p *config.ParsingContext) { p.SourceMap = map[string]string{"a": "b"} },
+		"command":              func(p *config.ParsingContext) { p.TerraformCommand = "apply" },
+		"original command":     func(p *config.ParsingContext) { p.OriginalTofuCommand = "apply" },
+		"cli args":             func(p *config.ParsingContext) { p.TerraformCliArgs = iacargs.New("-lock=false") },
+		"iam role": func(p *config.ParsingContext) {
 			p.IAMRoleOptions = iam.RoleOptions{RoleARN: "arn:aws:iam::123456789012:role/a"}
 		},
-		"original iam role": func(p *pkgconfig.ParsingContext) {
+		"original iam role": func(p *config.ParsingContext) {
 			p.OriginalIAMRoleOptions = iam.RoleOptions{AssumeRoleDuration: 1}
 		},
-		"feature flags":     func(p *pkgconfig.ParsingContext) { p.FeatureFlags = map[string]string{"f": "1"} },
-		"auth provider cmd": func(p *pkgconfig.ParsingContext) { p.AuthProviderCmd = "creds" },
-		"diagnostics":       func(p *pkgconfig.ParsingContext) { p.Parser.Diagnostics = pkgconfig.DiagnosticsSuppressed },
-		"ignore diagnostics": func(p *pkgconfig.ParsingContext) {
+		"feature flags":     func(p *config.ParsingContext) { p.FeatureFlags = map[string]string{"f": "1"} },
+		"auth provider cmd": func(p *config.ParsingContext) { p.AuthProviderCmd = "creds" },
+		"diagnostics":       func(p *config.ParsingContext) { p.Parser.Diagnostics = config.DiagnosticsSuppressed },
+		"ignore diagnostics": func(p *config.ParsingContext) {
 			p.Parser.IgnoreDiagnostics = true
 		},
-		"bare include rewrite": func(p *pkgconfig.ParsingContext) {
+		"bare include rewrite": func(p *config.ParsingContext) {
 			p.Parser.RewriteBareInclude = !p.Parser.RewriteBareInclude
 		},
-		"halt only in blocks": func(p *pkgconfig.ParsingContext) {
+		"halt only in blocks": func(p *config.ParsingContext) {
 			p.Parser.HaltOnErrorOnlyInBlocks = []string{"catalog"}
 		},
-		"skip output":             func(p *pkgconfig.ParsingContext) { p.SkipOutput = true },
-		"skip outputs resolution": func(p *pkgconfig.ParsingContext) { p.SkipOutputsResolution = true },
-		"parse depth":             func(p *pkgconfig.ParsingContext) { p.ParseDepth = 3 },
-		"skip autoinclude merge":  func(p *pkgconfig.ParsingContext) { p.SkipAutoIncludeMerge = true },
-		"read tracking":           func(p *pkgconfig.ParsingContext) { p.FilesRead = pkgconfig.NewFilesRead() },
-		"partial parse": func(p *pkgconfig.ParsingContext) {
-			p.PartialParseDecodeList = []pkgconfig.PartialDecodeSectionType{pkgconfig.ExcludeBlock}
+		"skip output":             func(p *config.ParsingContext) { p.SkipOutput = true },
+		"skip outputs resolution": func(p *config.ParsingContext) { p.SkipOutputsResolution = true },
+		"parse depth":             func(p *config.ParsingContext) { p.ParseDepth = 3 },
+		"skip autoinclude merge":  func(p *config.ParsingContext) { p.SkipAutoIncludeMerge = true },
+		"read tracking":           func(p *config.ParsingContext) { p.FilesRead = config.NewFilesRead() },
+		"partial parse": func(p *config.ParsingContext) {
+			p.PartialParseDecodeList = []config.PartialDecodeSectionType{config.ExcludeBlock}
 		},
 	}
 
@@ -1118,7 +1117,7 @@ func TestParseContextStoreContextCoversEachInput(t *testing.T) {
 		t.Run("keyed/"+name, func(t *testing.T) {
 			t.Parallel()
 
-			_, run := newTestParsingContext(t, cfgPath)
+			_, run := newTestUnitParsingContext(t, cfgPath)
 			mutate(run)
 
 			key, memoized := config.NewParseContext(v, run).StoreContext()
@@ -1127,18 +1126,18 @@ func TestParseContextStoreContextCoversEachInput(t *testing.T) {
 		})
 	}
 
-	fixed := map[string]func(*pkgconfig.ParsingContext){
-		"tofu binary":       func(p *pkgconfig.ParsingContext) { p.TFPath = "terraform" },
-		"log abs paths":     func(p *pkgconfig.ParsingContext) { p.LogShowAbsPaths = true },
-		"debug":             func(p *pkgconfig.ParsingContext) { p.Debug = true },
-		"max parent probes": func(p *pkgconfig.ParsingContext) { p.MaxFoldersToCheck = 5 },
+	fixed := map[string]func(*config.ParsingContext){
+		"tofu binary":       func(p *config.ParsingContext) { p.TFPath = "terraform" },
+		"log abs paths":     func(p *config.ParsingContext) { p.LogShowAbsPaths = true },
+		"debug":             func(p *config.ParsingContext) { p.Debug = true },
+		"max parent probes": func(p *config.ParsingContext) { p.MaxFoldersToCheck = 5 },
 	}
 
 	for name, mutate := range fixed {
 		t.Run("fixed/"+name, func(t *testing.T) {
 			t.Parallel()
 
-			_, run := newTestParsingContext(t, cfgPath)
+			_, run := newTestUnitParsingContext(t, cfgPath)
 			mutate(run)
 
 			key, memoized := config.NewParseContext(v, run).StoreContext()
@@ -1156,7 +1155,7 @@ func TestParseContextStoreContextCoversEachInput(t *testing.T) {
 		t.Run("keyed/"+name, func(t *testing.T) {
 			t.Parallel()
 
-			_, run := newTestParsingContext(t, cfgPath)
+			_, run := newTestUnitParsingContext(t, cfgPath)
 
 			key, memoized := config.NewParseContext(other, run).StoreContext()
 			require.True(t, memoized)
@@ -1174,7 +1173,7 @@ func TestParseContextStoreContextCoversEachInput(t *testing.T) {
 		t.Run("fixed/"+name, func(t *testing.T) {
 			t.Parallel()
 
-			_, run := newTestParsingContext(t, cfgPath)
+			_, run := newTestUnitParsingContext(t, cfgPath)
 
 			key, memoized := config.NewParseContext(other, run).StoreContext()
 			require.True(t, memoized)
@@ -1183,13 +1182,13 @@ func TestParseContextStoreContextCoversEachInput(t *testing.T) {
 	}
 
 	value := cty.StringVal("v")
-	unmemoized := map[string]func(*pkgconfig.ParsingContext){
-		"locals":       func(p *pkgconfig.ParsingContext) { p.Locals = &value },
-		"values":       func(p *pkgconfig.ParsingContext) { p.Values = &value },
-		"features":     func(p *pkgconfig.ParsingContext) { p.Features = &value },
-		"dependencies": func(p *pkgconfig.ParsingContext) { p.DecodedDependencies = &value },
-		"includes":     func(p *pkgconfig.ParsingContext) { p.TrackInclude = &pkgconfig.TrackInclude{} },
-		"diagnostics handler": func(p *pkgconfig.ParsingContext) {
+	unmemoized := map[string]func(*config.ParsingContext){
+		"locals":       func(p *config.ParsingContext) { p.Locals = &value },
+		"values":       func(p *config.ParsingContext) { p.Values = &value },
+		"features":     func(p *config.ParsingContext) { p.Features = &value },
+		"dependencies": func(p *config.ParsingContext) { p.DecodedDependencies = &value },
+		"includes":     func(p *config.ParsingContext) { p.TrackInclude = &config.TrackInclude{} },
+		"diagnostics handler": func(p *config.ParsingContext) {
 			p.Parser.DiagnosticsHandler = func(*hcl.File, hcl.Diagnostics) (hcl.Diagnostics, error) { return nil, nil }
 		},
 	}
@@ -1198,7 +1197,7 @@ func TestParseContextStoreContextCoversEachInput(t *testing.T) {
 		t.Run("unmemoized/"+name, func(t *testing.T) {
 			t.Parallel()
 
-			_, run := newTestParsingContext(t, cfgPath)
+			_, run := newTestUnitParsingContext(t, cfgPath)
 			mutate(run)
 
 			_, memoized := config.NewParseContext(v, run).StoreContext()
@@ -1210,13 +1209,13 @@ func TestParseContextStoreContextCoversEachInput(t *testing.T) {
 func TestParseContextStoreContextKeysTheSectionsOfTheDecodeList(t *testing.T) {
 	t.Parallel()
 
-	cfgPath := filepath.Join(t.TempDir(), pkgconfig.DefaultTerragruntConfigPath)
+	cfgPath := filepath.Join(t.TempDir(), config.DefaultTerragruntConfigPath)
 	v := venv.MemVenv().WithWriter(new(bytes.Buffer))
 
-	key := func(t *testing.T, sections ...pkgconfig.PartialDecodeSectionType) string {
+	key := func(t *testing.T, sections ...config.PartialDecodeSectionType) string {
 		t.Helper()
 
-		_, run := newTestParsingContext(t, cfgPath)
+		_, run := newTestUnitParsingContext(t, cfgPath)
 		run.PartialParseDecodeList = sections
 
 		key, memoized := config.NewParseContext(v, run).StoreContext()
@@ -1225,14 +1224,14 @@ func TestParseContextStoreContextKeysTheSectionsOfTheDecodeList(t *testing.T) {
 		return key
 	}
 
-	excludeOnly := key(t, pkgconfig.ExcludeBlock)
+	excludeOnly := key(t, config.ExcludeBlock)
 
-	assert.NotEqual(t, excludeOnly, key(t, pkgconfig.RemoteStateBlock))
-	assert.NotEqual(t, excludeOnly, key(t, pkgconfig.ExcludeBlock, pkgconfig.RemoteStateBlock))
+	assert.NotEqual(t, excludeOnly, key(t, config.RemoteStateBlock))
+	assert.NotEqual(t, excludeOnly, key(t, config.ExcludeBlock, config.RemoteStateBlock))
 	assert.Equal(
 		t,
-		key(t, pkgconfig.ExcludeBlock, pkgconfig.RemoteStateBlock),
-		key(t, pkgconfig.RemoteStateBlock, pkgconfig.ExcludeBlock, pkgconfig.ExcludeBlock),
+		key(t, config.ExcludeBlock, config.RemoteStateBlock),
+		key(t, config.RemoteStateBlock, config.ExcludeBlock, config.ExcludeBlock),
 	)
 }
 
@@ -1261,7 +1260,7 @@ func TestParityFixturesSharedStoreWithRacing(t *testing.T) {
 					assertParity(t, parityCase{
 						newFS:     fixtures.newFS,
 						cfgPath:   fixture.path,
-						configure: func(*pkgconfig.ParsingContext) {},
+						configure: func(*config.ParsingContext) {},
 						store:     store,
 					})
 				})
@@ -1340,7 +1339,7 @@ include "root" {
 
 	v := venv.MemVenv().WithFS(fsys)
 	l := logger.CreateLogger()
-	path := filepath.Join(root, "app", pkgconfig.DefaultTerragruntConfigPath)
+	path := filepath.Join(root, "app", config.DefaultTerragruntConfigPath)
 
 	for b.Loop() {
 		parseForBenchmark(b, l, v, &config.Store{}, path)

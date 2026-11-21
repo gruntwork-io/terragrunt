@@ -15,9 +15,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	config "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	pkghclparse "github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
+	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 )
 
 var errBody = errors.New("body failed")
@@ -464,11 +463,11 @@ func TestStoreParseUnitASTSharesOneParse(t *testing.T) {
 		fsys,
 		path,
 		stat(t, fsys, path),
-		pkghclparse.NewParser(),
+		hclparse.NewParser(),
 	)
 	require.NoError(t, err)
 
-	parser := pkghclparse.NewParser()
+	parser := hclparse.NewParser()
 
 	second, err := s.ParseUnitAST(t.Context(), fsys, path, stat(t, fsys, path), parser)
 	require.NoError(t, err)
@@ -493,7 +492,7 @@ func TestStoreParseUnitASTParsesAgainWhenTheFileChanges(t *testing.T) {
 		fsys,
 		path,
 		stat(t, fsys, path),
-		pkghclparse.NewParser(),
+		hclparse.NewParser(),
 	)
 	require.NoError(t, err)
 
@@ -504,7 +503,7 @@ func TestStoreParseUnitASTParsesAgainWhenTheFileChanges(t *testing.T) {
 		fsys,
 		path,
 		stat(t, fsys, path),
-		pkghclparse.NewParser(),
+		hclparse.NewParser(),
 	)
 	require.NoError(t, err)
 
@@ -542,7 +541,7 @@ func TestStoreParseUnitASTParsesAgainAfterJoiningAParseOfAnOlderVersionWithRacin
 				oldDone := make(chan error, 1)
 
 				go func() {
-					_, err := s.ParseUnitAST(t.Context(), fsys, path, oldInfo, pkghclparse.NewParser())
+					_, err := s.ParseUnitAST(t.Context(), fsys, path, oldInfo, hclparse.NewParser())
 					oldDone <- err
 				}()
 
@@ -552,14 +551,14 @@ func TestStoreParseUnitASTParsesAgainAfterJoiningAParseOfAnOlderVersionWithRacin
 
 				type parsed struct {
 					err  error
-					file *pkghclparse.File
+					file *hclparse.File
 				}
 
 				newInfo := stat(t, mem, path)
 				newDone := make(chan parsed, 1)
 
 				go func() {
-					file, err := s.ParseUnitAST(t.Context(), fsys, path, newInfo, pkghclparse.NewParser())
+					file, err := s.ParseUnitAST(t.Context(), fsys, path, newInfo, hclparse.NewParser())
 					newDone <- parsed{file: file, err: err}
 				}()
 
@@ -590,10 +589,10 @@ func TestStoreParseUnitASTDoesNotRetainParseErrors(t *testing.T) {
 
 	s := &config.Store{}
 
-	_, err := s.ParseUnitAST(t.Context(), fsys, path, stat(t, fsys, path), pkghclparse.NewParser())
+	_, err := s.ParseUnitAST(t.Context(), fsys, path, stat(t, fsys, path), hclparse.NewParser())
 	require.Error(t, err)
 
-	_, err = s.ParseUnitAST(t.Context(), fsys, path, stat(t, fsys, path), pkghclparse.NewParser())
+	_, err = s.ParseUnitAST(t.Context(), fsys, path, stat(t, fsys, path), hclparse.NewParser())
 	require.Error(t, err)
 
 	assert.Equal(t, config.Stats{Hits: 0, Misses: 2}, s.Stats())
@@ -610,7 +609,7 @@ func TestStoreParseUnitASTJoinsTheEnclosingRun(t *testing.T) {
 	unit := config.Key{Path: "/repo/unit/terragrunt.hcl", Context: "unit", Stage: config.StageQueue}
 
 	body := func(ctx context.Context) (string, error) {
-		_, err := s.ParseUnitAST(ctx, fsys, path, stat(t, fsys, path), pkghclparse.NewParser())
+		_, err := s.ParseUnitAST(ctx, fsys, path, stat(t, fsys, path), hclparse.NewParser())
 
 		return "unit", err
 	}
@@ -649,13 +648,13 @@ func BenchmarkStoreASTHit(b *testing.B) {
 	s := &config.Store{}
 	info := stat(b, fsys, path)
 
-	_, err := s.ParseUnitAST(b.Context(), fsys, path, info, pkghclparse.NewParser())
+	_, err := s.ParseUnitAST(b.Context(), fsys, path, info, hclparse.NewParser())
 	require.NoError(b, err)
 
 	b.ResetTimer()
 
 	for b.Loop() {
-		_, err := s.ParseUnitAST(b.Context(), fsys, path, info, pkghclparse.NewParser())
+		_, err := s.ParseUnitAST(b.Context(), fsys, path, info, hclparse.NewParser())
 		require.NoError(b, err)
 	}
 }

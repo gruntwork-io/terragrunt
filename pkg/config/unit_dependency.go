@@ -7,36 +7,35 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	pkgconfig "github.com/gruntwork-io/terragrunt/pkg/config"
-	pkghclparse "github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
+	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-// resolvedDependencies is the value of the `dependency` variable and the blocks it was resolved from.
-type resolvedDependencies struct {
+// dependencyResolution is the value of the `dependency` variable and the blocks it was resolved from.
+type dependencyResolution struct {
 	value  *cty.Value
-	blocks pkgconfig.Dependencies
+	blocks Dependencies
 }
 
 // runDependencies returns the `dependency` value run supplied with its blocks, and nil when run supplied none.
-func runDependencies(run *pkgconfig.ParsingContext) *resolvedDependencies {
+func runDependencies(run *ParsingContext) *dependencyResolution {
 	if run.DecodedDependencies == nil {
 		return nil
 	}
 
-	return &resolvedDependencies{value: run.DecodedDependencies, blocks: run.DependencyBlocks}
+	return &dependencyResolution{value: run.DecodedDependencies, blocks: run.DependencyBlocks}
 }
 
 // dependencySet is the dependency blocks of a file that resolves its own dependencies.
 type dependencySet struct {
 	// included maps the name of each include block of the file to the dependency blocks of the file it names.
-	included map[string]pkgconfig.Dependencies
+	included map[string]Dependencies
 	// configPath is the path of the owning file.
 	configPath string
 	// own is the blocks the file declares, with those of its autoinclude folded in.
-	own pkgconfig.Dependencies
+	own Dependencies
 	// blocks is own merged with the blocks of the file's includes.
-	blocks pkgconfig.Dependencies
+	blocks Dependencies
 }
 
 // newDependencySet decodes the dependency blocks of file, which holds c's syntax tree, with pc and the variables
@@ -49,8 +48,8 @@ func (c *UnitConfig) newDependencySet(
 	l log.Logger,
 	v *venv.Venv,
 	pc *ParseContext,
-	file *pkghclparse.File,
-	included pkgconfig.IncludedDependencies,
+	file *hclparse.File,
+	included IncludedDependencies,
 	fns *parseFunctions,
 ) (*dependencySet, error) {
 	if c.evalVars == nil {
@@ -64,7 +63,7 @@ func (c *UnitConfig) newDependencySet(
 		evalCtx = dependencyBlockContext(pctx, c.evalContext(fns, pctx))
 	}
 
-	own, err := pkgconfig.DecodeOwnDependencies(ctx, l, v, pctx, file, evalCtx)
+	own, err := DecodeOwnDependencies(ctx, l, v, pctx, file, evalCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +72,7 @@ func (c *UnitConfig) newDependencySet(
 		configPath: file.ConfigPath,
 		own:        own,
 		blocks:     own,
-		included:   map[string]pkgconfig.Dependencies{},
+		included:   map[string]Dependencies{},
 	}
 
 	if pctx.TrackInclude == nil {
@@ -83,8 +82,8 @@ func (c *UnitConfig) newDependencySet(
 	recording := func(
 		ctx context.Context,
 		l log.Logger,
-		include *pkgconfig.IncludeConfig,
-	) (pkgconfig.Dependencies, error) {
+		include *IncludeConfig,
+	) (Dependencies, error) {
 		blocks, err := included(ctx, l, include)
 		if err != nil {
 			return nil, err
@@ -95,7 +94,7 @@ func (c *UnitConfig) newDependencySet(
 		return blocks, nil
 	}
 
-	set.blocks, err = pkgconfig.MergeIncludedDependencies(ctx, l, pctx, own, recording)
+	set.blocks, err = MergeIncludedDependencies(ctx, l, pctx, own, recording)
 	if err != nil {
 		return nil, err
 	}
@@ -111,11 +110,11 @@ func (s *dependencySet) resolve(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	pctx *pkgconfig.ParsingContext,
-) (*resolvedDependencies, error) {
+	pctx *ParsingContext,
+) (*dependencyResolution, error) {
 	blocks, err := s.loaded(ctx, l, v, pctx)
 	if err != nil {
-		return &resolvedDependencies{value: failedDependencyValue(nil)}, err
+		return &dependencyResolution{value: failedDependencyValue(nil)}, err
 	}
 
 	names := make([]string, 0, len(blocks))
@@ -125,7 +124,7 @@ func (s *dependencySet) resolve(
 
 	var result *cty.Value
 
-	err = pkgconfig.TraceParseDependencies(
+	err = TraceParseDependencies(
 		ctx,
 		l,
 		s.configPath,
@@ -135,16 +134,16 @@ func (s *dependencySet) resolve(
 		func(ctx context.Context, l log.Logger) error {
 			var encodeErr error
 
-			result, encodeErr = pkgconfig.DependencyBlocksToCtyValue(ctx, l, v, pctx, blocks)
+			result, encodeErr = DependencyBlocksToCtyValue(ctx, l, v, pctx, blocks)
 
 			return encodeErr
 		},
 	)
 	if err != nil {
-		return &resolvedDependencies{value: failedDependencyValue(result), blocks: blocks}, err
+		return &dependencyResolution{value: failedDependencyValue(result), blocks: blocks}, err
 	}
 
-	return &resolvedDependencies{value: result, blocks: blocks}, nil
+	return &dependencyResolution{value: result, blocks: blocks}, nil
 }
 
 // loaded returns the blocks of s with the config of each of the file's own dependencies loaded, merged with the
@@ -153,9 +152,9 @@ func (s *dependencySet) loaded(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	pctx *pkgconfig.ParsingContext,
-) (pkgconfig.Dependencies, error) {
-	own, err := pkgconfig.LoadDependencyConfigs(ctx, l, v, pctx, s.own)
+	pctx *ParsingContext,
+) (Dependencies, error) {
+	own, err := LoadDependencyConfigs(ctx, l, v, pctx, s.own)
 	if err != nil {
 		return nil, err
 	}
@@ -164,11 +163,11 @@ func (s *dependencySet) loaded(
 		return own, nil
 	}
 
-	kept := func(_ context.Context, _ log.Logger, include *pkgconfig.IncludeConfig) (pkgconfig.Dependencies, error) {
+	kept := func(_ context.Context, _ log.Logger, include *IncludeConfig) (Dependencies, error) {
 		return s.included[include.Name], nil
 	}
 
-	return pkgconfig.MergeIncludedDependencies(ctx, l, pctx, own, kept)
+	return MergeIncludedDependencies(ctx, l, pctx, own, kept)
 }
 
 // dependencyValue returns the `dependency` value ToV1 decodes c with, and the blocks it was resolved from: the
@@ -183,7 +182,7 @@ func (c *UnitConfig) dependencyValue(
 	l log.Logger,
 	v *venv.Venv,
 	pc *ParseContext,
-) (*resolvedDependencies, error) {
+) (*dependencyResolution, error) {
 	if pc.file.decodedDeps != nil {
 		return pc.file.decodedDeps, nil
 	}
@@ -204,16 +203,16 @@ func (c *UnitConfig) dependencyValue(
 			v,
 			pc,
 			c.boundFile(l, v, pc),
-			pkgconfig.ParsedIncludeDependencies(v, pctx),
+			ParsedIncludeDependencies(v, pctx),
 			c.functions(ctx, l, v),
 		)
 		if err != nil {
-			return &resolvedDependencies{value: failedDependencyValue(nil)}, err
+			return &dependencyResolution{value: failedDependencyValue(nil)}, err
 		}
 	}
 
 	if set == nil {
-		return &resolvedDependencies{value: failedDependencyValue(nil)}, nil
+		return &dependencyResolution{value: failedDependencyValue(nil)}, nil
 	}
 
 	return set.resolve(ctx, l, v, pctx)

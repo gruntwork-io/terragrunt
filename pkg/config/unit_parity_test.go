@@ -13,10 +13,9 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 
-	config "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	pkgconfig "github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
@@ -72,7 +71,7 @@ func TestParityFixturesSkipOutput(t *testing.T) {
 			assertParity(t, parityCase{
 				newFS:   fixtures.newFS,
 				cfgPath: fixture.path,
-				configure: func(pctx *pkgconfig.ParsingContext) {
+				configure: func(pctx *config.ParsingContext) {
 					pctx.SkipOutput = true
 					pctx.OriginalTofuCommand = "plan"
 				},
@@ -97,7 +96,7 @@ func TestParityFixturesWithOutput(t *testing.T) {
 			assertParity(t, parityCase{
 				newFS:     fixtures.newFS,
 				cfgPath:   fixture.path,
-				configure: func(*pkgconfig.ParsingContext) {},
+				configure: func(*config.ParsingContext) {},
 			})
 		})
 	}
@@ -669,13 +668,13 @@ dependency "vpc" {
 
 			cfgPath := tc.cfgPath
 			if cfgPath == "" {
-				cfgPath = pkgconfig.DefaultTerragruntConfigPath
+				cfgPath = config.DefaultTerragruntConfigPath
 			}
 
 			assertParity(t, parityCase{
 				newFS:   memFS(root, tc.files),
 				cfgPath: filepath.Join(root, cfgPath),
-				configure: func(pctx *pkgconfig.ParsingContext) {
+				configure: func(pctx *config.ParsingContext) {
 					if tc.stackDeps {
 						pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 					}
@@ -693,10 +692,10 @@ func TestParityUnparsedIncludeMergeStrategies(t *testing.T) {
 
 	testCases := []struct {
 		name          string
-		mergeStrategy pkgconfig.MergeStrategyType
+		mergeStrategy config.MergeStrategyType
 	}{
-		{name: "no merge", mergeStrategy: pkgconfig.NoMerge},
-		{name: "deep merge map only", mergeStrategy: pkgconfig.DeepMergeMapOnly},
+		{name: "no merge", mergeStrategy: config.NoMerge},
+		{name: "deep merge map only", mergeStrategy: config.DeepMergeMapOnly},
 	}
 
 	for _, tc := range testCases {
@@ -713,9 +712,9 @@ include "root" {
 `, tc.mergeStrategy)
 
 			assertParity(t, parityCase{
-				newFS:     memFS(root, map[string]string{pkgconfig.DefaultTerragruntConfigPath: content}),
-				cfgPath:   filepath.Join(root, pkgconfig.DefaultTerragruntConfigPath),
-				configure: func(*pkgconfig.ParsingContext) {},
+				newFS:     memFS(root, map[string]string{config.DefaultTerragruntConfigPath: content}),
+				cfgPath:   filepath.Join(root, config.DefaultTerragruntConfigPath),
+				configure: func(*config.ParsingContext) {},
 			})
 		})
 	}
@@ -767,18 +766,18 @@ engine {
 		},
 		{
 			name:    "json typo",
-			file:    pkgconfig.DefaultTerragruntJSONConfigPath,
+			file:    config.DefaultTerragruntJSONConfigPath,
 			content: `{"iam_rol": "arn:aws:iam::123456789012:role/unit"}`,
 		},
 		{
 			name:    "json engine shape",
-			file:    pkgconfig.DefaultTerragruntJSONConfigPath,
+			file:    config.DefaultTerragruntJSONConfigPath,
 			content: `{"engine": [5]}`,
 			drift:   []drift{driftJSONShapeRepeated},
 		},
 		{
 			name: "json remote state object",
-			file: pkgconfig.DefaultTerragruntJSONConfigPath,
+			file: config.DefaultTerragruntJSONConfigPath,
 			content: `{
   "remote_state": {
     "backend": "local",
@@ -788,7 +787,7 @@ engine {
 		},
 		{
 			name: "json generate object",
-			file: pkgconfig.DefaultTerragruntJSONConfigPath,
+			file: config.DefaultTerragruntJSONConfigPath,
 			content: `{
   "generate": {
     "provider": {
@@ -854,13 +853,13 @@ generate "backend" {
 
 			file := tc.file
 			if file == "" {
-				file = pkgconfig.DefaultTerragruntConfigPath
+				file = config.DefaultTerragruntConfigPath
 			}
 
 			assertParity(t, parityCase{
 				newFS:     memFS(root, map[string]string{file: tc.content}),
 				cfgPath:   filepath.Join(root, file),
-				configure: func(*pkgconfig.ParsingContext) {},
+				configure: func(*config.ParsingContext) {},
 				drift:     tc.drift,
 			})
 		})
@@ -910,7 +909,7 @@ inputs = {
 `,
 	}
 
-	planWithExperiment := func(t *testing.T, pctx *pkgconfig.ParsingContext) {
+	planWithExperiment := func(t *testing.T, pctx *config.ParsingContext) {
 		t.Helper()
 
 		require.NoError(t, pctx.Experiments.EnableExperiment(experiment.OutputsBlock))
@@ -919,7 +918,7 @@ inputs = {
 	}
 
 	testCases := []struct {
-		configure func(t *testing.T, pctx *pkgconfig.ParsingContext)
+		configure func(t *testing.T, pctx *config.ParsingContext)
 		check     func(t *testing.T, result parityResult)
 		outputs   map[string]string
 		name      string
@@ -927,7 +926,7 @@ inputs = {
 	}{
 		{
 			name:      "declaring unit",
-			cfgPath:   filepath.Join(root, "vpc", pkgconfig.DefaultTerragruntConfigPath),
+			cfgPath:   filepath.Join(root, "vpc", config.DefaultTerragruntConfigPath),
 			configure: planWithExperiment,
 			check: func(t *testing.T, result parityResult) {
 				t.Helper()
@@ -938,19 +937,19 @@ inputs = {
 		},
 		{
 			name:      "declaring unit without the experiment",
-			cfgPath:   filepath.Join(root, "vpc", pkgconfig.DefaultTerragruntConfigPath),
-			configure: func(*testing.T, *pkgconfig.ParsingContext) {},
+			cfgPath:   filepath.Join(root, "vpc", config.DefaultTerragruntConfigPath),
+			configure: func(*testing.T, *config.ParsingContext) {},
 			check: func(t *testing.T, result parityResult) {
 				t.Helper()
 
-				var experimentErr pkgconfig.OutputsBlockRequiresExperimentError
+				var experimentErr config.OutputsBlockRequiresExperimentError
 
 				require.ErrorAs(t, result.toV1Err, &experimentErr)
 			},
 		},
 		{
 			name:      "dependent reading state",
-			cfgPath:   filepath.Join(root, "app", pkgconfig.DefaultTerragruntConfigPath),
+			cfgPath:   filepath.Join(root, "app", config.DefaultTerragruntConfigPath),
 			configure: planWithExperiment,
 			outputs:   map[string]string{filepath.Join(root, "vpc"): outputsJSON(map[string]string{"vpc_id": "vpc-real"})},
 			check: func(t *testing.T, result parityResult) {
@@ -963,7 +962,7 @@ inputs = {
 		},
 		{
 			name:      "dependent reading mocks",
-			cfgPath:   filepath.Join(root, "app", pkgconfig.DefaultTerragruntConfigPath),
+			cfgPath:   filepath.Join(root, "app", config.DefaultTerragruntConfigPath),
 			configure: planWithExperiment,
 			outputs:   map[string]string{filepath.Join(root, "vpc"): "{}"},
 			check: func(t *testing.T, result parityResult) {
@@ -983,7 +982,7 @@ inputs = {
 			tc.check(t, assertParity(t, parityCase{
 				newFS:     memFS(root, files),
 				cfgPath:   tc.cfgPath,
-				configure: func(pctx *pkgconfig.ParsingContext) { tc.configure(t, pctx) },
+				configure: func(pctx *config.ParsingContext) { tc.configure(t, pctx) },
 				outputs:   tc.outputs,
 			}))
 		})
@@ -1008,7 +1007,7 @@ variables {
 			name: "a block reached through two includes",
 			files: map[string]string{
 				"root.hcl": rootConfig,
-				pkgconfig.DefaultTerragruntConfigPath: `
+				config.DefaultTerragruntConfigPath: `
 include "one" {
   path = find_in_parent_folders("root.hcl")
 }
@@ -1022,7 +1021,7 @@ include "two" {
 		{
 			name: "every attribute",
 			files: map[string]string{
-				pkgconfig.DefaultTerragruntConfigPath: `
+				config.DefaultTerragruntConfigPath: `
 inputs = { attr = "attr" }
 
 variables {
@@ -1041,7 +1040,7 @@ variables {
 		{
 			name: "dependency outputs",
 			files: map[string]string{
-				pkgconfig.DefaultTerragruntConfigPath: `
+				config.DefaultTerragruntConfigPath: `
 dependency "dep" {
   config_path  = "../dep"
   mock_outputs = { id = "mock-id" }
@@ -1058,7 +1057,7 @@ variables {
 			name: "shallow merge include",
 			files: map[string]string{
 				"root.hcl": rootConfig,
-				pkgconfig.DefaultTerragruntConfigPath: `
+				config.DefaultTerragruntConfigPath: `
 include "root" {
   path = "{{root}}/root.hcl"
 }
@@ -1073,7 +1072,7 @@ variables {
 			name: "an input overridden through an include",
 			files: map[string]string{
 				"root.hcl": rootConfig,
-				pkgconfig.DefaultTerragruntConfigPath: `
+				config.DefaultTerragruntConfigPath: `
 include "root" {
   path = "{{root}}/root.hcl"
 }
@@ -1088,7 +1087,7 @@ variables {
 			name: "an inputs attribute overriding an included block",
 			files: map[string]string{
 				"root.hcl": rootConfig,
-				pkgconfig.DefaultTerragruntConfigPath: `
+				config.DefaultTerragruntConfigPath: `
 include "root" {
   path = "{{root}}/root.hcl"
 }
@@ -1106,7 +1105,7 @@ variables {
   inputs = { name = "autoinclude" }
 }
 `,
-				pkgconfig.DefaultTerragruntConfigPath: `
+				config.DefaultTerragruntConfigPath: `
 variables {
   inputs = { name = "unit" }
 }
@@ -1124,7 +1123,7 @@ variables {
   inputs = { block = { root = "root" } }
 }
 `,
-				pkgconfig.DefaultTerragruntConfigPath: `
+				config.DefaultTerragruntConfigPath: `
 include "root" {
   path           = "{{root}}/root.hcl"
   merge_strategy = "deep"
@@ -1151,7 +1150,7 @@ variables {
   inputs = { name = "second" }
 }
 `,
-				pkgconfig.DefaultTerragruntConfigPath: `
+				config.DefaultTerragruntConfigPath: `
 include "root" {
   path = "{{root}}/root.hcl"
 }
@@ -1161,7 +1160,7 @@ include "root" {
 		{
 			name: "duplicate input in one file",
 			files: map[string]string{
-				pkgconfig.DefaultTerragruntConfigPath: `
+				config.DefaultTerragruntConfigPath: `
 inputs = { name = "attr" }
 
 variables {
@@ -1174,7 +1173,7 @@ variables {
 			name: "deep merge include",
 			files: map[string]string{
 				"root.hcl": rootConfig,
-				pkgconfig.DefaultTerragruntConfigPath: `
+				config.DefaultTerragruntConfigPath: `
 include "root" {
   path           = "{{root}}/root.hcl"
   merge_strategy = "deep"
@@ -1190,7 +1189,7 @@ variables {
 		{
 			name: "missing inputs",
 			files: map[string]string{
-				pkgconfig.DefaultTerragruntConfigPath: `
+				config.DefaultTerragruntConfigPath: `
 variables {
   kind = "tfvar"
 }
@@ -1200,7 +1199,7 @@ variables {
 		{
 			name: "invalid kind",
 			files: map[string]string{
-				pkgconfig.DefaultTerragruntConfigPath: `
+				config.DefaultTerragruntConfigPath: `
 variables {
   kind   = "yaml"
   inputs = { name = "value" }
@@ -1218,8 +1217,8 @@ variables {
 
 			assertParity(t, parityCase{
 				newFS:   memFS(root, tc.files),
-				cfgPath: filepath.Join(root, pkgconfig.DefaultTerragruntConfigPath),
-				configure: func(pctx *pkgconfig.ParsingContext) {
+				cfgPath: filepath.Join(root, config.DefaultTerragruntConfigPath),
+				configure: func(pctx *config.ParsingContext) {
 					pctx.SkipOutput = true
 					pctx.OriginalTofuCommand = "plan"
 
@@ -1408,8 +1407,8 @@ include "root" {
 
 			assertParity(t, parityCase{
 				newFS:     memFS(root, tc.files),
-				cfgPath:   filepath.Join(root, "app", pkgconfig.DefaultTerragruntConfigPath),
-				configure: func(*pkgconfig.ParsingContext) {},
+				cfgPath:   filepath.Join(root, "app", config.DefaultTerragruntConfigPath),
+				configure: func(*config.ParsingContext) {},
 				drift:     tc.drift,
 			})
 		})
@@ -1434,9 +1433,9 @@ dependency "vpc" {
 	}
 }
 
-// versionAttributeCases maps a name to a unit config in which a version attribute references the dependency on
+// unitVersionAttributeCases maps a name to a unit config in which a version attribute references the dependency on
 // ../vpc.
-func versionAttributeCases() map[string]string {
+func unitVersionAttributeCases() map[string]string {
 	const dependency = `
 dependency "vpc" {
   config_path = "../vpc"
@@ -1474,7 +1473,7 @@ func TestParityAttributesThatReadDependencyOutputs(t *testing.T) {
 func TestParityVersionAttributesThatReferenceDependency(t *testing.T) {
 	t.Parallel()
 
-	for name, content := range versionAttributeCases() {
+	for name, content := range unitVersionAttributeCases() {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1486,26 +1485,26 @@ func TestParityVersionAttributesThatReferenceDependency(t *testing.T) {
 }
 
 // newQueueParsingContext returns a context for parsing cfgPath the way discovery parses a unit.
-func newQueueParsingContext(t *testing.T, cfgPath string) (context.Context, *pkgconfig.ParsingContext) {
+func newQueueParsingContext(t *testing.T, cfgPath string) (context.Context, *config.ParsingContext) {
 	t.Helper()
 
-	ctx, run := newTestParsingContext(t, cfgPath)
+	ctx, run := newTestUnitParsingContext(t, cfgPath)
 	run.SkipOutput = true
 
 	return ctx, run.WithDecodeList(
-		pkgconfig.TerraformSource,
-		pkgconfig.DependenciesBlock,
-		pkgconfig.DependencyBlock,
-		pkgconfig.TerragruntFlags,
-		pkgconfig.FeatureFlagsBlock,
-		pkgconfig.ExcludeBlock,
-		pkgconfig.ErrorsBlock,
-		pkgconfig.TerragruntVersionConstraints,
-		pkgconfig.EngineBlock,
+		config.TerraformSource,
+		config.DependenciesBlock,
+		config.DependencyBlock,
+		config.TerragruntFlags,
+		config.FeatureFlagsBlock,
+		config.ExcludeBlock,
+		config.ErrorsBlock,
+		config.TerragruntVersionConstraints,
+		config.EngineBlock,
 	).WithSkipOutputsResolution()
 }
 
-// queueDivergentFixtures are fixtures whose queue parse still differs from [pkgconfig.PartialParseConfigFile].
+// queueDivergentFixtures are fixtures whose queue parse still differs from [config.PartialParseConfigFile].
 var queueDivergentFixtures = map[string]struct{}{
 	// The queue parse repeats the same error a different number of times.
 	"parent-folders/in-another-subfolder/live":                                    {},
@@ -1530,7 +1529,7 @@ func TestQueueConfigMatchesPartialParseFixtures(t *testing.T) {
 			t.Parallel()
 
 			wantCtx, wantRun := newQueueParsingContext(t, fixture.path)
-			want, wantErr := pkgconfig.PartialParseConfigFile(
+			want, wantErr := config.PartialParseConfigFile(
 				wantCtx, l, venv.MemVenv().WithFS(fixtures.newFS(t)), wantRun, fixture.path, nil,
 			)
 
@@ -1593,7 +1592,7 @@ dependency "next" {
 func TestQueueConfigRejectsVersionAttributesThatReferenceDependency(t *testing.T) {
 	t.Parallel()
 
-	for name, content := range versionAttributeCases() {
+	for name, content := range unitVersionAttributeCases() {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1628,8 +1627,8 @@ func assertDependencyAttributeParity(t *testing.T, name, content string) parityR
 			"vpc/terragrunt.hcl": "",
 			"vpc/main.tf":        "",
 		}),
-		cfgPath:   filepath.Join(root, "app", pkgconfig.DefaultTerragruntConfigPath),
-		configure: func(*pkgconfig.ParsingContext) {},
+		cfgPath:   filepath.Join(root, "app", config.DefaultTerragruntConfigPath),
+		configure: func(*config.ParsingContext) {},
 	})
 }
 
@@ -1639,12 +1638,12 @@ func assertQueueParity(t *testing.T, name, content string) error {
 	t.Helper()
 
 	root := venvtest.Root("/fixture-queue-" + name)
-	cfgPath := filepath.Join(root, "app", pkgconfig.DefaultTerragruntConfigPath)
+	cfgPath := filepath.Join(root, "app", config.DefaultTerragruntConfigPath)
 	newFS := memFS(root, map[string]string{"app/terragrunt.hcl": content, "vpc/terragrunt.hcl": ""})
 	l := logger.CreateLogger()
 
 	wantCtx, wantRun := newQueueParsingContext(t, cfgPath)
-	want, wantErr := pkgconfig.PartialParseConfigFile(
+	want, wantErr := config.PartialParseConfigFile(
 		wantCtx, l, venv.MemVenv().WithFS(newFS(t)), wantRun, cfgPath, nil,
 	)
 
@@ -1719,14 +1718,14 @@ include "root" {
 
 			result := assertParity(t, parityCase{
 				newFS:   memFS(root, files),
-				cfgPath: filepath.Join(root, "app", pkgconfig.DefaultTerragruntConfigPath),
+				cfgPath: filepath.Join(root, "app", config.DefaultTerragruntConfigPath),
 				outputs: map[string]string{filepath.Join(root, "vpc"): "{}"},
-				configure: func(pctx *pkgconfig.ParsingContext) {
+				configure: func(pctx *config.ParsingContext) {
 					require.NoError(t, pctx.Experiments.EnableExperiment(experiment.EmptyDependencyOutputs))
 				},
 			})
 
-			require.ErrorAs(t, result.toV1Err, new(pkgconfig.TerragruntOutputTargetNoOutputs))
+			require.ErrorAs(t, result.toV1Err, new(config.TerragruntOutputTargetNoOutputs))
 		})
 	}
 }
@@ -1782,12 +1781,12 @@ exclude {
 				t.Parallel()
 
 				root := venvtest.Root("/fixture-queue-skips-" + layout + "-" + name)
-				cfgPath := filepath.Join(root, "app", pkgconfig.DefaultTerragruntConfigPath)
+				cfgPath := filepath.Join(root, "app", config.DefaultTerragruntConfigPath)
 				newFS := memFS(root, files(attribute))
 				l := logger.CreateLogger()
 
 				wantCtx, wantRun := newQueueParsingContext(t, cfgPath)
-				_, wantErr := pkgconfig.PartialParseConfigFile(
+				_, wantErr := config.PartialParseConfigFile(
 					wantCtx, l, venv.MemVenv().WithFS(newFS(t)), wantRun, cfgPath, nil,
 				)
 				require.NoError(t, wantErr)
@@ -1802,7 +1801,7 @@ exclude {
 				result := assertParity(t, parityCase{
 					newFS:     newFS,
 					cfgPath:   cfgPath,
-					configure: func(*pkgconfig.ParsingContext) {},
+					configure: func(*config.ParsingContext) {},
 				})
 
 				require.Error(t, result.toV1Err)
@@ -1815,7 +1814,7 @@ func TestQueueConfigReportsUnsupportedArgumentsOfAnExposedInclude(t *testing.T) 
 	t.Parallel()
 
 	root := venvtest.Root("/fixture-queue-exposed-unsupported")
-	cfgPath := filepath.Join(root, "app", pkgconfig.DefaultTerragruntConfigPath)
+	cfgPath := filepath.Join(root, "app", config.DefaultTerragruntConfigPath)
 	newFS := memFS(root, map[string]string{
 		"root.hcl": `
 unsupported = true
@@ -1837,7 +1836,7 @@ terraform_binary = include.root.locals.binary
 	l := logger.CreateLogger()
 
 	wantCtx, wantRun := newQueueParsingContext(t, cfgPath)
-	_, wantErr := pkgconfig.PartialParseConfigFile(
+	_, wantErr := config.PartialParseConfigFile(
 		wantCtx, l, venv.MemVenv().WithFS(newFS(t)), wantRun, cfgPath, nil,
 	)
 	require.Error(t, wantErr)

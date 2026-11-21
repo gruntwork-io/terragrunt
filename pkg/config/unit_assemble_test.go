@@ -6,10 +6,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	config "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	pkgconfig "github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
 
@@ -21,13 +20,13 @@ func TestResolveRunConfigChecksTheDependenciesDirsOfEachFileItParses(t *testing.
 			t.Parallel()
 
 			root := vfs.MemRoot
-			path := filepath.Join(root, "unit", pkgconfig.DefaultTerragruntConfigPath)
+			path := filepath.Join(root, "unit", config.DefaultTerragruntConfigPath)
 			v := venv.MemVenv().WithFS(memFS(root, tc.files)(t))
 			l := logger.CreateLogger()
-			ctx, run := newTestParsingContext(t, path)
+			ctx, run := newTestUnitParsingContext(t, path)
 
 			_, err := (&config.Store{}).ResolveRunConfig(ctx, l, v, config.NewParseContext(v, run), path)
-			require.ErrorAs(t, err, new(pkgconfig.DependencyDirNotFoundError))
+			require.ErrorAs(t, err, new(config.DependencyDirNotFoundError))
 		})
 	}
 }
@@ -40,13 +39,13 @@ func TestResolveUnitQueueConfigChecksNoDependenciesDir(t *testing.T) {
 			t.Parallel()
 
 			root := vfs.MemRoot
-			path := filepath.Join(root, "unit", pkgconfig.DefaultTerragruntConfigPath)
+			path := filepath.Join(root, "unit", config.DefaultTerragruntConfigPath)
 			v := venv.MemVenv().WithFS(memFS(root, tc.files)(t))
 			l := logger.CreateLogger()
-			ctx, run := newTestParsingContext(t, path)
-			run.PartialParseDecodeList = []pkgconfig.PartialDecodeSectionType{
-				pkgconfig.DependenciesBlock,
-				pkgconfig.DependencyBlock,
+			ctx, run := newTestUnitParsingContext(t, path)
+			run.PartialParseDecodeList = []config.PartialDecodeSectionType{
+				config.DependenciesBlock,
+				config.DependencyBlock,
 			}
 
 			cfg, err := (&config.Store{}).ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(v, run), path)

@@ -8,11 +8,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
 
-	config "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	pkgconfig "github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
 
@@ -21,7 +20,7 @@ func TestResolveUnitConfigLeavesParseContextUnchanged(t *testing.T) {
 
 	v := venv.MemVenv()
 	root := vfs.MemRoot
-	cfgPath := filepath.Join(root, "unit", pkgconfig.DefaultTerragruntConfigPath)
+	cfgPath := filepath.Join(root, "unit", config.DefaultTerragruntConfigPath)
 
 	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(root, "root.hcl"), []byte(`
 locals {
@@ -46,7 +45,7 @@ inputs = {
 }
 `), 0o644))
 
-	ctx, run := newTestParsingContext(t, cfgPath)
+	ctx, run := newTestUnitParsingContext(t, cfgPath)
 	run.OriginalIAMRoleOptions = iam.RoleOptions{RoleARN: "arn:aws:iam::123456789012:role/cli"}
 	runLocals := cty.ObjectVal(map[string]cty.Value{"from_run": cty.StringVal("run")})
 	run.Locals = &runLocals
@@ -85,7 +84,7 @@ func TestResolveUnitConfigAppliesRunScopedValues(t *testing.T) {
 	t.Parallel()
 
 	v := venv.MemVenv()
-	cfgPath := filepath.Join(vfs.MemRoot, pkgconfig.DefaultTerragruntConfigPath)
+	cfgPath := filepath.Join(vfs.MemRoot, config.DefaultTerragruntConfigPath)
 
 	require.NoError(t, vfs.WriteFile(v.FS, cfgPath, []byte(`
 inputs = {
@@ -93,7 +92,7 @@ inputs = {
 }
 `), 0o644))
 
-	ctx, run := newTestParsingContext(t, cfgPath)
+	ctx, run := newTestUnitParsingContext(t, cfgPath)
 	decodedDeps := cty.ObjectVal(map[string]cty.Value{
 		"vpc": cty.ObjectVal(map[string]cty.Value{
 			"outputs": cty.ObjectVal(map[string]cty.Value{"id": cty.StringVal("vpc-from-run")}),

@@ -7,10 +7,9 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 
-	pkgconfig "github.com/gruntwork-io/terragrunt/pkg/config"
 )
 
-// The top-level attributes that [pkgconfig.ParseConfig] decodes after it resolves the dependency outputs, so each
+// The top-level attributes that [ParseConfig] decodes after it resolves the dependency outputs, so each
 // can read `dependency`. Discovery never reads them.
 const (
 	attrDownloadDir              = "download_dir"
@@ -28,9 +27,9 @@ var runAttributeNames = []string{
 // versionAttributeNames is the top-level attributes Terragrunt reads to check versions before any dependency has
 // run.
 var versionAttributeNames = []string{
-	pkgconfig.MetadataTerraformBinary,
-	pkgconfig.MetadataTerraformVersionConstraint,
-	pkgconfig.MetadataTerragruntVersionConstraint,
+	MetadataTerraformBinary,
+	MetadataTerraformVersionConstraint,
+	MetadataTerragruntVersionConstraint,
 }
 
 // runAttributes returns the attributes of body among runAttributeNames, by name. It returns none for a body whose
@@ -40,13 +39,13 @@ func runAttributes(body hcl.Body) map[string]*hcl.Attribute {
 }
 
 // dependencyVersionAttributes returns the attributes of body among versionAttributeNames that read `dependency`, by
-// name, which [pkgconfig.ValidateVersionAttributeReferences] reports. It returns none for a body whose content has
+// name, which [ValidateVersionAttributeReferences] reports. It returns none for a body whose content has
 // errors, which the decode of the whole body reports.
 func dependencyVersionAttributes(body hcl.Body) map[string]*hcl.Attribute {
 	attrs := attributesNamed(body, versionAttributeNames)
 	maps.DeleteFunc(attrs, func(_ string, attr *hcl.Attribute) bool {
 		return !slices.ContainsFunc(attr.Expr.Variables(), func(traversal hcl.Traversal) bool {
-			return traversal.RootName() == pkgconfig.MetadataDependency
+			return traversal.RootName() == MetadataDependency
 		})
 	})
 
@@ -126,7 +125,7 @@ func (c *UnitConfig) decodeRunAttributes(evalCtx *hcl.EvalContext, r *RunBodies)
 }
 
 // fillRunAttributes sets on file the run attributes of c, as r holds them.
-func (c *UnitConfig) fillRunAttributes(r *RunBodies, file *pkgconfig.TerragruntConfigFile) {
+func (c *UnitConfig) fillRunAttributes(r *RunBodies, file *TerragruntConfigFile) {
 	for name := range c.runAttrs {
 		switch name {
 		case attrDownloadDir:

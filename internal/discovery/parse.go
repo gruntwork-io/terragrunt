@@ -11,7 +11,6 @@ import (
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
@@ -99,7 +98,7 @@ func ensureParsed(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	c component.Component,
 	opts *options.TerragruntOptions,
 	discovery *Discovery,
@@ -133,7 +132,7 @@ func parseConfig(
 	l log.Logger,
 	v *venv.Venv,
 	pctx *config.ParsingContext,
-	s *rewrite.Store,
+	s *config.Store,
 	c component.Component,
 	cfgPath string,
 ) (*config.TerragruntConfig, error) {
@@ -141,7 +140,7 @@ func parseConfig(
 		return config.PartialParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
 	}
 
-	return s.ResolveUnitQueueConfig(ctx, l, v, rewrite.NewParseContext(v, pctx), cfgPath)
+	return s.ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(v, pctx), cfgPath)
 }
 
 // parseAndReclassify parses a component and reclassifies it based on filter evaluation.
@@ -149,7 +148,7 @@ func (d *Discovery) parseAndReclassify(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	candidate DiscoveryResult,
 ) (*DiscoveryResult, error) {
@@ -210,7 +209,7 @@ func parseComponent(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	c component.Component,
 	opts *options.TerragruntOptions,
 	discovery *Discovery,

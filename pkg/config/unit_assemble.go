@@ -11,8 +11,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	pkgconfig "github.com/gruntwork-io/terragrunt/pkg/config"
-	pkghclparse "github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
+	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -21,16 +20,16 @@ type assemblyParts int
 
 const (
 	// queueParts is the queue parts alone. An assembly of them reports the errors
-	// [pkgconfig.PartialParseConfigFile] does: none for a top-level argument or block the schema does not name, or
+	// [PartialParseConfigFile] does: none for a top-level argument or block the schema does not name, or
 	// for a `dependencies` path that is not a directory.
 	queueParts assemblyParts = iota
-	// runParts is the queue parts and the run parts. An assembly of them reports the errors [pkgconfig.ParseConfig]
+	// runParts is the queue parts and the run parts. An assembly of them reports the errors [ParseConfig]
 	// does.
 	runParts
 )
 
 // ToV1 resolves the dependency outputs the parse deferred, decodes the run parts of c with them, and returns the
-// config and errors that [pkgconfig.ParseConfigFile] returns for the same file, which can be a partial config with
+// config and errors that [ParseConfigFile] returns for the same file, which can be a partial config with
 // an error. Each call fetches the outputs again. It never changes c.
 //
 // pc gives the run's settings and sinks, and c the state of each file.
@@ -41,12 +40,12 @@ func (c *UnitConfig) ToV1(
 	l log.Logger,
 	v *venv.Venv,
 	pc *ParseContext,
-) (*pkgconfig.TerragruntConfig, error) {
+) (*TerragruntConfig, error) {
 	return c.assemble(ctx, l, v, pc, keptIncludes{}, c.functions(ctx, l, v))
 }
 
 // assemble converts c to a config and merges in its autoinclude and included files from src, as
-// [pkgconfig.ParseConfig] does. It decodes the parts src decodes with the `dependency` value src gives c. It reads
+// [ParseConfig] does. It decodes the parts src decodes with the `dependency` value src gives c. It reads
 // the settings and writes to the sinks of pc, reads the state of each file from the file's own config, and never
 // changes c.
 func (c *UnitConfig) assemble(
@@ -56,7 +55,7 @@ func (c *UnitConfig) assemble(
 	pc *ParseContext,
 	src includeSource,
 	fns *parseFunctions,
-) (*pkgconfig.TerragruntConfig, error) {
+) (*TerragruntConfig, error) {
 	pc = pc.withFile(&c.scope)
 	errs := slices.Clone(c.prepErrs)
 
@@ -73,7 +72,7 @@ func (c *UnitConfig) assemble(
 	file, diags := src.file(c, evalCtx)
 	decodeErr := joinDecodeErrors(c.parseDecodeErr(parts), bound.HandleDiagnostics(diags))
 
-	cfgFile, err := pkgconfig.CompleteTerragruntConfigFile(
+	cfgFile, err := CompleteTerragruntConfigFile(
 		ctx,
 		l,
 		v,
@@ -84,14 +83,14 @@ func (c *UnitConfig) assemble(
 		decodeErr,
 	)
 
-	err = pkgconfig.WithNoOutputsError(v, pctx, err)
+	err = WithNoOutputsError(v, pctx, err)
 	if err != nil &&
 		!slices.ContainsFunc(errs, func(seen error) bool { return errors.Is(err, seen) }) {
 		errs = append(errs, err)
 	}
 
 	if cfgFile == nil {
-		return nil, pkgconfig.CouldNotResolveTerragruntConfigInFileError(c.file.ConfigPath)
+		return nil, CouldNotResolveTerragruntConfigInFileError(c.file.ConfigPath)
 	}
 
 	cfg, err := c.convert(v, pc, pctx, cfgFile)
@@ -100,13 +99,13 @@ func (c *UnitConfig) assemble(
 	}
 
 	if parts == runParts {
-		if err := pkgconfig.ValidateDependencies(v, pctx, cfgFile.Dependencies); err != nil {
+		if err := ValidateDependencies(v, pctx, cfgFile.Dependencies); err != nil {
 			errs = append(errs, err)
 		}
 	}
 
 	if cfg != nil {
-		if err := pkgconfig.ValidateInputDefinitions(bound, cfg); err != nil {
+		if err := ValidateInputDefinitions(bound, cfg); err != nil {
 			errs = append(errs, err)
 		}
 
@@ -162,40 +161,40 @@ func (c *UnitConfig) parseDecodeErr(parts assemblyParts) error {
 	return c.decodeErr
 }
 
-// convert converts cfgFile as [pkgconfig.ConvertToTerragruntConfig] does. A config assembled for a merge gets the
+// convert converts cfgFile as [ConvertToTerragruntConfig] does. A config assembled for a merge gets the
 // field metadata of its locals without the locals themselves, since the merged config keeps the locals of the
 // including file. Locals that can fail to convert are still converted, so the error matches that of pkg/config.
 func (c *UnitConfig) convert(
 	v *venv.Venv,
 	pc *ParseContext,
-	pctx *pkgconfig.ParsingContext,
-	cfgFile *pkgconfig.TerragruntConfigFile,
-) (*pkgconfig.TerragruntConfig, error) {
+	pctx *ParsingContext,
+	cfgFile *TerragruntConfigFile,
+) (*TerragruntConfig, error) {
 	locals := pctx.Locals
 	if !pc.merging || locals == nil || !ctyhelper.ConvertsToMapDirectly(*locals) {
-		return pkgconfig.ConvertToTerragruntConfig(v, pctx, c.file.ConfigPath, cfgFile)
+		return ConvertToTerragruntConfig(v, pctx, c.file.ConfigPath, cfgFile)
 	}
 
-	cfg, err := pkgconfig.ConvertToTerragruntConfig(v, pctx.WithLocals(nil), c.file.ConfigPath, cfgFile)
+	cfg, err := ConvertToTerragruntConfig(v, pctx.WithLocals(nil), c.file.ConfigPath, cfgFile)
 	if cfg == nil {
 		return nil, err
 	}
 
-	metadata := map[string]any{pkgconfig.FoundInFile: c.file.ConfigPath}
+	metadata := map[string]any{FoundInFile: c.file.ConfigPath}
 
 	unmarked, _ := locals.Unmark()
 
 	for it := unmarked.ElementIterator(); it.Next(); {
 		name, _ := it.Element()
-		cfg.SetFieldMetadataWithType(pkgconfig.MetadataLocals, name.AsString(), metadata)
+		cfg.SetFieldMetadataWithType(MetadataLocals, name.AsString(), metadata)
 	}
 
 	return cfg, err
 }
 
 // boundFile returns c's file bound to a parser of pc, which logs through l and writes through v.
-func (c *UnitConfig) boundFile(l log.Logger, v *venv.Venv, pc *ParseContext) *pkghclparse.File {
-	return c.file.Rebind(pkghclparse.NewParser(pc.parserOptions(l, v)...))
+func (c *UnitConfig) boundFile(l log.Logger, v *venv.Venv, pc *ParseContext) *hclparse.File {
+	return c.file.Rebind(hclparse.NewParser(pc.parserOptions(l, v)...))
 }
 
 // functions returns new functions for a parse of c's file, which use ctx, l, and v when called.
@@ -205,7 +204,7 @@ func (c *UnitConfig) functions(ctx context.Context, l log.Logger, v *venv.Venv) 
 
 // evalContext returns an eval context with the variables c's blocks decoded with, the `dependency` value of pctx,
 // and fns, which read pctx when called. It returns nil when the eval context failed to build during the parse.
-func (c *UnitConfig) evalContext(fns *parseFunctions, pctx *pkgconfig.ParsingContext) *hcl.EvalContext {
+func (c *UnitConfig) evalContext(fns *parseFunctions, pctx *ParsingContext) *hcl.EvalContext {
 	if c.evalVars == nil {
 		return nil
 	}
@@ -214,13 +213,13 @@ func (c *UnitConfig) evalContext(fns *parseFunctions, pctx *pkgconfig.ParsingCon
 
 	if pctx.DecodedDependencies != nil {
 		vars = maps.Clone(vars)
-		vars[pkgconfig.MetadataDependency] = *pctx.DecodedDependencies
+		vars[MetadataDependency] = *pctx.DecodedDependencies
 	}
 
 	return fns.evalContext(pctx, vars)
 }
 
-// joinDecodeErrors returns the error [pkghclparse.File.HandleDiagnostics] would return for the diagnostics of the
+// joinDecodeErrors returns the error [hclparse.File.HandleDiagnostics] would return for the diagnostics of the
 // tagged fields and of an assembly's parts handled together. An error that holds no diagnostics stands alone.
 func joinDecodeErrors(parse, deferred error) error {
 	if parse == nil || deferred == nil {

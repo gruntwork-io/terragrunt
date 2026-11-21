@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
@@ -76,7 +75,7 @@ func (r *pipelineRun) discover(ctx context.Context, t *testing.T) (component.Com
 		d = r.configure(d)
 	}
 
-	return d.Discover(config.WithCaches(ctx), l, v, new(rewrite.Store), opts)
+	return d.Discover(config.WithCaches(ctx), l, v, new(config.Store), opts)
 }
 
 func TestDiscoveryPipelineRelatesDependenciesOutsideTheFiltersWithRacing(t *testing.T) {
@@ -750,7 +749,7 @@ func TestDiscoveryPipelineFindsDependentsAboveTheWorkingDirectory(t *testing.T) 
 				WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: workingDir}).
 				WithGitRoot(corpusRepoRoot).
 				WithFilters(filters).
-				Discover(config.WithCaches(t.Context()), l, v, new(rewrite.Store), opts)
+				Discover(config.WithCaches(t.Context()), l, v, new(config.Store), opts)
 			require.NoError(t, err)
 
 			want := make([]string, 0, len(tt.want))
@@ -788,7 +787,7 @@ func TestDiscoveryPipelineLinksADependencyAboveTheWorkingDirectoryOnce(t *testin
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: workingDir}).
 		WithGitRoot(corpusRepoRoot).
 		WithFilters(filters).
-		Discover(config.WithCaches(t.Context()), l, v, new(rewrite.Store), opts)
+		Discover(config.WithCaches(t.Context()), l, v, new(config.Store), opts)
 	require.NoError(t, err)
 
 	vpc := filepath.Join(workingDir, "vpc")

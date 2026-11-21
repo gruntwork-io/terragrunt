@@ -13,7 +13,6 @@ import (
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/internal/cli/commands/aws-provider-patch"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
@@ -49,7 +48,7 @@ func TestNewCommandExposesThePatchFlags(t *testing.T) {
 	t.Parallel()
 
 	v := venv.MemVenv()
-	cmd := awsproviderpatch.NewCommand(logger.CreateLogger(), newOpts(t, v, "unit"), v, new(rewrite.Store))
+	cmd := awsproviderpatch.NewCommand(logger.CreateLogger(), newOpts(t, v, "unit"), v, new(config.Store))
 
 	for _, name := range []string{
 		awsproviderpatch.OverrideAttrFlagName,
@@ -107,7 +106,7 @@ func TestNewCommandRejectsFlagsPatchDoesNotRead(t *testing.T) {
 			fake := &fakeInit{}
 			v := fake.venv(t, map[string]string{"unit/terragrunt.hcl": "", "unit/main.tf": ""})
 
-			cmd := awsproviderpatch.NewCommand(logger.CreateLogger(), newOpts(t, v, "unit"), v, new(rewrite.Store))
+			cmd := awsproviderpatch.NewCommand(logger.CreateLogger(), newOpts(t, v, "unit"), v, new(config.Store))
 
 			err := runCommand(t, cmd, "--"+awsproviderpatch.OverrideAttrFlagName, regionOverride, arg)
 
@@ -127,7 +126,7 @@ func TestNewCommandAllSkipsExcludedUnits(t *testing.T) {
 		"b/terragrunt.hcl": "",
 	})
 
-	cmd := awsproviderpatch.NewCommand(logger.CreateLogger(), newOpts(t, v, ""), v, new(rewrite.Store))
+	cmd := awsproviderpatch.NewCommand(logger.CreateLogger(), newOpts(t, v, ""), v, new(config.Store))
 
 	require.NoError(t, runCommand(
 		t,
@@ -149,7 +148,7 @@ func TestNewCommandPatchesDownloadedModules(t *testing.T) {
 	}}
 	v := fake.venv(t, map[string]string{"unit/terragrunt.hcl": "", "unit/main.tf": moduleCode})
 
-	cmd := awsproviderpatch.NewCommand(logger.CreateLogger(), newOpts(t, v, "unit"), v, new(rewrite.Store))
+	cmd := awsproviderpatch.NewCommand(logger.CreateLogger(), newOpts(t, v, "unit"), v, new(config.Store))
 
 	require.NoError(t, runCommand(t, cmd, "--"+awsproviderpatch.OverrideAttrFlagName, regionOverride))
 	assert.Equal(t, patchedModuleCode, fake.read(t, v, "main.tf"))
@@ -167,7 +166,7 @@ func TestNewCommandWithoutModulesChangesNothing(t *testing.T) {
 	fake := &fakeInit{}
 	v := fake.venv(t, map[string]string{"unit/terragrunt.hcl": "", "unit/main.tf": moduleCode})
 
-	cmd := awsproviderpatch.NewCommand(logger.CreateLogger(), newOpts(t, v, "unit"), v, new(rewrite.Store))
+	cmd := awsproviderpatch.NewCommand(logger.CreateLogger(), newOpts(t, v, "unit"), v, new(config.Store))
 
 	require.NoError(t, runCommand(t, cmd, "--"+awsproviderpatch.OverrideAttrFlagName, regionOverride))
 	require.Len(t, fake.initDirs(), 1, "init ran")
@@ -259,7 +258,7 @@ func TestNewCommandReportsPatchFailures(t *testing.T) {
 			fake := &fakeInit{modulesJSON: tc.modulesJSON, moduleFiles: tc.moduleFiles}
 			v := fake.venv(t, map[string]string{"unit/terragrunt.hcl": "", "unit/main.tf": ""})
 
-			cmd := awsproviderpatch.NewCommand(logger.CreateLogger(), newOpts(t, v, "unit"), v, new(rewrite.Store))
+			cmd := awsproviderpatch.NewCommand(logger.CreateLogger(), newOpts(t, v, "unit"), v, new(config.Store))
 
 			tc.check(t, runCommand(t, cmd, tc.args...))
 		})
@@ -329,7 +328,7 @@ func TestNewCommandStopsBeforePatching(t *testing.T) {
 			fake := &fakeInit{modulesJSON: modulesJSON, moduleFiles: map[string]string{"main.tf": moduleCode}}
 			v := fake.venv(t, tc.files)
 
-			cmd := awsproviderpatch.NewCommand(logger.CreateLogger(), newOpts(t, v, "unit"), v, new(rewrite.Store))
+			cmd := awsproviderpatch.NewCommand(logger.CreateLogger(), newOpts(t, v, "unit"), v, new(config.Store))
 
 			tc.check(t, runCommand(t, cmd, "--"+awsproviderpatch.OverrideAttrFlagName, regionOverride))
 			assert.Empty(t, fake.initDirs(), "init never ran")
@@ -390,7 +389,7 @@ func TestNewCommandAllPatchesEveryUnit(t *testing.T) {
 			opts.FailFast = tc.failFast
 			opts.AwsProviderPatchOverrides = map[string]string{"region": `"eu-west-1"`}
 
-			err := awsproviderpatch.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(rewrite.Store), opts)
+			err := awsproviderpatch.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(config.Store), opts)
 			if !tc.wantErr {
 				require.NoError(t, err)
 				assert.Len(t, fake.initDirs(), 2, "both units were initialized and patched")
@@ -444,7 +443,7 @@ func TestRunAllPatchesOnlyFilteredUnits(t *testing.T) {
 	opts.Filters, err = filter.ParseFilterQueries(l, []string{"a"})
 	require.NoError(t, err)
 
-	require.NoError(t, awsproviderpatch.Run(config.WithCaches(t.Context()), l, v, new(rewrite.Store), opts))
+	require.NoError(t, awsproviderpatch.Run(config.WithCaches(t.Context()), l, v, new(config.Store), opts))
 	assert.Len(t, fake.initDirs(), 1, "b has no OpenTofu files and fails if patched")
 }
 
@@ -466,7 +465,7 @@ func TestRunAllReadsTheConfiguredConfigFilename(t *testing.T) {
 	opts.NonInteractive = true
 	opts.RunAll = true
 
-	err = awsproviderpatch.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(rewrite.Store), opts)
+	err = awsproviderpatch.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(config.Store), opts)
 
 	var diags hcl.Diagnostics
 
@@ -484,7 +483,7 @@ func TestRunAllFailsOnAMissingWorkingDir(t *testing.T) {
 	opts.WorkingDir = filepath.Join(memRoot, "missing")
 	opts.RunAll = true
 
-	err := awsproviderpatch.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(rewrite.Store), opts)
+	err := awsproviderpatch.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(config.Store), opts)
 	require.ErrorIs(t, err, fs.ErrNotExist)
 }
 
@@ -496,7 +495,7 @@ func TestNewCommandFailsUnderTheDeprecatedCommandsControl(t *testing.T) {
 	v := fake.venv(t, map[string]string{"unit/terragrunt.hcl": "", "unit/main.tf": ""})
 
 	opts := newOpts(t, v, "unit")
-	cmd := awsproviderpatch.NewCommand(logger.CreateLogger(), opts, v, new(rewrite.Store))
+	cmd := awsproviderpatch.NewCommand(logger.CreateLogger(), opts, v, new(config.Store))
 
 	require.NoError(t, opts.StrictControls.EnableControl(controls.DeprecatedCommands))
 

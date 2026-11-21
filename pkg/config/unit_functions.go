@@ -7,8 +7,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	pkgconfig "github.com/gruntwork-io/terragrunt/pkg/config"
-	pkghclparse "github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
+	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -19,23 +18,23 @@ type parseFunctions struct {
 	ctx     context.Context
 	l       log.Logger
 	v       *venv.Venv
-	pctx    *pkgconfig.ParsingContext
+	pctx    *ParsingContext
 	evalCtx *hcl.EvalContext
-	file    *pkghclparse.File
+	file    *hclparse.File
 }
 
 // newParseFunctions returns the functions of a parse of file that file calls, which use ctx, l, and v when called.
-func newParseFunctions(ctx context.Context, l log.Logger, v *venv.Venv, file *pkghclparse.File) *parseFunctions {
+func newParseFunctions(ctx context.Context, l log.Logger, v *venv.Venv, file *hclparse.File) *parseFunctions {
 	return &parseFunctions{ctx: ctx, l: l, v: v, file: file}
 }
 
 // evalContext returns an eval context with vars and the functions, which read a copy of pctx when called until the
 // next call.
-func (f *parseFunctions) evalContext(pctx *pkgconfig.ParsingContext, vars map[string]cty.Value) *hcl.EvalContext {
+func (f *parseFunctions) evalContext(pctx *ParsingContext, vars map[string]cty.Value) *hcl.EvalContext {
 	if f.evalCtx == nil {
 		bound := *pctx
 		f.pctx = &bound
-		f.evalCtx = pkgconfig.TerragruntEvalContext(f.ctx, f.l, f.v, f.pctx, f.file.ConfigPath, f.file.FunctionCalls(), nil)
+		f.evalCtx = TerragruntEvalContext(f.ctx, f.l, f.v, f.pctx, f.file.ConfigPath, f.file.FunctionCalls(), nil)
 	}
 
 	*f.pctx = *pctx

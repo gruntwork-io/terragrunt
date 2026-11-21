@@ -11,7 +11,6 @@ import (
 
 	hclvalidate "github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl/validate"
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
@@ -247,7 +246,7 @@ func validateDiscoveredTree(
 		disc = disc.WithWorktrees(w)
 	}
 
-	s := new(rewrite.Store)
+	s := new(config.Store)
 
 	components, discErr := disc.Discover(ctx, l, v, s, opts)
 	if discErr != nil && len(components) == 0 {
@@ -337,7 +336,7 @@ func validateSingleTarget(
 
 	if hasUnit {
 		unitErr := parser.Unit(
-			ctx, l, v, new(rewrite.Store), opts, targetDir, config.DefaultTerragruntConfigPath,
+			ctx, l, v, new(config.Store), opts, targetDir, config.DefaultTerragruntConfigPath,
 		)
 		if unitErr != nil {
 			parseErrs = append(parseErrs, unitErr)

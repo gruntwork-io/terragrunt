@@ -9,7 +9,6 @@ import (
 	"github.com/hashicorp/hcl/v2/hcldec"
 	"github.com/zclconf/go-cty/cty"
 
-	pkgconfig "github.com/gruntwork-io/terragrunt/pkg/config"
 )
 
 // QueueBodies is the parts of a [UnitConfig] beyond its tagged fields that discovery reads, decoded. The parse
@@ -18,7 +17,7 @@ import (
 // index with the HCL slice it decodes.
 //
 // Engine is the exception to that scope: the parse decodes it with `dependency` unknown, as
-// [pkgconfig.PartialParseConfigFile] does when it skips resolving outputs, and [RunBodies] holds it again decoded with
+// [PartialParseConfigFile] does when it skips resolving outputs, and [RunBodies] holds it again decoded with
 // the outputs.
 type QueueBodies struct {
 	Exclude *ExcludeBody
@@ -88,21 +87,21 @@ func withUnknownDependency(evalCtx *hcl.EvalContext) *hcl.EvalContext {
 		return nil
 	}
 
-	if _, ok := evalCtx.Variables[pkgconfig.MetadataDependency]; ok {
+	if _, ok := evalCtx.Variables[MetadataDependency]; ok {
 		return evalCtx
 	}
 
 	withDependency := *evalCtx
 	withDependency.Variables = maps.Clone(evalCtx.Variables)
-	withDependency.Variables[pkgconfig.MetadataDependency] = cty.DynamicVal
+	withDependency.Variables[MetadataDependency] = cty.DynamicVal
 
 	return &withDependency
 }
 
 // dependencyBlockContext returns the eval context the dependency blocks decode with: evalCtx with `dependency`
-// unknown when pctx skips resolving outputs, as [pkgconfig.PartialParseConfigFile] decodes them, and evalCtx
+// unknown when pctx skips resolving outputs, as [PartialParseConfigFile] decodes them, and evalCtx
 // otherwise.
-func dependencyBlockContext(pctx *pkgconfig.ParsingContext, evalCtx *hcl.EvalContext) *hcl.EvalContext {
+func dependencyBlockContext(pctx *ParsingContext, evalCtx *hcl.EvalContext) *hcl.EvalContext {
 	if !pctx.SkipOutputsResolution {
 		return evalCtx
 	}
@@ -114,7 +113,7 @@ func dependencyBlockContext(pctx *pkgconfig.ParsingContext, evalCtx *hcl.EvalCon
 // reports true, so that their decode reports why.
 func declaresDependencies(body hcl.Body) bool {
 	content, _, diags := body.PartialContent(&hcl.BodySchema{
-		Blocks: []hcl.BlockHeaderSchema{{Type: pkgconfig.MetadataDependency, LabelNames: []string{"name"}}},
+		Blocks: []hcl.BlockHeaderSchema{{Type: MetadataDependency, LabelNames: []string{"name"}}},
 	})
 
 	return diags.HasErrors() || len(content.Blocks) > 0
@@ -206,9 +205,9 @@ func (e *ExcludeHCL) readsDependency() bool {
 }
 
 // withRequestedRunParts returns a copy of c with only the run parts that a section of decodeList decodes, as
-// [pkgconfig.PartialParseConfig] does, and that read no `dependency`. It keeps the engine block, which the queue
+// [PartialParseConfig] does, and that read no `dependency`. It keeps the engine block, which the queue
 // decodes with `dependency` unknown whatever the decode list.
-func (c *UnitConfig) withRequestedRunParts(decodeList []pkgconfig.PartialDecodeSectionType) *UnitConfig {
+func (c *UnitConfig) withRequestedRunParts(decodeList []PartialDecodeSectionType) *UnitConfig {
 	requested := *c
 	requested.Inputs = nil
 	requested.GenerateAttrs = nil
@@ -216,11 +215,11 @@ func (c *UnitConfig) withRequestedRunParts(decodeList []pkgconfig.PartialDecodeS
 	requested.VariablesBlocks = nil
 	requested.runAttrs = nil
 
-	if !slices.Contains(decodeList, pkgconfig.RemoteStateBlock) || attrReadsDependency(c.RemoteStateAttr) {
+	if !slices.Contains(decodeList, RemoteStateBlock) || attrReadsDependency(c.RemoteStateAttr) {
 		requested.RemoteStateAttr = nil
 	}
 
-	if !slices.Contains(decodeList, pkgconfig.RemoteStateBlock) ||
+	if !slices.Contains(decodeList, RemoteStateBlock) ||
 		c.RemoteState != nil && bodyReadsDependency[RemoteStateBody](c.RemoteState.Remain) {
 		requested.RemoteState = nil
 	}
@@ -236,9 +235,9 @@ func (c *UnitConfig) withRequestedRunParts(decodeList []pkgconfig.PartialDecodeS
 	terraform.ErrorHooks = nil
 	requested.Terraform = &terraform
 
-	wholeTerraform := slices.Contains(decodeList, pkgconfig.TerraformBlock)
+	wholeTerraform := slices.Contains(decodeList, TerraformBlock)
 
-	if wholeTerraform || slices.Contains(decodeList, pkgconfig.TerraformExtraArgs) {
+	if wholeTerraform || slices.Contains(decodeList, TerraformExtraArgs) {
 		terraform.ExtraArgs = dropDependencyReaders[ExtraArgumentsBody](c.Terraform.ExtraArgs, (*ExtraArgumentsHCL).remain)
 	}
 
@@ -280,7 +279,7 @@ func attrReadsDependency(attr *hcl.Attribute) bool {
 
 // isDependencyTraversal reports whether traversal reads the `dependency` variable.
 func isDependencyTraversal(traversal hcl.Traversal) bool {
-	return traversal.RootName() == pkgconfig.MetadataDependency
+	return traversal.RootName() == MetadataDependency
 }
 
 func (a *ExtraArgumentsHCL) remain() hcl.Body {

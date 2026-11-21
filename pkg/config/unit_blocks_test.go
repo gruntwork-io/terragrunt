@@ -14,10 +14,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	config "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	pkgconfig "github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
@@ -26,23 +25,23 @@ import (
 const maxSchemaDepth = 4
 
 // TestSchemaCoverage pins parity for a config that declares every attribute and block, nested ones included, of
-// [pkgconfig.TerragruntConfigFile].
+// [config.TerragruntConfigFile].
 func TestSchemaCoverage(t *testing.T) {
 	t.Parallel()
 
 	var body strings.Builder
 
-	writeSchemaBody(t, &body, reflect.TypeFor[pkgconfig.TerragruntConfigFile](), 0)
+	writeSchemaBody(t, &body, reflect.TypeFor[config.TerragruntConfigFile](), 0)
 
 	root := venvtest.Root("/fixture")
 
 	assertParity(t, parityCase{
 		newFS: memFS(
 			root,
-			map[string]string{pkgconfig.DefaultTerragruntConfigPath: body.String()},
+			map[string]string{config.DefaultTerragruntConfigPath: body.String()},
 		),
-		cfgPath:   filepath.Join(root, pkgconfig.DefaultTerragruntConfigPath),
-		configure: func(*pkgconfig.ParsingContext) {},
+		cfgPath:   filepath.Join(root, config.DefaultTerragruntConfigPath),
+		configure: func(*config.ParsingContext) {},
 	})
 }
 
@@ -54,7 +53,7 @@ func TestSchemaMatchesPkgConfig(t *testing.T) {
 	rows := []schemaRow{
 		{
 			block:  "",
-			v1:     reflect.TypeFor[pkgconfig.TerragruntConfigFile](),
+			v1:     reflect.TypeFor[config.TerragruntConfigFile](),
 			header: reflect.TypeFor[config.UnitConfig](),
 			bodies: []reflect.Type{
 				reflect.TypeFor[config.QueueBodies](),
@@ -62,123 +61,123 @@ func TestSchemaMatchesPkgConfig(t *testing.T) {
 			},
 		},
 		{
-			block:  pkgconfig.MetadataTerraform,
-			v1:     reflect.TypeFor[pkgconfig.TerraformConfig](),
+			block:  config.MetadataTerraform,
+			v1:     reflect.TypeFor[config.TerraformConfig](),
 			header: reflect.TypeFor[config.TerraformHCL](),
 		},
 		{
 			block:  "before_hook",
-			v1:     reflect.TypeFor[pkgconfig.Hook](),
+			v1:     reflect.TypeFor[config.Hook](),
 			header: reflect.TypeFor[config.HookHCL](),
 			bodies: []reflect.Type{reflect.TypeFor[config.HookBody]()},
 		},
 		{
 			block:  "after_hook",
-			v1:     reflect.TypeFor[pkgconfig.Hook](),
+			v1:     reflect.TypeFor[config.Hook](),
 			header: reflect.TypeFor[config.HookHCL](),
 			bodies: []reflect.Type{reflect.TypeFor[config.HookBody]()},
 		},
 		{
 			block:  "error_hook",
-			v1:     reflect.TypeFor[pkgconfig.ErrorHook](),
+			v1:     reflect.TypeFor[config.ErrorHook](),
 			header: reflect.TypeFor[config.ErrorHookHCL](),
 			bodies: []reflect.Type{reflect.TypeFor[config.ErrorHookBody]()},
 		},
 		{
 			block:  "extra_arguments",
-			v1:     reflect.TypeFor[pkgconfig.TerraformExtraArguments](),
+			v1:     reflect.TypeFor[config.TerraformExtraArguments](),
 			header: reflect.TypeFor[config.ExtraArgumentsHCL](),
 			bodies: []reflect.Type{reflect.TypeFor[config.ExtraArgumentsBody]()},
 		},
 		{
-			block:  pkgconfig.MetadataRemoteState,
+			block:  config.MetadataRemoteState,
 			v1:     reflect.TypeFor[remotestate.ConfigFile](),
 			header: reflect.TypeFor[config.RemoteStateHCL](),
 			bodies: []reflect.Type{reflect.TypeFor[config.RemoteStateBody]()},
 		},
 		{
-			block:  pkgconfig.MetadataEngine,
-			v1:     reflect.TypeFor[pkgconfig.EngineConfig](),
+			block:  config.MetadataEngine,
+			v1:     reflect.TypeFor[config.EngineConfig](),
 			header: reflect.TypeFor[config.EngineHCL](),
 			bodies: []reflect.Type{reflect.TypeFor[config.EngineBody]()},
 		},
 		{
-			block:  pkgconfig.MetadataErrors,
-			v1:     reflect.TypeFor[pkgconfig.ErrorsConfig](),
+			block:  config.MetadataErrors,
+			v1:     reflect.TypeFor[config.ErrorsConfig](),
 			header: reflect.TypeFor[config.ErrorsHCL](),
 		},
 		{
-			block:  pkgconfig.MetadataRetry,
-			v1:     reflect.TypeFor[pkgconfig.RetryBlock](),
+			block:  config.MetadataRetry,
+			v1:     reflect.TypeFor[config.RetryBlock](),
 			header: reflect.TypeFor[config.RetryHCL](),
 			bodies: []reflect.Type{reflect.TypeFor[config.RetryBody]()},
 		},
 		{
-			block:  pkgconfig.MetadataIgnore,
-			v1:     reflect.TypeFor[pkgconfig.IgnoreBlock](),
+			block:  config.MetadataIgnore,
+			v1:     reflect.TypeFor[config.IgnoreBlock](),
 			header: reflect.TypeFor[config.IgnoreHCL](),
 			bodies: []reflect.Type{reflect.TypeFor[config.IgnoreBody]()},
 		},
 		{
-			block:  pkgconfig.MetadataOutputs,
-			v1:     reflect.TypeFor[pkgconfig.OutputsConfig](),
+			block:  config.MetadataOutputs,
+			v1:     reflect.TypeFor[config.OutputsConfig](),
 			header: reflect.TypeFor[config.OutputsHCL](),
 		},
 		{
-			block:  pkgconfig.MetadataMockStrategy,
-			v1:     reflect.TypeFor[pkgconfig.OutputsMockStrategy](),
+			block:  config.MetadataMockStrategy,
+			v1:     reflect.TypeFor[config.OutputsMockStrategy](),
 			header: reflect.TypeFor[config.MockStrategyHCL](),
 		},
 		{
-			block:  pkgconfig.MetadataOutput,
-			v1:     reflect.TypeFor[pkgconfig.OutputDeclaration](),
+			block:  config.MetadataOutput,
+			v1:     reflect.TypeFor[config.OutputDeclaration](),
 			header: reflect.TypeFor[config.OutputHCL](),
 		},
 		{
-			block:  pkgconfig.MetadataGenerateConfigs,
-			v1:     reflect.TypeFor[pkgconfig.TerragruntGenerateBlock](),
+			block:  config.MetadataGenerateConfigs,
+			v1:     reflect.TypeFor[config.TerragruntGenerateBlock](),
 			header: reflect.TypeFor[config.GenerateHCL](),
 			bodies: []reflect.Type{reflect.TypeFor[config.GenerateBody]()},
 		},
 		{
-			block:  pkgconfig.MetadataCatalog,
-			v1:     reflect.TypeFor[pkgconfig.CatalogConfig](),
+			block:  config.MetadataCatalog,
+			v1:     reflect.TypeFor[config.CatalogConfig](),
 			header: reflect.TypeFor[config.CatalogHCL](),
 		},
 		{
-			block:  pkgconfig.MetadataExclude,
-			v1:     reflect.TypeFor[pkgconfig.ExcludeConfig](),
+			block:  config.MetadataExclude,
+			v1:     reflect.TypeFor[config.ExcludeConfig](),
 			header: reflect.TypeFor[config.ExcludeHCL](),
 			bodies: []reflect.Type{reflect.TypeFor[config.ExcludeBody]()},
 		},
 		{
-			block:  pkgconfig.MetadataFeatureFlag,
-			v1:     reflect.TypeFor[pkgconfig.FeatureFlag](),
+			block:  config.MetadataFeatureFlag,
+			v1:     reflect.TypeFor[config.FeatureFlag](),
 			header: reflect.TypeFor[config.FeatureFlagHCL](),
 		},
 		{
-			block:  pkgconfig.MetadataDependencies,
-			v1:     reflect.TypeFor[pkgconfig.ModuleDependencies](),
+			block:  config.MetadataDependencies,
+			v1:     reflect.TypeFor[config.ModuleDependencies](),
 			header: reflect.TypeFor[config.ModuleDependenciesHCL](),
 		},
 		{
-			block:  pkgconfig.MetadataVariables,
-			v1:     reflect.TypeFor[pkgconfig.VariablesBlock](),
+			block:  config.MetadataVariables,
+			v1:     reflect.TypeFor[config.VariablesBlock](),
 			header: reflect.TypeFor[config.VariablesHCL](),
 			bodies: []reflect.Type{reflect.TypeFor[config.VariablesBody]()},
 		},
 		{
-			block:      pkgconfig.MetadataDependency,
+			block:      config.MetadataDependency,
 			header:     reflect.TypeFor[config.DependencyHCL](),
 			labelsOnly: true,
 		},
 		{
-			block:      pkgconfig.MetadataInclude,
+			block:      config.MetadataInclude,
 			header:     reflect.TypeFor[config.IncludeHCL](),
 			labelsOnly: true,
 		},
 		{
-			block:      pkgconfig.MetadataLocals,
+			block:      config.MetadataLocals,
 			header:     reflect.TypeFor[config.LocalsHCL](),
 			labelsOnly: true,
 		},
@@ -189,7 +188,7 @@ func TestSchemaMatchesPkgConfig(t *testing.T) {
 		rowBlocks[row.block] = struct{}{}
 	}
 
-	topLevel := impliedSchema(reflect.TypeFor[pkgconfig.TerragruntConfigFile]())
+	topLevel := impliedSchema(reflect.TypeFor[config.TerragruntConfigFile]())
 
 	for _, row := range rows {
 		t.Run(cmp.Or(row.block, "top level"), func(t *testing.T) {
@@ -450,17 +449,17 @@ inputs = {
 `,
 	}
 
-	cfgPath := filepath.Join(root, "unit", pkgconfig.DefaultTerragruntConfigPath)
+	cfgPath := filepath.Join(root, "unit", config.DefaultTerragruntConfigPath)
 
 	assertParity(t, parityCase{
 		newFS:     memFS(root, files),
 		cfgPath:   cfgPath,
-		configure: func(*pkgconfig.ParsingContext) {},
+		configure: func(*config.ParsingContext) {},
 	})
 
 	stub := &tofuStub{}
 	v := venv.MemVenv().WithFS(memFS(root, files)(t)).WithHandler(stub.handler())
-	ctx, pctx := newTestParsingContext(t, cfgPath)
+	ctx, pctx := newTestUnitParsingContext(t, cfgPath)
 
 	l := logger.CreateLogger()
 

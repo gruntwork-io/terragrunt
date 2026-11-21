@@ -6,7 +6,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/find"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -37,7 +36,7 @@ func TestNewCommandExposesTheFindFlags(t *testing.T) {
 	t.Parallel()
 
 	cmd := find.NewCommand(
-		logger.CreateLogger(), options.NewTerragruntOptions(), venv.MemVenv(), new(rewrite.Store),
+		logger.CreateLogger(), options.NewTerragruntOptions(), venv.MemVenv(), new(config.Store),
 	)
 
 	assert.Equal(t, find.CommandName, cmd.Name)
@@ -136,7 +135,7 @@ func TestNewCommandBeforeResolvesFormatAndMode(t *testing.T) {
 			tgOpts.WorkingDir = root
 			tgOpts.RootWorkingDir = root
 
-			cmd := find.NewCommand(newTestLogger(t), tgOpts, v, new(rewrite.Store))
+			cmd := find.NewCommand(newTestLogger(t), tgOpts, v, new(config.Store))
 			require.NoError(t, cmd.Flags.Parse(clihelper.Args(tc.args), map[string]string{}))
 
 			err := cmd.Before(config.WithCaches(t.Context()), &clihelper.Context{})

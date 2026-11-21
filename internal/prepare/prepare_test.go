@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -33,7 +32,7 @@ inputs = {
 `), 0o644))
 
 	v := venv.MemVenv().WithFS(fsys)
-	store := new(rewrite.Store)
+	store := new(config.Store)
 
 	opts, err := options.NewTerragruntOptionsWithConfigPath(path)
 	require.NoError(t, err)

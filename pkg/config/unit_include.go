@@ -12,8 +12,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	pkgconfig "github.com/gruntwork-io/terragrunt/pkg/config"
-	pkghclparse "github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
+	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -24,7 +23,7 @@ type includeSource interface {
 	parts() assemblyParts
 	// file builds the v1 file of c from its queue parts, decoding the run parts with evalCtx when the assembly
 	// reaches them, and returns the diagnostics of that decode.
-	file(c *UnitConfig, evalCtx *hcl.EvalContext) (*pkgconfig.TerragruntConfigFile, hcl.Diagnostics)
+	file(c *UnitConfig, evalCtx *hcl.EvalContext) (*TerragruntConfigFile, hcl.Diagnostics)
 	// dependencies returns the `dependency` value c decodes with and the blocks it was resolved from.
 	dependencies(
 		ctx context.Context,
@@ -32,7 +31,7 @@ type includeSource interface {
 		v *venv.Venv,
 		pc *ParseContext,
 		c *UnitConfig,
-	) (*resolvedDependencies, error)
+	) (*dependencyResolution, error)
 	// included returns the config of the file c's include block i names, which decodes with deps, c's `dependency`
 	// value and the blocks it was resolved from, and resolves its own dependencies when deps is nil.
 	included(
@@ -42,8 +41,8 @@ type includeSource interface {
 		pc *ParseContext,
 		c *UnitConfig,
 		i int,
-		deps *resolvedDependencies,
-	) (*pkgconfig.TerragruntConfig, error)
+		deps *dependencyResolution,
+	) (*TerragruntConfig, error)
 	// autoIncluded returns the config of c's autoinclude at path.
 	autoIncluded(
 		ctx context.Context,
@@ -52,7 +51,7 @@ type includeSource interface {
 		pc *ParseContext,
 		c *UnitConfig,
 		path string,
-	) (*pkgconfig.TerragruntConfig, error)
+	) (*TerragruntConfig, error)
 }
 
 // includeResolver resolves each included file with store and records it in kept.
@@ -68,7 +67,7 @@ func (p includeResolver) parts() assemblyParts {
 func (p includeResolver) file(
 	c *UnitConfig,
 	evalCtx *hcl.EvalContext,
-) (*pkgconfig.TerragruntConfigFile, hcl.Diagnostics) {
+) (*TerragruntConfigFile, hcl.Diagnostics) {
 	return c.queueFile(&c.Queue), c.queueEngineDiags
 }
 
@@ -78,7 +77,7 @@ func (p includeResolver) dependencies(
 	_ *venv.Venv,
 	pc *ParseContext,
 	_ *UnitConfig,
-) (*resolvedDependencies, error) {
+) (*dependencyResolution, error) {
 	return pc.file.decodedDeps, nil
 }
 
@@ -89,8 +88,8 @@ func (p includeResolver) included(
 	pc *ParseContext,
 	c *UnitConfig,
 	i int,
-	_ *resolvedDependencies,
-) (*pkgconfig.TerragruntConfig, error) {
+	_ *dependencyResolution,
+) (*TerragruntConfig, error) {
 	include := pc.file.includes.List[i]
 
 	included, cfg, err := c.resolveIncludedConfig(ctx, l, v, pc, p.store, &include)
@@ -106,7 +105,7 @@ func (p includeResolver) autoIncluded(
 	pc *ParseContext,
 	c *UnitConfig,
 	path string,
-) (*pkgconfig.TerragruntConfig, error) {
+) (*TerragruntConfig, error) {
 	autoInclude, cfg, err := p.store.resolveFile(ctx, l, v, pc.forAutoInclude(), path)
 	p.kept.autoInclude = newIncludedFile(autoInclude, err)
 
@@ -118,7 +117,7 @@ func (p includeResolver) autoIncluded(
 type keptIncludes struct {
 	// inherited is the `dependency` value of the including file and the blocks it was resolved from, nil when the
 	// assembled file resolves its own.
-	inherited *resolvedDependencies
+	inherited *dependencyResolution
 }
 
 func (k keptIncludes) parts() assemblyParts {
@@ -128,7 +127,7 @@ func (k keptIncludes) parts() assemblyParts {
 func (k keptIncludes) file(
 	c *UnitConfig,
 	evalCtx *hcl.EvalContext,
-) (*pkgconfig.TerragruntConfigFile, hcl.Diagnostics) {
+) (*TerragruntConfigFile, hcl.Diagnostics) {
 	run, diags := c.decodeRun(evalCtx)
 
 	file := c.queueFile(&c.Queue)
@@ -143,7 +142,7 @@ func (k keptIncludes) dependencies(
 	v *venv.Venv,
 	pc *ParseContext,
 	c *UnitConfig,
-) (*resolvedDependencies, error) {
+) (*dependencyResolution, error) {
 	if k.inherited != nil {
 		return k.inherited, nil
 	}
@@ -158,8 +157,8 @@ func (k keptIncludes) included(
 	pc *ParseContext,
 	c *UnitConfig,
 	i int,
-	deps *resolvedDependencies,
-) (*pkgconfig.TerragruntConfig, error) {
+	deps *dependencyResolution,
+) (*TerragruntConfig, error) {
 	included, err := c.keptInclude(pc, i)
 	if err != nil {
 		return nil, err
@@ -189,7 +188,7 @@ func (k keptIncludes) autoIncluded(
 	pc *ParseContext,
 	c *UnitConfig,
 	path string,
-) (*pkgconfig.TerragruntConfig, error) {
+) (*TerragruntConfig, error) {
 	autoInclude, err := c.keptAutoInclude(path)
 	if err != nil {
 		return nil, err
@@ -209,7 +208,7 @@ func (q keptQueue) parts() assemblyParts {
 func (q keptQueue) file(
 	c *UnitConfig,
 	_ *hcl.EvalContext,
-) (*pkgconfig.TerragruntConfigFile, hcl.Diagnostics) {
+) (*TerragruntConfigFile, hcl.Diagnostics) {
 	return c.queueFile(&c.Queue), c.queueEngineDiags
 }
 
@@ -219,7 +218,7 @@ func (q keptQueue) dependencies(
 	_ *venv.Venv,
 	pc *ParseContext,
 	_ *UnitConfig,
-) (*resolvedDependencies, error) {
+) (*dependencyResolution, error) {
 	return pc.file.decodedDeps, nil
 }
 
@@ -230,8 +229,8 @@ func (q keptQueue) included(
 	pc *ParseContext,
 	c *UnitConfig,
 	i int,
-	_ *resolvedDependencies,
-) (*pkgconfig.TerragruntConfig, error) {
+	_ *dependencyResolution,
+) (*TerragruntConfig, error) {
 	included, err := c.keptInclude(pc, i)
 	if err != nil {
 		return nil, err
@@ -254,7 +253,7 @@ func (q keptQueue) autoIncluded(
 	pc *ParseContext,
 	c *UnitConfig,
 	path string,
-) (*pkgconfig.TerragruntConfig, error) {
+) (*TerragruntConfig, error) {
 	autoInclude, err := c.keptAutoInclude(path)
 	if err != nil {
 		return nil, err
@@ -267,7 +266,7 @@ func (q keptQueue) autoIncluded(
 // run parts that a section of decodeList decodes and that read no `dependency`, and leaves out the rest. An assembly
 // that gets further than the parse did returns [UnparsedIncludeError].
 type keptUnknownOutputs struct {
-	decodeList []pkgconfig.PartialDecodeSectionType
+	decodeList []PartialDecodeSectionType
 }
 
 func (k keptUnknownOutputs) parts() assemblyParts {
@@ -277,7 +276,7 @@ func (k keptUnknownOutputs) parts() assemblyParts {
 func (k keptUnknownOutputs) file(
 	c *UnitConfig,
 	evalCtx *hcl.EvalContext,
-) (*pkgconfig.TerragruntConfigFile, hcl.Diagnostics) {
+) (*TerragruntConfigFile, hcl.Diagnostics) {
 	c = c.withRequestedRunParts(k.decodeList)
 
 	run, diags := c.decodeRun(evalCtx)
@@ -294,8 +293,8 @@ func (k keptUnknownOutputs) dependencies(
 	_ *venv.Venv,
 	_ *ParseContext,
 	_ *UnitConfig,
-) (*resolvedDependencies, error) {
-	return &resolvedDependencies{value: new(cty.DynamicVal)}, nil
+) (*dependencyResolution, error) {
+	return &dependencyResolution{value: new(cty.DynamicVal)}, nil
 }
 
 func (k keptUnknownOutputs) included(
@@ -305,8 +304,8 @@ func (k keptUnknownOutputs) included(
 	pc *ParseContext,
 	c *UnitConfig,
 	i int,
-	_ *resolvedDependencies,
-) (*pkgconfig.TerragruntConfig, error) {
+	_ *dependencyResolution,
+) (*TerragruntConfig, error) {
 	included, err := c.keptInclude(pc, i)
 	if err != nil {
 		return nil, err
@@ -329,7 +328,7 @@ func (k keptUnknownOutputs) autoIncluded(
 	pc *ParseContext,
 	c *UnitConfig,
 	path string,
-) (*pkgconfig.TerragruntConfig, error) {
+) (*TerragruntConfig, error) {
 	autoInclude, err := c.keptAutoInclude(path)
 	if err != nil {
 		return nil, err
@@ -381,9 +380,9 @@ func (c *UnitConfig) mergeIncludes(
 	v *venv.Venv,
 	pc *ParseContext,
 	src includeSource,
-	deps *resolvedDependencies,
-	cfg *pkgconfig.TerragruntConfig,
-) (*pkgconfig.TerragruntConfig, error) {
+	deps *dependencyResolution,
+	cfg *TerragruntConfig,
+) (*TerragruntConfig, error) {
 	baseCfg := cfg
 
 	for i, include := range slices.Backward(pc.file.includes.List) {
@@ -395,25 +394,25 @@ func (c *UnitConfig) mergeIncludes(
 		pc.sinks.filesRead.Add(include.Path)
 
 		switch mergeStrategy {
-		case pkgconfig.NoMerge:
+		case NoMerge:
 			l.Debugf(
 				"Included config %s has strategy no merge: not merging config in.",
 				include.Path,
 			)
 
 			continue
-		case pkgconfig.ShallowMerge:
+		case ShallowMerge:
 			l.Debugf(
 				"Included config %s has strategy shallow merge: merging config in (shallow).",
 				include.Path,
 			)
-		case pkgconfig.DeepMerge:
+		case DeepMerge:
 			l.Debugf(
 				"Included config %s has strategy deep merge: merging config in (deep).",
 				include.Path,
 			)
-		case pkgconfig.DeepMergeMapOnly:
-			return nil, pkgconfig.IncludeMergeStrategyNotSupportedError(mergeStrategy)
+		case DeepMergeMapOnly:
+			return nil, IncludeMergeStrategyNotSupportedError(mergeStrategy)
 		}
 
 		includedCfg, err := src.included(ctx, l, v, pc, c, i, deps)
@@ -421,7 +420,7 @@ func (c *UnitConfig) mergeIncludes(
 			return baseCfg, err
 		}
 
-		if err := mergeIncludedConfig(l, mergeStrategy, includedCfg, baseCfg); err != nil {
+		if err := mergeIncludedUnitConfig(l, mergeStrategy, includedCfg, baseCfg); err != nil {
 			return nil, err
 		}
 
@@ -431,13 +430,13 @@ func (c *UnitConfig) mergeIncludes(
 	return baseCfg, nil
 }
 
-// mergeIncludedConfig merges base into included with mergeStrategy, which is ShallowMerge or DeepMerge.
-func mergeIncludedConfig(
+// mergeIncludedUnitConfig merges base into included with mergeStrategy, which is ShallowMerge or DeepMerge.
+func mergeIncludedUnitConfig(
 	l log.Logger,
-	mergeStrategy pkgconfig.MergeStrategyType,
-	included, base *pkgconfig.TerragruntConfig,
+	mergeStrategy MergeStrategyType,
+	included, base *TerragruntConfig,
 ) error {
-	if mergeStrategy == pkgconfig.ShallowMerge {
+	if mergeStrategy == ShallowMerge {
 		return included.Merge(l, base)
 	}
 
@@ -447,16 +446,16 @@ func mergeIncludedConfig(
 // resolveIncludedConfig resolves the file that include names and returns it with its config, for merging into the
 // config of c.
 //
-// Returns [pkgconfig.IncludedConfigMissingPathError] when include has no path, and
-// [pkgconfig.IncludeConfigNotFoundError] when the file does not exist.
+// Returns [IncludedConfigMissingPathError] when include has no path, and
+// [IncludeConfigNotFoundError] when the file does not exist.
 func (c *UnitConfig) resolveIncludedConfig(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	pc *ParseContext,
 	s *Store,
-	include *pkgconfig.IncludeConfig,
-) (*UnitConfig, *pkgconfig.TerragruntConfig, error) {
+	include *IncludeConfig,
+) (*UnitConfig, *TerragruntConfig, error) {
 	includedCtx, err := s.includedContext(ctx, v, pc, include)
 	if err != nil {
 		return nil, nil, err
@@ -479,15 +478,15 @@ type includedFileContext struct {
 // includedContext returns how the file include names is parsed from pc, the context of the including file. A file
 // with a dependency block parses with its diagnostics suppressed.
 //
-// Returns [pkgconfig.IncludedConfigMissingPathError] when include has no path.
+// Returns [IncludedConfigMissingPathError] when include has no path.
 func (s *Store) includedContext(
 	ctx context.Context,
 	v *venv.Venv,
 	pc *ParseContext,
-	include *pkgconfig.IncludeConfig,
+	include *IncludeConfig,
 ) (includedFileContext, error) {
 	if include.Path == "" {
-		return includedFileContext{}, pkgconfig.IncludedConfigMissingPathError(pc.settings.TerragruntConfigPath)
+		return includedFileContext{}, IncludedConfigMissingPathError(pc.settings.TerragruntConfigPath)
 	}
 
 	hasDependencyBlock, err := s.hasDependencyBlock(ctx, v.FS, include.Path)
@@ -509,24 +508,24 @@ type includedBase struct {
 	// base is the file's state through its base blocks, which may hold errors.
 	base *unitBase
 	// file is the file's syntax tree, bound to a parser of pc.
-	file *pkghclparse.File
+	file *hclparse.File
 	// pc is the context the file was evaluated with.
 	pc *ParseContext
 }
 
 // resolveIncludedBase evaluates the file include names through its base blocks, as resolving the file from pc does.
 //
-// Returns [pkgconfig.IncludedConfigMissingPathError] when include has no path, and
-// [pkgconfig.IncludeConfigNotFoundError] when the file does not exist.
+// Returns [IncludedConfigMissingPathError] when include has no path, and
+// [IncludeConfigNotFoundError] when the file does not exist.
 func (s *Store) resolveIncludedBase(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	pc *ParseContext,
-	include *pkgconfig.IncludeConfig,
+	include *IncludeConfig,
 ) (*includedBase, error) {
 	if include.Path == "" {
-		return nil, pkgconfig.IncludedConfigMissingPathError(pc.settings.TerragruntConfigPath)
+		return nil, IncludedConfigMissingPathError(pc.settings.TerragruntConfigPath)
 	}
 
 	info, err := statConfig(v, include.Path)
@@ -544,7 +543,7 @@ func (s *Store) resolveIncludedBase(
 		return nil, err
 	}
 
-	parser := pkghclparse.NewParser(includedPC.parserOptions(l, v)...)
+	parser := hclparse.NewParser(includedPC.parserOptions(l, v)...)
 
 	file, err := s.ParseUnitAST(ctx, v.FS, include.Path, info, parser)
 	if err != nil {
@@ -567,7 +566,7 @@ func (b *includedBase) dependencyBlocks(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-) (pkgconfig.Dependencies, error) {
+) (Dependencies, error) {
 	if err := b.base.firstErr(); err != nil {
 		return nil, err
 	}
@@ -577,26 +576,26 @@ func (b *includedBase) dependencyBlocks(
 
 	if pctx.DecodedDependencies == nil && pctx.SkipOutputsResolution {
 		vars = maps.Clone(vars)
-		vars[pkgconfig.MetadataDependency] = cty.DynamicVal
+		vars[MetadataDependency] = cty.DynamicVal
 	}
 
 	evalCtx := &hcl.EvalContext{Variables: vars}
 	if declaresDependencies(b.file.Body) {
-		evalCtx = pkgconfig.TerragruntEvalContext(ctx, l, v, pctx, b.file.ConfigPath, b.file.FunctionCalls(), vars)
+		evalCtx = TerragruntEvalContext(ctx, l, v, pctx, b.file.ConfigPath, b.file.FunctionCalls(), vars)
 	}
 
-	return pkgconfig.DecodeDependencyBlocks(ctx, l, v, pctx, b.file, evalCtx)
+	return DecodeDependencyBlocks(ctx, l, v, pctx, b.file, evalCtx)
 }
 
 // includedFeatureFlags returns the feature blocks of each file a parse with pc includes, read from the base of that
 // file.
-func (s *Store) includedFeatureFlags(v *venv.Venv, pc *ParseContext) pkgconfig.IncludedFeatureFlags {
+func (s *Store) includedFeatureFlags(v *venv.Venv, pc *ParseContext) IncludedFeatureFlags {
 	return func(
 		ctx context.Context,
 		l log.Logger,
-		_ *pkgconfig.TrackInclude,
-		include *pkgconfig.IncludeConfig,
-	) (pkgconfig.FeatureFlags, error) {
+		_ *TrackInclude,
+		include *IncludeConfig,
+	) (FeatureFlags, error) {
 		included, err := s.resolveIncludedBase(ctx, l, v, pc, include)
 		if err != nil {
 			return nil, err
@@ -608,12 +607,12 @@ func (s *Store) includedFeatureFlags(v *venv.Venv, pc *ParseContext) pkgconfig.I
 
 // includedDependencies returns the dependency blocks of each file a parse with pc includes, decoded with the base
 // of that file.
-func (s *Store) includedDependencies(v *venv.Venv, pc *ParseContext) pkgconfig.IncludedDependencies {
+func (s *Store) includedDependencies(v *venv.Venv, pc *ParseContext) IncludedDependencies {
 	return func(
 		ctx context.Context,
 		l log.Logger,
-		include *pkgconfig.IncludeConfig,
-	) (pkgconfig.Dependencies, error) {
+		include *IncludeConfig,
+	) (Dependencies, error) {
 		included, err := s.resolveIncludedBase(ctx, l, v, pc, include)
 		if err != nil {
 			return nil, err
@@ -632,11 +631,11 @@ func (s *Store) includedDependencies(v *venv.Venv, pc *ParseContext) pkgconfig.I
 // block evaluates it with the IAM role options the file sets.
 //
 // The second function returns the errors of the blocks that failed to resolve, in name order, each annotated by
-// [pkgconfig.ExposedIncludeError].
-func (s *Store) exposedInclude(v *venv.Venv, pc *ParseContext) (pkgconfig.ExposedInclude, func() error) {
+// [ExposedIncludeError].
+func (s *Store) exposedInclude(v *venv.Venv, pc *ParseContext) (ExposedInclude, func() error) {
 	type exposedValue struct {
 		err     error
-		include *pkgconfig.IncludeConfig
+		include *IncludeConfig
 		value   cty.Value
 	}
 
@@ -645,8 +644,8 @@ func (s *Store) exposedInclude(v *venv.Venv, pc *ParseContext) (pkgconfig.Expose
 	exposed := func(
 		ctx context.Context,
 		l log.Logger,
-		_ *pkgconfig.ParsingContext,
-		include *pkgconfig.IncludeConfig,
+		_ *ParsingContext,
+		include *IncludeConfig,
 	) (cty.Value, error) {
 		if kept, ok := resolved[include.Name]; ok {
 			return kept.value, kept.err
@@ -663,7 +662,7 @@ func (s *Store) exposedInclude(v *venv.Venv, pc *ParseContext) (pkgconfig.Expose
 
 		for _, name := range slices.Sorted(maps.Keys(resolved)) {
 			if kept := resolved[name]; kept.err != nil {
-				errs = append(errs, pkgconfig.ExposedIncludeError(kept.include, kept.err))
+				errs = append(errs, ExposedIncludeError(kept.include, kept.err))
 			}
 		}
 
@@ -675,13 +674,13 @@ func (s *Store) exposedInclude(v *venv.Venv, pc *ParseContext) (pkgconfig.Expose
 
 // resolveExposedInclude resolves the file include names from pc and converts its config for the `include` variable.
 //
-// Returns [pkgconfig.IncludedConfigMissingPathError] when include has no path.
+// Returns [IncludedConfigMissingPathError] when include has no path.
 func (s *Store) resolveExposedInclude(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	pc *ParseContext,
-	include *pkgconfig.IncludeConfig,
+	include *IncludeConfig,
 ) (cty.Value, error) {
 	includedCtx, err := s.includedContext(ctx, v, pc, include)
 	if err != nil {
@@ -715,12 +714,12 @@ func (s *Store) resolveExposedInclude(
 		return cty.NilVal, includeParseError(err, include, pc)
 	}
 
-	return pkgconfig.TerragruntConfigAsCty(cfg)
+	return TerragruntConfigAsCty(cfg)
 }
 
 // resolveWithFileIAMRole resolves the file at cfgPath with pc, evaluating it with the IAM role options its config
-// sets, as [pkgconfig.ParseConfig] resolves them: from its iam_role and iam_web_identity_token, the attributes
-// [pkgconfig.ResolveIAMRoleOptions] reads. The resolution with the role options of pc serves when they match.
+// sets, as [ParseConfig] resolves them: from its iam_role and iam_web_identity_token, the attributes
+// [ResolveIAMRoleOptions] reads. The resolution with the role options of pc serves when they match.
 //
 // Returns no parse with the error when the resolution with the role options of pc produced no config.
 func (s *Store) resolveWithFileIAMRole(
@@ -739,7 +738,7 @@ func (s *Store) resolveWithFileIAMRole(
 
 	fileOptions := iam.RoleOptions{RoleARN: cfg.IamRole, WebIdentityToken: cfg.IamWebIdentityToken}
 
-	iamRole := pkgconfig.FileIAMRoleOptions(pctx, fileOptions)
+	iamRole := FileIAMRoleOptions(pctx, fileOptions)
 	if iamRole == pctx.IAMRoleOptions {
 		return c, nil
 	}
@@ -749,10 +748,10 @@ func (s *Store) resolveWithFileIAMRole(
 	return c, err
 }
 
-// includeParseError reports a missing included file as [pkgconfig.IncludeConfigNotFoundError].
-func includeParseError(err error, include *pkgconfig.IncludeConfig, pc *ParseContext) error {
-	if errors.As(err, new(pkgconfig.TerragruntConfigNotFoundError)) {
-		return pkgconfig.IncludeConfigNotFoundError{
+// includeParseError reports a missing included file as [IncludeConfigNotFoundError].
+func includeParseError(err error, include *IncludeConfig, pc *ParseContext) error {
+	if errors.As(err, new(TerragruntConfigNotFoundError)) {
+		return IncludeConfigNotFoundError{
 			IncludePath: include.Path,
 			SourcePath:  pc.settings.TerragruntConfigPath,
 		}
@@ -769,8 +768,8 @@ func (c *UnitConfig) mergeAutoInclude(
 	v *venv.Venv,
 	pc *ParseContext,
 	src includeSource,
-	cfg *pkgconfig.TerragruntConfig,
-) (*pkgconfig.TerragruntConfig, error) {
+	cfg *TerragruntConfig,
+) (*TerragruntConfig, error) {
 	includes := pc.file.includes
 	if includes == nil || includes.AutoIncludePath == "" {
 		return cfg, nil

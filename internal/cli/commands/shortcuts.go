@@ -4,7 +4,7 @@ import (
 	"slices"
 
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -37,7 +37,7 @@ func NewShortcutsCommands(
 	l log.Logger,
 	opts *options.TerragruntOptions,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 ) clihelper.Commands {
 	var (
 		runCmd = run.NewCommand(l, opts, v, s)

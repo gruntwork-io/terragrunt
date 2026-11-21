@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -93,7 +92,7 @@ func TestGraphPhase_ConcurrentDependencyDiscoveryWithRacing(t *testing.T) {
 		config.WithCaches(t.Context()),
 		l,
 		venvtest.NewOSWithEmptyEnv(),
-		new(rewrite.Store),
+		new(config.Store),
 		opts,
 	)
 	require.NoError(t, err)
@@ -192,7 +191,7 @@ func TestGraphPhase_ConcurrentUpstreamDownstreamSharedDependencyWithRacing(t *te
 		config.WithCaches(t.Context()),
 		l,
 		venvtest.NewOSWithEmptyEnv(),
-		new(rewrite.Store),
+		new(config.Store),
 		opts,
 	)
 	require.NoError(t, err)
@@ -293,6 +292,6 @@ func TestGraphPhase_UpstreamCandidatePublishBeforeContextWithRacing(t *testing.T
 		WithGitRoot(gitRoot).
 		WithFilters(filters)
 
-	_, err = d.Discover(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
+	_, err = d.Discover(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv(), new(config.Store), opts)
 	require.NoError(t, err)
 }

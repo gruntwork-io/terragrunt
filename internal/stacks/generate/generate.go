@@ -13,7 +13,6 @@ import (
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
@@ -97,7 +96,7 @@ func WorktreeStacks(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	wts *worktrees.Worktrees,
 ) error {
@@ -119,7 +118,7 @@ func (g *Generator) GenerateStacks(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	wts *worktrees.Worktrees,
 ) error {
@@ -133,7 +132,7 @@ func (g *Generator) generateStacks(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	wts *worktrees.Worktrees,
 	scope stackScope,
@@ -241,7 +240,7 @@ func generateLevel(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	level int,
 	levelNodes []*StackNode,
@@ -293,7 +292,7 @@ func discoverAndAddNewNodes(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	wts *worktrees.Worktrees,
 	workingDir string,
@@ -486,7 +485,7 @@ func ListStackFiles(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	worktrees *worktrees.Worktrees,
 	scope stackScope,
@@ -540,7 +539,7 @@ func ListStackFilesWithExcludes(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	worktrees *worktrees.Worktrees,
 ) ([]string, map[string]struct{}, error) {
@@ -661,7 +660,7 @@ func worktreeStacksToGenerate(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	w *worktrees.Worktrees,
 	stackOpts discovery.StackGenerateOptions,
@@ -840,7 +839,7 @@ func discoverStacksUnder(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	wts *worktrees.Worktrees,
 	workingDir string,
@@ -901,7 +900,7 @@ func discoverWorktreeStacksUnder(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	wt worktrees.Worktree,
 	readFiles bool,
@@ -1036,7 +1035,7 @@ func discoverStacks(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	wt worktrees.Worktree,
 	readFiles bool,

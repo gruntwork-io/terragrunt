@@ -10,7 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/list"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -22,7 +22,7 @@ const (
 )
 
 // NewCommand returns the `terragrunt dag graph` command.
-func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *rewrite.Store) *clihelper.Command {
+func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *config.Store) *clihelper.Command {
 	sharedFlags := shared.NewQueueRunFlags(opts, nil)
 	sharedFlags = append(sharedFlags, shared.NewQueueSelectionFlags(opts, nil)...)
 	sharedFlags = append(sharedFlags, shared.NewBackendFlags(opts, nil)...)
@@ -44,7 +44,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *
 // Run prints the dependency graph of the components discovered from
 // opts.WorkingDir in DOT format, through [list.Run] in DAG mode with
 // dependencies included.
-func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *config.Store, opts *options.TerragruntOptions) error {
 	listOpts := list.NewOptions(opts)
 	listOpts.Format = list.FormatDot
 	listOpts.Mode = list.ModeDAG

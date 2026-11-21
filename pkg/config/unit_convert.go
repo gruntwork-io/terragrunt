@@ -5,14 +5,13 @@ import (
 	"slices"
 
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
-	pkgconfig "github.com/gruntwork-io/terragrunt/pkg/config"
 )
 
-// queueFile builds a new [pkgconfig.TerragruntConfigFile] from the tagged fields of c and its queue parts q, with
+// queueFile builds a new [TerragruntConfigFile] from the tagged fields of c and its queue parts q, with
 // the run parts left out. Every call allocates new values, since the conversion and include merges mutate what the
 // file points to.
-func (c *UnitConfig) queueFile(q *QueueBodies) *pkgconfig.TerragruntConfigFile {
-	return &pkgconfig.TerragruntConfigFile{
+func (c *UnitConfig) queueFile(q *QueueBodies) *TerragruntConfigFile {
+	return &TerragruntConfigFile{
 		Catalog:                     c.Catalog.v1(),
 		Terraform:                   c.Terraform.v1(),
 		TerraformBinary:             clonePtr(c.TerraformBinary),
@@ -34,7 +33,7 @@ func (c *UnitConfig) queueFile(q *QueueBodies) *pkgconfig.TerragruntConfigFile {
 }
 
 // fill adds the run parts r of c to file, which queueFile built from c.
-func (r *RunBodies) fill(c *UnitConfig, file *pkgconfig.TerragruntConfigFile) {
+func (r *RunBodies) fill(c *UnitConfig, file *TerragruntConfigFile) {
 	if r.Exclude != nil {
 		file.Exclude = c.Exclude.v1(r.Exclude)
 	}
@@ -59,12 +58,12 @@ func (r *RunBodies) fill(c *UnitConfig, file *pkgconfig.TerragruntConfigFile) {
 	file.Terraform.ErrorHooks = convertEach(c.Terraform.ErrorHooks, r.ErrorHooks, (*ErrorHookHCL).v1)
 }
 
-func (c *CatalogHCL) v1() *pkgconfig.CatalogConfig {
+func (c *CatalogHCL) v1() *CatalogConfig {
 	if c == nil {
 		return nil
 	}
 
-	return &pkgconfig.CatalogConfig{
+	return &CatalogConfig{
 		NoShell:         clonePtr(c.NoShell),
 		NoHooks:         clonePtr(c.NoHooks),
 		DefaultTemplate: c.DefaultTemplate,
@@ -72,12 +71,12 @@ func (c *CatalogHCL) v1() *pkgconfig.CatalogConfig {
 	}
 }
 
-func (e *EngineHCL) v1(body *EngineBody) *pkgconfig.EngineConfig {
+func (e *EngineHCL) v1(body *EngineBody) *EngineConfig {
 	if e == nil {
 		return nil
 	}
 
-	return &pkgconfig.EngineConfig{
+	return &EngineConfig{
 		Version: clonePtr(e.Version),
 		Type:    clonePtr(e.Type),
 		Meta:    clonePtr(body.Meta),
@@ -86,12 +85,12 @@ func (e *EngineHCL) v1(body *EngineBody) *pkgconfig.EngineConfig {
 }
 
 // v1 converts the tagged fields of t. The nested blocks are run parts that [RunBodies.fill] adds.
-func (t *TerraformHCL) v1() *pkgconfig.TerraformConfig {
+func (t *TerraformHCL) v1() *TerraformConfig {
 	if t == nil {
 		return nil
 	}
 
-	return &pkgconfig.TerraformConfig{
+	return &TerraformConfig{
 		Source:                clonePtr(t.Source),
 		Version:               clonePtr(t.Version),
 		UpdateSourceWithCAS:   clonePtr(t.UpdateSourceWithCAS),
@@ -103,8 +102,8 @@ func (t *TerraformHCL) v1() *pkgconfig.TerraformConfig {
 	}
 }
 
-func (a *ExtraArgumentsHCL) v1(body *ExtraArgumentsBody) pkgconfig.TerraformExtraArguments {
-	return pkgconfig.TerraformExtraArguments{
+func (a *ExtraArgumentsHCL) v1(body *ExtraArgumentsBody) TerraformExtraArguments {
+	return TerraformExtraArguments{
 		Arguments:        body.Arguments,
 		RequiredVarFiles: body.RequiredVarFiles,
 		OptionalVarFiles: body.OptionalVarFiles,
@@ -114,8 +113,8 @@ func (a *ExtraArgumentsHCL) v1(body *ExtraArgumentsBody) pkgconfig.TerraformExtr
 	}
 }
 
-func (h *HookHCL) v1(body *HookBody) pkgconfig.Hook {
-	return pkgconfig.Hook{
+func (h *HookHCL) v1(body *HookBody) Hook {
+	return Hook{
 		If:             body.If,
 		RunOnError:     body.RunOnError,
 		SuppressStdout: body.SuppressStdout,
@@ -126,8 +125,8 @@ func (h *HookHCL) v1(body *HookBody) pkgconfig.Hook {
 	}
 }
 
-func (h *ErrorHookHCL) v1(body *ErrorHookBody) pkgconfig.ErrorHook {
-	return pkgconfig.ErrorHook{
+func (h *ErrorHookHCL) v1(body *ErrorHookBody) ErrorHook {
+	return ErrorHook{
 		SuppressStdout: body.SuppressStdout,
 		WorkingDir:     body.WorkingDir,
 		Name:           h.Name,
@@ -152,22 +151,22 @@ func (r *RemoteStateHCL) v1(body *RemoteStateBody) *remotestate.ConfigFile {
 	}
 }
 
-func (d *ModuleDependenciesHCL) v1() *pkgconfig.ModuleDependencies {
+func (d *ModuleDependenciesHCL) v1() *ModuleDependencies {
 	if d == nil {
 		return nil
 	}
 
-	return &pkgconfig.ModuleDependencies{Paths: slices.Clone(d.Paths)}
+	return &ModuleDependencies{Paths: slices.Clone(d.Paths)}
 }
 
 // v1 converts e with its decoded body, returning nil when the file has no exclude block or body is nil because the
 // block reads `dependency` and [RunBodies.fill] converts it instead.
-func (e *ExcludeHCL) v1(body *ExcludeBody) *pkgconfig.ExcludeConfig {
+func (e *ExcludeHCL) v1(body *ExcludeBody) *ExcludeConfig {
 	if e == nil || body == nil {
 		return nil
 	}
 
-	return &pkgconfig.ExcludeConfig{
+	return &ExcludeConfig{
 		ExcludeDependencies: clonePtr(body.ExcludeDependencies),
 		NoRun:               clonePtr(body.NoRun),
 		Actions:             slices.Clone(body.Actions),
@@ -175,19 +174,19 @@ func (e *ExcludeHCL) v1(body *ExcludeBody) *pkgconfig.ExcludeConfig {
 	}
 }
 
-func (e *ErrorsHCL) v1(q *QueueBodies) *pkgconfig.ErrorsConfig {
+func (e *ErrorsHCL) v1(q *QueueBodies) *ErrorsConfig {
 	if e == nil {
 		return nil
 	}
 
-	return &pkgconfig.ErrorsConfig{
+	return &ErrorsConfig{
 		Retry:  convertEach(e.Retry, q.Retry, (*RetryHCL).v1),
 		Ignore: convertEach(e.Ignore, q.Ignore, (*IgnoreHCL).v1),
 	}
 }
 
-func (r *RetryHCL) v1(body *RetryBody) *pkgconfig.RetryBlock {
-	return &pkgconfig.RetryBlock{
+func (r *RetryHCL) v1(body *RetryBody) *RetryBlock {
+	return &RetryBlock{
 		Label:            r.Label,
 		RetryableErrors:  slices.Clone(body.RetryableErrors),
 		MaxAttempts:      body.MaxAttempts,
@@ -195,8 +194,8 @@ func (r *RetryHCL) v1(body *RetryBody) *pkgconfig.RetryBlock {
 	}
 }
 
-func (i *IgnoreHCL) v1(body *IgnoreBody) *pkgconfig.IgnoreBlock {
-	return &pkgconfig.IgnoreBlock{
+func (i *IgnoreHCL) v1(body *IgnoreBody) *IgnoreBlock {
+	return &IgnoreBlock{
 		Signals:         maps.Clone(body.Signals),
 		Label:           i.Label,
 		Message:         body.Message,
@@ -204,62 +203,62 @@ func (i *IgnoreHCL) v1(body *IgnoreBody) *pkgconfig.IgnoreBlock {
 	}
 }
 
-func (o *OutputsHCL) v1() *pkgconfig.OutputsConfig {
+func (o *OutputsHCL) v1() *OutputsConfig {
 	if o == nil {
 		return nil
 	}
 
-	return &pkgconfig.OutputsConfig{
+	return &OutputsConfig{
 		MockStrategy: o.MockStrategy.v1(),
 		Outputs:      convertAll(o.Output, (*OutputHCL).v1),
 	}
 }
 
-func (s *MockStrategyHCL) v1() *pkgconfig.OutputsMockStrategy {
+func (s *MockStrategyHCL) v1() *OutputsMockStrategy {
 	if s == nil {
 		return nil
 	}
 
-	return &pkgconfig.OutputsMockStrategy{
+	return &OutputsMockStrategy{
 		AllowedCommands: cloneSlicePtr(s.AllowedCommands),
 		MergeWithState:  clonePtr(s.MergeWithState),
 	}
 }
 
-func (d *OutputHCL) v1() *pkgconfig.OutputDeclaration {
-	return &pkgconfig.OutputDeclaration{
+func (d *OutputHCL) v1() *OutputDeclaration {
+	return &OutputDeclaration{
 		MockValue: clonePtr(d.MockValue),
 		Name:      d.Name,
 	}
 }
 
-func (i *Includes) v1() *pkgconfig.TrackInclude {
+func (i *Includes) v1() *TrackInclude {
 	if i == nil {
 		return nil
 	}
 
-	trackInclude := &pkgconfig.TrackInclude{
+	trackInclude := &TrackInclude{
 		CurrentMap:  i.ByName(),
 		Original:    i.IncludedVia,
 		CurrentList: i.List,
 	}
 
 	if i.AutoIncludePath != "" {
-		trackInclude.AutoIncludeOverride = &pkgconfig.IncludeConfig{Path: i.AutoIncludePath}
+		trackInclude.AutoIncludeOverride = &IncludeConfig{Path: i.AutoIncludePath}
 	}
 
 	return trackInclude
 }
 
-func (f *FeatureFlagHCL) v1() *pkgconfig.FeatureFlag {
-	return &pkgconfig.FeatureFlag{
+func (f *FeatureFlagHCL) v1() *FeatureFlag {
+	return &FeatureFlag{
 		Default: clonePtr(f.Default),
 		Name:    f.Name,
 	}
 }
 
-func (g *GenerateHCL) v1(body *GenerateBody) pkgconfig.TerragruntGenerateBlock {
-	return pkgconfig.TerragruntGenerateBlock{
+func (g *GenerateHCL) v1(body *GenerateBody) TerragruntGenerateBlock {
+	return TerragruntGenerateBlock{
 		IfDisabled:       body.IfDisabled,
 		CommentPrefix:    body.CommentPrefix,
 		DisableSignature: body.DisableSignature,
@@ -273,8 +272,8 @@ func (g *GenerateHCL) v1(body *GenerateBody) pkgconfig.TerragruntGenerateBlock {
 	}
 }
 
-func (*VariablesHCL) v1(body *VariablesBody) pkgconfig.VariablesBlock {
-	return pkgconfig.VariablesBlock{
+func (*VariablesHCL) v1(body *VariablesBody) VariablesBlock {
+	return VariablesBlock{
 		Kind:     clonePtr(body.Kind),
 		Nullable: clonePtr(body.Nullable),
 		Validate: clonePtr(body.Validate),

@@ -8,16 +8,15 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	pkgconfig "github.com/gruntwork-io/terragrunt/pkg/config"
-	pkghclparse "github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
+	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // ParseContext is what a caller brings to a stage: the settings a parse reads, the sinks it writes its effects to, and
 // the state of the file being parsed. settings never changes, and holds none of the sinks of the
-// [pkgconfig.ParsingContext] it came from.
+// [ParsingContext] it came from.
 type ParseContext struct {
-	settings *pkgconfig.ParsingContext
+	settings *ParsingContext
 	sinks    sinks
 	file     fileScope
 	memoized bool
@@ -26,7 +25,7 @@ type ParseContext struct {
 
 // sinks is where a stage writes its effects. Sinks belong to the caller, and a stage's result holds none.
 type sinks struct {
-	filesRead   *pkgconfig.FilesRead
+	filesRead   *FilesRead
 	diagnostics func(*hcl.File, hcl.Diagnostics) (hcl.Diagnostics, error)
 }
 
@@ -36,7 +35,7 @@ type fileScope struct {
 	// went through to reach it.
 	key string
 	// include is the include block the file is parsed through, nil for the component's own config.
-	include *pkgconfig.IncludeConfig
+	include *IncludeConfig
 	// includes is the file's include blocks, nil until the base blocks decode.
 	includes *Includes
 	// values is the file's unit values.
@@ -47,11 +46,11 @@ type fileScope struct {
 	locals *cty.Value
 	// decodedDeps is the file's `dependency` value and the blocks it was resolved from, nil when the parse resolves
 	// them.
-	decodedDeps *resolvedDependencies
+	decodedDeps *dependencyResolution
 	// iamRole overrides the run's IAM role options when set.
 	iamRole *iam.RoleOptions
 	// parser configures the parsers that read the file.
-	parser pkgconfig.ParserSettings
+	parser ParserSettings
 	// depth is the number of file parses above this one.
 	depth int
 	// skipAutoIncludeMerge skips merging the file's autoinclude.
@@ -62,7 +61,7 @@ type fileScope struct {
 
 // NewParseContext returns a ParseContext with run's settings and sinks, and the file state starting from run's values.
 // The stages it reaches are shared only with callers whose environment and output discarding match those of v.
-func NewParseContext(v *venv.Venv, run *pkgconfig.ParsingContext) *ParseContext {
+func NewParseContext(v *venv.Venv, run *ParsingContext) *ParseContext {
 	key, memoized := runDigest(v, run)
 
 	settings := run.Clone()
@@ -96,7 +95,7 @@ func (pc *ParseContext) StoreContext() (string, bool) {
 // blocks decode. The file reads the `dependency` value of the including file unless the run supplied one. A nil
 // include is a file no include block pulls in, which resolves its own dependencies. The copy drops any forMerge
 // marking of pc.
-func (pc *ParseContext) withInclude(include *pkgconfig.IncludeConfig) *ParseContext {
+func (pc *ParseContext) withInclude(include *IncludeConfig) *ParseContext {
 	c := *pc
 	c.file.include = include
 	c.file.includes = nil
@@ -115,7 +114,7 @@ func (pc *ParseContext) forMerge() *ParseContext {
 }
 
 // forIncluded returns a copy of pc for the file include pulls in, one step further along the chain of files.
-func (pc *ParseContext) forIncluded(include *pkgconfig.IncludeConfig) *ParseContext {
+func (pc *ParseContext) forIncluded(include *IncludeConfig) *ParseContext {
 	c := pc.withInclude(include)
 	c.file.key = extend(
 		c.file.key,
@@ -156,14 +155,14 @@ func (pc *ParseContext) withOwnReads() *ParseContext {
 	c := *pc
 
 	if pc.sinks.filesRead.Tracking() {
-		c.sinks.filesRead = pkgconfig.NewFilesRead()
+		c.sinks.filesRead = NewFilesRead()
 	}
 
 	return &c
 }
 
 // withBaseBlocks returns a copy of pc with the include blocks, feature flags, and locals baseBlocks decoded.
-func (pc *ParseContext) withBaseBlocks(baseBlocks *pkgconfig.DecodedBaseBlocks) *ParseContext {
+func (pc *ParseContext) withBaseBlocks(baseBlocks *DecodedBaseBlocks) *ParseContext {
 	c := *pc
 	c.file.includes = newIncludes(baseBlocks.TrackInclude)
 	c.file.features = baseBlocks.FeatureFlags
@@ -182,7 +181,7 @@ func (pc *ParseContext) withValues(values *cty.Value) *ParseContext {
 
 // withDecodedDependencies returns a copy of pc with the file's `dependency` value and the blocks it was resolved
 // from.
-func (pc *ParseContext) withDecodedDependencies(decodedDeps *resolvedDependencies) *ParseContext {
+func (pc *ParseContext) withDecodedDependencies(decodedDeps *dependencyResolution) *ParseContext {
 	c := *pc
 	c.file.decodedDeps = decodedDeps
 
@@ -214,7 +213,7 @@ func (pc *ParseContext) forIAMRole(iamRole iam.RoleOptions) *ParseContext {
 // withDiagnosticsSuppressed returns a copy of pc whose parsers report no diagnostics.
 func (pc *ParseContext) withDiagnosticsSuppressed() *ParseContext {
 	c := *pc
-	c.file.parser.Diagnostics = pkgconfig.DiagnosticsSuppressed
+	c.file.parser.Diagnostics = DiagnosticsSuppressed
 	c.file.key = extend(c.file.key, "diagnostics-suppressed")
 
 	return &c
@@ -222,12 +221,12 @@ func (pc *ParseContext) withDiagnosticsSuppressed() *ParseContext {
 
 // incrementDepth returns a copy of pc one parse deeper.
 //
-// Returns [pkgconfig.MaxParseDepthError] when pc is already past [pkgconfig.MaxParseDepth].
+// Returns [MaxParseDepthError] when pc is already past [MaxParseDepth].
 func (pc *ParseContext) incrementDepth() (*ParseContext, error) {
-	if pc.file.depth > pkgconfig.MaxParseDepth {
-		return nil, pkgconfig.MaxParseDepthError{
+	if pc.file.depth > MaxParseDepth {
+		return nil, MaxParseDepthError{
 			Depth: pc.file.depth,
-			Max:   pkgconfig.MaxParseDepth,
+			Max:   MaxParseDepth,
 		}
 	}
 
@@ -256,8 +255,8 @@ func formatStringPtr(p *string) string {
 	return strconv.Quote(*p)
 }
 
-// parsingContext returns a [pkgconfig.ParsingContext] of pc's settings with its sinks and file state applied.
-func (pc *ParseContext) parsingContext() *pkgconfig.ParsingContext {
+// parsingContext returns a [ParsingContext] of pc's settings with its sinks and file state applied.
+func (pc *ParseContext) parsingContext() *ParsingContext {
 	c := pc.settings.Clone()
 	c.FilesRead = pc.sinks.filesRead
 	c.TrackInclude = pc.file.includes.v1()
@@ -283,12 +282,12 @@ func (pc *ParseContext) parsingContext() *pkgconfig.ParsingContext {
 }
 
 // parserOptions returns the options for the parsers that read pc's file, which log through l and write through v.
-func (pc *ParseContext) parserOptions(l log.Logger, v *venv.Venv) []pkghclparse.Option {
-	return pkgconfig.ParserOptions(l, v, pc.parserSettings())
+func (pc *ParseContext) parserOptions(l log.Logger, v *venv.Venv) []hclparse.Option {
+	return ParserOptions(l, v, pc.parserSettings())
 }
 
 // parserSettings returns the file's parser settings with pc's diagnostics sink applied.
-func (pc *ParseContext) parserSettings() pkgconfig.ParserSettings {
+func (pc *ParseContext) parserSettings() ParserSettings {
 	parser := pc.file.parser
 	parser.DiagnosticsHandler = pc.sinks.diagnostics
 
