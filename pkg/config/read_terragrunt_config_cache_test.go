@@ -123,7 +123,7 @@ func parseUnitInput(
 		opt(pctx)
 	}
 
-	cfg, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, cfgPath, nil)
+	cfg, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, cfgPath, nil)
 	require.NoError(t, err)
 
 	return cfg.Inputs["value"], pctx.FilesRead.Paths()
@@ -703,7 +703,7 @@ func TestReadTerragruntConfigConcurrentReadsWithRacing(t *testing.T) {
 				pctx.OriginalTerragruntConfigPath = cfgPath
 
 				g.Go(func() error {
-					cfg, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, cfgPath, nil)
+					cfg, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, cfgPath, nil)
 					if err != nil {
 						return err
 					}
@@ -779,7 +779,15 @@ locals {
 			ctx, pctx := newTestParsingContext(t, unitPath)
 			pctx.OriginalTerragruntConfigPath = unitPath
 
-			_, err := config.ParseConfigFile(config.WithCaches(ctx), logger.CreateLogger(), v, pctx, unitPath, nil)
+			_, err := config.ParseConfigFile(
+				config.WithCaches(ctx),
+				logger.CreateLogger(),
+				v,
+				new(config.Store),
+				pctx,
+				unitPath,
+				nil,
+			)
 			require.Error(t, err)
 		})
 	}

@@ -60,10 +60,10 @@ inputs = {
 	second, err := new(config.Store).ResolveUnitConfig(ctx, l, v, pc, cfgPath)
 	require.NoError(t, err)
 
-	firstCfg, err := first.ToV1(ctx, l, v, pc)
+	firstCfg, err := first.ToV1(ctx, l, v, new(config.Store), pc)
 	require.NoError(t, err)
 
-	secondCfg, err := second.ToV1(ctx, l, v, pc)
+	secondCfg, err := second.ToV1(ctx, l, v, new(config.Store), pc)
 	require.NoError(t, err)
 
 	assert.Equal(t, firstCfg, secondCfg)
@@ -107,7 +107,7 @@ inputs = {
 	parsed, err := new(config.Store).ResolveUnitConfig(ctx, l, v, pc, cfgPath)
 	require.NoError(t, err)
 
-	cfg, err := parsed.ToV1(ctx, l, v, pc)
+	cfg, err := parsed.ToV1(ctx, l, v, new(config.Store), pc)
 	require.NoError(t, err)
 
 	assert.Equal(t, "vpc-from-run", cfg.Inputs["vpc_id"])

@@ -132,7 +132,7 @@ func TestParseDependencyBlockMultiple(t *testing.T) {
 	v := venvtest.NewWithOSFS()
 	ctx, pctx := newTestParsingContext(t, filename)
 	v.Env = venvtest.NewOSWithEmptyEnv().Env
-	tfConfig, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, filename, nil)
+	tfConfig, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, filename, nil)
 	require.NoError(t, err)
 	assert.Len(t, tfConfig.TerragruntDependencies, 2)
 	assert.Equal(t, "dependency_1", tfConfig.TerragruntDependencies[0].Name)
@@ -191,6 +191,7 @@ dependency "enabled" {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
@@ -230,7 +231,7 @@ func TestDependencyOriginalTerragruntDir(t *testing.T) {
 	pctx.OriginalTerragruntConfigPath = filename
 	pctx.SkipOutput = true
 
-	tfConfig, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, filename, nil)
+	tfConfig, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, filename, nil)
 	require.NoError(t, err)
 	require.NotNil(t, tfConfig)
 
@@ -257,6 +258,7 @@ func TestDependencyOriginalTerragruntDir(t *testing.T) {
 		ctxB,
 		logger.CreateLogger(),
 		vB,
+		new(config.Store),
 		pctxB,
 		unitBFilename,
 		nil,
@@ -291,6 +293,7 @@ dependency "enabled" {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
@@ -382,6 +385,7 @@ func parseDependencyStringStrict(tb testing.TB, cfg string) (*config.TerragruntC
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx.WithDecodeList(config.DependencyBlock),
 		config.DefaultTerragruntConfigPath,
 		cfg,
@@ -593,6 +597,7 @@ func parseDependencyConfigPath(
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx.WithDecodeList(config.DependencyBlock),
 		configPath,
 		"dependency \"db\" {\n"+args+"\n}\n",

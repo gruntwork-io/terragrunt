@@ -81,7 +81,7 @@ func Run(
 
 	srcPctx := configbridge.NewParsingContext(srcOpts)
 
-	srcRemoteState, err := config.ParseRemoteState(ctx, l, srcV, srcPctx)
+	srcRemoteState, err := config.ParseRemoteState(ctx, l, srcV, s, srcPctx)
 	if err != nil {
 		return err
 	}
@@ -97,7 +97,7 @@ func Run(
 
 	dstPctx := configbridge.NewParsingContext(dstOpts)
 
-	dstRemoteState, err := config.ParseRemoteState(ctx, l, dstV, dstPctx)
+	dstRemoteState, err := config.ParseRemoteState(ctx, l, dstV, s, dstPctx)
 	if err != nil {
 		return err
 	}

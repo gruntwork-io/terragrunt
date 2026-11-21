@@ -453,14 +453,14 @@ func ExposedIncludeError(include *IncludeConfig, err error) error {
 // ParsedExposedInclude returns an [ExposedInclude] that parses the included config with the context it is given. It
 // parses the whole config, or only the sections of the context's decode list when the config has a dependency block
 // and the parse is partial.
-func ParsedExposedInclude(v *venv.Venv) ExposedInclude {
+func ParsedExposedInclude(v *venv.Venv, s *Store) ExposedInclude {
 	return func(
 		ctx context.Context,
 		l log.Logger,
 		pctx *ParsingContext,
 		include *IncludeConfig,
 	) (cty.Value, error) {
-		parsed, err := parseIncludedConfig(ctx, l, v, pctx, include)
+		parsed, err := parseIncludedConfig(ctx, l, v, s, pctx, include)
 		if err != nil {
 			return cty.NilVal, err
 		}

@@ -25,13 +25,14 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *config.Store, opts 
 		return runAll(ctx, l, v, s, opts)
 	}
 
-	return runBootstrap(ctx, l, v, opts)
+	return runBootstrap(ctx, l, v, s, opts)
 }
 
 func runBootstrap(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 ) error {
 	return telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "backend_bootstrap", map[string]any{
@@ -40,7 +41,7 @@ func runBootstrap(
 	}, func(ctx context.Context, l log.Logger) error {
 		pctx := configbridge.NewParsingContext(opts)
 
-		remoteState, err := config.ParseRemoteState(ctx, l, v, pctx)
+		remoteState, err := config.ParseRemoteState(ctx, l, v, s, pctx)
 		if err != nil || remoteState == nil {
 			return err
 		}
@@ -82,7 +83,7 @@ func runAll(
 				// Parsing can write obtained credentials into the env, so each
 				// unit gets its own clone to keep them from leaking to siblings.
 				unitV := v.WithEnvCloned()
-				if err := runBootstrap(ctx, l, unitV, unitOpts); err != nil {
+				if err := runBootstrap(ctx, l, unitV, s, unitOpts); err != nil {
 					if opts.FailFast {
 						return err
 					}

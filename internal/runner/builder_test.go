@@ -344,7 +344,15 @@ func TestCheckUnitVersionConstraints_UnitLeftUnparsed(t *testing.T) {
 	unitOpts, unitLogger, err := runner.BuildUnitOpts(l, opts, unit)
 	require.NoError(t, err)
 
-	err = runner.CheckUnitVersionConstraints(config.WithCaches(t.Context()), l, v, unitOpts, unitLogger, unit)
+	err = runner.CheckUnitVersionConstraints(
+		config.WithCaches(t.Context()),
+		l,
+		v,
+		new(config.Store),
+		unitOpts,
+		unitLogger,
+		unit,
+	)
 
 	var target run.InvalidTerragruntVersion
 
@@ -453,7 +461,15 @@ func TestCheckUnitVersionConstraints_UnparsableConfig(t *testing.T) {
 	unitOpts, unitLogger, err := runner.BuildUnitOpts(l, opts, unit)
 	require.NoError(t, err)
 
-	err = runner.CheckUnitVersionConstraints(config.WithCaches(t.Context()), l, v, unitOpts, unitLogger, unit)
+	err = runner.CheckUnitVersionConstraints(
+		config.WithCaches(t.Context()),
+		l,
+		v,
+		new(config.Store),
+		unitOpts,
+		unitLogger,
+		unit,
+	)
 
 	var diags hcl.Diagnostics
 
@@ -476,7 +492,15 @@ func TestCheckUnitVersionConstraints_InvalidEngineMeta(t *testing.T) {
 	unitOpts, unitLogger, err := runner.BuildUnitOpts(l, opts, unit)
 	require.NoError(t, err)
 
-	err = runner.CheckUnitVersionConstraints(config.WithCaches(t.Context()), l, v, unitOpts, unitLogger, unit)
+	err = runner.CheckUnitVersionConstraints(
+		config.WithCaches(t.Context()),
+		l,
+		v,
+		new(config.Store),
+		unitOpts,
+		unitLogger,
+		unit,
+	)
 
 	var target ctyhelper.NumberOutOfRangeError
 

@@ -30,9 +30,10 @@ func TestEvaluateLocalsBlock(t *testing.T) {
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx,
 		file,
-		config.ParsedExposedInclude(v),
+		config.ParsedExposedInclude(v, new(config.Store)),
 	)
 	require.NoError(t, err)
 
@@ -81,9 +82,10 @@ func TestEvaluateLocalsBlockMultiDeepReference(t *testing.T) {
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx,
 		file,
-		config.ParsedExposedInclude(v),
+		config.ParsedExposedInclude(v, new(config.Store)),
 	)
 	require.NoError(t, err)
 
@@ -122,7 +124,15 @@ func TestEvaluateLocalsBlockImpossibleWillFail(t *testing.T) {
 
 	v := venvtest.NewWithOSFS()
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
-	_, err = config.EvaluateLocalsBlock(ctx, logger.CreateLogger(), v, pctx, file, config.ParsedExposedInclude(v))
+	_, err = config.EvaluateLocalsBlock(
+		ctx,
+		logger.CreateLogger(),
+		v,
+		new(config.Store),
+		pctx,
+		file,
+		config.ParsedExposedInclude(v, new(config.Store)),
+	)
 	require.Error(t, err)
 
 	_, ok := errors.AsType[config.CouldNotEvaluateAllLocalsError](err)
@@ -190,7 +200,15 @@ locals {
 
 			v := venvtest.NewWithOSFS()
 			ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
-			_, err = config.EvaluateLocalsBlock(ctx, logger.CreateLogger(), v, pctx, file, config.ParsedExposedInclude(v))
+			_, err = config.EvaluateLocalsBlock(
+				ctx,
+				logger.CreateLogger(),
+				v,
+				new(config.Store),
+				pctx,
+				file,
+				config.ParsedExposedInclude(v, new(config.Store)),
+			)
 
 			_, ok := errors.AsType[config.CouldNotEvaluateAllLocalsError](err)
 			require.True(t, ok, "Did not get expected error: %v", err)
@@ -218,9 +236,10 @@ locals {
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx,
 		file,
-		config.ParsedExposedInclude(v),
+		config.ParsedExposedInclude(v, new(config.Store)),
 	)
 	require.NoError(t, err)
 
@@ -257,9 +276,10 @@ func TestEvaluateLocalsBlockLongChain(t *testing.T) {
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx,
 		file,
-		config.ParsedExposedInclude(v),
+		config.ParsedExposedInclude(v, new(config.Store)),
 	)
 	require.NoError(t, err)
 
@@ -277,7 +297,15 @@ func TestEvaluateLocalsBlockMultipleLocalsBlocksWillFail(t *testing.T) {
 
 	v := venvtest.NewWithOSFS()
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
-	_, err = config.EvaluateLocalsBlock(ctx, logger.CreateLogger(), v, pctx, file, config.ParsedExposedInclude(v))
+	_, err = config.EvaluateLocalsBlock(
+		ctx,
+		logger.CreateLogger(),
+		v,
+		new(config.Store),
+		pctx,
+		file,
+		config.ParsedExposedInclude(v, new(config.Store)),
+	)
 	require.Error(t, err)
 }
 

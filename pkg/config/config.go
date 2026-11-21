@@ -1716,6 +1716,7 @@ func isTerragruntModuleDir(path string, tfDataDir string, downloadDir string) bo
 func ReadTerragruntConfig(ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 ) (*TerragruntConfig, error) {
 	if err := RejectAmbiguousUnitConfig(v.FS, pctx); err != nil {
@@ -1727,7 +1728,7 @@ func ReadTerragruntConfig(ctx context.Context,
 		util.RelPathForLog(pctx.RootWorkingDir, pctx.TerragruntConfigPath, pctx.LogShowAbsPaths),
 	)
 
-	return ParseConfigFile(ctx, l, v, pctx, pctx.TerragruntConfigPath, nil)
+	return ParseConfigFile(ctx, l, v, s, pctx, pctx.TerragruntConfigPath, nil)
 }
 
 // ParseConfigFile parses the Terragrunt config file at the given path. If the include parameter is not nil, then treat this as a config
@@ -1736,6 +1737,7 @@ func ParseConfigFile(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 	cfgPath string,
 	includeFromChild *IncludeConfig,
@@ -1809,7 +1811,7 @@ func ParseConfigFile(
 				return parseErr
 			}
 
-			config, parseErr = ParseConfig(childCtx, l, v, pctx, file, includeFromChild)
+			config, parseErr = ParseConfig(childCtx, l, v, s, pctx, file, includeFromChild)
 			if parseErr != nil {
 				return parseErr
 			}
@@ -1828,6 +1830,7 @@ func ParseConfigString(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 	cfgPath string,
 	configString string,
@@ -1839,7 +1842,7 @@ func ParseConfigString(
 		return nil, err
 	}
 
-	config, err := ParseConfig(ctx, l, v, pctx, file, includeFromChild)
+	config, err := ParseConfig(ctx, l, v, s, pctx, file, includeFromChild)
 	if err != nil {
 		return config, err
 	}
@@ -1877,6 +1880,7 @@ func ParseConfig(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 	file *hclparse.File,
 	includeFromChild *IncludeConfig,
@@ -1914,7 +1918,7 @@ func ParseConfig(
 
 	// Initial evaluation of configuration to load flags like IamRole which will be used for final parsing
 	// https://github.com/gruntwork-io/terragrunt/issues/667
-	iamRoleOptions, err := ResolveIAMRoleOptions(ctx, l, v, pctx, file, includeFromChild)
+	iamRoleOptions, err := ResolveIAMRoleOptions(ctx, l, v, s, pctx, file, includeFromChild)
 	if err != nil {
 		errs = append(errs, err)
 	}
@@ -1924,7 +1928,7 @@ func ParseConfig(
 	}
 
 	// read unit files and add to context
-	unitValues, err := ReadValues(ctx, l, v, pctx, filepath.Dir(file.ConfigPath))
+	unitValues, err := ReadValues(ctx, l, v, s, pctx, filepath.Dir(file.ConfigPath))
 	if err != nil {
 		return nil, err
 	}
@@ -1936,11 +1940,12 @@ func ParseConfig(
 		ctx,
 		l,
 		v,
+		s,
 		pctx,
 		file,
 		includeFromChild,
-		parsedIncludeFeatureFlags(v, pctx, IncludeParseFeatureFlags),
-		ParsedExposedInclude(v),
+		parsedIncludeFeatureFlags(v, s, pctx, IncludeParseFeatureFlags),
+		ParsedExposedInclude(v, s),
 	)
 	if err != nil {
 		// Surface the error here so it reaches stderr; the multi-error returned at
@@ -1959,7 +1964,7 @@ func ParseConfig(
 	if pctx.DecodedDependencies == nil {
 		// Decode just the `dependency` blocks, retrieving the outputs from the target terragrunt config in the
 		// process. Note: the actual `tofu/terraform output` side effect is gated by SkipOutput, not here.
-		resolved, err := decodeAndRetrieveOutputs(ctx, l, v, pctx, file)
+		resolved, err := decodeAndRetrieveOutputs(ctx, l, v, s, pctx, file)
 		if err != nil {
 			errs = append(errs, err)
 
@@ -1978,7 +1983,7 @@ func ParseConfig(
 		pctx.DecodedDependencies = resolved.value
 	}
 
-	evalContext, err := CreateTerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath, file.FunctionCalls())
+	evalContext, err := CreateTerragruntEvalContext(ctx, l, v, s, pctx, file.ConfigPath, file.FunctionCalls())
 	if err != nil {
 		errs = append(errs, err)
 	}
@@ -2013,7 +2018,7 @@ func ParseConfig(
 			errs = append(errs, err)
 		}
 
-		merged, autoMergeErr := mergeAutoIncludeIfPresent(ctx, l, v, pctx, config)
+		merged, autoMergeErr := mergeAutoIncludeIfPresent(ctx, l, v, s, pctx, config)
 		if autoMergeErr != nil {
 			errs = append(errs, autoMergeErr)
 		}
@@ -2026,7 +2031,7 @@ func ParseConfig(
 	// If this file includes another, parse and merge it. Otherwise, just return this config.
 	// Skip include merge when config is nil to avoid a nil pointer dereference in Merge/DeepMerge.
 	if pctx.TrackInclude != nil && config != nil {
-		mergedConfig, err := handleInclude(ctx, l, v, pctx, config, false)
+		mergedConfig, err := handleInclude(ctx, l, v, s, pctx, config, false)
 		if err != nil {
 			errs = append(errs, err)
 			return config, errors.Join(errs...)
@@ -2207,6 +2212,7 @@ func ResolveIAMRoleOptions(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 	file *hclparse.File,
 	includeFromChild *IncludeConfig,
@@ -2229,7 +2235,7 @@ func ResolveIAMRoleOptions(
 	if !found {
 		var err error
 
-		config, err = parseIAMRoleOptions(ctx, l, v, pctx, file, includeFromChild)
+		config, err = parseIAMRoleOptions(ctx, l, v, s, pctx, file, includeFromChild)
 		if err != nil {
 			return iam.RoleOptions{}, err
 		}
@@ -2246,11 +2252,12 @@ func parseIAMRoleOptions(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 	file *hclparse.File,
 	includeFromChild *IncludeConfig,
 ) (iam.RoleOptions, error) {
-	if !mayMergeDeclaration(ctx, l, v, pctx, file, iamRoleSchema) {
+	if !mayMergeDeclaration(ctx, l, v, s, pctx, file, iamRoleSchema) {
 		return iam.RoleOptions{}, nil
 	}
 
@@ -2258,6 +2265,7 @@ func parseIAMRoleOptions(
 		ctx,
 		l,
 		v,
+		s,
 		pctx.WithDecodeList(TerragruntFlags),
 		file,
 		includeFromChild,
@@ -2288,6 +2296,7 @@ func mayMergeDeclaration(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 	file *hclparse.File,
 	schemas ...*hcl.BodySchema,
@@ -2296,7 +2305,7 @@ func mayMergeDeclaration(
 		return true
 	}
 
-	paths, ok := mergedIncludePaths(ctx, l, v, pctx, file)
+	paths, ok := mergedIncludePaths(ctx, l, v, s, pctx, file)
 	if !ok {
 		return true
 	}
@@ -2348,6 +2357,7 @@ func mergedIncludePaths(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 	file *hclparse.File,
 ) ([]string, bool) {
@@ -2374,7 +2384,7 @@ func mergedIncludePaths(
 	})
 
 	if readsValues {
-		values, ok := pureValues(ctx, l, v, pctx, filepath.Dir(file.ConfigPath))
+		values, ok := pureValues(ctx, l, v, s, pctx, filepath.Dir(file.ConfigPath))
 		if !ok {
 			return nil, false
 		}
@@ -2382,7 +2392,7 @@ func mergedIncludePaths(
 		pctx = pctx.WithValues(values)
 	}
 
-	evalCtx, err := CreateTerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath, file.FunctionCalls())
+	evalCtx, err := CreateTerragruntEvalContext(ctx, l, v, s, pctx, file.ConfigPath, file.FunctionCalls())
 	if err != nil {
 		return nil, false
 	}
@@ -2412,7 +2422,14 @@ func mergedIncludePaths(
 
 // pureValues returns the values in dir that a parse of a config in dir reads. It returns false without reading them
 // when the values file calls a function [callsOnlyPureFunctions] rejects, and false when reading them fails.
-func pureValues(ctx context.Context, l log.Logger, v *venv.Venv, pctx *ParsingContext, dir string) (*cty.Value, bool) {
+func pureValues(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	s *Store,
+	pctx *ParsingContext,
+	dir string,
+) (*cty.Value, bool) {
 	valuesPath := filepath.Join(dir, valuesFile)
 
 	if vfs.Exists(v.FS, valuesPath) {
@@ -2427,7 +2444,7 @@ func pureValues(ctx context.Context, l log.Logger, v *venv.Venv, pctx *ParsingCo
 		}
 	}
 
-	values, err := ReadValues(ctx, l, v, pctx, dir)
+	values, err := ReadValues(ctx, l, v, s, pctx, dir)
 	if err != nil {
 		return nil, false
 	}
@@ -3469,9 +3486,10 @@ func ParseRemoteState(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 ) (*remotestate.RemoteState, error) {
-	cfg, err := readBackendConfig(ctx, l, v, pctx)
+	cfg, err := readBackendConfig(ctx, l, v, s, pctx)
 	if err != nil {
 		l.Debugf(
 			"Decoding only the backend blocks of %s failed (%v), reading the whole config instead",
@@ -3483,7 +3501,7 @@ func ParseRemoteState(
 			err,
 		)
 
-		cfg, err = ReadTerragruntConfig(ctx, l, v, pctx)
+		cfg, err = ReadTerragruntConfig(ctx, l, v, s, pctx)
 		if err != nil {
 			return nil, err
 		}
@@ -3503,6 +3521,7 @@ func readBackendConfig(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 ) (*TerragruntConfig, error) {
 	// The whole-config read decides whether this config is valid, so a failure here must not
@@ -3518,6 +3537,7 @@ func readBackendConfig(
 			ctx,
 			l,
 			v,
+			s,
 			quietCtx.WithDecodeList(TerragruntFlags),
 			pctx.TerragruntConfigPath,
 			nil,
@@ -3535,7 +3555,7 @@ func readBackendConfig(
 	backendCtx := quietCtx.WithDecodeList(RemoteStateBlock, TerraformSource)
 	backendCtx.IAMRoleOptions = iamRoleOptions
 
-	return PartialParseConfigFile(ctx, l, v, backendCtx, pctx.TerragruntConfigPath, nil)
+	return PartialParseConfigFile(ctx, l, v, s, backendCtx, pctx.TerragruntConfigPath, nil)
 }
 
 // siblingAutoIncludePath returns the path of the sibling terragrunt.autoinclude.hcl beside cfgPath
@@ -3567,6 +3587,7 @@ func mergeAutoIncludeIfPresent(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 	cfg *TerragruntConfig,
 ) (*TerragruntConfig, error) {
@@ -3583,7 +3604,7 @@ func mergeAutoIncludeIfPresent(
 	clonedPctx.DecodedDependencies = nil
 	clonedPctx.SkipAutoIncludeMerge = true
 
-	autoIncludeConfig, err := ParseConfigFile(ctx, l, v, clonedPctx, autoIncludePath, nil)
+	autoIncludeConfig, err := ParseConfigFile(ctx, l, v, s, clonedPctx, autoIncludePath, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse %s: %w", autoIncludePath, err)
 	}

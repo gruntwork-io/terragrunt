@@ -43,6 +43,7 @@ remote_state {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
@@ -79,6 +80,7 @@ remote_state = {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
@@ -124,6 +126,7 @@ remote_state = {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
@@ -176,6 +179,7 @@ remote_state {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
@@ -209,7 +213,7 @@ remote_state = {
 
 	v := venvtest.NewWithOSFS()
 	ctx, pctx := newTestParsingContext(t, "test-time-mock")
-	_, err := config.ParseConfigString(ctx, l, v, pctx, config.DefaultTerragruntConfigPath, cfg, nil)
+	_, err := config.ParseConfigString(ctx, l, v, new(config.Store), pctx, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.Error(t, err)
 }
 
@@ -240,6 +244,7 @@ generate = {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
@@ -271,7 +276,7 @@ generate = {
 
 	v := venvtest.NewWithOSFS()
 	ctx, pctx := newTestParsingContext(t, "test-time-mock")
-	_, err := config.ParseConfigString(ctx, l, v, pctx, config.DefaultTerragruntConfigPath, cfg, nil)
+	_, err := config.ParseConfigString(ctx, l, v, new(config.Store), pctx, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.Error(t, err)
 }
 
@@ -291,7 +296,7 @@ generate "example" {
 
 	v := venvtest.NewOSWithEmptyEnv()
 	ctx, pctx := newTestParsingContext(t, "test-time-mock")
-	_, err := config.ParseConfigString(ctx, l, v, pctx, config.DefaultTerragruntConfigPath, cfg, nil)
+	_, err := config.ParseConfigString(ctx, l, v, new(config.Store), pctx, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.Error(t, err)
 
 	var target codegen.UnknownGenerateIfDisabledVal
@@ -329,7 +334,7 @@ generate "example" {
 
 	v := venvtest.NewOSWithEmptyEnv()
 	ctx, pctx := newTestParsingContext(t, childPath)
-	_, err := config.ParseConfigString(ctx, l, v, pctx, childPath, childCfg, nil)
+	_, err := config.ParseConfigString(ctx, l, v, new(config.Store), pctx, childPath, childCfg, nil)
 	require.Error(t, err)
 
 	var target codegen.UnknownGenerateIfDisabledVal
@@ -356,7 +361,7 @@ generate = {
 
 	v := venvtest.NewOSWithEmptyEnv()
 	ctx, pctx := newTestParsingContext(t, "test-time-mock")
-	_, err := config.ParseConfigString(ctx, l, v, pctx, config.DefaultTerragruntConfigPath, cfg, nil)
+	_, err := config.ParseConfigString(ctx, l, v, new(config.Store), pctx, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.Error(t, err)
 
 	var target codegen.UnknownGenerateIfDisabledVal
@@ -385,6 +390,7 @@ func TestParseTerragruntJsonConfigRemoteStateMinimalConfig(t *testing.T) {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntJSONConfigPath,
 		cfg,
@@ -412,7 +418,7 @@ remote_state {}
 
 	v := venvtest.NewWithOSFS()
 	ctx, pctx := newTestParsingContext(t, "test-time-mock")
-	_, err := config.ParseConfigString(ctx, l, v, pctx, config.DefaultTerragruntConfigPath, cfg, nil)
+	_, err := config.ParseConfigString(ctx, l, v, new(config.Store), pctx, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.Error(t, err)
 	assert.Contains(
 		t,
@@ -449,6 +455,7 @@ remote_state {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
@@ -504,6 +511,7 @@ func TestParseTerragruntJsonConfigRemoteStateFullConfig(t *testing.T) {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntJSONConfigPath,
 		cfg,
@@ -541,7 +549,7 @@ retryable_errors = [".*Error.*"]
 
 	v := venvtest.NewWithOSFS()
 	ctx, pctx := newTestParsingContext(t, "test-time-mock")
-	_, err := config.ParseConfigString(ctx, l, v, pctx, config.DefaultTerragruntConfigPath, cfg, nil)
+	_, err := config.ParseConfigString(ctx, l, v, new(config.Store), pctx, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "retryable_errors")
 	assert.Contains(t, err.Error(), "Unsupported argument")
@@ -564,6 +572,7 @@ func TestParseTerragruntJsonConfigRetryConfiguration(t *testing.T) {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntJSONConfigPath,
 		cfg,
@@ -593,6 +602,7 @@ func TestParseIamRole(t *testing.T) {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
@@ -621,6 +631,7 @@ func TestParseIamAssumeRoleDuration(t *testing.T) {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
@@ -649,6 +660,7 @@ func TestParseIamAssumeRoleSessionName(t *testing.T) {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
@@ -683,6 +695,7 @@ func TestParseIamWebIdentity(t *testing.T) {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
@@ -715,6 +728,7 @@ dependencies {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
@@ -754,6 +768,7 @@ dependencies {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
@@ -812,6 +827,7 @@ dependencies {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
@@ -880,6 +896,7 @@ func TestParseTerragruntJsonConfigRemoteStateDynamoDbTerraformConfigAndDependenc
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntJSONConfigPath,
 		cfg,
@@ -944,7 +961,7 @@ include {
 	v := venvtest.NewWithOSFS()
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 
-	terragruntConfig, parseErr := config.ParseConfigString(ctx, l, v, pctx, cfgPath, cfg, nil)
+	terragruntConfig, parseErr := config.ParseConfigString(ctx, l, v, new(config.Store), pctx, cfgPath, cfg, nil)
 	if assert.NoError(t, parseErr, "Unexpected error: %v", parseErr) {
 		assert.Nil(t, terragruntConfig.Terraform)
 
@@ -995,7 +1012,7 @@ func TestParseTerragruntConfigIncludeNoDotTerragruntCache(t *testing.T) {
 			v := venvtest.NewWithOSFS()
 			ctx, pctx := newTestParsingContext(t, cfgPath)
 
-			terragruntConfig, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+			terragruntConfig, err := config.ParseConfigFile(ctx, l, v, new(config.Store), pctx, cfgPath, nil)
 			require.NoError(t, err)
 			require.NotNil(t, terragruntConfig.Terraform)
 
@@ -1037,7 +1054,7 @@ include {
 	v := venvtest.NewWithOSFS()
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 
-	terragruntConfig, parseErr := config.ParseConfigString(ctx, l, v, pctx, cfgPath, cfg, nil)
+	terragruntConfig, parseErr := config.ParseConfigString(ctx, l, v, new(config.Store), pctx, cfgPath, cfg, nil)
 	if assert.NoError(t, parseErr, "Unexpected error: %v", parseErr) {
 		assert.Nil(t, terragruntConfig.Terraform)
 
@@ -1097,7 +1114,7 @@ remote_state {
 	v := venvtest.NewWithOSFS()
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 
-	terragruntConfig, err := config.ParseConfigString(ctx, l, v, pctx, cfgPath, cfg, nil)
+	terragruntConfig, err := config.ParseConfigString(ctx, l, v, new(config.Store), pctx, cfgPath, cfg, nil)
 	if assert.NoError(t, err, "Unexpected error: %v", err) {
 		assert.Nil(t, terragruntConfig.Terraform)
 
@@ -1147,7 +1164,7 @@ dependencies {
 
 	v := venvtest.NewWithOSFS()
 	ctx, pctx := newTestParsingContext(t, configPath)
-	terragruntConfig, err := config.ParseConfigString(ctx, l, v, pctx, configPath, cfg, nil)
+	terragruntConfig, err := config.ParseConfigString(ctx, l, v, new(config.Store), pctx, configPath, cfg, nil)
 	require.NoError(t, err, "Unexpected error: %v", err)
 
 	assert.NotNil(t, terragruntConfig.Terraform)
@@ -1199,7 +1216,7 @@ func TestParseTerragruntJsonConfigIncludeOverrideAll(t *testing.T) {
 
 	v := venvtest.NewWithOSFS()
 	ctx, pctx := newTestParsingContext(t, cfgPath)
-	terragruntConfig, err := config.ParseConfigString(ctx, l, v, pctx, cfgPath, cfg, nil)
+	terragruntConfig, err := config.ParseConfigString(ctx, l, v, new(config.Store), pctx, cfgPath, cfg, nil)
 	require.NoError(t, err, "Unexpected error: %v", err)
 
 	assert.NotNil(t, terragruntConfig.Terraform)
@@ -1232,7 +1249,7 @@ func TestParseTerragruntConfigTwoLevels(t *testing.T) {
 	v := venvtest.NewWithOSFS()
 	ctx, pctx := newTestParsingContext(t, configPath)
 
-	_, actualErr := config.ParseConfigString(ctx, l, v, pctx, configPath, cfg, nil)
+	_, actualErr := config.ParseConfigString(ctx, l, v, new(config.Store), pctx, configPath, cfg, nil)
 
 	errStr := actualErr.Error()
 
@@ -1264,7 +1281,7 @@ func TestParseTerragruntConfigThreeLevels(t *testing.T) {
 	v := venvtest.NewWithOSFS()
 	ctx, pctx := newTestParsingContext(t, configPath)
 
-	_, actualErr := config.ParseConfigString(ctx, l, v, pctx, configPath, cfg, nil)
+	_, actualErr := config.ParseConfigString(ctx, l, v, new(config.Store), pctx, configPath, cfg, nil)
 
 	errStr := actualErr.Error()
 
@@ -1300,6 +1317,7 @@ func TestParseTerragruntConfigEmptyConfig(t *testing.T) {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
@@ -1329,6 +1347,7 @@ func TestParseTerragruntConfigEmptyConfigOldConfig(t *testing.T) {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfgString,
@@ -1355,6 +1374,7 @@ terraform {}
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
@@ -1387,6 +1407,7 @@ terraform {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
@@ -1429,6 +1450,7 @@ terraform {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
@@ -1498,6 +1520,7 @@ terraform {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
@@ -1582,6 +1605,7 @@ func TestParseTerragruntJsonConfigTerraformWithMultipleExtraArguments(t *testing
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntJSONConfigPath,
 		cfg,
@@ -1933,6 +1957,7 @@ prevent_destroy = true
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
@@ -1962,6 +1987,7 @@ prevent_destroy = false
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
@@ -1987,7 +2013,7 @@ skip = true
 	v := venvtest.NewWithOSFS()
 	ctx, pctx := newTestParsingContext(t, "test-time-mock")
 
-	_, err := config.ParseConfigString(ctx, l, v, pctx, config.DefaultTerragruntConfigPath, cfg, nil)
+	_, err := config.ParseConfigString(ctx, l, v, new(config.Store), pctx, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "skip")
 	assert.Contains(t, err.Error(), "Unsupported argument")
@@ -2005,7 +2031,7 @@ skip = false
 	v := venvtest.NewWithOSFS()
 	ctx, pctx := newTestParsingContext(t, "test-time-mock")
 
-	_, err := config.ParseConfigString(ctx, l, v, pctx, config.DefaultTerragruntConfigPath, cfg, nil)
+	_, err := config.ParseConfigString(ctx, l, v, new(config.Store), pctx, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "skip")
 	assert.Contains(t, err.Error(), "Unsupported argument")
@@ -2045,6 +2071,7 @@ terraform {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		pctx.TerragruntConfigPath,
 		cfg,
@@ -2179,6 +2206,7 @@ func BenchmarkReadTerragruntConfig(b *testing.B) {
 				b.Context(),
 				l,
 				v,
+				new(config.Store),
 				pctx,
 			)
 			b.StopTimer()
@@ -2259,6 +2287,7 @@ func TestBestEffortParseConfigString(t *testing.T) {
 				ctx,
 				l,
 				v,
+				new(config.Store),
 				pctx,
 				config.DefaultTerragruntConfigPath,
 				tt.cfg,
@@ -2294,6 +2323,7 @@ func TestParseConfigGenerateBlockWithHclFmt(t *testing.T) {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
@@ -2329,6 +2359,7 @@ func TestParseConfigGenerateAttrWithHclFmt(t *testing.T) {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
@@ -2362,6 +2393,7 @@ func TestParseConfigGenerateBlockWithMutable(t *testing.T) {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
@@ -2397,6 +2429,7 @@ func TestParseConfigGenerateAttrWithMutable(t *testing.T) {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
@@ -2428,6 +2461,7 @@ func TestParseConfigWithMissingIfExists(t *testing.T) {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
@@ -2490,6 +2524,7 @@ dependency "dep" {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
@@ -2691,6 +2726,7 @@ inputs = {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
@@ -2709,6 +2745,7 @@ inputs = {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		buf.String(),
@@ -2859,6 +2896,7 @@ exclude {
 		ctx,
 		createLogger(),
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		src,

@@ -42,7 +42,7 @@ func prepare(t *testing.T, source string) *scaffold.Plan {
 	v := venv.OSVenv()
 
 	plan, err := scaffold.Prepare(
-		config.WithCaches(t.Context()), logger.CreateLogger(), v, opts, source, "",
+		config.WithCaches(t.Context()), logger.CreateLogger(), v, new(config.Store), opts, source, "",
 	)
 	require.NoError(t, err)
 
@@ -120,7 +120,7 @@ func TestRunInteractiveNonInteractiveSkipsTheForm(t *testing.T) {
 	opts.NonInteractive = true
 
 	require.NoError(t, scaffold.RunInteractive(
-		config.WithCaches(t.Context()), logger.CreateLogger(), venv.OSVenv(), opts, source, "",
+		config.WithCaches(t.Context()), logger.CreateLogger(), venv.OSVenv(), new(config.Store), opts, source, "",
 	))
 
 	values := readFile(t, filepath.Join(outputDir, "terragrunt.values.hcl"))
@@ -152,7 +152,18 @@ func TestRunInteractiveWithoutTerminalSkipsTheForm(t *testing.T) {
 		Width:       func() int { return 0 },
 	}
 
-	require.NoError(t, scaffold.RunInteractive(config.WithCaches(t.Context()), logger.CreateLogger(), v, opts, source, ""))
+	require.NoError(
+		t,
+		scaffold.RunInteractive(
+			config.WithCaches(t.Context()),
+			logger.CreateLogger(),
+			v,
+			new(config.Store),
+			opts,
+			source,
+			"",
+		),
+	)
 
 	assert.FileExists(t, filepath.Join(outputDir, "terragrunt.hcl"))
 	assert.Contains(t, readFile(t, filepath.Join(outputDir, "terragrunt.values.hcl")), `"TODO"`)

@@ -137,7 +137,7 @@ func parseConfig(
 	cfgPath string,
 ) (*config.TerragruntConfig, error) {
 	if _, isUnit := c.(*component.Unit); !isUnit {
-		return config.PartialParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+		return config.PartialParseConfigFile(ctx, l, v, s, pctx, cfgPath, nil)
 	}
 
 	return s.ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(v, pctx), cfgPath)
@@ -344,7 +344,7 @@ func parseComponent(
 			}
 
 			if _, ok := c.(*component.Stack); ok {
-				autoIncludes := trackStackComponentReads(ctx, l, parseV, parsingCtx, parseOpts.TerragruntConfigPath)
+				autoIncludes := trackStackComponentReads(ctx, l, parseV, s, parsingCtx, parseOpts.TerragruntConfigPath)
 				discovery.recordAutoIncludeInputsReads(l, parseOpts.TerragruntConfigPath, autoIncludes)
 			} else {
 				discovery.recordUnitInputsReads(l, v.FS, parseOpts.TerragruntConfigPath, cfg)
@@ -370,27 +370,28 @@ func trackStackComponentReads(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	pctx *config.ParsingContext,
 	stackFilePath string,
 ) map[string]*inthclparse.AutoIncludeResolved {
 	pctx = pctx.Clone()
 	pctx.Parser.IgnoreDiagnostics = true
 
-	values, err := config.ReadValues(ctx, l, v, pctx, filepath.Dir(stackFilePath))
+	values, err := config.ReadValues(ctx, l, v, s, pctx, filepath.Dir(stackFilePath))
 	if err != nil {
 		l.Debugf("Discovery: skipping read tracking for %s: %v", stackFilePath, err)
 
 		return nil
 	}
 
-	stackCfg, err := config.ReadStackConfigFile(ctx, l, v, pctx, stackFilePath, values)
+	stackCfg, err := config.ReadStackConfigFile(ctx, l, v, s, pctx, stackFilePath, values)
 	if err != nil {
 		l.Debugf("Discovery: read tracking for %s stopped early: %v", stackFilePath, err)
 
 		return nil
 	}
 
-	autoIncludes, err := config.StackAutoIncludes(ctx, l, v, pctx, stackFilePath, stackCfg, values)
+	autoIncludes, err := config.StackAutoIncludes(ctx, l, v, s, pctx, stackFilePath, stackCfg, values)
 	if err != nil {
 		l.Debugf("Discovery: read tracking for %s stopped early: %v", stackFilePath, err)
 	}

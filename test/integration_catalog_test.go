@@ -152,6 +152,7 @@ func TestScaffoldGitModule(t *testing.T) {
 		ctx,
 		createLogger(),
 		venv.OSVenv(),
+		new(config.Store),
 		opts,
 		moduleWithVariables.TerraformSourcePath(),
 		"",
@@ -208,6 +209,7 @@ func readConfig(t *testing.T, opts *options.TerragruntOptions) *config.Terragrun
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 	)
 	require.NoError(t, err)

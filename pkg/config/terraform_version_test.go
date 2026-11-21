@@ -32,6 +32,7 @@ terraform {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
@@ -147,7 +148,7 @@ include "root" {
 			v := venvtest.NewWithOSFS()
 			ctx, pctx := newTestParsingContext(t, childPath)
 
-			terragruntConfig, err := config.ParseConfigFile(ctx, l, v, pctx, childPath, nil)
+			terragruntConfig, err := config.ParseConfigFile(ctx, l, v, new(config.Store), pctx, childPath, nil)
 
 			if tc.expectedErr != nil {
 				require.ErrorAs(t, err, tc.expectedErr)

@@ -42,7 +42,7 @@ func TestResolveIAMRoleOptionsIdenticalContentInTwoDirectories(t *testing.T) {
 		v := venvtest.NewWithOSFS()
 		ctx, pctx := newTestParsingContext(t, cfgPath)
 
-		opts, err := config.ResolveIAMRoleOptions(ctx, logger.CreateLogger(), v, pctx, file, nil)
+		opts, err := config.ResolveIAMRoleOptions(ctx, logger.CreateLogger(), v, new(config.Store), pctx, file, nil)
 		require.NoError(t, err)
 		assert.Equal(t, "arn:aws:iam::123456789012:role/"+name, opts.RoleARN)
 	}
@@ -97,7 +97,7 @@ func TestResolveIAMRoleOptionsReadsTheRoleOfAnInclude(t *testing.T) {
 
 			ctx, pctx := newTestParsingContext(t, cfgPath)
 
-			opts, err := config.ResolveIAMRoleOptions(ctx, logger.CreateLogger(), v, pctx, file, nil)
+			opts, err := config.ResolveIAMRoleOptions(ctx, logger.CreateLogger(), v, new(config.Store), pctx, file, nil)
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, opts.RoleARN)
 		})
@@ -135,7 +135,7 @@ include "root" {
 
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 
-	opts, err := config.ResolveIAMRoleOptions(ctx, logger.CreateLogger(), v, pctx, file, nil)
+	opts, err := config.ResolveIAMRoleOptions(ctx, logger.CreateLogger(), v, new(config.Store), pctx, file, nil)
 	require.NoError(t, err)
 	assert.Equal(t, "arn:aws:iam::123456789012:role/root", opts.RoleARN)
 	assert.Equal(t, int64(1), runs.Load())

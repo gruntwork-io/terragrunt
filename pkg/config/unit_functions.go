@@ -18,14 +18,15 @@ type parseFunctions struct {
 	ctx     context.Context
 	l       log.Logger
 	v       *venv.Venv
+	s       *Store
 	pctx    *ParsingContext
 	evalCtx *hcl.EvalContext
 	file    *hclparse.File
 }
 
-// newParseFunctions returns the functions of a parse of file that file calls, which use ctx, l, and v when called.
-func newParseFunctions(ctx context.Context, l log.Logger, v *venv.Venv, file *hclparse.File) *parseFunctions {
-	return &parseFunctions{ctx: ctx, l: l, v: v, file: file}
+// newParseFunctions returns the functions of a parse of file that file calls, which use ctx, l, v, and s when called.
+func newParseFunctions(ctx context.Context, l log.Logger, v *venv.Venv, s *Store, file *hclparse.File) *parseFunctions {
+	return &parseFunctions{ctx: ctx, l: l, v: v, s: s, file: file}
 }
 
 // evalContext returns an eval context with vars and the functions, which read a copy of pctx when called until the
@@ -34,7 +35,7 @@ func (f *parseFunctions) evalContext(pctx *ParsingContext, vars map[string]cty.V
 	if f.evalCtx == nil {
 		bound := *pctx
 		f.pctx = &bound
-		f.evalCtx = TerragruntEvalContext(f.ctx, f.l, f.v, f.pctx, f.file.ConfigPath, f.file.FunctionCalls(), nil)
+		f.evalCtx = TerragruntEvalContext(f.ctx, f.l, f.v, f.s, f.pctx, f.file.ConfigPath, f.file.FunctionCalls(), nil)
 	}
 
 	*f.pctx = *pctx

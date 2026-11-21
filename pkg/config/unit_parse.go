@@ -127,7 +127,7 @@ func (s *Store) ResolveRunConfig(
 		return nil, err
 	}
 
-	return c.ToV1(ctx, l, v, pc)
+	return c.ToV1(ctx, l, v, s, pc)
 }
 
 // ReadTerragruntConfig reads the config file of run as [ReadTerragruntConfig] does, resolving the file as
@@ -202,7 +202,7 @@ func (s *Store) resolveFile(
 	cfg := res.Value.cfg
 
 	if res.Hit {
-		cfg, err = c.assemble(ctx, l, v, pc, keptQueue{}, c.functions(ctx, l, v))
+		cfg, err = c.assemble(ctx, l, v, s, pc, keptQueue{}, c.functions(ctx, l, v, s))
 	}
 
 	return c, cfg, err
@@ -248,7 +248,7 @@ func (s *Store) resolveFileOnce(
 				return parseErr
 			}
 
-			fns := newParseFunctions(childCtx, l, v, file)
+			fns := newParseFunctions(childCtx, l, v, s, file)
 			c = s.prepare(childCtx, l, v, pc, file, base, fns)
 
 			cfg, parseErr = s.assembleFirst(childCtx, l, v, pc, c, fns)
@@ -328,7 +328,7 @@ func (s *Store) assembleFirst(
 ) (*TerragruntConfig, error) {
 	kept := newKeptFiles(c.Includes)
 
-	cfg, err := c.assemble(ctx, l, v, pc, includeResolver{store: s, kept: kept}, fns)
+	cfg, err := c.assemble(ctx, l, v, s, pc, includeResolver{kept: kept}, fns)
 	c.kept = *kept
 
 	return cfg, err
@@ -402,14 +402,14 @@ func (s *Store) prepareBase(
 
 	var errs []error
 
-	pc, err := withFileIAMRole(ctx, l, v, pc, file)
+	pc, err := withFileIAMRole(ctx, l, v, s, pc, file)
 	if err != nil {
 		errs = append(errs, err)
 	}
 
 	pctx = pc.parsingContext()
 
-	unitValues, err := ReadValues(ctx, l, v, pctx, filepath.Dir(file.ConfigPath))
+	unitValues, err := ReadValues(ctx, l, v, s, pctx, filepath.Dir(file.ConfigPath))
 	if err != nil {
 		return nil, err
 	}
@@ -423,6 +423,7 @@ func (s *Store) prepareBase(
 		ctx,
 		l,
 		v,
+		s,
 		pctx,
 		file,
 		include,
@@ -469,6 +470,7 @@ func withFileIAMRole(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pc *ParseContext,
 	file *hclparse.File,
 ) (*ParseContext, error) {
@@ -476,7 +478,7 @@ func withFileIAMRole(
 		return pc, nil
 	}
 
-	iamRoleOptions, err := ResolveIAMRoleOptions(ctx, l, v, pc.parsingContext(), file, pc.file.include)
+	iamRoleOptions, err := ResolveIAMRoleOptions(ctx, l, v, s, pc.parsingContext(), file, pc.file.include)
 	if err != nil {
 		return pc, err
 	}
@@ -513,7 +515,7 @@ func (s *Store) prepare(
 	if pc.file.decodedDeps == nil && !pc.file.inheritsDependencies {
 		depPC := pc.withOwnReads()
 
-		set, err := c.newDependencySet(ctx, l, v, depPC, file, s.includedDependencies(v, depPC), fns)
+		set, err := c.newDependencySet(ctx, l, v, s, depPC, file, s.includedDependencies(v, depPC), fns)
 		c.dependencyReads = depPC.sinks.filesRead.Paths()
 
 		if err != nil {

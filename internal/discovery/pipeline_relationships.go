@@ -66,7 +66,7 @@ func readDependencyPaths(
 		return dependencyPaths{err: err}
 	}
 
-	paths, err = stackDependencyPaths(ctx, l, v, opts, paths)
+	paths, err = stackDependencyPaths(ctx, l, v, s, opts, paths)
 	if err != nil {
 		return dependencyPaths{err: err}
 	}

@@ -132,7 +132,7 @@ inputs = {
 	pctx := config.NewParsingContext(config.WithStrictControls(controls.New()))
 	pctx.RootWorkingDir = tmpDir
 
-	urls, err := tui.DiscoverSourceURLs(ctx, l, v, pctx)
+	urls, err := tui.DiscoverSourceURLs(ctx, l, v, new(config.Store), pctx)
 	require.NoError(t, err)
 
 	// Should have 2 unique repo URLs (repo-a deduplicated, repo-b, interpolated and no-source skipped)
@@ -152,7 +152,7 @@ func TestDiscoverSourceURLs_EmptyDir(t *testing.T) {
 	pctx := config.NewParsingContext(config.WithStrictControls(controls.New()))
 	pctx.RootWorkingDir = tmpDir
 
-	urls, err := tui.DiscoverSourceURLs(ctx, l, v, pctx)
+	urls, err := tui.DiscoverSourceURLs(ctx, l, v, new(config.Store), pctx)
 	require.NoError(t, err)
 	assert.Empty(t, urls)
 }

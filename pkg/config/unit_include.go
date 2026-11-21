@@ -29,6 +29,7 @@ type includeSource interface {
 		ctx context.Context,
 		l log.Logger,
 		v *venv.Venv,
+		s *Store,
 		pc *ParseContext,
 		c *UnitConfig,
 	) (*dependencyResolution, error)
@@ -38,6 +39,7 @@ type includeSource interface {
 		ctx context.Context,
 		l log.Logger,
 		v *venv.Venv,
+		s *Store,
 		pc *ParseContext,
 		c *UnitConfig,
 		i int,
@@ -48,16 +50,16 @@ type includeSource interface {
 		ctx context.Context,
 		l log.Logger,
 		v *venv.Venv,
+		s *Store,
 		pc *ParseContext,
 		c *UnitConfig,
 		path string,
 	) (*TerragruntConfig, error)
 }
 
-// includeResolver resolves each included file with store and records it in kept.
+// includeResolver resolves each included file and records it in kept.
 type includeResolver struct {
-	store *Store
-	kept  *keptFiles
+	kept *keptFiles
 }
 
 func (p includeResolver) parts() assemblyParts {
@@ -75,6 +77,7 @@ func (p includeResolver) dependencies(
 	_ context.Context,
 	_ log.Logger,
 	_ *venv.Venv,
+	s *Store,
 	pc *ParseContext,
 	_ *UnitConfig,
 ) (*dependencyResolution, error) {
@@ -85,6 +88,7 @@ func (p includeResolver) included(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pc *ParseContext,
 	c *UnitConfig,
 	i int,
@@ -92,7 +96,7 @@ func (p includeResolver) included(
 ) (*TerragruntConfig, error) {
 	include := pc.file.includes.List[i]
 
-	included, cfg, err := c.resolveIncludedConfig(ctx, l, v, pc, p.store, &include)
+	included, cfg, err := c.resolveIncludedConfig(ctx, l, v, pc, s, &include)
 	p.kept.included[i] = newIncludedFile(included, err)
 
 	return cfg, err
@@ -102,11 +106,12 @@ func (p includeResolver) autoIncluded(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pc *ParseContext,
 	c *UnitConfig,
 	path string,
 ) (*TerragruntConfig, error) {
-	autoInclude, cfg, err := p.store.resolveFile(ctx, l, v, pc.forAutoInclude(), path)
+	autoInclude, cfg, err := s.resolveFile(ctx, l, v, pc.forAutoInclude(), path)
 	p.kept.autoInclude = newIncludedFile(autoInclude, err)
 
 	return cfg, err
@@ -140,6 +145,7 @@ func (k keptIncludes) dependencies(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pc *ParseContext,
 	c *UnitConfig,
 ) (*dependencyResolution, error) {
@@ -147,13 +153,14 @@ func (k keptIncludes) dependencies(
 		return k.inherited, nil
 	}
 
-	return c.dependencyValue(ctx, l, v, pc)
+	return c.dependencyValue(ctx, l, v, s, pc)
 }
 
 func (k keptIncludes) included(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pc *ParseContext,
 	c *UnitConfig,
 	i int,
@@ -168,9 +175,10 @@ func (k keptIncludes) included(
 		ctx,
 		l,
 		v,
+		s,
 		pc.forMerge(),
 		keptIncludes{inherited: deps},
-		included.functions(ctx, l, v),
+		included.functions(ctx, l, v, s),
 	)
 	if err != nil {
 		include := pc.file.includes.List[i]
@@ -185,6 +193,7 @@ func (k keptIncludes) autoIncluded(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pc *ParseContext,
 	c *UnitConfig,
 	path string,
@@ -194,7 +203,7 @@ func (k keptIncludes) autoIncluded(
 		return nil, err
 	}
 
-	return autoInclude.assemble(ctx, l, v, pc, keptIncludes{}, autoInclude.functions(ctx, l, v))
+	return autoInclude.assemble(ctx, l, v, s, pc, keptIncludes{}, autoInclude.functions(ctx, l, v, s))
 }
 
 // keptQueue assembles the files a parse kept from their queue parts alone, with no run parts and no outputs. An
@@ -216,6 +225,7 @@ func (q keptQueue) dependencies(
 	_ context.Context,
 	_ log.Logger,
 	_ *venv.Venv,
+	s *Store,
 	pc *ParseContext,
 	_ *UnitConfig,
 ) (*dependencyResolution, error) {
@@ -226,6 +236,7 @@ func (q keptQueue) included(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pc *ParseContext,
 	c *UnitConfig,
 	i int,
@@ -236,7 +247,7 @@ func (q keptQueue) included(
 		return nil, err
 	}
 
-	cfg, err := included.assemble(ctx, l, v, pc.forMerge(), keptQueue{}, included.functions(ctx, l, v))
+	cfg, err := included.assemble(ctx, l, v, s, pc.forMerge(), keptQueue{}, included.functions(ctx, l, v, s))
 	if err != nil {
 		include := pc.file.includes.List[i]
 
@@ -250,6 +261,7 @@ func (q keptQueue) autoIncluded(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pc *ParseContext,
 	c *UnitConfig,
 	path string,
@@ -259,7 +271,7 @@ func (q keptQueue) autoIncluded(
 		return nil, err
 	}
 
-	return autoInclude.assemble(ctx, l, v, pc, keptQueue{}, autoInclude.functions(ctx, l, v))
+	return autoInclude.assemble(ctx, l, v, s, pc, keptQueue{}, autoInclude.functions(ctx, l, v, s))
 }
 
 // keptUnknownOutputs assembles the files a parse kept with `dependency` unknown, fetching no outputs. It decodes the
@@ -291,6 +303,7 @@ func (k keptUnknownOutputs) dependencies(
 	_ context.Context,
 	_ log.Logger,
 	_ *venv.Venv,
+	s *Store,
 	_ *ParseContext,
 	_ *UnitConfig,
 ) (*dependencyResolution, error) {
@@ -301,6 +314,7 @@ func (k keptUnknownOutputs) included(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pc *ParseContext,
 	c *UnitConfig,
 	i int,
@@ -311,7 +325,7 @@ func (k keptUnknownOutputs) included(
 		return nil, err
 	}
 
-	cfg, err := included.assemble(ctx, l, v, pc, k, included.functions(ctx, l, v))
+	cfg, err := included.assemble(ctx, l, v, s, pc, k, included.functions(ctx, l, v, s))
 	if err != nil {
 		include := pc.file.includes.List[i]
 
@@ -325,6 +339,7 @@ func (k keptUnknownOutputs) autoIncluded(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pc *ParseContext,
 	c *UnitConfig,
 	path string,
@@ -334,7 +349,7 @@ func (k keptUnknownOutputs) autoIncluded(
 		return nil, err
 	}
 
-	return autoInclude.assemble(ctx, l, v, pc, k, autoInclude.functions(ctx, l, v))
+	return autoInclude.assemble(ctx, l, v, s, pc, k, autoInclude.functions(ctx, l, v, s))
 }
 
 // keptInclude returns the parse of the file c's include block i names.
@@ -378,6 +393,7 @@ func (c *UnitConfig) mergeIncludes(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pc *ParseContext,
 	src includeSource,
 	deps *dependencyResolution,
@@ -415,7 +431,7 @@ func (c *UnitConfig) mergeIncludes(
 			return nil, IncludeMergeStrategyNotSupportedError(mergeStrategy)
 		}
 
-		includedCfg, err := src.included(ctx, l, v, pc, c, i, deps)
+		includedCfg, err := src.included(ctx, l, v, s, pc, c, i, deps)
 		if err != nil {
 			return baseCfg, err
 		}
@@ -566,6 +582,7 @@ func (b *includedBase) dependencyBlocks(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 ) (Dependencies, error) {
 	if err := b.base.firstErr(); err != nil {
 		return nil, err
@@ -581,7 +598,7 @@ func (b *includedBase) dependencyBlocks(
 
 	evalCtx := &hcl.EvalContext{Variables: vars}
 	if declaresDependencies(b.file.Body) {
-		evalCtx = TerragruntEvalContext(ctx, l, v, pctx, b.file.ConfigPath, b.file.FunctionCalls(), vars)
+		evalCtx = TerragruntEvalContext(ctx, l, v, s, pctx, b.file.ConfigPath, b.file.FunctionCalls(), vars)
 	}
 
 	return DecodeDependencyBlocks(ctx, l, v, pctx, b.file, evalCtx)
@@ -618,7 +635,7 @@ func (s *Store) includedDependencies(v *venv.Venv, pc *ParseContext) IncludedDep
 			return nil, err
 		}
 
-		return included.dependencyBlocks(ctx, l, v)
+		return included.dependencyBlocks(ctx, l, v, s)
 	}
 }
 
@@ -709,7 +726,7 @@ func (s *Store) resolveExposedInclude(
 		return cty.NilVal, includeParseError(err, include, pc)
 	}
 
-	cfg, err := included.assemble(ctx, l, v, includedPC, src, included.functions(ctx, l, v))
+	cfg, err := included.assemble(ctx, l, v, s, includedPC, src, included.functions(ctx, l, v, s))
 	if err != nil {
 		return cty.NilVal, includeParseError(err, include, pc)
 	}
@@ -766,6 +783,7 @@ func (c *UnitConfig) mergeAutoInclude(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pc *ParseContext,
 	src includeSource,
 	cfg *TerragruntConfig,
@@ -779,7 +797,7 @@ func (c *UnitConfig) mergeAutoInclude(
 
 	l.Debugf("Found %s, merging into unit config", autoIncludePath)
 
-	autoIncludeCfg, err := src.autoIncluded(ctx, l, v, pc, c, autoIncludePath)
+	autoIncludeCfg, err := src.autoIncluded(ctx, l, v, s, pc, c, autoIncludePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse %s: %w", autoIncludePath, err)
 	}

@@ -107,7 +107,7 @@ func generateStack(t *testing.T, files map[string]string) generatedStack {
 
 	defer pool.Stop()
 
-	require.NoError(t, config.GenerateStackFile(ctx, l, v, pctx, pool, stackPath))
+	require.NoError(t, config.GenerateStackFile(ctx, l, v, new(config.Store), pctx, pool, stackPath))
 	require.NoError(t, pool.Wait())
 
 	return generatedStack{v: v, dir: filepath.Join(enabledStackDir, config.StackDir)}

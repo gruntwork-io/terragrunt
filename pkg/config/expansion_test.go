@@ -83,7 +83,7 @@ include "extra" {
 	ctx, pctx := newTestParsingContext(t, stackPath)
 	v.FS = fsys
 
-	stackCfg, err := config.ReadStackConfigFile(ctx, l, v, pctx, stackPath, nil)
+	stackCfg, err := config.ReadStackConfigFile(ctx, l, v, new(config.Store), pctx, stackPath, nil)
 	require.NoError(t, err)
 
 	unitPaths := map[string]string{}
@@ -195,6 +195,7 @@ func TestDisabledExpandedDependencySkipsOutputRetrieval(t *testing.T) {
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		`
@@ -274,7 +275,7 @@ dependency "shard" {
 
 			ctx, pctx := newTestParsingContext(t, configPath)
 
-			cfg, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, configPath, nil)
+			cfg, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, configPath, nil)
 			require.NoError(t, err)
 
 			keys := make([]string, 0, len(cfg.TerragruntDependencies))
@@ -302,6 +303,7 @@ func TestExpandedDependencyCarriesItsOwnOutputConfig(t *testing.T) {
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		`
@@ -372,6 +374,7 @@ func TestUnknownBlockRemainsRejected(t *testing.T) {
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		`
@@ -571,6 +574,7 @@ func TestDependencyOutputsAddressedByInstanceKey(t *testing.T) {
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		`
@@ -647,6 +651,7 @@ func TestDependencyOutputsRejectExpandedBlockWithoutKey(t *testing.T) {
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		`
@@ -690,6 +695,7 @@ func TestDependencyOutputsEncodeDivergentSchemasPerKey(t *testing.T) {
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		`
@@ -736,6 +742,7 @@ func TestDependencyInstanceKeysMatchAddressableKeys(t *testing.T) {
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		`
@@ -821,6 +828,7 @@ func TestDependencyOutputsAddressEmptyEachKey(t *testing.T) {
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		`
@@ -864,6 +872,7 @@ func TestDependencyLabelClaimedByBlockAndInstances(t *testing.T) {
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		`
@@ -915,6 +924,7 @@ func TestDependencyOutputsResolveUnknownWhenOutputsSkipped(t *testing.T) {
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		`
@@ -948,6 +958,7 @@ func TestDependencyInstancesAccumulateWithRacing(t *testing.T) {
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		`
@@ -1194,6 +1205,7 @@ func TestPartialParseKeepsParsingPastABrokenExpansion(t *testing.T) {
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		`
@@ -1228,6 +1240,7 @@ func parseDependencyString(tb testing.TB, cfg string) (*config.TerragruntConfig,
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx.WithDecodeList(config.DependencyBlock),
 		config.DefaultTerragruntConfigPath,
 		cfg,
@@ -1256,6 +1269,7 @@ func parseDependencyJSONString(
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx.WithDecodeList(config.DependencyBlock),
 		jsonConfigPath,
 		cfg,
@@ -1285,6 +1299,7 @@ func parseStackStringAt(tb testing.TB, path, cfg string) (*config.StackConfig, e
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx,
 		path,
 		cfg,

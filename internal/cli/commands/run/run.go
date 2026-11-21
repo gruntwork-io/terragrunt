@@ -79,7 +79,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v *
 
 	// Early exit for version command to avoid expensive setup
 	if opts.TofuCommand == tf.CommandNameVersion {
-		return runVersionCommand(ctx, l, opts, v)
+		return runVersionCommand(ctx, l, opts, v, s)
 	}
 
 	// We need to get the credentials from auth-provider-cmd at the very beginning,
@@ -91,7 +91,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v *
 		return err
 	}
 
-	l, probe, err := checkVersionConstraints(ctx, l, opts, v)
+	l, probe, err := checkVersionConstraints(ctx, l, opts, v, s)
 	if err != nil {
 		return err
 	}
@@ -103,7 +103,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v *
 		return err
 	}
 
-	if err := tips.GiveOutputsBlockTips(ctx, l, v, pctx, cfg, opts.Tips); err != nil {
+	if err := tips.GiveOutputsBlockTips(ctx, l, v, s, pctx, cfg, opts.Tips); err != nil {
 		return err
 	}
 
@@ -159,6 +159,7 @@ func ParseVersionCheckConfig(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 ) (*config.TerragruntConfig, error) {
 	configCtx := configbridge.NewParsingContext(opts)
@@ -172,6 +173,7 @@ func ParseVersionCheckConfig(
 		ctx,
 		l,
 		v,
+		s,
 		configCtx,
 		opts.TerragruntConfigPath,
 		nil,
@@ -185,9 +187,10 @@ func runVersionCommand(
 	l log.Logger,
 	opts *options.TerragruntOptions,
 	v *venv.Venv,
+	s *config.Store,
 ) error {
 	if !opts.TFPathExplicitlySet {
-		tfPath, err := getTFPathFromConfig(ctx, l, v, opts)
+		tfPath, err := getTFPathFromConfig(ctx, l, v, s, opts)
 		if err != nil {
 			return err
 		}
@@ -207,6 +210,7 @@ func getTFPathFromConfig(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 ) (string, error) {
 	if !vfs.Exists(v.FS, opts.TerragruntConfigPath) {
@@ -215,7 +219,7 @@ func getTFPathFromConfig(
 		return "", nil
 	}
 
-	cfg, err := ParseVersionCheckConfig(ctx, l, v, opts)
+	cfg, err := ParseVersionCheckConfig(ctx, l, v, s, opts)
 	if err != nil {
 		return "", err
 	}
@@ -234,8 +238,9 @@ func checkVersionConstraints(
 	l log.Logger,
 	opts *options.TerragruntOptions,
 	v *venv.Venv,
+	s *config.Store,
 ) (log.Logger, tfimpl.Probe, error) {
-	partialTerragruntConfig, err := ParseVersionCheckConfig(ctx, l, v, opts)
+	partialTerragruntConfig, err := ParseVersionCheckConfig(ctx, l, v, s, opts)
 	if err != nil {
 		return l, tfimpl.Unprobed(), err
 	}

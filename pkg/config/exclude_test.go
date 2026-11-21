@@ -33,7 +33,7 @@ exclude {
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx = pctx.WithDecodeList(config.ExcludeBlock)
 
-	_, err := config.PartialParseConfigFile(ctx, logger.CreateLogger(), v, pctx, cfgPath, nil)
+	_, err := config.PartialParseConfigFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, cfgPath, nil)
 	require.ErrorAs(t, err, new(config.InvalidExcludeBlockError))
 }
 
@@ -126,7 +126,7 @@ include "root" {
 			v := venv.MemVenv().WithFS(venvtest.NewFS(t, root, files))
 			ctx, pctx := newTestParsingContext(t, cfgPath)
 
-			_, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, cfgPath, nil)
+			_, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, cfgPath, nil)
 
 			var excludeErr config.ExcludeReferencesDependencyError
 			require.ErrorAs(t, err, &excludeErr)
@@ -242,7 +242,7 @@ exclude {
 			ctx, pctx := newTestParsingContext(t, cfgPath)
 			pctx = pctx.WithDecodeList(config.DependencyBlock, config.ExcludeBlock).WithSkipOutputsResolution()
 
-			parsed, err := config.PartialParseConfigFile(ctx, logger.CreateLogger(), v, pctx, cfgPath, nil)
+			parsed, err := config.PartialParseConfigFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, cfgPath, nil)
 			if tt.wantErrAs != nil {
 				require.ErrorAs(t, err, tt.wantErrAs)
 				return
@@ -289,7 +289,7 @@ exclude {
 			ctx, pctx := newTestParsingContext(t, cfgPath)
 			pctx = pctx.WithDecodeList(config.ExcludeBlock).WithSkipOutputsResolution()
 
-			_, partialErr := config.PartialParseConfigFile(ctx, logger.CreateLogger(), v, pctx, cfgPath, nil)
+			_, partialErr := config.PartialParseConfigFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, cfgPath, nil)
 
 			var partialDiags hcl.Diagnostics
 
@@ -298,7 +298,7 @@ exclude {
 			assert.Equal(t, tt.wantSummary, partialDiags[0].Summary)
 
 			fullCtx, fullPctx := newTestParsingContext(t, cfgPath)
-			_, fullErr := config.ParseConfigFile(fullCtx, logger.CreateLogger(), v, fullPctx, cfgPath, nil)
+			_, fullErr := config.ParseConfigFile(fullCtx, logger.CreateLogger(), v, new(config.Store), fullPctx, cfgPath, nil)
 
 			var fullDiags hcl.Diagnostics
 
@@ -334,7 +334,7 @@ include "root" {
 	v := venv.MemVenv().WithFS(fsys)
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 
-	_, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, cfgPath, nil)
+	_, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, cfgPath, nil)
 	require.ErrorContains(t, err, "null value is not allowed")
 	assert.ErrorContains(t, err, filepath.Join(root, "root.hcl"))
 }

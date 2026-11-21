@@ -292,6 +292,7 @@ func DecodeBaseBlocks(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 	file *hclparse.File,
 	includeFromChild *IncludeConfig,
@@ -300,7 +301,7 @@ func DecodeBaseBlocks(
 ) (*DecodedBaseBlocks, error) {
 	var errs []error
 
-	evalParsingContext, err := CreateTerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath, file.FunctionCalls())
+	evalParsingContext, err := CreateTerragruntEvalContext(ctx, l, v, s, pctx, file.ConfigPath, file.FunctionCalls())
 	if err != nil {
 		return nil, err
 	}
@@ -362,6 +363,7 @@ func DecodeBaseBlocks(
 		ctx,
 		l,
 		v,
+		s,
 		pctx.WithTrackInclude(trackInclude).WithFeatures(&flagsAsCtyVal),
 		file,
 		exposed,
@@ -429,7 +431,12 @@ func mergeIncludedFeatureFlags(
 //
 // With [IncludeParseForMerge], it also records each config it parsed on the parse's [TrackInclude], unmodified by
 // the feature merge and holding only the sections pctx's decode list names.
-func parsedIncludeFeatureFlags(v *venv.Venv, pctx *ParsingContext, includeParse IncludeParse) IncludedFeatureFlags {
+func parsedIncludeFeatureFlags(
+	v *venv.Venv,
+	s *Store,
+	pctx *ParsingContext,
+	includeParse IncludeParse,
+) IncludedFeatureFlags {
 	keepConfigs := includeParse == IncludeParseForMerge
 	decodesFeatureFlags := slices.Contains(pctx.PartialParseDecodeList, FeatureFlagsBlock)
 
@@ -450,7 +457,7 @@ func parsedIncludeFeatureFlags(v *venv.Venv, pctx *ParsingContext, includeParse 
 			)
 		}
 
-		parsed, err := partialParseIncludedConfig(ctx, l, v, includePctx, include)
+		parsed, err := partialParseIncludedConfig(ctx, l, v, s, includePctx, include)
 		if err != nil {
 			return nil, err
 		}
@@ -602,6 +609,7 @@ func PartialParseConfigFile(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 	cfgPath string,
 	include *IncludeConfig,
@@ -638,7 +646,7 @@ func PartialParseConfigFile(
 				return parseErr
 			}
 
-			config, parseErr = TerragruntConfigFromPartialConfig(ctx, l, v, pctx, file, include)
+			config, parseErr = TerragruntConfigFromPartialConfig(ctx, l, v, s, pctx, file, include)
 
 			return parseErr
 		})
@@ -653,12 +661,13 @@ func TerragruntConfigFromPartialConfig(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 	file *hclparse.File,
 	includeFromChild *IncludeConfig,
 ) (*TerragruntConfig, error) {
 	if !pctx.UsePartialParseConfigCache {
-		return PartialParseConfig(ctx, l, v, pctx, file, includeFromChild)
+		return PartialParseConfig(ctx, l, v, s, pctx, file, includeFromChild)
 	}
 
 	cacheKey := fmt.Sprintf(
@@ -696,7 +705,7 @@ func TerragruntConfigFromPartialConfig(
 		pctx.PartialParseDecodeList,
 	)
 
-	config, err := PartialParseConfig(ctx, l, v, pctx, file, includeFromChild)
+	config, err := PartialParseConfig(ctx, l, v, s, pctx, file, includeFromChild)
 	if err != nil {
 		return config, err
 	}
@@ -730,6 +739,7 @@ func PartialParseConfigString(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 	cfgPath, configString string,
 	include *IncludeConfig,
@@ -739,7 +749,7 @@ func PartialParseConfigString(
 		return nil, err
 	}
 
-	return PartialParseConfig(ctx, l, v, pctx, file, include)
+	return PartialParseConfig(ctx, l, v, s, pctx, file, include)
 }
 
 // PartialParseConfig partially parses the requested sections from a parsed Terragrunt config file.
@@ -747,6 +757,7 @@ func PartialParseConfig(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 	file *hclparse.File,
 	includeFromChild *IncludeConfig,
@@ -775,7 +786,7 @@ func PartialParseConfig(
 	pctx = pctx.WithTrackInclude(nil)
 
 	// read unit files and add to context
-	unitValues, err := ReadValues(ctx, l, v, pctx, filepath.Dir(file.ConfigPath))
+	unitValues, err := ReadValues(ctx, l, v, s, pctx, filepath.Dir(file.ConfigPath))
 	if err != nil {
 		return nil, err
 	}
@@ -788,11 +799,12 @@ func PartialParseConfig(
 		ctx,
 		l,
 		v,
+		s,
 		pctx,
 		file,
 		includeFromChild,
-		parsedIncludeFeatureFlags(v, pctx, IncludeParseForMerge),
-		ParsedExposedInclude(v),
+		parsedIncludeFeatureFlags(v, s, pctx, IncludeParseForMerge),
+		ParsedExposedInclude(v, s),
 	)
 	if err != nil {
 		errs = append(errs, err)
@@ -819,7 +831,7 @@ func PartialParseConfig(
 		pctx.DecodedDependencies = &dynamicVal
 	}
 
-	evalParsingContext, err := CreateTerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath, file.FunctionCalls())
+	evalParsingContext, err := CreateTerragruntEvalContext(ctx, l, v, s, pctx, file.ConfigPath, file.FunctionCalls())
 	if err != nil {
 		return nil, err
 	}
@@ -1066,7 +1078,7 @@ func PartialParseConfig(
 	// default. Skip the merge in that case and let the error surface at the return below.
 	if pctx.TrackInclude != nil && len(pctx.TrackInclude.CurrentList) > 0 &&
 		!errsContainsIncludeErr {
-		config, err := handleInclude(ctx, l, v, pctx, output, true)
+		config, err := handleInclude(ctx, l, v, s, pctx, output, true)
 		if err != nil {
 			errs = append(errs, err)
 		}
@@ -1085,7 +1097,7 @@ func PartialParseConfig(
 
 	// Materialize the current file's exclude after includes merge so included feature flags resolve, and before the autoinclude merge so the autoinclude wins on top.
 	if hasExcludeBlock {
-		excludeOutput, err := processExcludes(ctx, l, v, pctx, output, file)
+		excludeOutput, err := processExcludes(ctx, l, v, s, pctx, output, file)
 		if err != nil {
 			return nil, err
 		}
@@ -1094,7 +1106,7 @@ func PartialParseConfig(
 	}
 
 	// Merge the sibling autoinclude into this partial output so discovery/run-queue agrees with the full parse.
-	if err := mergeAutoIncludePartialIfPresent(ctx, l, v, pctx, output); err != nil {
+	if err := mergeAutoIncludePartialIfPresent(ctx, l, v, s, pctx, output); err != nil {
 		return nil, err
 	}
 
@@ -1107,6 +1119,7 @@ func processExcludes(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 	config *TerragruntConfig,
 	file *hclparse.File,
@@ -1116,7 +1129,7 @@ func processExcludes(
 		return nil, err
 	}
 
-	excludeConfig, err := evaluateExcludeBlocks(ctx, l, v, pctx.WithFeatures(&flagsAsCtyVal), file)
+	excludeConfig, err := evaluateExcludeBlocks(ctx, l, v, s, pctx.WithFeatures(&flagsAsCtyVal), file)
 	if err != nil {
 		return nil, err
 	}
@@ -1135,6 +1148,7 @@ func partialParseIncludedConfig(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 	includedConfig *IncludeConfig,
 ) (*TerragruntConfig, error) {
@@ -1148,6 +1162,7 @@ func partialParseIncludedConfig(
 		ctx,
 		l,
 		v,
+		s,
 		pctx,
 		includePath,
 		includedConfig,
@@ -1211,6 +1226,7 @@ func mergeAutoIncludePartialIfPresent(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 	output *TerragruntConfig,
 ) error {
@@ -1226,7 +1242,7 @@ func mergeAutoIncludePartialIfPresent(
 	clonedPctx.SkipAutoIncludeMerge = true
 	clonedPctx = clonedPctx.WithDecodeList(pctx.PartialParseDecodeList...)
 
-	autoIncludeConfig, err := PartialParseConfigFile(ctx, l, v, clonedPctx, autoIncludePath, nil)
+	autoIncludeConfig, err := PartialParseConfigFile(ctx, l, v, s, clonedPctx, autoIncludePath, nil)
 	if err != nil {
 		return fmt.Errorf("failed to parse %s: %w", autoIncludePath, err)
 	}

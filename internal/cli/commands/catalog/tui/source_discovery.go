@@ -18,6 +18,7 @@ func DiscoverSourceURLs(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	pctx *config.ParsingContext,
 ) ([]string, error) {
 	configFiles, err := config.FindConfigFilesInPath(
@@ -43,7 +44,7 @@ func DiscoverSourceURLs(
 			continue
 		}
 
-		cfg, err := config.PartialParseConfigFile(ctx, fileLogger, v, filePctx, configFile, nil)
+		cfg, err := config.PartialParseConfigFile(ctx, fileLogger, v, s, filePctx, configFile, nil)
 		if err != nil {
 			l.Debugf("Skipping %s: failed to parse: %v", configFile, err)
 			continue

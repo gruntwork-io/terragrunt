@@ -33,6 +33,7 @@ func parseIncludedConfig(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 	includedConfig *IncludeConfig,
 ) (*TerragruntConfig, error) {
@@ -97,7 +98,7 @@ func parseIncludedConfig(
 			includePath,
 		)
 
-		return PartialParseConfigFile(ctx, l, v, pctx, includePath, includedConfig)
+		return PartialParseConfigFile(ctx, l, v, s, pctx, includePath, includedConfig)
 	}
 
 	// When included config has dependencies, suppress diagnostics during parsing.
@@ -106,7 +107,7 @@ func parseIncludedConfig(
 		parseCtx = pctx.WithDiagnosticsSuppressed()
 	}
 
-	config, err := ParseConfigFile(ctx, l, v, parseCtx, includePath, includedConfig)
+	config, err := ParseConfigFile(ctx, l, v, s, parseCtx, includePath, includedConfig)
 	if err != nil {
 		if errors.As(err, new(TerragruntConfigNotFoundError)) {
 			return nil, IncludeConfigNotFoundError{
@@ -130,6 +131,7 @@ func handleInclude(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 	config *TerragruntConfig,
 	isPartial bool,
@@ -196,10 +198,10 @@ func handleInclude(
 
 			parsedIncludeConfig, parsed = pctx.TrackInclude.parsedForMerge[includeConfig.Name]
 			if !parsed {
-				parsedIncludeConfig, err = partialParseIncludedConfig(ctx, l, v, pctx, &includeConfig)
+				parsedIncludeConfig, err = partialParseIncludedConfig(ctx, l, v, s, pctx, &includeConfig)
 			}
 		} else {
-			parsedIncludeConfig, err = parseIncludedConfig(ctx, l, v, pctx, &includeConfig)
+			parsedIncludeConfig, err = parseIncludedConfig(ctx, l, v, s, pctx, &includeConfig)
 		}
 
 		if err != nil {
@@ -307,12 +309,13 @@ func MergeIncludedDependencies(
 
 // ParsedIncludeDependencies returns an [IncludedDependencies] that partially parses each included config with pctx
 // to read its dependency blocks.
-func ParsedIncludeDependencies(v *venv.Venv, pctx *ParsingContext) IncludedDependencies {
+func ParsedIncludeDependencies(v *venv.Venv, s *Store, pctx *ParsingContext) IncludedDependencies {
 	return func(ctx context.Context, l log.Logger, include *IncludeConfig) (Dependencies, error) {
 		parsed, err := partialParseIncludedConfig(
 			ctx,
 			l,
 			v,
+			s,
 			pctx.WithDecodeList(DependencyBlock, FeatureFlagsBlock, ExcludeBlock, ErrorsBlock),
 			include,
 		)

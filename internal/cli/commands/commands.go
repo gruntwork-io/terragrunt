@@ -95,8 +95,8 @@ func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *config.
 	)
 
 	catalogCommands := clihelper.Commands{
-		catalog.NewCommand(l, opts, v),  // catalog
-		scaffold.NewCommand(l, opts, v), // scaffold
+		catalog.NewCommand(l, opts, v, s),  // catalog
+		scaffold.NewCommand(l, opts, v, s), // scaffold
 	}.SetCategory(
 		&clihelper.Category{
 			Name:  CatalogCommandsCategoryName,

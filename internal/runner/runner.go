@@ -524,7 +524,7 @@ func (rnr *Runner) Run(
 							return readErr
 						}
 
-						return tips.GiveOutputsBlockTips(readCtx, unitLogger, unitV, pctx, cfg, unitOpts.Tips)
+						return tips.GiveOutputsBlockTips(readCtx, unitLogger, unitV, s, pctx, cfg, unitOpts.Tips)
 					})
 				if err != nil {
 					logTaskOutcome(childCtx, l, unitPath, unitOpts.TofuCommand, err)

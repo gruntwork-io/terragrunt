@@ -441,6 +441,7 @@ inputs = {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		hclConfig,
@@ -481,6 +482,7 @@ unit "db" {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultStackFile,
 		stackHCL,
@@ -523,6 +525,7 @@ unit "db" {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultStackFile,
 		stackHCL,
@@ -569,6 +572,7 @@ unit "db" {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultStackFile,
 		stackHCL,
@@ -608,7 +612,7 @@ region   = "us-west-2"
 	pctx := config.NewParsingContext()
 
 	// Read values from the file on disk.
-	values, err := config.ReadValues(ctx, l, v, pctx, dir)
+	values, err := config.ReadValues(ctx, l, v, new(config.Store), pctx, dir)
 	require.NoError(t, err)
 	require.NotNil(t, values)
 
@@ -619,7 +623,7 @@ unit "app" {
   path   = values.app_path
 }
 `
-	sc, err := config.ReadStackConfigString(ctx, l, v, pctx, config.DefaultStackFile, stackHCL, values)
+	sc, err := config.ReadStackConfigString(ctx, l, v, new(config.Store), pctx, config.DefaultStackFile, stackHCL, values)
 	require.NoError(t, err)
 	require.NotNil(t, sc)
 	require.Len(t, sc.Units, 1)
@@ -664,7 +668,7 @@ inputs = {
   region = values.region
 }
 `
-	cfg, err := config.ParseConfigString(ctx, l, v, pctx, configPath, hclConfig, nil)
+	cfg, err := config.ParseConfigString(ctx, l, v, new(config.Store), pctx, configPath, hclConfig, nil)
 	require.NoError(t, err)
 	require.NotNil(t, cfg)
 	assert.Equal(t, "staging", cfg.Inputs["env"])

@@ -466,6 +466,7 @@ dependency "db" {
 			ctx,
 			logger.CreateLogger(),
 			venvtest.NewWithOSFS(),
+			new(config.Store),
 			pctx,
 			cfgPath,
 			nil,
@@ -481,7 +482,15 @@ dependency "db" {
 		pctx.SkipOutput = true
 		pctx.Parser.IgnoreDiagnostics = true
 
-		cfg, err := config.ParseConfigFile(ctx, logger.CreateLogger(), venvtest.NewWithOSFS(), pctx, cfgPath, nil)
+		cfg, err := config.ParseConfigFile(
+			ctx,
+			logger.CreateLogger(),
+			venvtest.NewWithOSFS(),
+			new(config.Store),
+			pctx,
+			cfgPath,
+			nil,
+		)
 		require.NoError(t, err)
 		assert.Empty(t, cfg.TerragruntDependencies)
 	})
@@ -517,7 +526,15 @@ func parseFull(t *testing.T, cfgPath string) (*config.TerragruntConfig, error) {
 
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 
-	return config.ParseConfigFile(ctx, logger.CreateLogger(), venvtest.NewWithOSFS(), pctx, cfgPath, nil)
+	return config.ParseConfigFile(
+		ctx,
+		logger.CreateLogger(),
+		venvtest.NewWithOSFS(),
+		new(config.Store),
+		pctx,
+		cfgPath,
+		nil,
+	)
 }
 
 // parsePartial returns the config at cfgPath from a partial parse with discovery's decode list and settings.
@@ -538,7 +555,15 @@ func parsePartial(t *testing.T, cfgPath string) (*config.TerragruntConfig, error
 	).WithSkipOutputsResolution()
 	pctx.SkipOutput = true
 
-	return config.PartialParseConfigFile(ctx, logger.CreateLogger(), venvtest.NewWithOSFS(), pctx, cfgPath, nil)
+	return config.PartialParseConfigFile(
+		ctx,
+		logger.CreateLogger(),
+		venvtest.NewWithOSFS(),
+		new(config.Store),
+		pctx,
+		cfgPath,
+		nil,
+	)
 }
 
 // dependencyEnabled reports whether dep is enabled, which it is unless it sets enabled to false.

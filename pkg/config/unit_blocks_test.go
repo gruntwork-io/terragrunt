@@ -468,10 +468,10 @@ inputs = {
 	parsed, err := new(config.Store).ResolveUnitConfig(ctx, l, v, pc, cfgPath)
 	require.NoError(t, err)
 
-	first, err := parsed.ToV1(ctx, l, v, pc)
+	first, err := parsed.ToV1(ctx, l, v, new(config.Store), pc)
 	require.NoError(t, err)
 
-	second, err := parsed.ToV1(ctx, l, v, pc)
+	second, err := parsed.ToV1(ctx, l, v, new(config.Store), pc)
 	require.NoError(t, err)
 
 	assert.Equal(t, first, second)

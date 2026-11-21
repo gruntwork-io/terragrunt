@@ -143,7 +143,16 @@ func TestParseOutputsBlockRequiresExperiment(t *testing.T) {
 	v := venv.MemVenv()
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 
-	_, err := config.ParseConfigString(ctx, l, v, pctx, config.DefaultTerragruntConfigPath, outputsBlockConfig, nil)
+	_, err := config.ParseConfigString(
+		ctx,
+		l,
+		v,
+		new(config.Store),
+		pctx,
+		config.DefaultTerragruntConfigPath,
+		outputsBlockConfig,
+		nil,
+	)
 
 	var experimentErr config.OutputsBlockRequiresExperimentError
 
@@ -233,7 +242,16 @@ outputs {
 			ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 			require.NoError(t, pctx.Experiments.EnableExperiment(experiment.OutputsBlock))
 
-			_, err := config.ParseConfigString(ctx, l, v, pctx, config.DefaultTerragruntConfigPath, tc.config, nil)
+			_, err := config.ParseConfigString(
+				ctx,
+				l,
+				v,
+				new(config.Store),
+				pctx,
+				config.DefaultTerragruntConfigPath,
+				tc.config,
+				nil,
+			)
 			require.Error(t, err)
 			tc.check(t, err)
 		})
@@ -343,7 +361,7 @@ outputs {
 			ctx, pctx := newTestParsingContext(t, cfgPath)
 			require.NoError(t, pctx.Experiments.EnableExperiment(experiment.OutputsBlock))
 
-			cfg, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+			cfg, err := config.ParseConfigFile(ctx, l, v, new(config.Store), pctx, cfgPath, nil)
 			require.NoError(t, err)
 			require.NotNil(t, cfg.Outputs)
 
@@ -1217,7 +1235,7 @@ inputs = {
 
 			pctx.Parser.IgnoreDiagnostics = tc.ignoreDiagnostics
 
-			cfg, err := config.ParseConfigFile(ctx, l, v, pctx, appConfigPath, nil)
+			cfg, err := config.ParseConfigFile(ctx, l, v, new(config.Store), pctx, appConfigPath, nil)
 			tc.check(t, cfg, err)
 		})
 	}
@@ -1273,10 +1291,10 @@ func TestUnitsWithoutOutputsNamesTheUnitsDependenciesRead(t *testing.T) {
 				require.NoError(t, pctx.Experiments.EnableExperiment(name))
 			}
 
-			cfg, err := config.ParseConfigFile(ctx, l, v, pctx, appConfigPath, nil)
+			cfg, err := config.ParseConfigFile(ctx, l, v, new(config.Store), pctx, appConfigPath, nil)
 			require.NoError(t, err)
 
-			targets, err := config.UnitsWithoutOutputs(ctx, l, v, pctx, cfg)
+			targets, err := config.UnitsWithoutOutputs(ctx, l, v, new(config.Store), pctx, cfg)
 			require.NoError(t, err)
 
 			named := make([]string, 0, len(targets))
@@ -1350,7 +1368,7 @@ outputs {
 			ctx, pctx := newDependentParsingContext(t, appConfigPath, "plan")
 			require.NoError(t, pctx.Experiments.EnableExperiment(experiment.OutputsBlock))
 
-			cfg, err := config.ParseConfigFile(ctx, l, v, pctx, appConfigPath, nil)
+			cfg, err := config.ParseConfigFile(ctx, l, v, new(config.Store), pctx, appConfigPath, nil)
 			require.NoError(t, err)
 			assert.Equal(t, tc.expectedVPCID, cfg.Inputs["vpc_id"])
 			assert.Equal(t, []any{"subnet-mock-1", "subnet-mock-2"}, cfg.Inputs["subnet_ids"])
@@ -1398,7 +1416,7 @@ include "root" {
 	ctx, pctx := newDependentParsingContext(t, appConfigPath, "plan")
 	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.OutputsBlock))
 
-	cfg, err := config.ParseConfigFile(ctx, l, v, pctx, appConfigPath, nil)
+	cfg, err := config.ParseConfigFile(ctx, l, v, new(config.Store), pctx, appConfigPath, nil)
 	require.NoError(t, err)
 	assert.Equal(t, "vpc-mock", cfg.Inputs["vpc_id"])
 }
@@ -1446,11 +1464,11 @@ inputs = {
 	ctx, pctx := newDependentParsingContext(t, appConfigPath, "plan")
 	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.OutputsBlock))
 
-	cfg, err := config.ParseConfigFile(ctx, l, v, pctx, appConfigPath, nil)
+	cfg, err := config.ParseConfigFile(ctx, l, v, new(config.Store), pctx, appConfigPath, nil)
 	require.NoError(t, err)
 	assert.Equal(t, "stack-mock", cfg.Inputs["vpc_id"])
 
-	targets, err := config.UnitsWithoutOutputs(ctx, l, v, pctx, cfg)
+	targets, err := config.UnitsWithoutOutputs(ctx, l, v, new(config.Store), pctx, cfg)
 	require.NoError(t, err)
 	assert.Empty(t, targets, "a stack target is not a unit without outputs")
 }
@@ -1491,15 +1509,15 @@ unit "network" {
 	ctx, pctx := newDependentParsingContext(t, appConfigPath, "plan")
 	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.OutputsBlock))
 
-	cfg, err := config.ParseConfigFile(ctx, l, v, pctx, appConfigPath, nil)
+	cfg, err := config.ParseConfigFile(ctx, l, v, new(config.Store), pctx, appConfigPath, nil)
 	require.NoError(t, err)
 	require.Len(t, cfg.TerragruntDependencies, 1)
 
-	declared, err := cfg.TerragruntDependencies[0].DeclaredOutputs(ctx, l, v, pctx)
+	declared, err := cfg.TerragruntDependencies[0].DeclaredOutputs(ctx, l, v, new(config.Store), pctx)
 	require.NoError(t, err)
 	assert.Nil(t, declared)
 
-	targets, err := config.UnitsWithoutOutputs(ctx, l, v, pctx, cfg)
+	targets, err := config.UnitsWithoutOutputs(ctx, l, v, new(config.Store), pctx, cfg)
 	require.NoError(t, err)
 	assert.Empty(t, targets)
 }
@@ -1539,7 +1557,7 @@ outputs {
 
 	pctx.FilesRead = config.NewFilesRead()
 
-	cfg, err := config.ParseConfigFile(ctx, l, v, pctx, appConfigPath, nil)
+	cfg, err := config.ParseConfigFile(ctx, l, v, new(config.Store), pctx, appConfigPath, nil)
 	require.NoError(t, err)
 	assert.Equal(t, "from-tfvars", cfg.Inputs["vpc_id"])
 	assert.Contains(t, pctx.FilesRead.Paths(), tfvarsPath)
@@ -1580,7 +1598,7 @@ outputs {
 		_, pctx := newDependentParsingContext(t, appConfigPath, "plan")
 		require.NoError(t, pctx.Experiments.EnableExperiment(experiment.OutputsBlock))
 
-		cfg, err := config.ParseConfigFile(ctx, l, v, pctx, appConfigPath, nil)
+		cfg, err := config.ParseConfigFile(ctx, l, v, new(config.Store), pctx, appConfigPath, nil)
 		require.NoError(t, err)
 		assert.Equal(t, dependent, cfg.Inputs["vpc_id"])
 	}
@@ -1654,7 +1672,7 @@ inputs = {
 		WebIdentityToken: "reader-token",
 	}
 
-	cfg, err := config.ParseConfigFile(ctx, l, v, pctx, appConfigPath, nil)
+	cfg, err := config.ParseConfigFile(ctx, l, v, new(config.Store), pctx, appConfigPath, nil)
 	require.NoError(t, err)
 	assert.Equal(t, "222222222222", cfg.Inputs["vpc_id"])
 
@@ -1689,7 +1707,7 @@ func TestDependencyDeclaredOutputsConcurrentReadsWithRacing(t *testing.T) {
 	ctx, pctx := newDependentParsingContext(t, appConfigPath, "plan")
 	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.OutputsBlock))
 
-	cfg, err := config.ParseConfigFile(ctx, l, v, pctx, appConfigPath, nil)
+	cfg, err := config.ParseConfigFile(ctx, l, v, new(config.Store), pctx, appConfigPath, nil)
 	require.NoError(t, err)
 	require.Len(t, cfg.TerragruntDependencies, 1)
 
@@ -1701,7 +1719,7 @@ func TestDependencyDeclaredOutputsConcurrentReadsWithRacing(t *testing.T) {
 
 	for i := range readers {
 		wg.Go(func() {
-			results[i], errs[i] = dep.DeclaredOutputs(ctx, l, v, pctx)
+			results[i], errs[i] = dep.DeclaredOutputs(ctx, l, v, new(config.Store), pctx)
 		})
 	}
 
@@ -1805,7 +1823,7 @@ func TestDeclaredOutputsRejectsDependencyWithBothDefaultConfigs(t *testing.T) {
 	ctx, pctx := newDependentParsingContext(t, appConfigPath, "plan")
 	dep := config.Dependency{Name: "vpc", ConfigPath: cty.StringVal("../vpc")}
 
-	_, err := dep.DeclaredOutputs(ctx, createLogger(), venv.MemVenv().WithFS(fsys), pctx)
+	_, err := dep.DeclaredOutputs(ctx, createLogger(), venv.MemVenv().WithFS(fsys), new(config.Store), pctx)
 
 	var ambiguousErr config.AmbiguousConfigError
 	require.ErrorAs(t, err, &ambiguousErr)
@@ -1824,7 +1842,16 @@ func parseOutputsConfig(t *testing.T, content string, enabled bool) *config.Terr
 		require.NoError(t, pctx.Experiments.EnableExperiment(experiment.OutputsBlock))
 	}
 
-	cfg, err := config.ParseConfigString(ctx, l, v, pctx, config.DefaultTerragruntConfigPath, content, nil)
+	cfg, err := config.ParseConfigString(
+		ctx,
+		l,
+		v,
+		new(config.Store),
+		pctx,
+		config.DefaultTerragruntConfigPath,
+		content,
+		nil,
+	)
 	require.NoError(t, err)
 
 	return cfg

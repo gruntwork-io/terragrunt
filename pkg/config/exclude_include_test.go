@@ -67,7 +67,7 @@ include "root" {
 
 			l := logger.CreateLogger()
 
-			parsed, err := config.ParseConfigFile(ctx, l, v, pctx, childPath, nil)
+			parsed, err := config.ParseConfigFile(ctx, l, v, new(config.Store), pctx, childPath, nil)
 			require.NoError(t, err)
 			require.NotNil(t, parsed)
 
@@ -144,7 +144,7 @@ exclude {
 
 			l := logger.CreateLogger()
 
-			parsed, err := config.ParseConfigFile(ctx, l, v, pctx, childPath, nil)
+			parsed, err := config.ParseConfigFile(ctx, l, v, new(config.Store), pctx, childPath, nil)
 			require.NoError(t, err)
 			require.NotNil(t, parsed)
 
@@ -209,7 +209,7 @@ include "root" {
 
 			l := logger.CreateLogger()
 
-			parsed, err := config.ParseConfigFile(ctx, l, v, pctx, childPath, nil)
+			parsed, err := config.ParseConfigFile(ctx, l, v, new(config.Store), pctx, childPath, nil)
 			require.NoError(t, err)
 			require.NotNil(t, parsed)
 
@@ -269,7 +269,7 @@ include "root" {
 
 			l := logger.CreateLogger()
 
-			parsed, err := config.ParseConfigFile(ctx, l, v, pctx, childPath, nil)
+			parsed, err := config.ParseConfigFile(ctx, l, v, new(config.Store), pctx, childPath, nil)
 			require.NoError(t, err)
 			require.NotNil(t, parsed)
 
@@ -328,7 +328,7 @@ include "root" {
 
 			l := logger.CreateLogger()
 
-			parsed, err := config.ParseConfigFile(ctx, l, v, pctx, childPath, nil)
+			parsed, err := config.ParseConfigFile(ctx, l, v, new(config.Store), pctx, childPath, nil)
 			require.NoError(t, err)
 			require.NotNil(t, parsed)
 

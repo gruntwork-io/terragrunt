@@ -515,7 +515,7 @@ inputs = {
 	pctx.OriginalTerragruntConfigPath = consumerPath
 	pctx.NoDependencyFetchOutputFromState = testCase.optOut
 
-	return config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, consumerPath, nil)
+	return config.ParseConfigFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, consumerPath, nil)
 }
 
 func eligibilityS3Config() map[string]string {
@@ -646,7 +646,7 @@ inputs = {
 			ctx, pctx := newTestParsingContext(t, consumerPath)
 			pctx.OriginalTerragruntConfigPath = consumerPath
 
-			cfg, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, consumerPath, nil)
+			cfg, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, consumerPath, nil)
 			require.NoError(t, err)
 
 			if tc.wantDirect {

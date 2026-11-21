@@ -230,7 +230,7 @@ func TestStackFuncFactoryScopesFunctionsToStackDir(t *testing.T) {
 	opts.WorkingDir = "/mem/root/live"
 	opts.RootWorkingDir = "/mem/root"
 
-	funcsFor := configbridge.StackFuncFactory(t.Context(), logger.CreateLogger(), venv.MemVenv(), opts)
+	funcsFor := configbridge.StackFuncFactory(t.Context(), logger.CreateLogger(), venv.MemVenv(), new(config.Store), opts)
 
 	testCases := []struct {
 		name     string

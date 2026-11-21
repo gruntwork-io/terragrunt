@@ -141,7 +141,7 @@ func TestCatalogParseConfigFile(t *testing.T) {
 			v := venvtest.NewWithOSFS()
 			ctx, catalogPctx := newTestParsingContext(t, tt.configPath)
 			catalogPctx.ScaffoldRootFileName = filepath.Base(tt.configPath)
-			config, err := config.ReadCatalogConfig(ctx, l, v, catalogPctx)
+			config, err := config.ReadCatalogConfig(ctx, l, v, new(config.Store), catalogPctx)
 
 			if tt.expectedErr == nil {
 				require.NoError(t, err)
@@ -219,7 +219,7 @@ catalog { urls = [local.shared.locals.url] }
 			ctx, pctx := newTestParsingContext(t, filepath.Join(rootDir, "terragrunt.hcl"))
 			pctx.ScaffoldRootFileName = "root.hcl"
 
-			cfg, err := config.ReadCatalogConfig(ctx, logger.CreateLogger(), v, pctx)
+			cfg, err := config.ReadCatalogConfig(ctx, logger.CreateLogger(), v, new(config.Store), pctx)
 			require.NoError(t, err)
 
 			require.NotNil(t, cfg)
@@ -264,7 +264,7 @@ func TestParseConfigStringKeepsCommandsInAMissingConfigDir(t *testing.T) {
 
 	ctx, pctx := newTestParsingContext(t, configPath)
 
-	_, err := config.ParseConfigString(ctx, logger.CreateLogger(), v, pctx, configPath,
+	_, err := config.ParseConfigString(ctx, logger.CreateLogger(), v, new(config.Store), pctx, configPath,
 		`locals { out = run_cmd("--terragrunt-quiet", "print-dir") }`, nil)
 	require.NoError(t, err)
 

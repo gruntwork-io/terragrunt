@@ -159,7 +159,7 @@ func referenceChecks(
 	pctx *config.ParsingContext,
 	cfg *config.TerragruntConfig,
 ) ([]contractDiagnostics, error) {
-	contracts := readDependencyContracts(ctx, l, v, pctx, cfg)
+	contracts := readDependencyContracts(ctx, l, v, s, pctx, cfg)
 	if !contracts.bind() {
 		return nil, nil
 	}
@@ -176,7 +176,7 @@ func referenceChecks(
 		return nil, OutputsContractError{ConfigPath: configPath, Err: err}
 	}
 
-	includedPaths, err := includedFiles(ctx, l, v, pctx, cfg, autoInclude)
+	includedPaths, err := includedFiles(ctx, l, v, s, pctx, cfg, autoInclude)
 	if err != nil {
 		return nil, OutputsContractError{ConfigPath: configPath, Err: err}
 	}
@@ -279,6 +279,7 @@ func includedFiles(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	pctx *config.ParsingContext,
 	cfg *config.TerragruntConfig,
 	autoInclude *hclparse.File,
@@ -303,6 +304,7 @@ func includedFiles(
 		ctx,
 		l,
 		v,
+		s,
 		autoPctx.WithDecodeList(config.TerragruntFlags),
 		autoInclude.ConfigPath,
 		nil,
@@ -817,6 +819,7 @@ func readDependencyContracts(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	pctx *config.ParsingContext,
 	cfg *config.TerragruntConfig,
 ) dependencyContracts {
@@ -830,7 +833,7 @@ func readDependencyContracts(
 			continue
 		}
 
-		declared, err := dep.DeclaredOutputs(ctx, l, v, pctx)
+		declared, err := dep.DeclaredOutputs(ctx, l, v, s, pctx)
 		contracts[address] = dependencyContract{declared: declared, err: err}
 	}
 

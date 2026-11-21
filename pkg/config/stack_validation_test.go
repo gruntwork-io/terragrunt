@@ -434,7 +434,7 @@ unit "extra" {
 	ctx, pctx := newTestParsingContext(t, stackFilePath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
-	_, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), v, pctx, stackFilePath, nil)
+	_, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, stackFilePath, nil)
 	require.Error(
 		t,
 		err,
@@ -513,6 +513,7 @@ unit "extra" {
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx,
 		stackFilePath,
 		nil,
@@ -571,6 +572,7 @@ unit "added" {
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx,
 		stackFilePath,
 		nil,
@@ -666,6 +668,7 @@ stack "added" {
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx,
 		stackFilePath,
 		nil,
@@ -746,7 +749,7 @@ unit "extra" {
 	ctx, pctx := newTestParsingContext(t, stackFilePath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
-	_, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), v, pctx, stackFilePath, nil)
+	_, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, stackFilePath, nil)
 	require.Error(
 		t,
 		err,
@@ -788,7 +791,7 @@ unit "vpc" {
 	ctx, pctx := newTestParsingContext(t, stackFilePath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
-	_, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), v, pctx, stackFilePath, nil)
+	_, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, stackFilePath, nil)
 	require.Error(
 		t,
 		err,
@@ -826,7 +829,7 @@ unit "vpc" {
 
 	ctx, pctx := newTestParsingContext(t, stackFilePath)
 
-	stackCfg, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), v, pctx, stackFilePath, nil)
+	stackCfg, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, stackFilePath, nil)
 	require.NoError(t, err)
 	assert.Len(t, stackCfg.Units, 1)
 }
@@ -872,6 +875,7 @@ unit "vpc" {
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx,
 		stackFilePath,
 		nil,
@@ -939,6 +943,7 @@ unit "vpc" {
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx,
 		stackFilePath,
 		nil,

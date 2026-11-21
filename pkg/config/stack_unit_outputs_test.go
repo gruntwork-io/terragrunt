@@ -127,6 +127,7 @@ func TestCollectStackOutputsNestsExpandedElements(t *testing.T) {
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx,
 		stackUnitOutputsRoot,
 		&config.StackConfig{
@@ -173,6 +174,7 @@ func TestCollectStackOutputsNestsNestedStackUnits(t *testing.T) {
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx,
 		stackUnitOutputsRoot,
 		&config.StackConfig{
@@ -224,6 +226,7 @@ func TestCollectStackOutputsMocksNestedStackUnits(t *testing.T) {
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx,
 		stackUnitOutputsRoot,
 		&config.StackConfig{
@@ -265,6 +268,7 @@ func TestCollectStackOutputsRejectsUnitAndStackSharingAName(t *testing.T) {
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx,
 		stackUnitOutputsRoot,
 		&config.StackConfig{
@@ -307,6 +311,7 @@ stack "loop" {
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx,
 		stackUnitOutputsRoot,
 		&config.StackConfig{

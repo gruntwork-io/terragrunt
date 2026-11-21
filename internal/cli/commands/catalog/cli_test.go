@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
@@ -28,6 +29,7 @@ func TestNewCommandExposesTheCatalogFlags(t *testing.T) {
 
 	cmd := catalog.NewCommand(
 		logger.CreateLogger(), options.NewTerragruntOptions(), venv.MemVenv(),
+		new(config.Store),
 	)
 
 	assert.Equal(t, catalog.CommandName, cmd.Name)
@@ -58,6 +60,7 @@ func TestNewCommandBeforeValidatesTheFormat(t *testing.T) {
 
 			cmd := catalog.NewCommand(
 				logger.CreateLogger(), options.NewTerragruntOptions(), venv.MemVenv(),
+				new(config.Store),
 			)
 			require.NoError(
 				t,
@@ -92,7 +95,7 @@ func TestNewCommandActionLoadsThePositionalSource(t *testing.T) {
 
 	writeLocalRepo(t, v, repoDir)
 
-	cmd := catalog.NewCommand(logger.CreateLogger(), options.NewTerragruntOptions(), v)
+	cmd := catalog.NewCommand(logger.CreateLogger(), options.NewTerragruntOptions(), v, new(config.Store))
 
 	require.NoError(t, cmd.Flags.Parse(
 		clihelper.Args{"--" + catalog.FormatFlagName, catalog.FormatJSONL},
@@ -119,7 +122,7 @@ func TestNewCommandDefaultsToJSONLWithoutATerminal(t *testing.T) {
 
 	writeLocalRepo(t, v, repoDir)
 
-	cmd := catalog.NewCommand(logger.CreateLogger(), options.NewTerragruntOptions(), v)
+	cmd := catalog.NewCommand(logger.CreateLogger(), options.NewTerragruntOptions(), v, new(config.Store))
 
 	require.NoError(t, cmd.Flags.Parse(clihelper.Args{}, map[string]string{}))
 	require.NoError(t, cmd.Before(t.Context(), &clihelper.Context{}))

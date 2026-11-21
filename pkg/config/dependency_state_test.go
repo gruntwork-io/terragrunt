@@ -323,7 +323,7 @@ remote_state {
 		RoleARN: callerRoleARN,
 	}
 
-	cfg, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, configPath, nil)
+	cfg, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, configPath, nil)
 	require.NoError(t, err)
 	assert.Equal(t, "from-assumed-role", cfg.Inputs["result"])
 
@@ -499,7 +499,7 @@ func TestDependencyStateUnsupportedConfigFallsBackToNativeOutput(t *testing.T) {
 				"",
 			)
 
-			cfg, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, configPath, nil)
+			cfg, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, configPath, nil)
 			require.NoError(t, err)
 			assert.Equal(t, "from-native-output", cfg.Inputs["result"])
 			assert.Empty(t, recorder.requestPaths(), "an unsupported config must not use the direct state client")
@@ -762,7 +762,7 @@ func TestDependencyStateMissingDirectStateRequiresEligibleMockOutputs(t *testing
 			pctx.OriginalTofuCommand = "plan"
 			pctx.TerraformCliArgs = iacargs.New("plan")
 
-			_, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, configPath, nil)
+			_, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, configPath, nil)
 
 			require.Error(t, err)
 
@@ -811,7 +811,7 @@ inputs = {
 `,
 			)
 
-			cfg, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, configPath, nil)
+			cfg, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, configPath, nil)
 
 			require.NoError(t, err)
 			assert.Empty(t, cfg.Inputs["output_names"])
@@ -881,7 +881,7 @@ inputs = {
 			recorder := newDependencyStateRecorder(t, http.StatusNotFound, []byte(`{"error":{"code":404,"message":"missing"}}`))
 			ctx, v, pctx, configPath := prepareEmptyDependencyOutputsFixture(t, recorder, testCase.consumer)
 
-			_, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, configPath, nil)
+			_, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, configPath, nil)
 
 			var noOutputs config.TerragruntOutputTargetNoOutputs
 			require.ErrorAs(t, err, &noOutputs)
@@ -906,7 +906,7 @@ inputs = {
 `,
 	)
 
-	_, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, configPath, nil)
+	_, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, configPath, nil)
 
 	var diags hcl.Diagnostics
 	require.ErrorAs(t, err, &diags)
@@ -931,7 +931,7 @@ func TestDependencyStateEmptyDependencyOutputsExperimentKeepsMockOutputs(t *test
 	)
 	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.EmptyDependencyOutputs))
 
-	cfg, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, configPath, nil)
+	cfg, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, configPath, nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, "from-mock", cfg.Inputs["result"])
@@ -1072,7 +1072,7 @@ func TestDependencyStateRenderDirectReadFailureUsesMockOutputs(t *testing.T) {
 			)
 			pctx.TerraformCliArgs = iacargs.New(testCase.command)
 
-			cfg, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, configPath, nil)
+			cfg, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, configPath, nil)
 
 			require.NoError(t, err)
 			assert.Equal(t, "from-mock", cfg.Inputs["result"])
@@ -1119,7 +1119,7 @@ func TestDependencyStateEncryptedFallbackUsesRelativeDataDirInitFolder(t *testin
 		vfs.WriteFile(v.FS, filepath.Join(dataDir, "environment"), []byte("production"), 0o600),
 	)
 
-	cfg, err := config.ParseConfigFile(ctx, l, v, pctx, configPath, nil)
+	cfg, err := config.ParseConfigFile(ctx, l, v, new(config.Store), pctx, configPath, nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, "from-native-output", cfg.Inputs["result"])
@@ -1276,7 +1276,7 @@ func parseDependencyStateFixture(
 		dependencyExtra,
 	)
 
-	return config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, configPath, nil)
+	return config.ParseConfigFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, configPath, nil)
 }
 
 func prepareDependencyStateFixture(

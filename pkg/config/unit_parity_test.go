@@ -1530,7 +1530,7 @@ func TestQueueConfigMatchesPartialParseFixtures(t *testing.T) {
 
 			wantCtx, wantRun := newQueueParsingContext(t, fixture.path)
 			want, wantErr := config.PartialParseConfigFile(
-				wantCtx, l, venv.MemVenv().WithFS(fixtures.newFS(t)), wantRun, fixture.path, nil,
+				wantCtx, l, venv.MemVenv().WithFS(fixtures.newFS(t)), new(config.Store), wantRun, fixture.path, nil,
 			)
 
 			gotCtx, gotRun := newQueueParsingContext(t, fixture.path)
@@ -1644,7 +1644,7 @@ func assertQueueParity(t *testing.T, name, content string) error {
 
 	wantCtx, wantRun := newQueueParsingContext(t, cfgPath)
 	want, wantErr := config.PartialParseConfigFile(
-		wantCtx, l, venv.MemVenv().WithFS(newFS(t)), wantRun, cfgPath, nil,
+		wantCtx, l, venv.MemVenv().WithFS(newFS(t)), new(config.Store), wantRun, cfgPath, nil,
 	)
 
 	gotCtx, gotRun := newQueueParsingContext(t, cfgPath)
@@ -1787,7 +1787,7 @@ exclude {
 
 				wantCtx, wantRun := newQueueParsingContext(t, cfgPath)
 				_, wantErr := config.PartialParseConfigFile(
-					wantCtx, l, venv.MemVenv().WithFS(newFS(t)), wantRun, cfgPath, nil,
+					wantCtx, l, venv.MemVenv().WithFS(newFS(t)), new(config.Store), wantRun, cfgPath, nil,
 				)
 				require.NoError(t, wantErr)
 
@@ -1837,7 +1837,7 @@ terraform_binary = include.root.locals.binary
 
 	wantCtx, wantRun := newQueueParsingContext(t, cfgPath)
 	_, wantErr := config.PartialParseConfigFile(
-		wantCtx, l, venv.MemVenv().WithFS(newFS(t)), wantRun, cfgPath, nil,
+		wantCtx, l, venv.MemVenv().WithFS(newFS(t)), new(config.Store), wantRun, cfgPath, nil,
 	)
 	require.Error(t, wantErr)
 

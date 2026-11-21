@@ -164,7 +164,7 @@ func assertParity(t *testing.T, tc parityCase) parityResult {
 	tc.configure(pctx)
 	pctx = pctx.WithFileReadTracking()
 
-	wantCfg, wantErr := config.ParseConfigFile(v1Ctx, l, v1Venv, v1Pctx, tc.cfgPath, nil)
+	wantCfg, wantErr := config.ParseConfigFile(v1Ctx, l, v1Venv, new(config.Store), v1Pctx, tc.cfgPath, nil)
 	if wantErr != nil {
 		t.Logf("pkg/config returned an error: %v", wantErr)
 	}
@@ -185,7 +185,7 @@ func assertParity(t *testing.T, tc parityCase) parityResult {
 	gotErr := parseErr
 
 	if parsed != nil {
-		gotCfg, gotErr = parsed.ToV1(ctx, l, v, pc)
+		gotCfg, gotErr = parsed.ToV1(ctx, l, v, new(config.Store), pc)
 		assertErrorsWithin(t, parseErr, gotErr)
 	}
 

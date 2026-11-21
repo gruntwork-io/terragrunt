@@ -43,6 +43,7 @@ func EarlyStackParseFunctions(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 	baseDir string,
 ) (map[string]function.Function, error) {
@@ -53,7 +54,7 @@ func EarlyStackParseFunctions(
 		return nil, err
 	}
 
-	evalCtx, err := CreateTerragruntEvalContext(ctx, l, v, scoped, stackFilePath, hclparse.AnyFunctionCalls())
+	evalCtx, err := CreateTerragruntEvalContext(ctx, l, v, s, scoped, stackFilePath, hclparse.AnyFunctionCalls())
 	if err != nil {
 		return nil, err
 	}

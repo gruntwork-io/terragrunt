@@ -65,7 +65,7 @@ func runPrint(
 		// Even on error, try to print what info we have
 		l.Debugf("Fetching info with error: %v", err)
 
-		if partialCfg, partialErr := runcmd.ParseVersionCheckConfig(ctx, l, v, opts); partialErr == nil {
+		if partialCfg, partialErr := runcmd.ParseVersionCheckConfig(ctx, l, v, s, opts); partialErr == nil {
 			opts.SetTFPathFromConfig(partialCfg.TerraformBinary)
 		}
 

@@ -220,21 +220,22 @@ func CreateTerragruntEvalContext(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 	cfgPath string,
 	calls hclparse.FunctionCalls,
 ) (*hcl.EvalContext, error) {
-	vars, err := TerragruntEvalVariables(ctx, l, pctx, cfgPath, ParsedExposedInclude(v))
+	vars, err := TerragruntEvalVariables(ctx, l, pctx, cfgPath, ParsedExposedInclude(v, s))
 	if err != nil {
 		return nil, err
 	}
 
-	return TerragruntEvalContext(ctx, l, v, pctx, cfgPath, calls, vars), nil
+	return TerragruntEvalContext(ctx, l, v, s, pctx, cfgPath, calls, vars), nil
 }
 
 // TerragruntEvalContext returns an eval context with vars and the functions of the config at cfgPath: the OpenTofu
-// functions with Terragrunt's patches, and the Terragrunt functions. The functions use ctx, l, v, and pctx when
-// called.
+// functions with Terragrunt's patches, and the Terragrunt functions. The functions use ctx, l, v, s, and pctx
+// when called.
 //
 // The context may leave out the functions that calls does not name, so pass the calls of the HCL it evaluates.
 //
@@ -244,13 +245,14 @@ func TerragruntEvalContext(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 	cfgPath string,
 	calls hclparse.FunctionCalls,
 	vars map[string]cty.Value,
 ) *hcl.EvalContext {
 	evalCtx := sharedFunctions().NewChild()
-	evalCtx.Functions = boundFunctions(ctx, l, v, pctx, cfgPath, calls)
+	evalCtx.Functions = boundFunctions(ctx, l, v, s, pctx, cfgPath, calls)
 	evalCtx.Variables = vars
 
 	return evalCtx
@@ -384,15 +386,16 @@ func boundFunctions(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 	cfgPath string,
 	calls hclparse.FunctionCalls,
 ) map[string]function.Function {
 	if !calls.Known() {
-		return allBoundFunctions(ctx, l, v, pctx, cfgPath)
+		return allBoundFunctions(ctx, l, v, s, pctx, cfgPath)
 	}
 
-	functions := terragruntFunctions(ctx, l, v, pctx, calls)
+	functions := terragruntFunctions(ctx, l, v, s, pctx, calls)
 
 	if !callsUndefined(calls, functions) {
 		return functions
@@ -401,7 +404,7 @@ func boundFunctions(
 	maps.Copy(functions, tofuFunctions(ctx, l, v, pctx, cfgPath))
 
 	if callsUndefined(calls, functions) {
-		return allBoundFunctions(ctx, l, v, pctx, cfgPath)
+		return allBoundFunctions(ctx, l, v, s, pctx, cfgPath)
 	}
 
 	return functions
@@ -413,10 +416,11 @@ func allBoundFunctions(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 	cfgPath string,
 ) map[string]function.Function {
-	functions := terragruntFunctions(ctx, l, v, pctx, hclparse.AnyFunctionCalls())
+	functions := terragruntFunctions(ctx, l, v, s, pctx, hclparse.AnyFunctionCalls())
 	maps.Copy(functions, tofuFunctions(ctx, l, v, pctx, cfgPath))
 
 	return functions
@@ -478,12 +482,13 @@ func tofuFunctions(
 	return functions
 }
 
-// terragruntFunctions returns the Terragrunt functions bound to a parse that calls may call, which use ctx, l, v, and
-// pctx when called.
+// terragruntFunctions returns the Terragrunt functions bound to a parse that calls may call, which use ctx, l, v, s,
+// and pctx when called.
 func terragruntFunctions(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 	calls hclparse.FunctionCalls,
 ) map[string]function.Function {
@@ -511,11 +516,16 @@ func terragruntFunctions(
 	b.voidToString(FuncNameGetAWSCallerIdentityArn, getAWSCallerIdentityARN)
 	b.voidToString(FuncNameGetAWSCallerIdentityUserID, getAWSCallerIdentityUserID)
 	b.voidToString(FuncNameGetTerragruntSourceCLIFlag, getTerragruntSourceCliFlag)
-	b.voidToString(FuncNameGetWorkingDir, getWorkingDir)
+	b.voidToString(
+		FuncNameGetWorkingDir,
+		func(ctx context.Context, l log.Logger, v *venv.Venv, pctx *ParsingContext) (string, error) {
+			return getWorkingDir(ctx, l, v, s, pctx)
+		},
+	)
 	b.voidToStrings(FuncNameGetTerraformCLIArgs, getTerraformCliArgs)
 
 	if calls.Calls(FuncNameReadTerragruntConfig) {
-		b.functions[FuncNameReadTerragruntConfig] = readTerragruntConfigAsFuncImpl(ctx, l, v, pctx)
+		b.functions[FuncNameReadTerragruntConfig] = readTerragruntConfigAsFuncImpl(ctx, l, v, s, pctx)
 	}
 
 	if calls.Calls(FuncNameDeepMerge) {
@@ -1263,7 +1273,7 @@ func getTerraformCommand(ctx context.Context, l log.Logger, _ *venv.Venv, pctx *
 }
 
 // getWorkingDir returns the current working dir
-func getWorkingDir(ctx context.Context, l log.Logger, v *venv.Venv, pctx *ParsingContext) (string, error) {
+func getWorkingDir(ctx context.Context, l log.Logger, v *venv.Venv, s *Store, pctx *ParsingContext) (string, error) {
 	l.Debugf("Start processing get_working_dir built-in function")
 	defer l.Debugf("Complete processing get_working_dir built-in function")
 
@@ -1272,7 +1282,7 @@ func getWorkingDir(ctx context.Context, l log.Logger, v *venv.Venv, pctx *Parsin
 	sourcePctx := pctx.Clone()
 	sourcePctx.stubWorkingDirFunc = true
 
-	cfg, err := ParseConfigFile(ctx, l, v, sourcePctx, pctx.TerragruntConfigPath, nil)
+	cfg, err := ParseConfigFile(ctx, l, v, s, sourcePctx, pctx.TerragruntConfigPath, nil)
 	if err != nil {
 		return "", err
 	}
@@ -1389,6 +1399,7 @@ func ParseTerragruntConfig(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 	cfgPath string,
 	defaultVal *cty.Value,
@@ -1464,7 +1475,7 @@ func ParseTerragruntConfig(
 	if targetBase == DefaultStackFile || isStackAutoIncludeFile {
 		stackSourceDir := filepath.Dir(targetConfig)
 
-		values, readErr := ReadValues(ctx, l, v, pctx, stackSourceDir)
+		values, readErr := ReadValues(ctx, l, v, s, pctx, stackSourceDir)
 		if readErr != nil {
 			return cty.NilVal, fmt.Errorf(
 				"failed to read values from directory %s: %w",
@@ -1473,7 +1484,7 @@ func ParseTerragruntConfig(
 			)
 		}
 
-		stackFile, readErr := ReadStackConfigFile(ctx, l, v, pctx, targetConfig, values)
+		stackFile, readErr := ReadStackConfigFile(ctx, l, v, s, pctx, targetConfig, values)
 		if readErr != nil {
 			return cty.NilVal, readErr
 		}
@@ -1483,7 +1494,7 @@ func ParseTerragruntConfig(
 
 	// check if file is a values file, decode as values file
 	if targetBase == valuesFile {
-		unitValues, readErr := ReadValues(ctx, l, v, pctx, filepath.Dir(targetConfig))
+		unitValues, readErr := ReadValues(ctx, l, v, s, pctx, filepath.Dir(targetConfig))
 		if readErr != nil {
 			return cty.NilVal, readErr
 		}
@@ -1496,7 +1507,7 @@ func ParseTerragruntConfig(
 		return *unitValues, nil
 	}
 
-	return readTerragruntConfigCached(ctx, l, v, pctx)
+	return readTerragruntConfigCached(ctx, l, v, s, pctx)
 }
 
 // Create a cty Function that can be used to for calling read_terragrunt_config.
@@ -1504,6 +1515,7 @@ func readTerragruntConfigAsFuncImpl(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 ) function.Function {
 	return function.New(&function.Spec{
@@ -1536,7 +1548,7 @@ func readTerragruntConfigAsFuncImpl(
 
 			targetConfigPath := strArgs[0]
 
-			return ParseTerragruntConfig(ctx, l, v, pctx, targetConfigPath, defaultVal)
+			return ParseTerragruntConfig(ctx, l, v, s, pctx, targetConfigPath, defaultVal)
 		},
 	})
 }

@@ -28,18 +28,19 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *config.Store, opts 
 		return runAll(ctx, l, v, s, opts)
 	}
 
-	return runDelete(ctx, l, v, opts)
+	return runDelete(ctx, l, v, s, opts)
 }
 
 func runDelete(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 ) error {
 	pctx := configbridge.NewParsingContext(opts)
 
-	remoteState, err := config.ParseRemoteState(ctx, l, v, pctx)
+	remoteState, err := config.ParseRemoteState(ctx, l, v, s, pctx)
 	if err != nil || remoteState == nil {
 		return err
 	}
@@ -97,7 +98,7 @@ func runAll(
 		// Parsing can write obtained credentials into the env, so each
 		// unit gets its own clone to keep them from leaking to siblings.
 		unitV := v.WithEnvCloned()
-		if err := runDelete(ctx, l, unitV, unitOpts); err != nil {
+		if err := runDelete(ctx, l, unitV, s, unitOpts); err != nil {
 			if opts.FailFast {
 				return err
 			}

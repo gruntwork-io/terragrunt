@@ -66,7 +66,7 @@ locals {
 			ctx, pctx := newTestParsingContext(t, cfgPath)
 			pctx = pctx.WithDecodeList(config.TerragruntVersionConstraints, config.FeatureFlagsBlock)
 
-			_, err := config.PartialParseConfigFile(ctx, logger.CreateLogger(), v, pctx, cfgPath, nil)
+			_, err := config.PartialParseConfigFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, cfgPath, nil)
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, evaluations.Load())
 		})

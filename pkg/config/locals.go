@@ -32,6 +32,7 @@ func EvaluateLocalsBlock(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 	file *hclparse.File,
 	exposed ExposedInclude,
@@ -55,7 +56,7 @@ func EvaluateLocalsBlock(
 		return nil, err
 	}
 
-	evaluatedLocals, err := evaluateLocalsInOrder(ctx, l, v, pctx, file, attrs, exposed)
+	evaluatedLocals, err := evaluateLocalsInOrder(ctx, l, v, s, pctx, file, attrs, exposed)
 	if err != nil {
 		l.Debugf(
 			"Encountered error while evaluating locals in file %s",
@@ -108,6 +109,7 @@ func evaluateLocalsInOrder(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 	file *hclparse.File,
 	attrs hclparse.Attributes,
@@ -138,7 +140,7 @@ func evaluateLocalsInOrder(
 		return evaluatedLocals, err
 	}
 
-	evalCtx := TerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath, file.FunctionCalls(), vars)
+	evalCtx := TerragruntEvalContext(ctx, l, v, s, pctx, file.ConfigPath, file.FunctionCalls(), vars)
 
 	for len(ready) > 0 {
 		localsAsCtyVal, err := ConvertValuesMapToCtyVal(evaluatedLocals)

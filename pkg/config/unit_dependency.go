@@ -47,6 +47,7 @@ func (c *UnitConfig) newDependencySet(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pc *ParseContext,
 	file *hclparse.File,
 	included IncludedDependencies,
@@ -63,7 +64,7 @@ func (c *UnitConfig) newDependencySet(
 		evalCtx = dependencyBlockContext(pctx, c.evalContext(fns, pctx))
 	}
 
-	own, err := DecodeOwnDependencies(ctx, l, v, pctx, file, evalCtx)
+	own, err := DecodeOwnDependencies(ctx, l, v, s, pctx, file, evalCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -106,13 +107,14 @@ func (c *UnitConfig) newDependencySet(
 // returns the value of the `dependency` variable with the blocks it was resolved from.
 //
 // Returns [cty.DynamicVal] with the error when resolution fails without a value.
-func (s *dependencySet) resolve(
+func (set *dependencySet) resolve(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 ) (*dependencyResolution, error) {
-	blocks, err := s.loaded(ctx, l, v, pctx)
+	blocks, err := set.loaded(ctx, l, v, s, pctx)
 	if err != nil {
 		return &dependencyResolution{value: failedDependencyValue(nil)}, err
 	}
@@ -127,14 +129,14 @@ func (s *dependencySet) resolve(
 	err = TraceParseDependencies(
 		ctx,
 		l,
-		s.configPath,
+		set.configPath,
 		pctx.SkipOutputsResolution,
 		len(blocks),
 		names,
 		func(ctx context.Context, l log.Logger) error {
 			var encodeErr error
 
-			result, encodeErr = DependencyBlocksToCtyValue(ctx, l, v, pctx, blocks)
+			result, encodeErr = DependencyBlocksToCtyValue(ctx, l, v, s, pctx, blocks)
 
 			return encodeErr
 		},
@@ -146,15 +148,16 @@ func (s *dependencySet) resolve(
 	return &dependencyResolution{value: result, blocks: blocks}, nil
 }
 
-// loaded returns the blocks of s with the config of each of the file's own dependencies loaded, merged with the
+// loaded returns the blocks of set with the config of each of the file's own dependencies loaded, merged with the
 // blocks of the file's includes.
-func (s *dependencySet) loaded(
+func (set *dependencySet) loaded(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 ) (Dependencies, error) {
-	own, err := LoadDependencyConfigs(ctx, l, v, pctx, s.own)
+	own, err := LoadDependencyConfigs(ctx, l, v, s, pctx, set.own)
 	if err != nil {
 		return nil, err
 	}
@@ -164,7 +167,7 @@ func (s *dependencySet) loaded(
 	}
 
 	kept := func(_ context.Context, _ log.Logger, include *IncludeConfig) (Dependencies, error) {
-		return s.included[include.Name], nil
+		return set.included[include.Name], nil
 	}
 
 	return MergeIncludedDependencies(ctx, l, pctx, own, kept)
@@ -181,6 +184,7 @@ func (c *UnitConfig) dependencyValue(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pc *ParseContext,
 ) (*dependencyResolution, error) {
 	if pc.file.decodedDeps != nil {
@@ -201,10 +205,11 @@ func (c *UnitConfig) dependencyValue(
 			ctx,
 			l,
 			v,
+			s,
 			pc,
 			c.boundFile(l, v, pc),
-			ParsedIncludeDependencies(v, pctx),
-			c.functions(ctx, l, v),
+			ParsedIncludeDependencies(v, s, pctx),
+			c.functions(ctx, l, v, s),
 		)
 		if err != nil {
 			return &dependencyResolution{value: failedDependencyValue(nil)}, err
@@ -215,7 +220,7 @@ func (c *UnitConfig) dependencyValue(
 		return &dependencyResolution{value: failedDependencyValue(nil)}, nil
 	}
 
-	return set.resolve(ctx, l, v, pctx)
+	return set.resolve(ctx, l, v, s, pctx)
 }
 
 // failedDependencyValue returns the value a failed resolution leaves in the `dependency` variable.

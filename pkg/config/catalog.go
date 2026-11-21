@@ -90,6 +90,7 @@ func ReadCatalogConfig(
 	parentCtx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 ) (*CatalogConfig, error) {
 	cfgPath, configString, err := findCatalogConfig(parentCtx, l, v, pctx)
@@ -102,7 +103,7 @@ func ReadCatalogConfig(
 	pctx.Parser.HaltOnErrorOnlyInBlocks = append(pctx.Parser.HaltOnErrorOnlyInBlocks, MetadataCatalog)
 	pctx.catalogOnly = true
 
-	config, err := ParseConfigString(parentCtx, l, v, pctx, cfgPath, configString, nil)
+	config, err := ParseConfigString(parentCtx, l, v, s, pctx, cfgPath, configString, nil)
 	if err != nil {
 		return nil, err
 	}

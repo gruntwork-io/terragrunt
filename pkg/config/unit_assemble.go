@@ -39,9 +39,10 @@ func (c *UnitConfig) ToV1(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pc *ParseContext,
 ) (*TerragruntConfig, error) {
-	return c.assemble(ctx, l, v, pc, keptIncludes{}, c.functions(ctx, l, v))
+	return c.assemble(ctx, l, v, s, pc, keptIncludes{}, c.functions(ctx, l, v, s))
 }
 
 // assemble converts c to a config and merges in its autoinclude and included files from src, as
@@ -52,6 +53,7 @@ func (c *UnitConfig) assemble(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pc *ParseContext,
 	src includeSource,
 	fns *parseFunctions,
@@ -59,7 +61,7 @@ func (c *UnitConfig) assemble(
 	pc = pc.withFile(&c.scope)
 	errs := slices.Clone(c.prepErrs)
 
-	deps, err := src.dependencies(ctx, l, v, pc, c)
+	deps, err := src.dependencies(ctx, l, v, s, pc, c)
 	if err != nil {
 		errs = append(errs, err)
 	}
@@ -109,7 +111,7 @@ func (c *UnitConfig) assemble(
 			errs = append(errs, err)
 		}
 
-		autoMergedCfg, autoMergeErr := c.mergeAutoInclude(ctx, l, v, pc, src, cfg)
+		autoMergedCfg, autoMergeErr := c.mergeAutoInclude(ctx, l, v, s, pc, src, cfg)
 		if autoMergeErr != nil {
 			errs = append(errs, autoMergeErr)
 		}
@@ -122,7 +124,7 @@ func (c *UnitConfig) assemble(
 	includes := pc.file.includes
 
 	if includes != nil && cfg != nil {
-		mergedCfg, err := c.mergeIncludes(ctx, l, v, pc, src, deps, cfg)
+		mergedCfg, err := c.mergeIncludes(ctx, l, v, s, pc, src, deps, cfg)
 		if err != nil {
 			errs = append(errs, err)
 
@@ -197,9 +199,9 @@ func (c *UnitConfig) boundFile(l log.Logger, v *venv.Venv, pc *ParseContext) *hc
 	return c.file.Rebind(hclparse.NewParser(pc.parserOptions(l, v)...))
 }
 
-// functions returns new functions for a parse of c's file, which use ctx, l, and v when called.
-func (c *UnitConfig) functions(ctx context.Context, l log.Logger, v *venv.Venv) *parseFunctions {
-	return newParseFunctions(ctx, l, v, c.file)
+// functions returns new functions for a parse of c's file, which use ctx, l, v, and s when called.
+func (c *UnitConfig) functions(ctx context.Context, l log.Logger, v *venv.Venv, s *Store) *parseFunctions {
+	return newParseFunctions(ctx, l, v, s, c.file)
 }
 
 // evalContext returns an eval context with the variables c's blocks decoded with, the `dependency` value of pctx,

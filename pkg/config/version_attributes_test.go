@@ -97,7 +97,7 @@ func TestParseConfigFileVersionAttributeReferencingDependencyErrors(t *testing.T
 			cfgPath := filepath.Join(root, tt.cfgFile)
 			ctx, pctx := newTestParsingContext(t, cfgPath)
 
-			_, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, cfgPath, nil)
+			_, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, cfgPath, nil)
 
 			assertVersionAttributeError(t, err, filepath.Join(root, tt.errFile), tt.attribute)
 		})
@@ -135,7 +135,15 @@ func TestPartialParseVersionAttributeReferencingDependencyErrors(t *testing.T) {
 				cfgPath := filepath.Join(root, tt.cfgFile)
 				ctx, pctx := newTestParsingContext(t, cfgPath)
 
-				_, err := config.PartialParseConfigFile(ctx, logger.CreateLogger(), v, configure(pctx), cfgPath, nil)
+				_, err := config.PartialParseConfigFile(
+					ctx,
+					logger.CreateLogger(),
+					v,
+					new(config.Store),
+					configure(pctx),
+					cfgPath,
+					nil,
+				)
 
 				assertVersionAttributeError(t, err, filepath.Join(root, tt.errFile), tt.attribute)
 			})

@@ -47,12 +47,13 @@ func StackFuncFactory(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 ) inthclparse.StackFuncFactory {
 	pctx := NewParsingContext(opts)
 
 	return func(stackDir string) (map[string]function.Function, error) {
-		return config.EarlyStackParseFunctions(ctx, l, v, pctx, stackDir)
+		return config.EarlyStackParseFunctions(ctx, l, v, s, pctx, stackDir)
 	}
 }
 

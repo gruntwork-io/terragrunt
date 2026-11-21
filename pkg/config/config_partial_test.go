@@ -47,6 +47,7 @@ dependencies {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
@@ -86,6 +87,7 @@ prevent_destroy = false
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
@@ -98,6 +100,7 @@ prevent_destroy = false
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
@@ -127,6 +130,7 @@ skip = true
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
@@ -159,6 +163,7 @@ func TestPartialParseOmittedItems(t *testing.T) {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		"",
@@ -196,11 +201,11 @@ func TestPartialParseDoesNotResolveIgnoredBlockEvenInParent(t *testing.T) {
 	v := venvtest.NewWithOSFS()
 	ctx, pctx := newTestParsingContext(t, configPath)
 	pctx = pctx.WithDecodeList(config.TerragruntFlags)
-	_, err = config.PartialParseConfigFile(ctx, l, v, pctx, configPath, nil)
+	_, err = config.PartialParseConfigFile(ctx, l, v, new(config.Store), pctx, configPath, nil)
 	require.NoError(t, err)
 
 	pctx = pctx.WithDecodeList(config.DependenciesBlock)
-	_, err = config.PartialParseConfigFile(ctx, l, v, pctx, configPath, nil)
+	_, err = config.PartialParseConfigFile(ctx, l, v, new(config.Store), pctx, configPath, nil)
 	assert.Error(t, err)
 }
 
@@ -358,7 +363,7 @@ include "grandparent" {
 			ctx, pctx := newTestParsingContext(t, childPath)
 			pctx = pctx.WithDecodeList(config.TerragruntFlags)
 
-			_, err := config.PartialParseConfigFile(ctx, l, v, pctx, childPath, nil)
+			_, err := config.PartialParseConfigFile(ctx, l, v, new(config.Store), pctx, childPath, nil)
 			require.Error(
 				t,
 				err,
@@ -389,7 +394,7 @@ func TestPartialParseOnlyInheritsSelectedBlocksFlags(t *testing.T) {
 	v := venvtest.NewWithOSFS()
 	ctx, pctx := newTestParsingContext(t, configPath)
 	pctx = pctx.WithDecodeList(config.TerragruntFlags)
-	terragruntConfig, err := config.PartialParseConfigFile(ctx, l, v, pctx, configPath, nil)
+	terragruntConfig, err := config.PartialParseConfigFile(ctx, l, v, new(config.Store), pctx, configPath, nil)
 	require.NoError(t, err)
 
 	assert.True(t, terragruntConfig.IsPartial)
@@ -422,7 +427,7 @@ func TestPartialParseOnlyInheritsSelectedBlocksDependencies(t *testing.T) {
 	v := venvtest.NewWithOSFS()
 	ctx, pctx := newTestParsingContext(t, configPath)
 	pctx = pctx.WithDecodeList(config.DependenciesBlock)
-	terragruntConfig, err := config.PartialParseConfigFile(ctx, l, v, pctx, configPath, nil)
+	terragruntConfig, err := config.PartialParseConfigFile(ctx, l, v, new(config.Store), pctx, configPath, nil)
 	require.NoError(t, err)
 
 	assert.True(t, terragruntConfig.IsPartial)
@@ -456,6 +461,7 @@ dependency "vpc" {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
@@ -492,6 +498,7 @@ dependency "sql" {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
@@ -534,6 +541,7 @@ terraform {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
@@ -580,7 +588,7 @@ func TestPartialParseSavesToHclCache(t *testing.T) {
 	require.False(t, found, "cache should be empty before parsing")
 
 	// Parse config file (should populate cache)
-	_, err = config.PartialParseConfigFile(ctx, l, v, pctx, configPath, nil)
+	_, err = config.PartialParseConfigFile(ctx, l, v, new(config.Store), pctx, configPath, nil)
 	require.NoError(t, err)
 
 	// Verify file was cached
@@ -619,11 +627,11 @@ func TestPartialParseCacheHitOnSecondParse(t *testing.T) {
 	pctx = pctx.WithDecodeList(config.DependenciesBlock)
 
 	// First parse - should be cache miss
-	_, err = config.PartialParseConfigFile(ctx, l, v, pctx, configPath, nil)
+	_, err = config.PartialParseConfigFile(ctx, l, v, new(config.Store), pctx, configPath, nil)
 	require.NoError(t, err)
 
 	// Verify cache hit on second parse
-	_, err = config.PartialParseConfigFile(ctx, l, v, pctx, configPath, nil)
+	_, err = config.PartialParseConfigFile(ctx, l, v, new(config.Store), pctx, configPath, nil)
 	require.NoError(t, err)
 
 	// Verify same file object is returned from cache
@@ -660,7 +668,7 @@ func TestPartialParseCacheInvalidationOnFileModification(t *testing.T) {
 	pctx = pctx.WithDecodeList(config.DependenciesBlock)
 
 	// Parse original file
-	_, err = config.PartialParseConfigFile(ctx, l, v, pctx, configPath, nil)
+	_, err = config.PartialParseConfigFile(ctx, l, v, new(config.Store), pctx, configPath, nil)
 	require.NoError(t, err)
 
 	// Verify original file is cached
@@ -672,7 +680,7 @@ func TestPartialParseCacheInvalidationOnFileModification(t *testing.T) {
 	forceModTimeChange(t, configPath, fileInfo.ModTime())
 
 	// Parse modified file - should create new cache entry
-	_, err = config.PartialParseConfigFile(ctx, l, v, pctx, configPath, nil)
+	_, err = config.PartialParseConfigFile(ctx, l, v, new(config.Store), pctx, configPath, nil)
 	require.NoError(t, err)
 
 	// Verify old cache entry is still there but new one exists
@@ -713,7 +721,7 @@ func TestPartialParseCacheWithInvalidFile(t *testing.T) {
 	pctx = pctx.WithDecodeList(config.DependenciesBlock)
 
 	// Parse should fail and not cache an invalid file
-	_, err := config.PartialParseConfigFile(ctx, l, v, pctx, configPath, nil)
+	_, err := config.PartialParseConfigFile(ctx, l, v, new(config.Store), pctx, configPath, nil)
 	require.Error(t, err, "parsing invalid HCL should fail")
 
 	// Verify nothing was cached
@@ -756,7 +764,7 @@ func TestPartialParseCacheKeyFormat(t *testing.T) {
 	ctx = context.WithValue(ctx, config.HclCacheContextKey, hclCache)
 	pctx = pctx.WithDecodeList(config.DependenciesBlock)
 
-	_, err = config.PartialParseConfigFile(ctx, l, v, pctx, configPath, nil)
+	_, err = config.PartialParseConfigFile(ctx, l, v, new(config.Store), pctx, configPath, nil)
 	require.NoError(t, err)
 
 	// Verify cache key format matches the expected pattern
@@ -844,7 +852,7 @@ func TestPartialParseConfigCacheDifferentCallers(t *testing.T) {
 	pctxA.UsePartialParseConfigCache = true
 	pctxA = pctxA.WithDecodeList(config.DependenciesBlock)
 
-	configA, err := config.PartialParseConfigFile(ctxA, l, v, pctxA, sharedConfigPath, nil)
+	configA, err := config.PartialParseConfigFile(ctxA, l, v, new(config.Store), pctxA, sharedConfigPath, nil)
 	require.NoError(t, err)
 	require.NotNil(t, configA)
 
@@ -856,7 +864,7 @@ func TestPartialParseConfigCacheDifferentCallers(t *testing.T) {
 	pctxB.UsePartialParseConfigCache = true
 	pctxB = pctxB.WithDecodeList(config.DependenciesBlock)
 
-	configB, err := config.PartialParseConfigFile(ctxB, l, vB, pctxB, sharedConfigPath, nil)
+	configB, err := config.PartialParseConfigFile(ctxB, l, vB, new(config.Store), pctxB, sharedConfigPath, nil)
 	require.NoError(t, err)
 	require.NotNil(t, configB)
 
@@ -905,6 +913,7 @@ exclude {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
@@ -951,6 +960,7 @@ exclude {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
@@ -989,6 +999,7 @@ exclude {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
@@ -1032,6 +1043,7 @@ terraform {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
@@ -1096,6 +1108,7 @@ dependency "upstream" {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
@@ -1152,6 +1165,7 @@ dependency "upstream" {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
@@ -1193,6 +1207,7 @@ dependency "upstream" {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
@@ -1230,6 +1245,7 @@ terraform {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
@@ -1272,7 +1288,7 @@ include "root" {
 	ctx, pctx := newTestParsingContext(t, childPath)
 	pctx = pctx.WithDecodeList(config.FeatureFlagsBlock, config.ExcludeBlock)
 
-	_, err := config.PartialParseConfigFile(ctx, l, v, pctx, childPath, nil)
+	_, err := config.PartialParseConfigFile(ctx, l, v, new(config.Store), pctx, childPath, nil)
 
 	var strategyErr config.IncludeMergeStrategyNotSupportedError
 
@@ -1399,7 +1415,7 @@ exclude {
 
 			maps.Copy(pctx.FeatureFlags, tc.cliFlags)
 
-			terragruntConfig, err := config.PartialParseConfigFile(ctx, l, v, pctx, childPath, nil)
+			terragruntConfig, err := config.PartialParseConfigFile(ctx, l, v, new(config.Store), pctx, childPath, nil)
 			if tc.expectedErr != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tc.expectedErr)
@@ -1451,7 +1467,7 @@ feature "tags" {
 	ctx, pctx := newTestParsingContext(t, unitPath)
 	pctx = pctx.WithDecodeList(config.FeatureFlagsBlock, config.DependencyBlock)
 
-	cfg, err := config.PartialParseConfigFile(ctx, logger.CreateLogger(), v, pctx, unitPath, nil)
+	cfg, err := config.PartialParseConfigFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, unitPath, nil)
 	require.NoError(t, err)
 
 	require.Len(t, cfg.FeatureFlags, 1)
@@ -1535,7 +1551,7 @@ exclude {
 			ctx, pctx := newTestParsingContext(t, unitPath)
 			pctx = pctx.WithDecodeList(tc.decodeList...).WithSkipOutputsResolution()
 
-			cfg, err := config.PartialParseConfigFile(ctx, logger.CreateLogger(), v, pctx, unitPath, nil)
+			cfg, err := config.PartialParseConfigFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, unitPath, nil)
 			require.NoError(t, err)
 
 			require.Len(t, cfg.TerragruntDependencies, 1)
@@ -1560,7 +1576,7 @@ func TestParseDoesNotParseNoMergeInclude(t *testing.T) {
 		{
 			name: "full parse",
 			parse: func(ctx context.Context, v *venv.Venv, pctx *config.ParsingContext, path string) (*config.TerragruntConfig, error) {
-				return config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, path, nil)
+				return config.ParseConfigFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, path, nil)
 			},
 		},
 		{
@@ -1568,7 +1584,7 @@ func TestParseDoesNotParseNoMergeInclude(t *testing.T) {
 			parse: func(ctx context.Context, v *venv.Venv, pctx *config.ParsingContext, path string) (*config.TerragruntConfig, error) {
 				pctx = pctx.WithDecodeList(config.DependencyBlock, config.FeatureFlagsBlock)
 
-				return config.PartialParseConfigFile(ctx, logger.CreateLogger(), v, pctx, path, nil)
+				return config.PartialParseConfigFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, path, nil)
 			},
 		},
 	}

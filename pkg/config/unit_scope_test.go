@@ -66,7 +66,7 @@ dependency "vpc" {
 
 			assert.Zero(t, stub.parseExecs.Load(), "the parse ran tofu")
 
-			_, toV1Err := parsed.ToV1(ctx, l, v, pc)
+			_, toV1Err := parsed.ToV1(ctx, l, v, new(config.Store), pc)
 			require.Error(t, toV1Err)
 			assert.Contains(t, toV1Err.Error(), "Unknown variable")
 		})

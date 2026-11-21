@@ -302,7 +302,7 @@ func TestGenerateStackExpandsAutoIncludeDependencyInGeneratedUnit(t *testing.T) 
 			ctx, pctx := newTestParsingContext(t, cfgPath)
 			pctx.OriginalTofuCommand = tfInitCommand
 
-			parsed, err := config.ParseConfigFile(ctx, logger.CreateLogger(), gen.v, pctx, cfgPath, nil)
+			parsed, err := config.ParseConfigFile(ctx, logger.CreateLogger(), gen.v, new(config.Store), pctx, cfgPath, nil)
 			require.NoError(t, err)
 
 			assert.Equal(t, tc.names, parsed.Inputs["names"])

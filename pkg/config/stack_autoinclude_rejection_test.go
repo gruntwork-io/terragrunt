@@ -69,7 +69,7 @@ unit "app" {
 	l := logger.CreateLogger()
 	ctx, pctx := newTestParsingContext(t, unitConfig)
 
-	_, err = config.ParseConfigFile(ctx, l, v, pctx, unitConfig, nil)
+	_, err = config.ParseConfigFile(ctx, l, v, new(config.Store), pctx, unitConfig, nil)
 
 	var diags hcl.Diagnostics
 
@@ -190,7 +190,7 @@ func generateLiveStack(t *testing.T, stackFile string, files map[string]string) 
 
 	defer pool.Stop()
 
-	if err := config.GenerateStackFile(ctx, l, v, pctx, pool, stackPath); err != nil {
+	if err := config.GenerateStackFile(ctx, l, v, new(config.Store), pctx, pool, stackPath); err != nil {
 		return v, err
 	}
 

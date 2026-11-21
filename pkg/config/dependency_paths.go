@@ -27,13 +27,14 @@ func getDependencyBlockConfigPathsByFilepath(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 	cfgPath string,
 ) ([]string, error) {
 	inheritingPctx := pctx.WithDecodeList(DependencyBlock).WithDiagnosticsSuppressed()
 
 	if _, scanning := ctx.Value(scanningDependencyPathsKey{}).(bool); scanning {
-		paths, _, err := readDependencyPaths(ctx, l, v, inheritingPctx, cfgPath)
+		paths, _, err := readDependencyPaths(ctx, l, v, s, inheritingPctx, cfgPath)
 
 		return paths, err
 	}
@@ -48,7 +49,7 @@ func getDependencyBlockConfigPathsByFilepath(
 	flight, leads := ctx.Value(DependencyPathsCacheContextKey).(*dependencyPathsScans).join(key)
 	if leads {
 		scanCtx := context.WithValue(ctx, scanningDependencyPathsKey{}, true)
-		flight.scan, flight.err = scanDependencyPaths(scanCtx, l, v, scanPctx, cfgPath)
+		flight.scan, flight.err = scanDependencyPaths(scanCtx, l, v, s, scanPctx, cfgPath)
 		close(flight.done)
 	}
 
@@ -59,7 +60,7 @@ func getDependencyBlockConfigPathsByFilepath(
 	}
 
 	if flight.err != nil || flight.scan.inherits(pctx) {
-		paths, _, err := readDependencyPaths(ctx, l, v, inheritingPctx, cfgPath)
+		paths, _, err := readDependencyPaths(ctx, l, v, s, inheritingPctx, cfgPath)
 
 		return paths, err
 	}
@@ -146,12 +147,13 @@ func scanDependencyPaths(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	scanPctx *ParsingContext,
 	cfgPath string,
 ) (*dependencyPathsScan, error) {
 	tracked := scanPctx.WithFileReadTracking()
 
-	paths, cfg, err := readDependencyPaths(ctx, l, v, tracked, cfgPath)
+	paths, cfg, err := readDependencyPaths(ctx, l, v, s, tracked, cfgPath)
 	if err != nil {
 		return nil, err
 	}
@@ -169,10 +171,11 @@ func readDependencyPaths(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 	cfgPath string,
 ) ([]string, *TerragruntConfig, error) {
-	tgConfig, err := PartialParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+	tgConfig, err := PartialParseConfigFile(ctx, l, v, s, pctx, cfgPath, nil)
 	if err != nil {
 		return nil, nil, err
 	}

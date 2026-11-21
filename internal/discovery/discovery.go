@@ -220,7 +220,7 @@ func (d *Discovery) Discover(
 			Collect(ctx, l, "discovery_phase_stack_configs", map[string]any{
 				"components_in": len(components),
 			}, func(childCtx context.Context, childL log.Logger) error {
-				storeStackConfigs(childCtx, childL, v, opts, components)
+				storeStackConfigs(childCtx, childL, v, s, opts, components)
 
 				return nil
 			}); err != nil {

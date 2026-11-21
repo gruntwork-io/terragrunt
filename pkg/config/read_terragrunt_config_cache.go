@@ -224,10 +224,11 @@ func readTerragruntConfigCached(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 ) (cty.Value, error) {
 	if pctx.Parser.DiagnosticsHandler != nil {
-		return parseTerragruntConfigAsCty(ctx, l, v, pctx)
+		return parseTerragruntConfigAsCty(ctx, l, v, s, pctx)
 	}
 
 	key := fmt.Sprintf("%#v", NewReadTerragruntConfigKey(v, pctx))
@@ -253,7 +254,7 @@ func readTerragruntConfigCached(
 	parsePctx.FilesRead = NewFilesRead()
 
 	readAt := time.Now()
-	value, err := parseTerragruntConfigAsCty(parseCtx, l, v, parsePctx)
+	value, err := parseTerragruntConfigAsCty(parseCtx, l, v, s, parsePctx)
 
 	files := map[string]fileStamp{pctx.TerragruntConfigPath: stampFile(v.FS, pctx.TerragruntConfigPath, readAt)}
 
@@ -280,9 +281,10 @@ func parseTerragruntConfigAsCty(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 ) (cty.Value, error) {
-	config, err := ParseConfigFile(ctx, l, v, pctx, pctx.TerragruntConfigPath, nil)
+	config, err := ParseConfigFile(ctx, l, v, s, pctx, pctx.TerragruntConfigPath, nil)
 	if err != nil {
 		return cty.NilVal, err
 	}
@@ -297,7 +299,7 @@ func parseTerragruntConfigAsCty(
 	// NOTE: this will not call terragrunt output, since all the values are cached from the ParseConfigFile call
 	// NOTE: we don't use range here because range will copy the slice, thereby undoing the set attribute.
 	for i := range len(config.TerragruntDependencies) {
-		err := config.TerragruntDependencies[i].setRenderedOutputs(ctx, l, v, pctx)
+		err := config.TerragruntDependencies[i].setRenderedOutputs(ctx, l, v, s, pctx)
 		if err != nil {
 			return cty.NilVal, err
 		}
