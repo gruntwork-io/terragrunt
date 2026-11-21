@@ -2,15 +2,11 @@ package discovery
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
-	"io"
 	"io/fs"
 	"path/filepath"
 	"runtime"
 	"slices"
-	"sort"
 	"strings"
 	"sync"
 
@@ -30,6 +26,13 @@ import (
 
 // fromToTasks is the number of tasks a worktree comparison splits into: one for the from side, one for the to side.
 const fromToTasks = 2
+
+// pairComparisons is the number of component pairs of one changed stack compared at once. Changed stacks are already
+// compared concurrently, and each comparison holds two files open.
+const pairComparisons = 2
+
+// stackManifestFile is the name of the manifest stack generation writes into each directory it copies into.
+const stackManifestFile = ".terragrunt-stack-manifest"
 
 // discoverInWorktrees discovers the components the Git filters of d select in their worktrees, each classified
 // without a parse. Callers check [Discovery.findsInWorktrees] first.
@@ -497,56 +500,38 @@ func (d *Discovery) walkChangedStack(
 		return nil, err
 	}
 
+	matchedFrom := make(map[component.Component]struct{}, len(componentPairs))
+	matchedTo := make(map[component.Component]struct{}, len(componentPairs))
+
+	for _, pair := range componentPairs {
+		matchedFrom[pair.FromComponent] = struct{}{}
+		matchedTo[pair.ToComponent] = struct{}{}
+	}
+
 	finalComponents := make(component.Components, 0, max(len(fromComponents), len(toComponents)))
 
 	for _, fromComponent := range fromComponents {
-		if !slices.ContainsFunc(componentPairs, func(cp ComponentPair) bool {
-			return cp.FromComponent == fromComponent
-		}) {
+		if _, ok := matchedFrom[fromComponent]; !ok {
 			finalComponents = append(finalComponents, fromComponent)
 		}
 	}
 
 	for _, toComponent := range toComponents {
-		if !slices.ContainsFunc(componentPairs, func(cp ComponentPair) bool {
-			return cp.ToComponent == toComponent
-		}) {
+		if _, ok := matchedTo[toComponent]; !ok {
 			finalComponents = append(finalComponents, toComponent)
 		}
 	}
 
-	for _, pair := range componentPairs {
-		var fromSHA, toSHA string
+	changed, err := changedPairs(ctx, v.FS, componentPairs)
+	if err != nil {
+		return nil, err
+	}
 
-		shaGroup, _ := errgroup.WithContext(ctx)
-		shaGroup.SetLimit(min(runtime.GOMAXPROCS(0), fromToTasks))
-
-		shaGroup.Go(func() error {
-			var localErr error
-
-			fromSHA, localErr = GenerateDirSHA256(v.FS, pair.FromComponent.Path())
-
-			return localErr
-		})
-
-		shaGroup.Go(func() error {
-			var localErr error
-
-			toSHA, localErr = GenerateDirSHA256(v.FS, pair.ToComponent.Path())
-
-			return localErr
-		})
-
-		if err := shaGroup.Wait(); err != nil {
-			return nil, err
-		}
-
-		if fromSHA != toSHA {
-			dc := pair.ToComponent.DiscoveryContext().
-				CopyWithNewOrigin(component.OriginWorktreeDiscovery)
-			pair.ToComponent.SetDiscoveryContext(dc)
-			finalComponents = append(finalComponents, pair.ToComponent)
-		}
+	for _, pair := range changed {
+		dc := pair.ToComponent.DiscoveryContext().
+			CopyWithNewOrigin(component.OriginWorktreeDiscovery)
+		pair.ToComponent.SetDiscoveryContext(dc)
+		finalComponents = append(finalComponents, pair.ToComponent)
 	}
 
 	return finalComponents, nil
@@ -559,39 +544,40 @@ type ComponentPair struct {
 }
 
 // MatchComponentPairs matches components between from and to stacks by their relative paths.
+//
+// Returns a [MissingDiscoveryContextError] when a component has no discovery context.
 func MatchComponentPairs(
 	fromComponents component.Components,
 	toComponents component.Components,
 ) ([]ComponentPair, error) {
-	componentPairs := make([]ComponentPair, 0, max(len(fromComponents), len(toComponents)))
+	toBySuffix := make(map[string]component.Component, len(toComponents))
+
+	for _, toComponent := range toComponents {
+		suffix, err := workingDirSuffix(toComponent)
+		if err != nil {
+			return nil, err
+		}
+
+		toBySuffix[suffix] = toComponent
+	}
+
+	componentPairs := make([]ComponentPair, 0, min(len(fromComponents), len(toComponents)))
 
 	for _, fromComponent := range fromComponents {
-		if fromComponent.DiscoveryContext() == nil {
-			return nil, NewMissingDiscoveryContextError(fromComponent.Path())
+		suffix, err := workingDirSuffix(fromComponent)
+		if err != nil {
+			return nil, err
 		}
 
-		fromComponentSuffix := strings.TrimPrefix(
-			fromComponent.Path(),
-			fromComponent.DiscoveryContext().WorkingDir,
-		)
-
-		for _, toComponent := range toComponents {
-			if toComponent.DiscoveryContext() == nil {
-				return nil, NewMissingDiscoveryContextError(toComponent.Path())
-			}
-
-			toComponentSuffix := strings.TrimPrefix(
-				toComponent.Path(),
-				toComponent.DiscoveryContext().WorkingDir,
-			)
-
-			if filepath.Clean(fromComponentSuffix) == filepath.Clean(toComponentSuffix) {
-				componentPairs = append(componentPairs, ComponentPair{
-					FromComponent: fromComponent,
-					ToComponent:   toComponent,
-				})
-			}
+		toComponent, ok := toBySuffix[suffix]
+		if !ok {
+			continue
 		}
+
+		componentPairs = append(componentPairs, ComponentPair{
+			FromComponent: fromComponent,
+			ToComponent:   toComponent,
+		})
 	}
 
 	return componentPairs, nil
@@ -653,65 +639,62 @@ func TranslateDiscoveryContextArgsForWorktree(
 	}
 }
 
-// GenerateDirSHA256 calculates a single SHA256 checksum for all files in a directory.
-func GenerateDirSHA256(fsys vfs.FS, rootDir string) (string, error) {
-	var filePaths []string
+// changedPairs returns the pairs whose two directories differ, in the order of pairs.
+func changedPairs(ctx context.Context, fsys vfs.FS, pairs []ComponentPair) ([]ComponentPair, error) {
+	differs := make([]bool, len(pairs))
 
-	err := vfs.WalkDir(fsys, rootDir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
+	g, ctx := errgroup.WithContext(ctx)
+	g.SetLimit(pairComparisons)
 
-		if d.IsDir() {
+	for i, pair := range pairs {
+		g.Go(func() error {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+
+			differ, err := vfs.DirsDiffer(
+				fsys,
+				pair.FromComponent.Path(),
+				pair.ToComponent.Path(),
+				vfs.WithIgnore(isStackManifest),
+			)
+			if err != nil {
+				return err
+			}
+
+			differs[i] = differ
+
 			return nil
-		}
-
-		// Ignore .terragrunt-stack-manifest as it contains absolute paths
-		if filepath.Base(path) == ".terragrunt-stack-manifest" {
-			return nil
-		}
-
-		filePaths = append(filePaths, path)
-
-		return nil
-	})
-	if err != nil {
-		return "", fmt.Errorf("error walking directory: %w", err)
+		})
 	}
 
-	sort.Strings(filePaths)
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
 
-	hash := sha256.New()
+	changed := make([]ComponentPair, 0, len(pairs))
 
-	for _, path := range filePaths {
-		relPath, err := filepath.Rel(rootDir, path)
-		if err != nil {
-			return "", fmt.Errorf("could not compute relative path for %s: %w", path, err)
-		}
-
-		normalizedPath := filepath.ToSlash(relPath)
-
-		// These writes are guaranteed to succeed. They just return errors because of the
-		// Writer interface, but we don't care about those errors.
-		_, _ = hash.Write([]byte(normalizedPath))
-		_, _ = hash.Write([]byte{0})
-
-		f, err := fsys.Open(path)
-		if err != nil {
-			return "", fmt.Errorf("could not open file %s: %w", path, err)
-		}
-
-		_, err = io.Copy(hash, f)
-		closeErr := f.Close()
-
-		if err != nil {
-			return "", fmt.Errorf("could not copy file %s to hash: %w", path, err)
-		}
-
-		if closeErr != nil {
-			return "", fmt.Errorf("could not close file %s: %w", path, closeErr)
+	for i, pair := range pairs {
+		if differs[i] {
+			changed = append(changed, pair)
 		}
 	}
 
-	return hex.EncodeToString(hash.Sum(nil)), nil
+	return changed, nil
+}
+
+// workingDirSuffix returns the path of c below the working directory of its discovery context.
+func workingDirSuffix(c component.Component) (string, error) {
+	dc := c.DiscoveryContext()
+	if dc == nil {
+		return "", NewMissingDiscoveryContextError(c.Path())
+	}
+
+	return filepath.Clean(strings.TrimPrefix(c.Path(), dc.WorkingDir)), nil
+}
+
+// isStackManifest reports whether d is a stack generation manifest, whose absolute paths differ between two worktrees
+// whose stacks are otherwise the same.
+func isStackManifest(d fs.DirEntry) bool {
+	return d.Name() == stackManifestFile
 }
