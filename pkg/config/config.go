@@ -3213,6 +3213,12 @@ func ConfigFileHasDependencyBlock(fsys vfs.FS, cfgPath string) (bool, error) {
 		return false, err
 	}
 
+	return HasDependencyBlock(configBytes, cfgPath)
+}
+
+// HasDependencyBlock reports whether configBytes, the contents of the config at cfgPath, declare a dependency or
+// dependencies block, as [ConfigFileHasDependencyBlock] does for a file.
+func HasDependencyBlock(configBytes []byte, cfgPath string) (bool, error) {
 	// We use hclwrite to parse the config instead of the normal parser because the normal parser doesn't give us an AST
 	// that we can walk and scan, and requires structured data to map against. This makes the parsing strict, so to
 	// avoid weird parsing errors due to missing dependency data, we do a structural scan here.

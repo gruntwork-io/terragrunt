@@ -55,7 +55,7 @@ func rebindOrParseHCLFile(
 		File:    file,
 		modTime: modTime,
 		source:  file.Bytes,
-		racy:    isRacyModTime(modTime, readAt),
+		racy:    vfs.IsRacyModTime(modTime, readAt),
 	})
 
 	return file, nil
@@ -89,7 +89,7 @@ func cachedHCLFile(
 		return nil
 	}
 
-	if isRacyModTime(entry.modTime, readAt) {
+	if vfs.IsRacyModTime(entry.modTime, readAt) {
 		return entry
 	}
 

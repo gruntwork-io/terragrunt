@@ -1256,7 +1256,7 @@ func autoIncludeCacheKeySuffix(
 	statAt := time.Now()
 
 	info, statErr := v.FS.Stat(autoIncludePath)
-	if statErr == nil && isRacyModTime(info.ModTime(), statAt) {
+	if statErr == nil && vfs.IsRacyModTime(info.ModTime(), statAt) {
 		return autoIncludeContentSuffix(v.FS, autoIncludePath)
 	}
 

@@ -513,6 +513,100 @@ func TestStoreParseUnitASTParsesAgainWhenTheFileChanges(t *testing.T) {
 	assert.Equal(t, config.Stats{Hits: 0, Misses: 2}, s.Stats())
 }
 
+func TestStoreParseUnitASTParsesAgainAfterASameSizeRewriteOfARecentFile(t *testing.T) {
+	t.Parallel()
+
+	fsys := vfs.NewMemMapFS()
+	path := filepath.Join(vfs.MemRoot, "root.hcl")
+	require.NoError(t, vfs.WriteFile(fsys, path, []byte(`locals { a = 1 }`), 0o644))
+
+	recent := time.Now().Add(time.Hour)
+	require.NoError(t, fsys.Chtimes(path, recent, recent))
+
+	s := &config.Store{}
+
+	first, err := s.ParseUnitAST(t.Context(), fsys, path, stat(t, fsys, path), pkghclparse.NewParser())
+	require.NoError(t, err)
+	assert.Equal(t, `locals { a = 1 }`, first.Content())
+
+	require.NoError(t, vfs.WriteFile(fsys, path, []byte(`locals { a = 2 }`), 0o644))
+	require.NoError(t, fsys.Chtimes(path, recent, recent))
+
+	second, err := s.ParseUnitAST(t.Context(), fsys, path, stat(t, fsys, path), pkghclparse.NewParser())
+	require.NoError(t, err)
+	assert.Equal(t, `locals { a = 2 }`, second.Content())
+	assert.Equal(t, config.Stats{Hits: 0, Misses: 2}, s.Stats())
+}
+
+func TestStoreParseUnitASTReadsBackOnlyARecentFileOnAHit(t *testing.T) {
+	t.Parallel()
+
+	tcs := []struct {
+		modTime   time.Time
+		name      string
+		wantOpens int64
+	}{
+		{name: "old file", modTime: time.Now().Add(-time.Hour), wantOpens: 1},
+		{name: "recent file", modTime: time.Now().Add(time.Hour), wantOpens: 2},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			mem := vfs.NewMemMapFS()
+			path := filepath.Join(vfs.MemRoot, "root.hcl")
+			require.NoError(t, vfs.WriteFile(mem, path, []byte(`locals { a = 1 }`), 0o644))
+			require.NoError(t, mem.Chtimes(path, tc.modTime, tc.modTime))
+
+			fsys := &countingFS{FS: mem, counted: path}
+			s := &config.Store{}
+
+			for range 2 {
+				file, err := s.ParseUnitAST(t.Context(), fsys, path, stat(t, fsys, path), pkghclparse.NewParser())
+				require.NoError(t, err)
+				assert.Equal(t, `locals { a = 1 }`, file.Content())
+			}
+
+			assert.Equal(t, tc.wantOpens, fsys.opens.Load())
+			assert.Equal(t, config.Stats{Hits: 1, Misses: 1}, s.Stats())
+		})
+	}
+}
+
+func TestStoreParseUnitASTStopsReadingBackARecentFileOnceItsModificationTimeSettles(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		mem := vfs.NewMemMapFS()
+		path := filepath.Join(vfs.MemRoot, "root.hcl")
+		require.NoError(t, vfs.WriteFile(mem, path, []byte(`locals { a = 1 }`), 0o644))
+
+		now := time.Now()
+		require.NoError(t, mem.Chtimes(path, now, now))
+
+		fsys := &countingFS{FS: mem, counted: path}
+		s := &config.Store{}
+
+		parse := func() {
+			_, err := s.ParseUnitAST(t.Context(), fsys, path, stat(t, fsys, path), pkghclparse.NewParser())
+			require.NoError(t, err)
+		}
+
+		parse()
+		synctest.Sleep(time.Minute)
+		parse()
+
+		settled := fsys.opens.Load()
+
+		parse()
+
+		assert.Equal(t, int64(2), settled, "the first hit after the modification time settles reads the file back")
+		assert.Equal(t, settled, fsys.opens.Load(), "a later hit does not")
+		assert.Equal(t, config.Stats{Hits: 2, Misses: 1}, s.Stats())
+	})
+}
+
 func TestStoreParseUnitASTParsesAgainAfterJoiningAParseOfAnOlderVersionWithRacing(t *testing.T) {
 	t.Parallel()
 
@@ -714,6 +808,21 @@ func (f frozenInfo) Size() int64 {
 
 func (f frozenInfo) ModTime() time.Time {
 	return f.modTime
+}
+
+// countingFS is a filesystem that counts the opens of counted.
+type countingFS struct {
+	vfs.FS
+	counted string
+	opens   atomic.Int64
+}
+
+func (c *countingFS) Open(name string) (vfs.File, error) {
+	if filepath.Clean(name) == c.counted {
+		c.opens.Add(1)
+	}
+
+	return c.FS.Open(name)
 }
 
 // gatedFS is a filesystem whose first Open of gated reads the file, then waits until release closes and returns what

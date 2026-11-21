@@ -50,11 +50,11 @@ func stampFile(fsys vfs.FS, path string, readAt time.Time) fileStamp {
 	}
 
 	stamp := fileStamp{modTime: info.ModTime(), size: info.Size(), exists: true}
-	if !isRacyModTime(stamp.modTime, readAt) {
+	if !vfs.IsRacyModTime(stamp.modTime, readAt) {
 		return stamp
 	}
 
-	digest, err := digestFile(fsys, path)
+	digest, err := vfs.DigestFile(fsys, path)
 	if err != nil {
 		return fileStamp{}
 	}
@@ -80,7 +80,7 @@ func (stamp fileStamp) matches(fsys vfs.FS, path string) bool {
 		return true
 	}
 
-	digest, err := digestFile(fsys, path)
+	digest, err := vfs.DigestFile(fsys, path)
 
 	return err == nil && digest == stamp.digest
 }
@@ -102,7 +102,7 @@ func (r *readTerragruntConfigResult) settled(checkedAt time.Time) *readTerragrun
 	var files map[string]fileStamp
 
 	for path, stamp := range r.files {
-		if !stamp.digested || isRacyModTime(stamp.modTime, checkedAt) {
+		if !stamp.digested || vfs.IsRacyModTime(stamp.modTime, checkedAt) {
 			continue
 		}
 
