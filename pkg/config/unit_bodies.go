@@ -15,9 +15,8 @@ import (
 // an absent part, or an exclude block that reads `dependency`, which [RunBodies] holds instead. Each slice aligns by
 // index with the HCL slice it decodes.
 //
-// Engine and MockValues are the exceptions to that scope: the parse decodes them with `dependency` unknown, as
-// [PartialParseConfigFile] does when it skips resolving outputs, and [RunBodies] holds them again decoded with
-// the outputs. MockValues aligns by index with the output blocks of the outputs block, and holds nil for an output
+// Engine and MockValues are the exceptions to that scope: the parse decodes them with `dependency` unknown, and
+// [RunBodies] holds them again decoded with the outputs. MockValues aligns by index with the output blocks of the outputs block, and holds nil for an output
 // with no mock value.
 type QueueBodies struct {
 	Exclude    *ExcludeBody
@@ -123,8 +122,7 @@ func withUnknownDependency(evalCtx *hcl.EvalContext) *hcl.EvalContext {
 }
 
 // dependencyBlockContext returns the eval context the dependency blocks decode with: evalCtx with `dependency`
-// unknown when pctx skips resolving outputs, as [PartialParseConfigFile] decodes them, and evalCtx
-// otherwise.
+// unknown when pctx skips resolving outputs, and evalCtx otherwise.
 func dependencyBlockContext(pctx *ParsingContext, evalCtx *hcl.EvalContext) *hcl.EvalContext {
 	if !pctx.SkipOutputsResolution {
 		return evalCtx
@@ -291,8 +289,8 @@ func (e *ExcludeHCL) readsDependency() bool {
 	return bodyReadsDependency[ExcludeBody](e.Remain)
 }
 
-// withRequestedRunParts returns a copy of c with only the run parts that a section of decodeList decodes, as
-// [PartialParseConfig] does, and that read no `dependency`. It keeps the engine block, which the queue
+// withRequestedRunParts returns a copy of c with only the run parts that a section of decodeList decodes and that
+// read no `dependency`. It keeps the engine block, which the queue
 // decodes with `dependency` unknown whatever the decode list.
 func (c *UnitConfig) withRequestedRunParts(decodeList []PartialDecodeSectionType) *UnitConfig {
 	requested := *c

@@ -64,7 +64,7 @@ func (c *UnitConfig) newDependencySet(
 		evalCtx = dependencyBlockContext(pctx, c.evalContext(fns, pctx))
 	}
 
-	own, err := DecodeOwnDependencies(ctx, l, v, s, pctx, file, evalCtx)
+	own, err := s.decodeOwnDependencies(ctx, l, v, pc, file, evalCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -175,10 +175,10 @@ func (set *dependencySet) loaded(
 
 // dependencyValue returns the `dependency` value ToV1 decodes c with, and the blocks it was resolved from: the
 // run's when it supplied one, and otherwise the outputs of c's dependency blocks, fetched now. An included file
-// whose including file resolved none decodes its own blocks first, as pkg/config does. It reports the files the
-// parse read decoding the blocks to pc's sinks.
+// whose including file resolved none decodes its own blocks first. It reports the files the parse read decoding the
+// blocks to pc's sinks.
 //
-// Returns the value pkg/config falls back to with the error when the fetch fails. When the parse already reported
+// Returns the value a failed resolution leaves in the `dependency` variable with the error when the fetch fails. When the parse already reported
 // that the blocks failed to decode, it returns that value and no error.
 func (c *UnitConfig) dependencyValue(
 	ctx context.Context,
@@ -208,7 +208,7 @@ func (c *UnitConfig) dependencyValue(
 			s,
 			pc,
 			c.boundFile(l, v, pc),
-			ParsedIncludeDependencies(v, s, pctx),
+			s.includedDependencies(v, pc),
 			c.functions(ctx, l, v, s),
 		)
 		if err != nil {
@@ -232,4 +232,75 @@ func failedDependencyValue(value *cty.Value) *cty.Value {
 	dynamicVal := cty.DynamicVal
 
 	return &dynamicVal
+}
+
+// decodeOwnDependencies decodes the dependency blocks of file, which pc parses, with evalCtx and folds in those of its
+// sibling autoinclude.
+//
+// Returns [DependencyInvalidConfigPathError] when an enabled block has no usable config_path, unless pc skips
+// outputs.
+func (s *Store) decodeOwnDependencies(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pc *ParseContext,
+	file *hclparse.File,
+	evalCtx *hcl.EvalContext,
+) (Dependencies, error) {
+	pctx := pc.parsingContext()
+
+	dependencies, err := DecodeDependencyBlocks(ctx, l, v, pctx, file, evalCtx)
+	if err != nil {
+		return nil, err
+	}
+
+	dependencies, err = s.foldAutoIncludeDependencies(ctx, l, v, pc, dependencies)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, dep := range dependencies {
+		if dep.isDisabled() || IsValidConfigPath(dep.ConfigPath) {
+			continue
+		}
+
+		// hcl validate decodes config_path with locals it may not resolve, and the `dependency` value gives the
+		// block a placeholder instead.
+		if pctx.SkipOutput {
+			continue
+		}
+
+		return nil, DependencyInvalidConfigPathError{DependencyName: dep.Name}
+	}
+
+	return dependencies, nil
+}
+
+// foldAutoIncludeDependencies merges the dependency blocks of the sibling autoinclude of the file pc parses over deps,
+// by name with the autoinclude winning, as the default merge strategy of an include does. The blocks of the
+// autoinclude hold those of the files it includes, and deps is returned unchanged when there is no autoinclude.
+//
+// Returns the error of resolving the autoinclude when it produced no config.
+func (s *Store) foldAutoIncludeDependencies(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pc *ParseContext,
+	deps Dependencies,
+) (Dependencies, error) {
+	includes := pc.file.includes
+	if includes == nil || includes.AutoIncludePath == "" {
+		return deps, nil
+	}
+
+	autoInclude, _, err := s.resolveFile(ctx, l, v, pc.forAutoInclude(), includes.AutoIncludePath)
+	if autoInclude == nil {
+		return nil, err
+	}
+
+	if len(autoInclude.DependencyConfigs) == 0 {
+		return deps, nil
+	}
+
+	return mergeDependencyBlocks(deps, autoInclude.DependencyConfigs), nil
 }

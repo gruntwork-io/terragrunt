@@ -19,7 +19,8 @@ import (
 // tfInitCommand is the terraform command these autoinclude tests resolve dependency mock outputs against.
 const tfInitCommand = "init"
 
-// A malformed sibling autoinclude makes the merge helper return an error; ParseConfigFile must surface that error without nil-panicking in handleInclude.
+// TestMergeAutoInclude_MalformedSiblingDoesNotPanic pins that a full parse reports the error of a malformed sibling
+// autoinclude instead of panicking.
 func TestMergeAutoInclude_MalformedSiblingDoesNotPanic(t *testing.T) {
 	t.Parallel()
 
@@ -34,7 +35,7 @@ inputs = {
 }
 `), 0644))
 
-	// A unit with a resolvable include so TrackInclude is set and the post-merge handleInclude branch dereferences config on a shallow merge.
+	// The unit has a resolvable include, so the autoinclude merges into a config that merged an include.
 	require.NoError(t, vfs.WriteFile(v.FS, cfgPath, []byte(`
 include "root" {
   path           = "`+filepath.ToSlash(filepath.Join(parentDir, "root.hcl"))+`"
@@ -140,8 +141,8 @@ dependency "foo" {
 	assert.Equal(t, marker, parsed.RemoteState.BackendConfig["path"])
 }
 
-// TestFoldSiblingAutoIncludeDeps_FoldsIncludeInheritedDeps pins that foldSiblingAutoIncludeDeps folds in
-// dependency blocks the autoinclude inherits through its OWN include blocks, not only blocks declared
+// TestFoldSiblingAutoIncludeDeps_FoldsIncludeInheritedDeps pins that a unit's dependency blocks fold in the
+// dependency blocks its sibling autoinclude inherits through its OWN include blocks, not only blocks declared
 // directly in the autoinclude file. The autoinclude declares no dependency of its own; it inherits "foo"
 // from an included base.hcl via merge_strategy = "deep". Without that fold the unit's remote_state
 // reference to dependency.foo would not resolve.

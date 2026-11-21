@@ -18,7 +18,7 @@ type fetches int
 const (
 	// fetchesInToV1 runs tofu in ToV1 and never in the parse.
 	fetchesInToV1 fetches = iota
-	// fetchesInParse runs tofu in the parse, where pkg/config parses an exposed include, and never in ToV1.
+	// fetchesInParse runs tofu in the parse, where it resolves an exposed include, and never in ToV1.
 	fetchesInParse
 	// fetchesNowhere runs no tofu.
 	fetchesNowhere
@@ -36,7 +36,7 @@ var targets = map[string]string{
 }
 
 // targetOutputs is the `tofu output -json` of each target, keyed by directory relative to the case root. broken
-// reports no outputs, which pkg/config reads as a target that was never applied.
+// reports no outputs, which the parse reads as a target that was never applied.
 var targetOutputs = map[string]string{
 	"vpc":    outputsJSON(map[string]string{"id": "vpc-123", "path": "../db"}),
 	"db":     outputsJSON(map[string]string{"id": "db-456"}),
@@ -600,7 +600,7 @@ inputs = {
 				cfgPath = "app/" + config.DefaultTerragruntConfigPath
 			}
 
-			result := assertParity(t, parityCase{
+			result := resolveUnit(t, unitCase{
 				newFS:   memFS(root, files),
 				cfgPath: filepath.Join(root, filepath.FromSlash(cfgPath)),
 				configure: func(pctx *config.ParsingContext) {
@@ -698,7 +698,7 @@ dependency "vpc" {
 				outputs[filepath.Join(root, dir)] = out
 			}
 
-			result := assertParity(t, parityCase{
+			result := resolveUnit(t, unitCase{
 				newFS:     memFS(root, files),
 				cfgPath:   filepath.Join(root, "app", config.DefaultTerragruntConfigPath),
 				configure: func(*config.ParsingContext) {},

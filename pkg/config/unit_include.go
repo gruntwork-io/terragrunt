@@ -742,8 +742,8 @@ func (s *Store) resolveExposedInclude(
 }
 
 // resolveWithFileIAMRole resolves the file at cfgPath with pc, evaluating it with the IAM role options its config
-// sets, as [ParseConfig] resolves them: from its iam_role and iam_web_identity_token, the attributes
-// [ResolveIAMRoleOptions] reads. The resolution with the role options of pc serves when they match.
+// sets, as a full parse does: from its iam_role and iam_web_identity_token, under the options passed on the CLI. The
+// resolution with the role options of pc serves when they match.
 //
 // Returns no parse with the error when the resolution with the role options of pc produced no config.
 func (s *Store) resolveWithFileIAMRole(

@@ -211,19 +211,19 @@ type VariablesBody struct {
 	Inputs   cty.Value `hcl:"inputs,attr"`
 }
 
-// DependencyHCL is a dependency block. pkg/config decodes its body into [UnitConfig.DependencyConfigs].
+// DependencyHCL is a dependency block. Its body decodes into [UnitConfig.DependencyConfigs].
 type DependencyHCL struct {
 	Remain hcl.Body `hcl:",remain"`
 	Name   string   `hcl:",label"`
 }
 
-// IncludeHCL is an include block. pkg/config decodes its body into [UnitConfig.Includes].
+// IncludeHCL is an include block. Its body decodes into [UnitConfig.Includes].
 type IncludeHCL struct {
 	Remain hcl.Body `hcl:",remain"`
 	Name   string   `hcl:"name,label"`
 }
 
-// LocalsHCL is a locals block. pkg/config evaluates its body into [UnitConfig.Locals].
+// LocalsHCL is a locals block. Its body evaluates into [UnitConfig.Locals].
 type LocalsHCL struct {
 	Remain hcl.Body `hcl:",remain"`
 }

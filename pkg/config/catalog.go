@@ -81,13 +81,13 @@ func (cfg *CatalogConfig) normalize(fsys vfs.FS, cfgPath string) {
 //
 // We want users to be able to browse to any folder in an `infra-live` repo, run `terragrunt catalog` (with no URL) arg.
 // ReadCatalogConfig looks for the "nearest" `terragrunt.hcl` in the parent directories if the given
-// `opts.TerragruntConfigPath` does not exist. Since our normal parsing `ParseConfig` does not always work,
+// `opts.TerragruntConfigPath` does not exist. Since a normal parse does not always work,
 // as some `terragrunt.hcl` files are meant to be used from an `include` and/or they might use
 // `find_in_parent_folders` and they only work from certain child folders, it parses this file to see if the
 // config contains `include{...find_in_parent_folders()...}` block to determine if it is the root configuration.
 // If it finds `terragrunt.hcl` that already has `include`, then read that configuration as is,
 // otherwise generate a stub child `terragrunt.hcl` in memory with an `include` to pull in the one we found.
-// Unlike the "ReadTerragruntConfig" func, it ignores any configuration errors not related to the "catalog" block.
+// Unlike [Store.ReadTerragruntConfig], it ignores any configuration errors not related to the "catalog" block.
 func ReadCatalogConfig(
 	parentCtx context.Context,
 	l log.Logger,

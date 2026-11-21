@@ -593,108 +593,6 @@ func (dep *Dependency) configPathFrom(cfgPath string) (string, bool) {
 	return filepath.Clean(path), true
 }
 
-// DecodeTerragruntDependencies decodes the dependency blocks of file as [DecodeOwnDependencies] does, loads the
-// config of each dependency as [LoadDependencyConfigs] does, and merges in the dependency blocks of included configs.
-// TODO: In the future, consider allowing importing dependency blocks from included config
-// NOTE FOR MAINTAINER: When implementing importation of other config blocks (e.g referencing inputs), carefully
-//
-//	consider whether or not the implementation of the cyclic dependency detection still makes sense.
-func DecodeTerragruntDependencies(
-	ctx context.Context,
-	l log.Logger,
-	v *venv.Venv,
-	s *Store,
-	pctx *ParsingContext,
-	file *hclparse.File,
-) (*TerragruntDependency, error) {
-	evalCtx, err := CreateTerragruntEvalContext(ctx, l, v, s, pctx, file.ConfigPath, file.FunctionCalls())
-	if err != nil {
-		return nil, err
-	}
-
-	own, err := DecodeOwnDependencies(ctx, l, v, s, pctx, file, evalCtx)
-	if err != nil {
-		return nil, err
-	}
-
-	loaded, err := LoadDependencyConfigs(ctx, l, v, s, pctx, own)
-	if err != nil {
-		return nil, err
-	}
-
-	if pctx.TrackInclude == nil {
-		return &TerragruntDependency{Dependencies: loaded}, nil
-	}
-
-	merged, err := MergeIncludedDependencies(ctx, l, pctx, loaded, ParsedIncludeDependencies(v, s, pctx))
-	if err != nil {
-		return nil, err
-	}
-
-	return &TerragruntDependency{Dependencies: merged}, nil
-}
-
-// DecodeOwnDependencies decodes the dependency blocks of file with evalCtx and folds in those of its sibling
-// autoinclude.
-//
-// Returns [DependencyInvalidConfigPathError] when an enabled block has no usable config_path, unless pctx skips
-// outputs.
-func DecodeOwnDependencies(
-	ctx context.Context,
-	l log.Logger,
-	v *venv.Venv,
-	s *Store,
-	pctx *ParsingContext,
-	file *hclparse.File,
-	evalCtx *hcl.EvalContext,
-) (Dependencies, error) {
-	dependencies, err := DecodeDependencyBlocks(
-		ctx,
-		l,
-		v,
-		pctx,
-		file,
-		evalCtx,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	// Fold sibling autoinclude dependency blocks in before output retrieval so the unit body can reference them, like a regular include.
-	dependencies, err = foldSiblingAutoIncludeDeps(
-		ctx,
-		l,
-		v,
-		s,
-		pctx,
-		dependencies,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	// Validate that dependency config_path is not an empty string.
-	// Skip unknown values and non-strings (which can appear during partial decode or hclvalidate).
-	for _, dep := range dependencies {
-		if dep.isDisabled() {
-			continue
-		}
-
-		if !IsValidConfigPath(dep.ConfigPath) {
-			// During hcl validate, config_path may be unresolvable (e.g., references an
-			// unavailable local). Skip the invalid dependency instead of aborting — it will
-			// get a cty.DynamicVal placeholder in DependencyBlocksToCtyValue.
-			if pctx.SkipOutput {
-				continue
-			}
-
-			return nil, DependencyInvalidConfigPathError{DependencyName: dep.Name}
-		}
-	}
-
-	return dependencies, nil
-}
-
 // LoadDependencyConfigs checks the dependency blocks of the config at pctx.TerragruntConfigPath for cycles, then
 // reads the config of each one and sets its inputs on the block. Both read each config through one parse in s.
 func LoadDependencyConfigs(
@@ -728,62 +626,6 @@ func LoadDependencyConfigs(
 	}
 
 	return updatedDependencies.Dependencies, nil
-}
-
-// decodeAndRetrieveOutputs decodes the dependency blocks from the file, then retrieves all the outputs from the
-// remote state and encodes the resulting map as a cty.Value object.
-func decodeAndRetrieveOutputs(
-	ctx context.Context,
-	l log.Logger,
-	v *venv.Venv,
-	s *Store,
-	pctx *ParsingContext,
-	file *hclparse.File,
-) (resolvedDependencies, error) {
-	decodedDependency, err := DecodeTerragruntDependencies(ctx, l, v, s, pctx, file)
-	if err != nil {
-		return resolvedDependencies{}, err
-	}
-
-	// Extract dependency names for tracing
-	dependencyNames := make([]string, 0, len(decodedDependency.Dependencies))
-	for _, dep := range decodedDependency.Dependencies {
-		dependencyNames = append(dependencyNames, dep.Name)
-	}
-
-	var result *cty.Value
-
-	err = TraceParseDependencies(
-		ctx,
-		l,
-		file.ConfigPath,
-		pctx.SkipOutputsResolution,
-		len(decodedDependency.Dependencies),
-		dependencyNames,
-		func(ctx context.Context, l log.Logger) error {
-			var depErr error
-
-			result, depErr = DependencyBlocksToCtyValue(
-				ctx,
-				l,
-				v,
-				s,
-				pctx,
-				decodedDependency.Dependencies,
-			)
-
-			return depErr
-		},
-	)
-
-	return resolvedDependencies{blocks: decodedDependency.Dependencies, value: result}, err
-}
-
-// resolvedDependencies pairs the dependency blocks of a config with the value of the `dependency` variable
-// resolved from them. The value is nil when resolving the blocks failed.
-type resolvedDependencies struct {
-	value  *cty.Value
-	blocks []Dependency
 }
 
 // decodeDependencies decode dependencies and fetch inputs
@@ -3020,87 +2862,6 @@ func runTerraformInitForDependencyOutput(
 	}
 }
 
-// foldSiblingAutoIncludeDeps merges the registered sibling autoinclude dependency blocks over the unit's own same-name blocks (shallow, by name, with the autoinclude winning), mirroring a regular include's default merge strategy.
-func foldSiblingAutoIncludeDeps(
-	ctx context.Context,
-	l log.Logger,
-	v *venv.Venv,
-	s *Store,
-	pctx *ParsingContext,
-	deps []Dependency,
-) ([]Dependency, error) {
-	if pctx.TrackInclude == nil || pctx.TrackInclude.AutoIncludeOverride == nil {
-		return deps, nil
-	}
-
-	autoIncludePath := pctx.TrackInclude.AutoIncludeOverride.Path
-
-	autoFile, err := parseAutoIncludeFileCached(ctx, l, v, pctx, autoIncludePath)
-	if err != nil {
-		return nil, err
-	}
-
-	// Rescope to the autoinclude's own locals so the unit's locals do not leak into the autoinclude decode.
-	autoPctx := pctx.Clone()
-	// Files the autoinclude pulls in through its own includes must not re-merge a sibling autoinclude.
-	autoPctx.SkipAutoIncludeMerge = true
-
-	baseBlocks, err := DecodeBaseBlocks(
-		ctx,
-		l,
-		v,
-		s,
-		autoPctx,
-		autoFile,
-		nil,
-		parsedIncludeFeatureFlags(v, s, autoPctx, IncludeParseFeatureFlags),
-		ParsedExposedInclude(v, s),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	if baseBlocks != nil {
-		autoPctx = autoPctx.WithTrackInclude(baseBlocks.TrackInclude)
-		autoPctx = autoPctx.WithFeatures(baseBlocks.FeatureFlags)
-		autoPctx = autoPctx.WithLocals(baseBlocks.Locals)
-	}
-
-	evalCtx, err := CreateTerragruntEvalContext(ctx, l, v, s, autoPctx, autoIncludePath, autoFile.FunctionCalls())
-	if err != nil {
-		return nil, err
-	}
-
-	autoDependencies, err := decodeDependencyBlocks(ctx, autoPctx, l, v.FS, autoFile, evalCtx)
-	if err != nil {
-		return nil, err
-	}
-
-	decoded := TerragruntDependency{Dependencies: autoDependencies}
-
-	// Fold in dependency blocks the autoinclude inherits through its own include blocks, mirroring the unit decode path so inherited deps resolve before the unit body is evaluated.
-	if autoPctx.TrackInclude != nil && len(autoPctx.TrackInclude.CurrentList) > 0 {
-		merged, err := MergeIncludedDependencies(
-			ctx,
-			l,
-			autoPctx,
-			decoded.Dependencies,
-			ParsedIncludeDependencies(v, s, autoPctx),
-		)
-		if err != nil {
-			return nil, err
-		}
-
-		decoded.Dependencies = merged
-	}
-
-	if len(decoded.Dependencies) == 0 {
-		return deps, nil
-	}
-
-	return mergeDependencyBlocks(deps, decoded.Dependencies), nil
-}
-
 // parseAutoIncludeFileCached parses the sibling autoinclude through the run-scoped HCL file cache so repeated dependency-output decodes reuse one parse, rebinding the shared AST to a fresh parser per call.
 func parseAutoIncludeFileCached(
 	ctx context.Context,
@@ -3115,7 +2876,7 @@ func parseAutoIncludeFileCached(
 	}
 
 	hclCache := cache.ContextCache[*CachedHCLFile](ctx, HclCacheContextKey)
-	// Prefix the key so it cannot collide with the unit-config keys ParseConfigFile stores.
+	// Prefix the key so it cannot collide with the keys of the unit configs in the cache.
 	cacheKey := fmt.Sprintf(
 		"autoinclude-%v-%v-%v",
 		autoIncludePath,

@@ -40,7 +40,9 @@ func TestIncludeConfigAsCtyValWrapsErrorWithIncludeNameAndPath(t *testing.T) {
 	expose := true
 	inc := IncludeConfig{Name: "root", Path: parentPath, Expose: &expose}
 
-	_, err := includeConfigAsCtyVal(ctx, l, pctx, inc, ParsedExposedInclude(v, new(Store)))
+	exposed, _ := new(Store).exposedInclude(v, NewParseContext(v, pctx))
+
+	_, err := includeConfigAsCtyVal(ctx, l, pctx, inc, exposed)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), `exposed include "root"`,
 		"error should name the include block so the user knows WHERE resolution failed")

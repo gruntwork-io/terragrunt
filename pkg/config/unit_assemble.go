@@ -19,18 +19,15 @@ import (
 type assemblyParts int
 
 const (
-	// queueParts is the queue parts alone. An assembly of them reports the errors
-	// [PartialParseConfigFile] does: none for a top-level argument or block the schema does not name, or
-	// for a `dependencies` path that is not a directory.
+	// queueParts is the queue parts alone. An assembly of them reports no error for a top-level argument or
+	// block the schema does not name, or for a `dependencies` path that is not a directory.
 	queueParts assemblyParts = iota
-	// runParts is the queue parts and the run parts. An assembly of them reports the errors [ParseConfig]
-	// does.
+	// runParts is the queue parts and the run parts. An assembly of them reports every error of the file.
 	runParts
 )
 
 // ToV1 resolves the dependency outputs the parse deferred, decodes the run parts of c with them, and returns the
-// config and errors that [ParseConfigFile] returns for the same file, which can be a partial config with
-// an error. Each call fetches the outputs again. It never changes c.
+// config a run reads, which can be a partial config with an error. Each call fetches the outputs again. It never changes c.
 //
 // pc gives the run's settings and sinks, and c the state of each file.
 //
@@ -45,8 +42,8 @@ func (c *UnitConfig) ToV1(
 	return c.assemble(ctx, l, v, s, pc, keptIncludes{}, c.functions(ctx, l, v, s))
 }
 
-// assemble converts c to a config and merges in its autoinclude and included files from src, as
-// [ParseConfig] does. It decodes the parts src decodes with the `dependency` value src gives c. It reads
+// assemble converts c to a config and merges in its autoinclude and included files from src, each by its merge
+// strategy. It decodes the parts src decodes with the `dependency` value src gives c. It reads
 // the settings and writes to the sinks of pc, reads the state of each file from the file's own config, and never
 // changes c.
 func (c *UnitConfig) assemble(
@@ -165,7 +162,7 @@ func (c *UnitConfig) parseDecodeErr(parts assemblyParts) error {
 
 // convert converts cfgFile as [ConvertToTerragruntConfig] does. A config assembled for a merge gets the
 // field metadata of its locals without the locals themselves, since the merged config keeps the locals of the
-// including file. Locals that can fail to convert are still converted, so the error matches that of pkg/config.
+// including file. Locals that can fail to convert are still converted, so their error is reported.
 func (c *UnitConfig) convert(
 	v *venv.Venv,
 	pc *ParseContext,

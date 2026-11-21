@@ -69,7 +69,7 @@ func BenchmarkEvaluateLocalsBlock(b *testing.B) {
 						new(config.Store),
 						pctx,
 						file,
-						config.ParsedExposedInclude(v, new(config.Store)),
+						noExposedInclude(b),
 					)
 					require.NoError(b, err)
 					require.Len(b, locals, n)

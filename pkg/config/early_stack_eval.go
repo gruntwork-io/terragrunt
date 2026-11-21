@@ -54,10 +54,7 @@ func EarlyStackParseFunctions(
 		return nil, err
 	}
 
-	evalCtx, err := CreateTerragruntEvalContext(ctx, l, v, s, scoped, stackFilePath, hclparse.AnyFunctionCalls())
-	if err != nil {
-		return nil, err
-	}
+	evalCtx := evalContextWithoutIncludes(ctx, l, v, s, scoped, stackFilePath, hclparse.AnyFunctionCalls())
 
 	return StackParseFunctionsFrom(EvalFunctions(evalCtx), baseDir), nil
 }

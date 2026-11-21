@@ -7,7 +7,6 @@ import (
 	"io/fs"
 	"maps"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -55,46 +54,17 @@ var defaultOutputs = outputsJSON(map[string]string{
 	"terragrunt_dir":              "dir-from-state",
 })
 
-// parityCase is one config that assertParity parses with pkg/config and with the rewrite.
-type parityCase struct {
+// unitCase is one config that resolveUnit resolves.
+type unitCase struct {
 	// newFS returns a fresh filesystem with the case's files.
 	newFS func(t *testing.T) vfs.FS
-	// configure adjusts each side's parsing context.
+	// configure adjusts the parsing context.
 	configure func(*config.ParsingContext)
 	// outputs maps a target directory to its `tofu output -json`.
 	outputs map[string]string
-	// store is the Store the rewrite parses through, shared with other cases when set.
-	store *config.Store
-	// cfgPath is the config both sides parse.
+	// cfgPath is the config the case resolves.
 	cfgPath string
-	// drift is the drifts the case shows.
-	drift []drift
 }
-
-// drift names a known diagnostic difference between the rewrite and pkg/config. assertParity normalizes only the
-// drifts a case lists, fails when a listed drift changes nothing, and never relaxes config or error type equality.
-type drift string
-
-const (
-	// driftDiagnosticOrder is diagnostic order, which already varies between pkg/config runs. It applies to every
-	// case.
-	driftDiagnosticOrder drift = "diagnostic order"
-	// driftSplitBodySuggestion is the "Did you mean" suggestion in the remote_state and engine bodies, which the
-	// rewrite decodes in two stages. The second stage suggests only from its own schema.
-	driftSplitBodySuggestion drift = "split body suggestion"
-	// driftJSONShapeRepeated is a JSON shape diagnostic that each decode stage reports again.
-	driftJSONShapeRepeated drift = "repeated JSON shape diagnostic"
-	// driftIncludedErrorRepeated is an error evaluating an included file, which pkg/config reports again for each
-	// partial parse of the file and the rewrite reports once.
-	driftIncludedErrorRepeated drift = "repeated included file error"
-)
-
-// splitBodySuggestion matches the suggestion after an unsupported argument, block type, or JSON property.
-var splitBodySuggestion = regexp.MustCompile(
-	`((?:An argument named "[^"]*" is not expected here|Blocks of type "[^"]*" are not expected here|` +
-		`No argument or block type is named "[^"]*")\.) Did you mean (?:to define a block of type "[^"]*"\?|` +
-		`to define argument "[^"]*"\? If so, use the equals sign to assign it a value\.|"[^"]*"\?)`,
-)
 
 // tofuStub answers tofu invocations and counts them, keeping the ones ToV1 makes apart.
 type tofuStub struct {
@@ -127,8 +97,8 @@ func (s *tofuStub) handler() vexec.Handler {
 	}
 }
 
-// parityResult is what assertParity observed of the rewrite.
-type parityResult struct {
+// unitResult is what resolveUnit observed.
+type unitResult struct {
 	// parsed is the parsed config, nil when the parse produced none.
 	parsed *config.UnitConfig
 	// cfg is the config ToV1 returned, nil when the parse produced none.
@@ -143,79 +113,39 @@ type parityResult struct {
 	toV1Execs int64
 }
 
-// assertParity parses tc with pkg/config and the rewrite on separate venvs, contexts, and caches, and asserts that
-// ToV1 matches pkg/config's config, errors, and files read, that the parse and ToV1 together run tofu as often as
-// pkg/config does, and that ToV1 returns every error type and diagnostic the parse returns. When the rewrite's parse
-// returns no config, its error stands in for ToV1's.
-func assertParity(t *testing.T, tc parityCase) parityResult {
+// resolveUnit resolves tc with [config.Store.ResolveUnitConfig] and converts the parse with [config.UnitConfig.ToV1],
+// asserting that ToV1 returns every error type and diagnostic the parse returns. When the parse returns no config,
+// its error stands in for ToV1's.
+func resolveUnit(t *testing.T, tc unitCase) unitResult {
 	t.Helper()
 
 	l := logger.CreateLogger()
-
-	v1Stub := &tofuStub{outputs: tc.outputs}
-	v1Venv := venv.MemVenv().WithFS(tc.newFS(t)).WithHandler(v1Stub.handler())
-	v1Ctx, v1Pctx := newTestUnitParsingContext(t, tc.cfgPath)
-	tc.configure(v1Pctx)
-	v1Pctx = v1Pctx.WithFileReadTracking()
 
 	stub := &tofuStub{outputs: tc.outputs}
 	v := venv.MemVenv().WithFS(tc.newFS(t)).WithHandler(stub.handler())
 	ctx, pctx := newTestUnitParsingContext(t, tc.cfgPath)
 	tc.configure(pctx)
-	pctx = pctx.WithFileReadTracking()
-
-	wantCfg, wantErr := config.ParseConfigFile(v1Ctx, l, v1Venv, new(config.Store), v1Pctx, tc.cfgPath, nil)
-	if wantErr != nil {
-		t.Logf("pkg/config returned an error: %v", wantErr)
-	}
-
-	store := tc.store
-	if store == nil {
-		store = &config.Store{}
-	}
 
 	pc := config.NewParseContext(v, pctx)
 
-	parsed, parseErr := store.ResolveUnitConfig(ctx, l, v, pc, tc.cfgPath)
+	parsed, parseErr := new(config.Store).ResolveUnitConfig(ctx, l, v, pc, tc.cfgPath)
 
 	stub.inToV1.Store(true)
 
-	var gotCfg *config.TerragruntConfig
+	var cfg *config.TerragruntConfig
 
-	gotErr := parseErr
+	toV1Err := parseErr
 
 	if parsed != nil {
-		gotCfg, gotErr = parsed.ToV1(ctx, l, v, new(config.Store), pc)
-		assertErrorsWithin(t, parseErr, gotErr)
+		cfg, toV1Err = parsed.ToV1(ctx, l, v, new(config.Store), pc)
+		assertErrorsWithin(t, parseErr, toV1Err)
 	}
 
-	assert.Equal(t, wantCfg, gotCfg)
-	assertSameErrors(t, wantErr, gotErr, tc.drift)
-	assert.Equal(t, v1Pctx.FilesRead.Paths(), pctx.FilesRead.Paths())
-
-	if tc.store == nil {
-		assert.Equal(
-			t,
-			v1Stub.parseExecs.Load(),
-			stub.parseExecs.Load()+stub.toV1Execs.Load(),
-			"tofu runs",
-		)
-	}
-
-	if tc.store != nil {
-		assert.LessOrEqual(
-			t,
-			stub.parseExecs.Load()+stub.toV1Execs.Load(),
-			v1Stub.parseExecs.Load(),
-			"tofu runs",
-		)
-	}
-
-	return parityResult{
+	return unitResult{
 		parsed:     parsed,
-		cfg:        gotCfg,
+		cfg:        cfg,
 		parseErr:   parseErr,
-		toV1Err:    gotErr,
+		toV1Err:    toV1Err,
 		parseExecs: stub.parseExecs.Load(),
 		toV1Execs:  stub.toV1Execs.Load(),
 	}
@@ -227,60 +157,9 @@ func assertErrorsWithin(t *testing.T, inner, outer error) {
 
 	innerTree := walkErrors(t, inner)
 	outerTree := walkErrors(t, outer)
-	drifts := map[drift]struct{}{driftDiagnosticOrder: {}}
 
 	assert.Subset(t, outerTree.types(), innerTree.types())
-	assert.Subset(t, outerTree.diagnostics(drifts), innerTree.diagnostics(drifts))
-}
-
-// assertSameErrors asserts matching error types, diagnostics, and text after normalizing drifts. It fails when a
-// listed drift changes nothing.
-func assertSameErrors(t *testing.T, want, got error, drifts []drift) {
-	t.Helper()
-
-	wantTree := walkErrors(t, want)
-	gotTree := walkErrors(t, got)
-
-	listed := map[drift]struct{}{driftDiagnosticOrder: {}}
-	for _, d := range drifts {
-		listed[d] = struct{}{}
-	}
-
-	wantView := wantTree.view(want, listed)
-	gotView := gotTree.view(got, listed)
-
-	assert.Equal(t, wantView.types, gotView.types)
-	assert.Equal(t, wantView.diagnostics, gotView.diagnostics)
-	assert.Equal(t, wantView.text, gotView.text)
-
-	for _, d := range drifts {
-		without := maps.Clone(listed)
-		delete(without, d)
-
-		assert.NotEqual(
-			t,
-			wantTree.view(want, without),
-			gotTree.view(got, without),
-			"drift %q no longer changes the comparison",
-			d,
-		)
-	}
-}
-
-// errorView is what assertSameErrors compares of an error.
-type errorView struct {
-	text        string
-	types       []string
-	diagnostics []string
-}
-
-// view returns what assertSameErrors compares of err, with drifts normalized.
-func (tree errorTree) view(err error, drifts map[drift]struct{}) errorView {
-	return errorView{
-		types:       tree.types(),
-		diagnostics: tree.diagnostics(drifts),
-		text:        tree.text(err, drifts),
-	}
+	assert.Subset(t, outerTree.diagnostics(), innerTree.diagnostics())
 }
 
 // errorTree is the nodes of an error tree, following both single and joined unwraps.
@@ -352,83 +231,20 @@ func (tree errorTree) types() []string {
 	return slices.Sorted(maps.Keys(types))
 }
 
-// diagnostics returns the normalized text of every diagnostic in tree.
-func (tree errorTree) diagnostics(drifts map[drift]struct{}) []string {
-	diags := make([]string, 0, len(tree.diags))
+// diagnostics returns the text of every diagnostic in tree with its subject and detail, sorted.
+func (tree errorTree) diagnostics() []string {
+	var texts []string
 
 	for _, list := range tree.diags {
-		diags = append(diags, diagnosticTexts(list)...)
-	}
-
-	return normalizeDiagnostics(diags, drifts)
-}
-
-// text returns err's message with each [hcl.Diagnostics] normalized, or the empty string for nil.
-func (tree errorTree) text(err error, drifts map[drift]struct{}) string {
-	if err == nil {
-		return ""
-	}
-
-	text := err.Error()
-
-	for _, list := range tree.diags {
-		if len(list) > 0 {
-			text = strings.ReplaceAll(
-				text,
-				list.Error(),
-				strings.Join(normalizeDiagnostics(diagnosticTexts(list), drifts), "; "),
+		for _, diag := range list {
+			texts = append(
+				texts,
+				fmt.Sprintf("%d|%s|%s|%s", diag.Severity, diag.Error(), diag.Detail, rangeText(diag.Subject)),
 			)
 		}
 	}
 
-	if _, ok := drifts[driftSplitBodySuggestion]; ok {
-		text = splitBodySuggestion.ReplaceAllString(text, "$1")
-	}
-
-	if _, ok := drifts[driftIncludedErrorRepeated]; ok {
-		text = strings.Join(slices.Compact(strings.Split(text, "\n")), "\n")
-	}
-
-	return text
-}
-
-// normalizeDiagnostics returns texts with drifts normalized.
-func normalizeDiagnostics(texts []string, drifts map[drift]struct{}) []string {
-	normalized := slices.Clone(texts)
-
-	if _, ok := drifts[driftSplitBodySuggestion]; ok {
-		for i, text := range normalized {
-			normalized[i] = splitBodySuggestion.ReplaceAllString(text, "$1")
-		}
-	}
-
-	if _, ok := drifts[driftDiagnosticOrder]; ok {
-		slices.Sort(normalized)
-	}
-
-	if _, ok := drifts[driftJSONShapeRepeated]; ok {
-		normalized = slices.Compact(normalized)
-	}
-
-	return normalized
-}
-
-// diagnosticTexts renders each diagnostic of diags with its subject and detail.
-func diagnosticTexts(diags hcl.Diagnostics) []string {
-	texts := make([]string, 0, len(diags))
-
-	for _, diag := range diags {
-		texts = append(
-			texts,
-			fmt.Sprintf(
-				"%d|%s|%s|%s",
-				diag.Severity,
-				diag.Error(),
-				diag.Detail,
-				rangeText(diag.Subject),
-			),
-		)
-	}
+	slices.Sort(texts)
 
 	return texts
 }
@@ -480,7 +296,7 @@ func memFS(root string, files map[string]string) func(t *testing.T) vfs.FS {
 	}
 }
 
-// fixtureSet is the parity fixtures, read from disk once.
+// fixtureSet is a set of fixtures, read from disk once.
 type fixtureSet struct {
 	// files maps each fixture file path to its content, including files directly under the fixtures directory.
 	files map[string][]byte

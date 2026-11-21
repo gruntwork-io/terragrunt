@@ -1276,14 +1276,50 @@ func TestParseContextStoreContextKeysWhetherTheParseIsPartial(t *testing.T) {
 	assert.Equal(t, excludeOnly, key(t, config.ExcludeBlock, config.RemoteStateBlock))
 }
 
-func TestParityFixturesSharedStoreWithRacing(t *testing.T) {
+// sharedStoreFixtureRoots are the fixture directories whose terragrunt.hcl files
+// TestResolveRunConfigThroughASharedStoreMatchesAFreshStoreWithRacing resolves.
+var sharedStoreFixtureRoots = []string{
+	"include",
+	"include-deep",
+	"include-expose",
+	"include-multiple",
+	"multiinclude-dependency",
+	"locals",
+	"inputs",
+	"feature-flags",
+	"errors",
+	"exclude",
+	"hooks",
+	"extra-args",
+	"read-config",
+	"parent-folders",
+	"find-parent",
+	"get-path",
+	"null-values",
+	"partial-parse",
+	"render-json-mock-outputs",
+	"dependency-expansion/mocks",
+	"dependency-expansion/keyed",
+}
+
+// sharedStoreExcludedDirs are fixtures that call run_cmd, which the tofu stub cannot answer, or AWS, including
+// through the output fetch.
+var sharedStoreExcludedDirs = map[string]struct{}{
+	"locals/run-once":                        {},
+	"locals/run-multiple":                    {},
+	"read-config/iam_role_in_file":           {},
+	"read-config/iam_roles_multiple_modules": {},
+	"render-json-mock-outputs/app":           {},
+}
+
+func TestResolveRunConfigThroughASharedStoreMatchesAFreshStoreWithRacing(t *testing.T) {
 	t.Parallel()
 
-	fixtures := loadFixtures(t, parityFixtureRoots, parityExcludedDirs)
-	store := &config.Store{}
+	fixtures := loadFixtures(t, sharedStoreFixtureRoots, sharedStoreExcludedDirs)
+	shared := new(config.Store)
 
 	t.Cleanup(func() {
-		assert.Positive(t, store.Stats().Hits)
+		assert.Positive(t, shared.Stats().Hits)
 	})
 
 	for _, pass := range []string{"first", "second"} {
@@ -1291,23 +1327,37 @@ func TestParityFixturesSharedStoreWithRacing(t *testing.T) {
 			t.Parallel()
 
 			for _, fixture := range fixtures.configs {
-				if _, excluded := withOutputExcludedDirs[fixture.name]; excluded {
-					continue
-				}
-
 				t.Run(fixture.name, func(t *testing.T) {
 					t.Parallel()
 
-					assertParity(t, parityCase{
-						newFS:     fixtures.newFS,
-						cfgPath:   fixture.path,
-						configure: func(*config.ParsingContext) {},
-						store:     store,
-					})
+					want, wantErr := resolveFixture(t, fixtures, fixture.path, new(config.Store))
+					got, gotErr := resolveFixture(t, fixtures, fixture.path, shared)
+
+					assert.Equal(t, want, got)
+
+					wantTree, gotTree := walkErrors(t, wantErr), walkErrors(t, gotErr)
+					assert.Equal(t, wantTree.types(), gotTree.types())
+					assert.Equal(t, wantTree.diagnostics(), gotTree.diagnostics())
 				})
 			}
 		})
 	}
+}
+
+// resolveFixture resolves the fixture config at cfgPath through s on a venv of its own, fetching outputs from a tofu
+// stub.
+func resolveFixture(
+	t *testing.T,
+	fixtures *fixtureSet,
+	cfgPath string,
+	s *config.Store,
+) (*config.TerragruntConfig, error) {
+	t.Helper()
+
+	v := venv.MemVenv().WithFS(fixtures.newFS(t)).WithHandler(new(tofuStub).handler())
+	ctx, pctx := newTestUnitParsingContext(t, cfgPath)
+
+	return s.ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, pctx), cfgPath)
 }
 
 func BenchmarkResolveUnitConfig(b *testing.B) {

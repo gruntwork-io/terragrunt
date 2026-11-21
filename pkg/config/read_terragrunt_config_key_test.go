@@ -75,14 +75,14 @@ const (
 // parsingContextFieldsOutsideKey gives, for each [config.ParsingContext] field left out of
 // [config.ReadTerragruntConfigKey], why a change to it can't change the value a read_terragrunt_config read returns.
 var parsingContextFieldsOutsideKey = map[string]string{
-	"TrackInclude":                 "ParseConfig clears it before decoding the file",
+	"TrackInclude":                 "the parse clears it before decoding the file",
 	"DependencyBlocks":             clearedByRead,
 	"DecodedDependencies":          clearedByRead,
 	"SkipOutputsResolution":        clearedByRead,
 	"Locals":                       clearedByRead,
 	"Features":                     clearedByRead,
 	"FilesRead":                    "the read records the files its parse reads whether or not the reading config does",
-	"Values":                       "ParseConfig replaces it with the file's own values before evaluating anything",
+	"Values":                       "the parse replaces it with the file's own values before evaluating anything",
 	"WorkingDir":                   "the read sets it from the file's path, which is in the key",
 	"OriginalTerragruntConfigPath": "every function that reads it stops the result being shared",
 	"SourceMap": "only get_working_dir, the remote state source URL, dependencies, and stack files read it, and " +

@@ -8,11 +8,11 @@ import (
 )
 
 // UnitConfig is a parsed config file with the autoinclude and included files it merges.
-// [UnitConfig.ToV1] assembles them into the config [ParseConfigFile] returns.
+// [UnitConfig.ToV1] assembles them into the config a run reads.
 //
 // The tagged fields decode in the parse, which fetches no dependency outputs, so an attribute among them cannot
-// read `dependency`. The exceptions are the top-level attributes [ParseConfig] decodes after it resolves
-// the outputs, which discovery never reads: each of those is a run part. The Remain of each block, and each
+// read `dependency`. The exceptions are the top-level attributes ToV1 decodes after it resolves the outputs, which
+// discovery never reads: each of those is a run part. The Remain of each block, and each
 // [hcl.Attribute] field, is a queue part or a run part. The parse decodes the queue parts, which [QueueBodies] names,
 // into Queue, with no `dependency` variable in scope, or an unknown one for the engine block.
 // ToV1 decodes the run parts, which [RunBodies] names, with the outputs resolved. An exclude block that reads
@@ -98,7 +98,7 @@ type UnitConfig struct {
 	// parse's decode diagnostics.
 	decodeErr error
 	// queueDecodeErr is decodeErr without the diagnostics of the top-level arguments and blocks the schema does not
-	// name, which [PartialParseConfig] does not report.
+	// name, which a queue assembly does not report.
 	queueDecodeErr error
 	// runAttrs is the top-level attributes ToV1 decodes with the outputs, by name. The tagged field of each stays nil.
 	runAttrs map[string]*hcl.Attribute
@@ -140,7 +140,7 @@ type Includes struct {
 	List IncludeConfigs
 }
 
-// newIncludes converts the includes pkg/config decoded, or returns nil for none.
+// newIncludes converts the includes trackInclude tracks, or returns nil for none.
 func newIncludes(trackInclude *TrackInclude) *Includes {
 	if trackInclude == nil {
 		return nil

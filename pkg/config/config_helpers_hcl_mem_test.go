@@ -89,7 +89,7 @@ func TestHCLGetPathToRepoRoot(t *testing.T) {
 
 // TestHCLGetRepoRootPropagatesLookupFailure pins the contract that a working
 // directory outside any repository surfaces as an error from
-// ParseConfigString rather than silently producing an empty string.
+// the parse rather than silently producing an empty string.
 func TestHCLGetRepoRootPropagatesLookupFailure(t *testing.T) {
 	t.Parallel()
 

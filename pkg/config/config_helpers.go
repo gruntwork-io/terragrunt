@@ -202,9 +202,6 @@ type TrackInclude struct {
 	Original *IncludeConfig
 	// AutoIncludeOverride is the sibling terragrunt.autoinclude.hcl registered as a high-priority override that is merged on top and wins, kept off CurrentList/CurrentMap so include-identity readers never see it.
 	AutoIncludeOverride *IncludeConfig
-	// parsedForMerge holds, by include name, the included configs [DecodeBaseBlocks] parsed with
-	// [IncludeParseForMerge], so the partial merge uses them instead of parsing the includes again.
-	parsedForMerge map[string]*TerragruntConfig
 	// CurrentList is used to track the list of configs that should be imported and merged before the final
 	// TerragruntConfig is returned. This preserves the order of the blocks as they appear in the config, so that we can
 	// merge the included config in the right order.
@@ -215,7 +212,8 @@ type TrackInclude struct {
 // ctx that the HCL2 parser will make available to the Terragrunt configuration during parsing. The functions reach the
 // OS through v.
 //
-// The context may leave out the functions that calls does not name, so pass the calls of the HCL it evaluates.
+// The context may leave out the functions that calls does not name, so pass the calls of the HCL it evaluates. The
+// `include` variable holds what exposed gives for each exposed include block.
 func CreateTerragruntEvalContext(
 	ctx context.Context,
 	l log.Logger,
@@ -224,13 +222,29 @@ func CreateTerragruntEvalContext(
 	pctx *ParsingContext,
 	cfgPath string,
 	calls hclparse.FunctionCalls,
+	exposed ExposedInclude,
 ) (*hcl.EvalContext, error) {
-	vars, err := TerragruntEvalVariables(ctx, l, pctx, cfgPath, ParsedExposedInclude(v, s))
+	vars, err := TerragruntEvalVariables(ctx, l, pctx, cfgPath, exposed)
 	if err != nil {
 		return nil, err
 	}
 
 	return TerragruntEvalContext(ctx, l, v, s, pctx, cfgPath, calls, vars), nil
+}
+
+// evalContextWithoutIncludes returns the eval context [CreateTerragruntEvalContext] builds for a file that has no
+// include blocks, such as a stack or values file, so it defines no `include` variable whatever include blocks pctx
+// tracks.
+func evalContextWithoutIncludes(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	s *Store,
+	pctx *ParsingContext,
+	cfgPath string,
+	calls hclparse.FunctionCalls,
+) *hcl.EvalContext {
+	return TerragruntEvalContext(ctx, l, v, s, pctx, cfgPath, calls, evalVariablesWithoutIncludes(pctx))
 }
 
 // TerragruntEvalContext returns an eval context with vars and the functions of the config at cfgPath: the OpenTofu
@@ -328,23 +342,7 @@ func TerragruntEvalVariables(
 	cfgPath string,
 	exposed ExposedInclude,
 ) (map[string]cty.Value, error) {
-	vars := map[string]cty.Value{}
-
-	if pctx.Locals != nil {
-		vars[MetadataLocal] = *pctx.Locals
-	}
-
-	if pctx.Features != nil {
-		vars[MetadataFeatureFlag] = *pctx.Features
-	}
-
-	if pctx.Values != nil {
-		vars[MetadataValues] = *pctx.Values
-	}
-
-	if pctx.DecodedDependencies != nil {
-		vars[MetadataDependency] = *pctx.DecodedDependencies
-	}
+	vars := evalVariablesWithoutIncludes(pctx)
 
 	if pctx.TrackInclude != nil && len(pctx.TrackInclude.CurrentList) > 0 {
 		// For each include block, check if we want to expose the included config, and if so, add under the include
@@ -376,6 +374,29 @@ func TerragruntEvalVariables(
 	}
 
 	return vars, nil
+}
+
+// evalVariablesWithoutIncludes returns the variables of [TerragruntEvalVariables] other than `include`.
+func evalVariablesWithoutIncludes(pctx *ParsingContext) map[string]cty.Value {
+	vars := map[string]cty.Value{}
+
+	if pctx.Locals != nil {
+		vars[MetadataLocal] = *pctx.Locals
+	}
+
+	if pctx.Features != nil {
+		vars[MetadataFeatureFlag] = *pctx.Features
+	}
+
+	if pctx.Values != nil {
+		vars[MetadataValues] = *pctx.Values
+	}
+
+	if pctx.DecodedDependencies != nil {
+		vars[MetadataDependency] = *pctx.DecodedDependencies
+	}
+
+	return vars
 }
 
 // boundFunctions returns the functions of the eval context [TerragruntEvalContext] builds that are bound to the parse

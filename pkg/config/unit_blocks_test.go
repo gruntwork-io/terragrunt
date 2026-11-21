@@ -25,8 +25,8 @@ import (
 // maxSchemaDepth bounds the block nesting schemaConfig writes.
 const maxSchemaDepth = 4
 
-// TestSchemaCoverage pins parity for a config that declares every attribute and block, nested ones included, of
-// [config.TerragruntConfigFile].
+// TestSchemaCoverage pins that a config that declares every attribute and block, nested ones included, of
+// [config.TerragruntConfigFile], each attribute null, resolves to errors without panicking.
 func TestSchemaCoverage(t *testing.T) {
 	t.Parallel()
 
@@ -36,7 +36,7 @@ func TestSchemaCoverage(t *testing.T) {
 
 	root := venvtest.Root("/fixture")
 
-	assertParity(t, parityCase{
+	result := resolveUnit(t, unitCase{
 		newFS: memFS(
 			root,
 			map[string]string{config.DefaultTerragruntConfigPath: body.String()},
@@ -44,6 +44,8 @@ func TestSchemaCoverage(t *testing.T) {
 		cfgPath:   filepath.Join(root, config.DefaultTerragruntConfigPath),
 		configure: func(*config.ParsingContext) {},
 	})
+
+	require.Error(t, result.toV1Err)
 }
 
 // TestSchemaMatchesPkgConfig pins that each header and body pair declares exactly the attributes, block types,
@@ -452,12 +454,6 @@ inputs = {
 	}
 
 	cfgPath := filepath.Join(root, "unit", config.DefaultTerragruntConfigPath)
-
-	assertParity(t, parityCase{
-		newFS:     memFS(root, files),
-		cfgPath:   cfgPath,
-		configure: func(*config.ParsingContext) {},
-	})
 
 	stub := &tofuStub{}
 	v := venv.MemVenv().WithFS(memFS(root, files)(t)).WithHandler(stub.handler())

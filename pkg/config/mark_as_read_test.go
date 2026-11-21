@@ -393,10 +393,9 @@ func TestMarkManyAsReadPartialParseSource(t *testing.T) {
 	}
 }
 
-// TestMarkManyAsReadPartialParseIncludedSource pins that the partial-parse hook
-// still fires when the terraform source comes from an included parent rather
-// than the leaf unit itself. The check runs after handleInclude, so
-// output.Terraform is populated from the merged parent by the time the hook runs.
+// TestMarkManyAsReadPartialParseIncludedSource pins that a partial parse marks
+// the files of a local module source as read when the terraform source comes
+// from an included parent rather than the leaf unit itself.
 func TestMarkManyAsReadPartialParseIncludedSource(t *testing.T) {
 	t.Parallel()
 

@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/zclconf/go-cty/cty"
 
+	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
@@ -170,8 +171,9 @@ func (s *Store) ResolveRunConfig(
 	return c.ToV1(ctx, l, v, s, pc)
 }
 
-// ReadTerragruntConfig reads the config file of run as [ReadTerragruntConfig] does, resolving the file as
-// [Store.ResolveRunConfig] does.
+// ReadTerragruntConfig reads the config file of run, resolving it as [Store.ResolveRunConfig] does.
+//
+// Returns the error of [RejectAmbiguousUnitConfig] when the directory of the file holds more than one unit config.
 func (s *Store) ReadTerragruntConfig(
 	ctx context.Context,
 	l log.Logger,
@@ -303,7 +305,7 @@ func (s *Store) resolveFileOnce(
 // resolveBase returns the base of file, through s when pc is memoized. A base that holds errors is not retained, and
 // the next caller evaluates it again.
 //
-// Returns nil and the error where pkg/config returns no config.
+// Returns nil and the error when [Store.prepareBase] returns no base.
 func (s *Store) resolveBase(
 	ctx context.Context,
 	l log.Logger,
@@ -395,7 +397,8 @@ func (b *unitBase) err() error {
 	return errors.Join(append(slices.Clone(b.errs), b.evalErr)...)
 }
 
-// firstErr returns the first error of b, which is where pkg/config stops the partial parse of an included file.
+// firstErr returns the first error of b, which stops reading the dependency and feature blocks of an included
+// file.
 func (b *unitBase) firstErr() error {
 	if len(b.errs) > 0 {
 		return b.errs[0]
@@ -404,9 +407,10 @@ func (b *unitBase) firstErr() error {
 	return b.evalErr
 }
 
-// prepareBase runs the stages of [ParseConfig] through the base blocks.
+// prepareBase checks file and evaluates it through its base blocks: its IAM role, unit values, locals, feature
+// flags, and include blocks.
 //
-// Returns an error and no base where pkg/config returns no config.
+// Returns an error and no base when a check of file fails or its unit values fail to read.
 func (s *Store) prepareBase(
 	ctx context.Context,
 	l log.Logger,
@@ -442,7 +446,7 @@ func (s *Store) prepareBase(
 
 	var errs []error
 
-	pc, err := withFileIAMRole(ctx, l, v, s, pc, file)
+	pc, err := s.withFileIAMRole(ctx, l, v, pc, file)
 	if err != nil {
 		errs = append(errs, err)
 	}
@@ -502,15 +506,17 @@ func (s *Store) prepareBase(
 	return base, nil
 }
 
-// withFileIAMRole returns pc with the IAM role options file sets, as [ParseConfig] resolves them. A partial
-// parse keeps the role of pc, as [PartialParseConfig] does.
+// withFileIAMRole returns pc with the IAM role options a full parse of file evaluates with: the iam_role and
+// iam_web_identity_token of its config, merged with those of the files it merges, under the options passed on the
+// CLI. A role ARN passed on the CLI wins outright. A partial parse keeps the role of pc.
 //
-// Returns pc unchanged with the error when the options fail to resolve.
-func withFileIAMRole(
+// The options come from a partial resolution of file through s, whose errors the full parse reports again.
+//
+// Returns pc unchanged with the error when that resolution produced no config.
+func (s *Store) withFileIAMRole(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *Store,
 	pc *ParseContext,
 	file *hclparse.File,
 ) (*ParseContext, error) {
@@ -518,16 +524,22 @@ func withFileIAMRole(
 		return pc, nil
 	}
 
-	iamRoleOptions, err := ResolveIAMRoleOptions(ctx, l, v, s, pc.parsingContext(), file, pc.file.include)
-	if err != nil {
+	pctx := pc.parsingContext()
+
+	if pctx.OriginalIAMRoleOptions.RoleARN != "" || !mayMergeDeclaration(ctx, l, v, s, pctx, file, iamRoleSchema) {
+		return pc.withIAMRole(FileIAMRoleOptions(pctx, iam.RoleOptions{})), nil
+	}
+
+	_, cfg, err := s.resolveFile(ctx, l, v, pc.forTerragruntFlags(), file.ConfigPath)
+	if cfg == nil {
 		return pc, err
 	}
 
-	return pc.withIAMRole(iamRoleOptions), nil
+	return pc.withIAMRole(FileIAMRoleOptions(pctx, cfg.GetIAMRoleOptions())), nil
 }
 
-// prepare runs the stages of [ParseConfig] after base through the block decode. It decodes file's dependency
-// blocks when file resolves its own dependencies, and every part when the run supplied the `dependency` value.
+// prepare decodes the blocks of file with base. It decodes file's dependency blocks when file resolves its own
+// dependencies, and every part when the run supplied the `dependency` value.
 func (s *Store) prepare(
 	ctx context.Context,
 	l log.Logger,

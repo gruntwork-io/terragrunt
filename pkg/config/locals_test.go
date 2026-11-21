@@ -1,18 +1,21 @@
 package config_test
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/gocty"
 
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
@@ -33,7 +36,7 @@ func TestEvaluateLocalsBlock(t *testing.T) {
 		new(config.Store),
 		pctx,
 		file,
-		config.ParsedExposedInclude(v, new(config.Store)),
+		noExposedInclude(t),
 	)
 	require.NoError(t, err)
 
@@ -85,7 +88,7 @@ func TestEvaluateLocalsBlockMultiDeepReference(t *testing.T) {
 		new(config.Store),
 		pctx,
 		file,
-		config.ParsedExposedInclude(v, new(config.Store)),
+		noExposedInclude(t),
 	)
 	require.NoError(t, err)
 
@@ -131,7 +134,7 @@ func TestEvaluateLocalsBlockImpossibleWillFail(t *testing.T) {
 		new(config.Store),
 		pctx,
 		file,
-		config.ParsedExposedInclude(v, new(config.Store)),
+		noExposedInclude(t),
 	)
 	require.Error(t, err)
 
@@ -207,7 +210,7 @@ locals {
 				new(config.Store),
 				pctx,
 				file,
-				config.ParsedExposedInclude(v, new(config.Store)),
+				noExposedInclude(t),
 			)
 
 			_, ok := errors.AsType[config.CouldNotEvaluateAllLocalsError](err)
@@ -239,7 +242,7 @@ locals {
 		new(config.Store),
 		pctx,
 		file,
-		config.ParsedExposedInclude(v, new(config.Store)),
+		noExposedInclude(t),
 	)
 	require.NoError(t, err)
 
@@ -279,7 +282,7 @@ func TestEvaluateLocalsBlockLongChain(t *testing.T) {
 		new(config.Store),
 		pctx,
 		file,
-		config.ParsedExposedInclude(v, new(config.Store)),
+		noExposedInclude(t),
 	)
 	require.NoError(t, err)
 
@@ -304,7 +307,7 @@ func TestEvaluateLocalsBlockMultipleLocalsBlocksWillFail(t *testing.T) {
 		new(config.Store),
 		pctx,
 		file,
-		config.ParsedExposedInclude(v, new(config.Store)),
+		noExposedInclude(t),
 	)
 	require.Error(t, err)
 }
@@ -369,3 +372,15 @@ locals {
   b = "b"
 }
 `
+
+// noExposedInclude returns the [config.ExposedInclude] of a config with no include blocks, which fails tb when
+// called.
+func noExposedInclude(tb testing.TB) config.ExposedInclude {
+	tb.Helper()
+
+	return func(context.Context, log.Logger, *config.ParsingContext, *config.IncludeConfig) (cty.Value, error) {
+		require.FailNow(tb, "a config with no include blocks resolved an exposed include")
+
+		return cty.NilVal, nil
+	}
+}

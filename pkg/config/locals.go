@@ -56,7 +56,18 @@ func EvaluateLocalsBlock(
 		return nil, err
 	}
 
-	evaluatedLocals, err := evaluateLocalsInOrder(ctx, l, v, s, pctx, file, attrs, exposed)
+	vars := func() (map[string]cty.Value, error) {
+		varsPctx := pctx
+		if exposesInclude(pctx) && !readsVariable(attrs, MetadataInclude) {
+			withoutIncludes := *pctx
+			withoutIncludes.TrackInclude = nil
+			varsPctx = &withoutIncludes
+		}
+
+		return TerragruntEvalVariables(ctx, l, varsPctx, file.ConfigPath, exposed)
+	}
+
+	evaluatedLocals, err := evaluateLocalsInOrder(ctx, l, v, s, pctx, file, attrs, vars)
 	if err != nil {
 		l.Debugf(
 			"Encountered error while evaluating locals in file %s",
@@ -97,7 +108,8 @@ func EvaluateLocalsBlock(
 
 // evaluateLocalsInOrder evaluates attrs in layers of a topological sort over their references to one another. A layer
 // holds every attribute whose referenced locals were all evaluated in earlier layers, and each layer evaluates against
-// the locals of the layers before it.
+// the locals of the layers before it, and with the variables evalVars returns, which it calls once some attribute
+// is ready to evaluate.
 //
 // An attribute that can never be evaluated is left out of the result, along with every attribute that references it.
 // That covers cycles, references to locals the block does not define, and references to variables other than
@@ -113,7 +125,7 @@ func evaluateLocalsInOrder(
 	pctx *ParsingContext,
 	file *hclparse.File,
 	attrs hclparse.Attributes,
-	exposed ExposedInclude,
+	evalVars func() (map[string]cty.Value, error),
 ) (map[string]cty.Value, error) {
 	graph, byName := localsGraph(attrs)
 	ready := graph.Roots()
@@ -123,14 +135,7 @@ func evaluateLocalsInOrder(
 		return evaluatedLocals, nil
 	}
 
-	varsPctx := pctx
-	if exposesInclude(pctx) && !readsVariable(attrs, MetadataInclude) {
-		withoutIncludes := *pctx
-		withoutIncludes.TrackInclude = nil
-		varsPctx = &withoutIncludes
-	}
-
-	vars, err := TerragruntEvalVariables(ctx, l, varsPctx, file.ConfigPath, exposed)
+	vars, err := evalVars()
 	if err != nil {
 		l.Errorf(
 			"Could not convert include to the execution ctx to evaluate additional locals in file %s",

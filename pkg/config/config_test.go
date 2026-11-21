@@ -2136,7 +2136,7 @@ func TestModuleDependenciesMerge(t *testing.T) {
 	}
 }
 
-// Run a benchmark on ReadTerragruntConfig for all fixtures possible.
+// Run a benchmark on [config.Store.ReadTerragruntConfig] for all fixtures possible.
 // This should reveal regressions on execution time due to new, changed or removed features.
 func BenchmarkReadTerragruntConfig(b *testing.B) {
 	// Setup
@@ -2622,8 +2622,8 @@ errors {
 	}
 }
 
-// The catalog block won't actually show up when using
-// ParseConfigString. It probably should, but that's not
+// The catalog block won't actually show up when parsing
+// the config. It probably should, but that's not
 // a problem for this test.
 //
 // catalog {
@@ -2809,8 +2809,8 @@ inputs = {
 		)
 	}
 
-	// The catalog block won't actually show up when using
-	// ParseConfigString. It probably should, but that's not
+	// The catalog block won't actually show up when parsing
+	// the config. It probably should, but that's not
 	// a problem for this test.
 	//
 	// assert.Equal(t, terragruntConfig.Catalog.DefaultTemplate, rereadConfig.Catalog.DefaultTemplate)

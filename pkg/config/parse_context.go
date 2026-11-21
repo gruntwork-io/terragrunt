@@ -29,7 +29,7 @@ type sinks struct {
 	diagnostics func(*hcl.File, hcl.Diagnostics) (hcl.Diagnostics, error)
 }
 
-// fileScope is the per-file state pkg/config keeps on ParsingContext clones.
+// fileScope is the state of the file a parse is in.
 type fileScope struct {
 	// key is [Key.Context] for the file: the digest of the run's settings and of the chain of files the parse
 	// went through to reach it.
@@ -206,6 +206,16 @@ func (pc *ParseContext) forIAMRole(iamRole iam.RoleOptions) *ParseContext {
 	d.str("iam-role")
 	d.roleOptions(iamRole)
 	c.file.key = d.sum()
+
+	return c
+}
+
+// forTerragruntFlags returns a copy of pc for a partial parse of the file that decodes its Terragrunt flags and
+// reports no diagnostics. It memoizes apart from pc.
+func (pc *ParseContext) forTerragruntFlags() *ParseContext {
+	c := pc.withDiagnosticsSuppressed()
+	c.settings = pc.settings.WithDecodeList(TerragruntFlags)
+	c.file.key = extend(c.file.key, "terragrunt-flags")
 
 	return c
 }

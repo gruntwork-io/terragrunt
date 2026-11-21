@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -321,17 +322,13 @@ exclude {
 	assert.Contains(t, files, filepath.Join(root, "root.hcl"))
 }
 
-// memSTS returns an STS endpoint whose accounts are 111111111111 for the role arn:aws:iam::111111111111:role/run and
-// 222222222222 for arn:aws:iam::222222222222:role/parent, with the session names of the roles it assumed.
+// memSTS returns an STS endpoint that assumes any role with a web identity token, and the session names of the roles
+// it assumed. The caller identity of an assumed role is the role ARN, in the account the ARN names.
 func memSTS() (vhttp.Client, func() []string) {
-	accounts := map[string]string{
-		"arn:aws:iam::111111111111:role/run":    "111111111111",
-		"arn:aws:iam::222222222222:role/parent": "222222222222",
-	}
-
 	var (
 		mu       sync.Mutex
 		sessions []string
+		roles    []string
 	)
 
 	sts := vhttp.NewMemClient(func(_ context.Context, req *http.Request) (*http.Response, error) {
@@ -345,20 +342,26 @@ func memSTS() (vhttp.Client, func() []string) {
 			return nil, err
 		}
 
+		mu.Lock()
+		defer mu.Unlock()
+
 		if form.Get("Action") == "AssumeRoleWithWebIdentity" {
-			mu.Lock()
-
 			sessions = append(sessions, form.Get("RoleSessionName"))
+			roles = append(roles, form.Get("RoleArn"))
+			accessKeyID := strconv.Itoa(len(roles) - 1)
 
-			mu.Unlock()
-
-			return vhttp.Respond(http.StatusOK, []byte(assumedRoleResponse(accounts[form.Get("RoleArn")])), nil), nil
+			return vhttp.Respond(http.StatusOK, []byte(assumedRoleResponse(accessKeyID)), nil), nil
 		}
 
 		_, credential, _ := strings.Cut(req.Header.Get("Authorization"), "Credential=")
-		account, _, _ := strings.Cut(credential, "/")
+		accessKeyID, _, _ := strings.Cut(credential, "/")
 
-		return vhttp.Respond(http.StatusOK, []byte(callerIdentityResponse(account)), nil), nil
+		role, err := strconv.Atoi(accessKeyID)
+		if err != nil || role >= len(roles) {
+			return vhttp.Respond(http.StatusForbidden, nil, nil), nil
+		}
+
+		return vhttp.Respond(http.StatusOK, []byte(callerIdentityResponse(roles[role])), nil), nil
 	})
 
 	return sts, func() []string {
@@ -369,12 +372,12 @@ func memSTS() (vhttp.Client, func() []string) {
 	}
 }
 
-// assumedRoleResponse returns an STS AssumeRoleWithWebIdentity response whose access key ID is account.
-func assumedRoleResponse(account string) string {
+// assumedRoleResponse returns an STS AssumeRoleWithWebIdentity response whose access key ID is accessKeyID.
+func assumedRoleResponse(accessKeyID string) string {
 	return `<AssumeRoleWithWebIdentityResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">
   <AssumeRoleWithWebIdentityResult>
     <Credentials>
-      <AccessKeyId>` + account + `</AccessKeyId>
+      <AccessKeyId>` + accessKeyID + `</AccessKeyId>
       <SecretAccessKey>fake-secret</SecretAccessKey>
       <SessionToken>fake-session</SessionToken>
       <Expiration>2100-01-01T00:00:00Z</Expiration>
@@ -383,11 +386,14 @@ func assumedRoleResponse(account string) string {
 </AssumeRoleWithWebIdentityResponse>`
 }
 
-// callerIdentityResponse returns an STS GetCallerIdentity response for account.
-func callerIdentityResponse(account string) string {
+// callerIdentityResponse returns an STS GetCallerIdentity response whose identity is role, in the account its ARN
+// names.
+func callerIdentityResponse(role string) string {
+	account := strings.Split(role, ":")[4]
+
 	return `<GetCallerIdentityResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">
   <GetCallerIdentityResult>
-    <Arn>arn:aws:sts::` + account + `:assumed-role/test/session</Arn>
+    <Arn>` + role + `</Arn>
     <UserId>AROATEST:session</UserId>
     <Account>` + account + `</Account>
   </GetCallerIdentityResult>

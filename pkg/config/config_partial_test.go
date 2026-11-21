@@ -186,7 +186,7 @@ func TestPartialParseFailsOnABrokenBlockOutsideTheDecodeListInParent(t *testing.
 }
 
 // Regression test for https://github.com/gruntwork-io/terragrunt/issues/5949: various invalid
-// include / locals combinations must not panic out of PartialParseConfig.
+// include / locals combinations must not panic out of a partial parse.
 func TestPartialParseDoesNotPanicWithIncludeAndReadTerragruntConfigLocals(t *testing.T) {
 	t.Parallel()
 

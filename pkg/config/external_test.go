@@ -656,7 +656,7 @@ region = "eu-west-1"
 	v := venvtest.NewWithOSFS()
 	pctx := config.NewParsingContext()
 
-	// Use a configPath inside the temp dir so ParseConfig discovers the
+	// Use a configPath inside the temp dir so the parse discovers the
 	// adjacent terragrunt.values.hcl automatically.
 	configPath := filepath.Join(dir, config.DefaultTerragruntConfigPath)
 

@@ -341,7 +341,7 @@ func resolveStackAutoIncludes(
 	}
 
 	// Production eval context (functions + caller variables) for the phased parser. The parser populates `local.*`, `unit.*`, `stack.*` itself.
-	prodEvalCtx, evalCtxErr := CreateTerragruntEvalContext(
+	prodEvalCtx := evalContextWithoutIncludes(
 		ctx,
 		scopedLogger,
 		v,
@@ -350,13 +350,6 @@ func resolveStackAutoIncludes(
 		stackFilePath,
 		hclparse.AnyFunctionCalls(),
 	)
-	if evalCtxErr != nil {
-		return nil, nil, AutoIncludeParserStageError{
-			Stage: "eval-context",
-			File:  stackFilePath,
-			Err:   evalCtxErr,
-		}
-	}
 
 	// Evaluate the autoinclude with the stack-file function set (derived from the eval context already built
 	// above) so directory-context functions like get_working_dir resolve against the stack file instead of
@@ -1528,7 +1521,7 @@ func ParseStackConfig(
 
 	// The context also evaluates the files the stack includes and its stack autoinclude file, whose calls file does not
 	// name.
-	evalParsingContext, err := CreateTerragruntEvalContext(
+	evalParsingContext := evalContextWithoutIncludes(
 		ctx,
 		l,
 		v,
@@ -1537,9 +1530,6 @@ func ParseStackConfig(
 		file.ConfigPath,
 		hclparse.AnyFunctionCalls(),
 	)
-	if err != nil {
-		return nil, err
-	}
 
 	parserOpts := parser.ParserOptions(l, v)
 
@@ -1561,6 +1551,8 @@ func ParseStackConfig(
 	if decodeErr := file.Decode(config, evalParsingContext); decodeErr != nil {
 		return nil, decodeErr
 	}
+
+	var err error
 
 	config.Units, config.Stacks, err = decodeComponents(ctx, file, evalParsingContext)
 	if err != nil {
@@ -2409,10 +2401,7 @@ func ReadValues(
 		return nil, err
 	}
 
-	evalParsingContext, err := CreateTerragruntEvalContext(ctx, l, v, s, pctx, file.ConfigPath, file.FunctionCalls())
-	if err != nil {
-		return nil, err
-	}
+	evalParsingContext := evalContextWithoutIncludes(ctx, l, v, s, pctx, file.ConfigPath, file.FunctionCalls())
 
 	values := map[string]cty.Value{}
 
@@ -2456,7 +2445,16 @@ func processLocals(
 		return err
 	}
 
-	evaluatedLocals, err := evaluateLocalsInOrder(ctx, l, v, s, parser, file, attrs, ParsedExposedInclude(v, s))
+	evaluatedLocals, err := evaluateLocalsInOrder(
+		ctx,
+		l,
+		v,
+		s,
+		parser,
+		file,
+		attrs,
+		func() (map[string]cty.Value, error) { return evalVariablesWithoutIncludes(parser), nil },
+	)
 	if err != nil {
 		l.Debugf(
 			"Encountered error while evaluating locals in file %s",
