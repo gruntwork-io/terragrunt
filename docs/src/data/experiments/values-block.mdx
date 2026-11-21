@@ -1,0 +1,57 @@
+---
+name: values-block
+since: "v1.2.3"
+---
+
+Support for the `values` block on units and stacks, which declares the values a unit or stack accepts, with a type, an optional default, and a description for each.
+
+This experiment is ongoing and disabled by default. Declaring the block without the experiment enabled returns an error. It becomes generally available once every item in the stabilization criteria below is met.
+
+### `values-block` - What it does
+
+Without the block, a unit reads its `terragrunt.values.hcl` unchecked. `terragrunt stack generate` writes a misspelled key without an error, and a `try()` around the read of the intended key falls back to its default. With this experiment enabled, a unit declares the values it reads:
+
+```hcl
+# catalog/units/app/terragrunt.hcl
+values {
+  value "name" {
+    type = string
+  }
+
+  value "tags" {
+    type    = map(string)
+    default = {}
+  }
+}
+
+inputs = {
+  name = values.name
+  tags = values.tags
+}
+```
+
+```bash
+terragrunt stack generate --experiment values-block
+```
+
+`stack generate` then rejects a key the unit doesn't declare, such as `tag` for this unit's `tags`, a value that doesn't convert to its declared type, and a required value that nothing sets. It writes no `terragrunt.values.hcl` for the unit. When Terragrunt reads the unit, it checks `terragrunt.values.hcl` by the same rules, fills in defaults, and converts each value to its type. A `terragrunt.stack.hcl` file declares its values the same way.
+
+`terragrunt hcl validate` reports each `values.<name>` read that the block doesn't declare. See the [`values` block reference](/reference/hcl/blocks/values/).
+
+### `values-block` - How to provide feedback
+
+Provide your feedback on the [`values` block RFC](https://github.com/gruntwork-io/terragrunt/issues/7235).
+
+### `values-block` - Criteria for stabilization
+
+To transition the `values-block` feature to a stable release, the following must be addressed:
+
+- [ ] Decide whether a key that the `values` block doesn't declare stays an error, or becomes a warning that a setting can raise to an error.
+- [ ] Support `validation` blocks inside `value` blocks.
+- [ ] Decide how a unit with a required value and no `terragrunt.values.hcl` runs, e.g. in a catalog.
+- [ ] Decide whether to deprecate `values.<name>` reads in a config without a `values` block.
+- [ ] Support the `values` block in [`terragrunt-ls`](https://github.com/gruntwork-io/terragrunt-ls).
+- [ ] Read the declared values in [`terragrunt scaffold`](/reference/cli/commands/scaffold).
+- [ ] Measure the cost of the check in `terragrunt stack generate` on large stacks.
+- [ ] Decide how to handle a stale `terragrunt.values.hcl` left by an earlier `stack generate`.
+- [ ] Community feedback on real-world usage.

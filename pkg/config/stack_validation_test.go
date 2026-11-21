@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -13,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 
+	"github.com/hashicorp/hcl/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
@@ -434,7 +436,7 @@ unit "extra" {
 	ctx, pctx := newTestParsingContext(t, stackFilePath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
-	_, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), v, pctx, stackFilePath, nil)
+	_, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), v, pctx, stackFilePath)
 	require.Error(
 		t,
 		err,
@@ -515,7 +517,6 @@ unit "extra" {
 		v,
 		pctx,
 		stackFilePath,
-		nil,
 	)
 	require.NoError(t, err, "a supported unit.X.path values reference must not trip the backstop")
 	require.NotNil(t, stackConfig)
@@ -573,7 +574,6 @@ unit "added" {
 		v,
 		pctx,
 		stackFilePath,
-		nil,
 	)
 	require.NoError(
 		t,
@@ -668,7 +668,6 @@ stack "added" {
 		v,
 		pctx,
 		stackFilePath,
-		nil,
 	)
 	require.NoError(
 		t,
@@ -746,7 +745,7 @@ unit "extra" {
 	ctx, pctx := newTestParsingContext(t, stackFilePath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
-	_, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), v, pctx, stackFilePath, nil)
+	_, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), v, pctx, stackFilePath)
 	require.Error(
 		t,
 		err,
@@ -788,7 +787,7 @@ unit "vpc" {
 	ctx, pctx := newTestParsingContext(t, stackFilePath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 
-	_, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), v, pctx, stackFilePath, nil)
+	_, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), v, pctx, stackFilePath)
 	require.Error(
 		t,
 		err,
@@ -826,7 +825,7 @@ unit "vpc" {
 
 	ctx, pctx := newTestParsingContext(t, stackFilePath)
 
-	stackCfg, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), v, pctx, stackFilePath, nil)
+	stackCfg, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), v, pctx, stackFilePath)
 	require.NoError(t, err)
 	assert.Len(t, stackCfg.Units, 1)
 }
@@ -874,7 +873,6 @@ unit "vpc" {
 		v,
 		pctx,
 		stackFilePath,
-		nil,
 	)
 	require.NoError(t, err)
 	require.NotNil(t, stackConfig)
@@ -941,7 +939,6 @@ unit "vpc" {
 		v,
 		pctx,
 		stackFilePath,
-		nil,
 	)
 	require.NoError(
 		t,
@@ -1077,4 +1074,62 @@ func TestValidateStackConfigSameRawPathDifferentGeneratedDirs(t *testing.T) {
 	}
 
 	require.NoError(t, config.ValidateStackConfig(cfg, "/stack"))
+}
+
+// TestParseStackConfigReportsValuesKeyOfLaterBlockSharingALabel pins that a values diagnostic of a block points at that
+// block when an earlier block of the same kind has the same label and sets no values.
+func TestParseStackConfigReportsValuesKeyOfLaterBlockSharingALabel(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name   string
+		block  string
+		first  string
+		second string
+	}{
+		{name: "unit blocks", block: "unit"},
+		{name: "stack blocks", block: "stack"},
+		{
+			name:   "expanded unit blocks",
+			block:  "unit",
+			first:  `expansion { for_each = toset(["x"]) }`,
+			second: `expansion { for_each = toset(["y"]) }`,
+		},
+		{
+			name:   "expanded stack blocks",
+			block:  "stack",
+			first:  `expansion { for_each = toset(["x"]) }`,
+			second: `expansion { for_each = toset(["y"]) }`,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := parseStackString(t, fmt.Sprintf(`%[1]s "a" {
+  %[2]s
+  source = "./x"
+  path   = "a-x"
+}
+
+%[1]s "a" {
+  %[3]s
+  source = "./y"
+  path   = "a-y"
+  values = {
+    "bad key" = 1
+  }
+}
+`, tc.block, tc.first, tc.second))
+
+			var diags hcl.Diagnostics
+
+			require.ErrorAs(t, err, &diags)
+			require.NotEmpty(t, diags)
+			assert.Equal(t, "Invalid values key", diags[0].Summary)
+			require.NotNil(t, diags[0].Subject)
+			assert.Equal(t, 12, diags[0].Subject.Start.Line)
+		})
+	}
 }

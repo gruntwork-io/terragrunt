@@ -182,6 +182,11 @@ func TestSchemaMatchesPkgConfig(t *testing.T) {
 			header:     reflect.TypeFor[config.LocalsHCL](),
 			labelsOnly: true,
 		},
+		{
+			block:      pkgconfig.MetadataValues,
+			header:     reflect.TypeFor[config.ValuesHCL](),
+			labelsOnly: true,
+		},
 	}
 
 	rowBlocks := map[string]struct{}{}

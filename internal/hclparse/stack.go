@@ -12,10 +12,10 @@ import (
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/valuesblock"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	pkghclparse "github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
@@ -638,11 +638,7 @@ func decodeDiscovery(
 		Variables: map[string]cty.Value{},
 	}
 
-	// Load the sibling terragrunt.values.hcl written by stack generation and publish it
-	// as the `values` variable, so locals (and unit/stack attributes) referencing
-	// values.* resolve during discovery exactly as they do in the full stack parse.
-	// An absent file leaves the variable unset, matching a stack that received no values.
-	values, err := readDiscoveryValues(fsys, stackDir, funcs)
+	values, err := discoveryValues(fsys, stackDir, stackFile, parsedFile.Remain, funcs)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -704,11 +700,61 @@ func decodeDiscovery(
 	return enabledOnly(decoded.Units), enabledOnly(decoded.Stacks), nil
 }
 
-// readDiscoveryValues reads the generated terragrunt.values.hcl next to a stack file
-// and decodes its top-level attributes into a single HCL object, mirroring how
-// pkg/config's ReadValues interprets the file during a full stack parse. An absent
-// file returns (nil, nil) so the caller leaves the `values` variable unset; an
-// existing but empty file returns an empty object, matching the full parse.
+// discoveryValues returns the values the stack file at stackFile evaluates with: the attributes of the
+// terragrunt.values.hcl in stackDir, resolved against the values block of body when it has one. It returns nil when
+// body has no values block and stackDir has no values file.
+//
+// Returns a [FileDecodeError] when the values block does not decode or the values do not resolve against it.
+func discoveryValues(
+	fsys vfs.FS,
+	stackDir, stackFile string,
+	body hcl.Body,
+	funcs map[string]function.Function,
+) (*cty.Value, error) {
+	decls, diags := valuesblock.Decode(body)
+	if diags.HasErrors() {
+		return nil, FileDecodeError{Name: stackFile, Err: diags}
+	}
+
+	file, err := readDiscoveryValues(fsys, stackDir, funcs)
+	if err != nil {
+		return nil, err
+	}
+
+	if decls == nil && file == nil {
+		return nil, nil
+	}
+
+	if decls == nil {
+		return &file.value, nil
+	}
+
+	supplied := valuesblock.NothingSupplied(decls.DefRange)
+	if file != nil {
+		supplied = valuesblock.SuppliedByAttributes(file.value, file.attrs, file.rng)
+	}
+
+	resolved, diags := decls.Resolve(supplied, valuesblock.Component{
+		Kind:     valuesblock.KindStack,
+		Location: stackFile,
+	})
+	if diags.HasErrors() {
+		return nil, FileDecodeError{Name: stackFile, Err: diags}
+	}
+
+	return &resolved, nil
+}
+
+// discoveryValuesFile is a parsed and evaluated terragrunt.values.hcl.
+type discoveryValuesFile struct {
+	attrs hcl.Attributes
+	value cty.Value
+	rng   hcl.Range
+}
+
+// readDiscoveryValues reads the generated terragrunt.values.hcl in stackDir and evaluates its top-level attributes
+// into a single object, as the full stack parse reads the file. It returns nil when the file is absent. A file with
+// no attributes gives an empty object.
 //
 // funcs is the same dir-scoped function map used for the rest of discovery, so any
 // function call in a (normally literal-only, generated) values file resolves
@@ -717,7 +763,7 @@ func readDiscoveryValues(
 	fsys vfs.FS,
 	stackDir string,
 	funcs map[string]function.Function,
-) (*cty.Value, error) {
+) (*discoveryValuesFile, error) {
 	valuesPath := filepath.Join(stackDir, valuesFileName)
 
 	data, err := vfs.ReadFile(fsys, valuesPath)
@@ -739,16 +785,20 @@ func readDiscoveryValues(
 		Variables: map[string]cty.Value{},
 	}
 
-	// Decoding into a map evaluates every top-level attribute and rejects blocks,
-	// the same shape pkg/config's ReadValues decodes.
-	values := map[string]cty.Value{}
-	if diags := gohcl.DecodeBody(file.Body, evalCtx, &values); diags.HasErrors() {
+	attrs, diags := file.Body.JustAttributes()
+
+	value, valDiags := valuesblock.EvaluateAttributes(attrs, evalCtx)
+	diags = append(diags, valDiags...)
+
+	if diags.HasErrors() {
 		return nil, FileDecodeError{Name: valuesPath, Err: diags}
 	}
 
-	result := cty.ObjectVal(values)
-
-	return &result, nil
+	return &discoveryValuesFile{
+		attrs: attrs,
+		value: value,
+		rng:   file.Body.MissingItemRange(),
+	}, nil
 }
 
 // mergeDiscoveryStackAutoInclude merges the units and stacks declared by a sibling

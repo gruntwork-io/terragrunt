@@ -1318,14 +1318,14 @@ unit "app" {
 
 	l := logger.CreateLogger()
 
-	stackCfg, err := config.ReadStackConfigFile(ctx, l, v, pctx, stackPath, nil)
+	stackCfg, err := config.ReadStackConfigFile(ctx, l, v, pctx, stackPath)
 	require.NoError(
 		t,
 		err,
 		"the lenient stack decode must keep accepting the malformed autoinclude block",
 	)
 
-	_, err = config.StackAutoIncludes(ctx, l, v, pctx, stackPath, stackCfg, nil)
+	_, err = config.StackAutoIncludes(ctx, l, v, pctx, stackPath, stackCfg)
 	require.Error(t, err, "the strict autoinclude parse must report the locals block")
 
 	var stageErr config.AutoIncludeParserStageError

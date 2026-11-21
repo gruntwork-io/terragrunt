@@ -774,8 +774,7 @@ func PartialParseConfig(
 
 	pctx = pctx.WithTrackInclude(nil)
 
-	// read unit files and add to context
-	unitValues, err := ReadValues(ctx, l, v, pctx, filepath.Dir(file.ConfigPath))
+	unitValues, err := ReadValues(ctx, l, v, pctx, file, RoleOf(file, includeFromChild))
 	if err != nil {
 		return nil, err
 	}

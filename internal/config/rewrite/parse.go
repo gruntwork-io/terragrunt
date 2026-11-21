@@ -410,7 +410,7 @@ func (s *Store) prepareBase(
 
 	pctx = pc.parsingContext()
 
-	unitValues, err := pkgconfig.ReadValues(ctx, l, v, pctx, filepath.Dir(file.ConfigPath))
+	unitValues, err := pkgconfig.ReadValues(ctx, l, v, pctx, file, pkgconfig.RoleOf(file, include))
 	if err != nil {
 		return nil, err
 	}

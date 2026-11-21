@@ -14,6 +14,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	config "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -1259,10 +1260,12 @@ func TestParityFixturesSharedStoreWithRacing(t *testing.T) {
 					t.Parallel()
 
 					assertParity(t, parityCase{
-						newFS:     fixtures.newFS,
-						cfgPath:   fixture.path,
-						configure: func(*pkgconfig.ParsingContext) {},
-						store:     store,
+						newFS:   fixtures.newFS,
+						cfgPath: fixture.path,
+						configure: func(pctx *pkgconfig.ParsingContext) {
+							require.NoError(t, pctx.Experiments.EnableExperiment(experiment.ValuesBlock))
+						},
+						store: store,
 					})
 				})
 			}
