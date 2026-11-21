@@ -1,0 +1,200 @@
+---
+name: values
+description: Declares the values a unit or stack accepts, with a type and an optional default for each.
+configs: [unit, stack]
+since: v1.2.3
+experiment: values-block
+examples:
+  - description: A unit declares the values it reads. A value without a default is required.
+    code: |
+      # catalog/units/app/terragrunt.hcl
+
+      values {
+        value "name" {
+          type        = string
+          description = "The name of the service."
+        }
+
+        value "instance_count" {
+          type    = number
+          default = 1
+        }
+
+        value "tags" {
+          type    = map(string)
+          default = {}
+        }
+      }
+
+      inputs = {
+        name           = values.name
+        instance_count = values.instance_count
+        tags           = values.tags
+      }
+  - description: A stack declares the values it reads the same way, and can pass them on to its units.
+    code: |
+      # catalog/stacks/service/terragrunt.stack.hcl
+
+      values {
+        value "name" {
+          type = string
+        }
+
+        value "environment" {
+          type    = string
+          default = "dev"
+        }
+      }
+
+      unit "app" {
+        source = "git::https://github.com/acme/catalog.git//units/app?ref=v1.0.0"
+        path   = "app"
+
+        values = {
+          name = "${values.name}-${values.environment}"
+        }
+      }
+blocks:
+  - name: value
+    description: Declares one value. Declaring the same name twice is an error.
+    labels:
+      - name: name
+        description: The name the unit or stack reads the value by, as `values.<name>`. It has to be a valid identifier.
+    attributes:
+      - name: type
+        type: type
+        default: any
+        description: The type of the value, written as for an [OpenTofu variable](https://opentofu.org/docs/language/values/variables/#type-constraints), e.g. `map(string)` or `object({ size = optional(number, 1) })`. Write the type without quotes, since `"string"` is an error.
+      - name: default
+        type: any
+        description: The value to use when nothing sets it. Without a default, the value is required. The default has to be a constant, so it can't read `local`, `values`, or `dependency`, or call a function.
+      - name: description
+        type: string
+        description: Describes the value for readers of the config.
+    example: |
+      # terragrunt.hcl
+
+      values {
+        value "tags" {
+          type        = map(string)
+          default     = {}
+          description = "Tags to add to every resource."
+        }
+      }
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import SideBySide from '@components/SideBySide.astro';
+
+<Aside type="tip" title="Experimental">
+  The `values` block needs the [`values-block`](/reference/experiments/active#values-block) experiment. Enable it with `--experiment values-block` or `TG_EXPERIMENT=values-block`. Without the experiment, a config that has the block fails with an error.
+</Aside>
+
+The `values` block lists the values a unit or stack reads as `values.<name>`, and gives each one a type and an optional default. Terragrunt reports a key the block doesn't declare, a value of the wrong type, and a required value that nothing sets.
+
+A config can have one `values` block, in the `terragrunt.hcl` of a unit or the `terragrunt.stack.hcl` of a stack. A `values` block in a file that another config includes, such as `root.hcl`, or in an [`autoinclude`](/reference/hcl/blocks/autoinclude) block, is an error. A config without the block reads `terragrunt.values.hcl` unchecked, with or without the experiment.
+
+### How values resolve
+
+Before Terragrunt evaluates the rest of the config, it resolves `values` from `terragrunt.values.hcl`:
+
+- A value the file doesn't set takes its `default`. A value without a default is required, and leaving it unset is an error.
+- Each value converts to its `type` by the same rules as an OpenTofu variable, so `"2"` becomes the number `2` for a `number` value. The `optional()` attributes of an object type take their defaults.
+- A value set to `null` stays `null` and doesn't take its default.
+
+A unit or stack with no `terragrunt.values.hcl` gets only its defaults. If it declares a required value, reading its config fails, e.g. when you run `terragrunt hcl validate` in the catalog's copy of the unit. Give every value a default to read the config without a values file.
+
+### When Terragrunt checks values
+
+[`terragrunt stack generate`](/reference/cli/commands/stack/generate) checks the `values` of each [`unit`](/reference/hcl/blocks/unit) and [`stack`](/reference/hcl/blocks/stack) block against the `values` block of the config it generates. [`stack run`](/reference/cli/commands/stack/run) and `run --all` generate the stack first, so they run the check too. Terragrunt writes no `terragrunt.values.hcl` for a unit or stack that fails the check.
+
+In this example, the stack passes the unit a key that the unit doesn't declare:
+
+<SideBySide>
+
+```hcl title="live/terragrunt.stack.hcl"
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+
+  values = {
+    name = "api"
+    tag  = { team = "payments" }
+  }
+}
+```
+
+```hcl title="catalog/units/app/terragrunt.hcl"
+values {
+  value "name" {
+    type = string
+  }
+
+  value "instance_count" {
+    type    = number
+    default = 1
+  }
+
+  value "tags" {
+    type    = map(string)
+    default = {}
+  }
+}
+```
+
+</SideBySide>
+
+```bash
+terragrunt stack generate --experiment values-block
+```
+
+Generation fails at the `tag` key and suggests the `tags` value the unit declares:
+
+```text
+18:10:44.033 ERROR  Error: Undeclared value "tag" for unit "app"
+18:10:44.033 ERROR    on /path/to/live/terragrunt.stack.hcl line 7, in unit "app":
+18:10:44.033 ERROR     7:     tag  = { team = "payments" }
+18:10:44.033 ERROR  The unit at ../catalog/units/app does not declare a value named "tag". Did you mean "tags"?
+```
+
+Terragrunt checks the values again when it reads the unit or stack config, so the same errors point at the line of a `terragrunt.values.hcl` file you edit by hand.
+
+### Checking references with hcl validate
+
+[`terragrunt hcl validate`](/reference/cli/commands/hcl/validate) reports each `values.<name>` read in a config that its `values` block doesn't declare, including a read inside `try()` that would otherwise fall back without an error. It checks the file that declares the block, and skips HCL JSON files.
+
+```hcl title="terragrunt.hcl" {15}
+values {
+  value "name" {
+    type    = string
+    default = "api"
+  }
+
+  value "tags" {
+    type    = map(string)
+    default = {}
+  }
+}
+
+inputs = {
+  name = values.name
+  tags = merge(try(values.tgas, {}), { managed_by = "terragrunt" })
+}
+```
+
+```bash
+terragrunt hcl validate --experiment values-block
+```
+
+The validation fails and points at the reference:
+
+```text
+error: Undeclared value
+  --> terragrunt.hcl:15:20
+   |
+15 |   tags = merge(try(values.tgas, {}), { managed_by = "terragrunt" })
+   |                    ^^^^^^^^^^^
+   |
+   = The values block of this unit does not declare "tgas". Did you mean
+     "tags"? Fix the reference, or declare "tgas" in the values block.
+```

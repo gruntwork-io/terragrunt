@@ -7,8 +7,6 @@ import (
 	"io/fs"
 	"time"
 
-	"github.com/hashicorp/hcl/v2"
-
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -99,15 +97,15 @@ func cachedHCLFile(
 	return settled
 }
 
-// configBody returns the body of the config at path, from the HCL cache of ctx while the file is unchanged, and
-// parsed with a parser from pctx otherwise.
-func configBody(
+// configFile returns the config at path bound to a parser from pctx, from the HCL cache of ctx while the file is
+// unchanged, and parsed otherwise.
+func configFile(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	pctx *ParsingContext,
 	path string,
-) (hcl.Body, error) {
+) (*hclparse.File, error) {
 	hclCache := cache.ContextCache[*CachedHCLFile](ctx, HclCacheContextKey)
 
 	info, err := v.FS.Stat(path)
@@ -117,16 +115,17 @@ func configBody(
 
 	key := hclFileCacheKey(path, info)
 
-	if cached := cachedHCLFile(ctx, v.FS, hclCache, key, path); cached != nil {
-		return cached.Body, nil
-	}
-
-	file, err := rebindOrParseHCLFile(ctx, l, v, pctx, hclCache, nil, key, path, info.ModTime())
-	if err != nil {
-		return nil, err
-	}
-
-	return file.Body, nil
+	return rebindOrParseHCLFile(
+		ctx,
+		l,
+		v,
+		pctx,
+		hclCache,
+		cachedHCLFile(ctx, v.FS, hclCache, key, path),
+		key,
+		path,
+		info.ModTime(),
+	)
 }
 
 // hclFileCacheKey returns the key of the file at path in the HCL cache, for the file's current info.

@@ -150,14 +150,7 @@ func StackOutput(
 
 		pctx := configbridge.NewParsingContext(opts)
 
-		values, valuesErr := config.ReadValues(ctx, l, v, pctx, dir)
-		if valuesErr != nil {
-			return cty.NilVal, waitWorkerErrors(
-				fmt.Errorf("failed to read values from %s: %w", dir, valuesErr),
-			)
-		}
-
-		stackFile, stackErr := config.ReadStackConfigFile(ctx, l, v, pctx, path, values)
+		stackFile, stackErr := config.ReadStackConfigFile(ctx, l, v, pctx, path)
 		if stackErr != nil {
 			return cty.NilVal, waitWorkerErrors(
 				fmt.Errorf("failed to read stack file %s: %w", path, stackErr),

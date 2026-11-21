@@ -208,12 +208,12 @@ func inheritedReads(
 	reads := map[string]struct{}{}
 
 	read := func(path string, exposed bool) bool {
-		body, err := configBody(ctx, l, v, pctx, path)
+		file, err := configFile(ctx, l, v, pctx, path)
 		if err != nil {
 			return false
 		}
 
-		native, ok := body.(*hclsyntax.Body)
+		native, ok := file.Body.(*hclsyntax.Body)
 		if !ok {
 			return false
 		}

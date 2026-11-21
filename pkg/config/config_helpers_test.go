@@ -779,7 +779,7 @@ unit "test" {
 	ctx, pctx := newTestParsingContext(t, stackHclPath)
 	pctx.WorkingDir = tempDir
 
-	stackConfig, err := config.ReadStackConfigFile(ctx, l, v, pctx, stackHclPath, nil)
+	stackConfig, err := config.ReadStackConfigFile(ctx, l, v, pctx, stackHclPath)
 	require.NoError(t, err)
 	require.NotNil(t, stackConfig)
 

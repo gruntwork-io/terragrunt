@@ -45,6 +45,8 @@ var knownBadFiles = []string{
 	"fixtures/regressions/terraform-source-references-dependency/live/module-b/terragrunt.hcl",
 	"fixtures/find/source-references-dependency/app/terragrunt.hcl",
 	"fixtures/exclude/dependency-output/unit/terragrunt.hcl",
+	"fixtures/values-block/catalog/stacks/service/terragrunt.stack.hcl",
+	"fixtures/values-block/catalog/units/app/terragrunt.hcl",
 	// Files that require AWS credentials (will fail/timeout without them)
 	"fixtures/assume-role/external-id-with-comma/terragrunt.hcl",
 	"fixtures/assume-role/external-id/terragrunt.hcl",

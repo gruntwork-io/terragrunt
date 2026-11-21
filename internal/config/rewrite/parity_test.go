@@ -2,6 +2,7 @@ package config_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"maps"
 	"path/filepath"
@@ -44,6 +45,7 @@ var parityFixtureRoots = []string{
 	"render-json-mock-outputs",
 	"dependency-expansion/mocks",
 	"dependency-expansion/keyed",
+	"values-block/dependency",
 }
 
 // parityExcludedDirs are fixtures that call run_cmd, which the tofu stub cannot answer, or AWS.
@@ -73,6 +75,7 @@ func TestParityFixturesSkipOutput(t *testing.T) {
 				newFS:   fixtures.newFS,
 				cfgPath: fixture.path,
 				configure: func(pctx *pkgconfig.ParsingContext) {
+					require.NoError(t, pctx.Experiments.EnableExperiment(experiment.ValuesBlock))
 					pctx.SkipOutput = true
 					pctx.OriginalTofuCommand = "plan"
 				},
@@ -95,9 +98,11 @@ func TestParityFixturesWithOutput(t *testing.T) {
 			t.Parallel()
 
 			assertParity(t, parityCase{
-				newFS:     fixtures.newFS,
-				cfgPath:   fixture.path,
-				configure: func(*pkgconfig.ParsingContext) {},
+				newFS:   fixtures.newFS,
+				cfgPath: fixture.path,
+				configure: func(pctx *pkgconfig.ParsingContext) {
+					require.NoError(t, pctx.Experiments.EnableExperiment(experiment.ValuesBlock))
+				},
 			})
 		})
 	}
@@ -1230,6 +1235,319 @@ variables {
 	}
 }
 
+func TestParityValuesBlock(t *testing.T) {
+	t.Parallel()
+
+	const declarations = `
+values {
+  value "instance_count" {
+    type = number
+  }
+
+  value "tags" {
+    type    = map(string)
+    default = {}
+  }
+
+  value "settings" {
+    type = object({
+      name = string
+      size = optional(number, 3)
+    })
+    default = { name = "app" }
+  }
+}
+`
+
+	const unitConfig = declarations + `
+locals {
+  name = values.settings.name
+}
+
+inputs = {
+  instance_count = values.instance_count
+  tags           = values.tags
+  size           = values.settings.size
+  name           = local.name
+}
+`
+
+	testCases := []struct {
+		files         map[string]string
+		inputs        map[string]any
+		name          string
+		cfgName       string
+		experimentOff bool
+	}{
+		{
+			name: "defaults and conversion",
+			files: map[string]string{
+				"unit/terragrunt.hcl":        unitConfig,
+				"unit/terragrunt.values.hcl": `instance_count = "2"`,
+			},
+			inputs: map[string]any{
+				"instance_count": json.Number("2"),
+				"tags":           map[string]any{},
+				"size":           json.Number("3"),
+				"name":           "app",
+			},
+		},
+		{
+			name: "supplied values win over defaults",
+			files: map[string]string{
+				"unit/terragrunt.hcl": unitConfig,
+				"unit/terragrunt.values.hcl": `
+instance_count = 1
+tags           = { team = "core" }
+settings       = { name = "api", size = 5 }
+`,
+			},
+			inputs: map[string]any{
+				"instance_count": json.Number("1"),
+				"tags":           map[string]any{"team": "core"},
+				"size":           json.Number("5"),
+				"name":           "api",
+			},
+		},
+		{
+			name: "supplied null",
+			files: map[string]string{
+				"unit/terragrunt.hcl": unitConfig,
+				"unit/terragrunt.values.hcl": `
+instance_count = 1
+tags           = null
+`,
+			},
+			inputs: map[string]any{
+				"instance_count": json.Number("1"),
+				"tags":           nil,
+				"size":           json.Number("3"),
+				"name":           "app",
+			},
+		},
+		{
+			name: "undeclared key",
+			files: map[string]string{
+				"unit/terragrunt.hcl": unitConfig,
+				"unit/terragrunt.values.hcl": `
+instance_count = 1
+tgas           = { team = "core" }
+`,
+			},
+		},
+		{
+			name: "missing required value without a values file",
+			files: map[string]string{
+				"unit/terragrunt.hcl": unitConfig,
+			},
+		},
+		{
+			name: "missing required value with a values file",
+			files: map[string]string{
+				"unit/terragrunt.hcl":        unitConfig,
+				"unit/terragrunt.values.hcl": `tags = {}`,
+			},
+		},
+		{
+			name: "mistyped value",
+			files: map[string]string{
+				"unit/terragrunt.hcl": unitConfig,
+				"unit/terragrunt.values.hcl": `
+instance_count = "two"
+settings       = { name = "api", size = [1] }
+`,
+			},
+		},
+		{
+			name: "invalid declaration",
+			files: map[string]string{
+				"unit/terragrunt.hcl": `
+values {
+  value "region" {
+    type = text
+  }
+
+  value "zone" {
+    type    = string
+    default = [3]
+  }
+}
+
+inputs = {
+  region = values.region
+}
+`,
+				"unit/terragrunt.values.hcl": `region = "us-east-1"`,
+			},
+		},
+		{
+			name:          "experiment off",
+			experimentOff: true,
+			files: map[string]string{
+				"unit/terragrunt.hcl":        unitConfig,
+				"unit/terragrunt.values.hcl": `instance_count = 2`,
+			},
+		},
+		{
+			name: "a block in an included file",
+			files: map[string]string{
+				"root.hcl": declarations,
+				"unit/terragrunt.hcl": `
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+`,
+				"unit/terragrunt.values.hcl": `instance_count = 2`,
+			},
+		},
+		{
+			name: "a block in an autoinclude",
+			files: map[string]string{
+				"unit/terragrunt.hcl":             `inputs = { name = "unit" }`,
+				"unit/terragrunt.autoinclude.hcl": declarations,
+				"unit/terragrunt.values.hcl":      `instance_count = 2`,
+			},
+		},
+		{
+			name: "files beside the unit",
+			files: map[string]string{
+				"unit/common.hcl": `
+locals {
+  count = values.instance_count
+  tags  = values.tags
+}
+
+inputs = {
+  from_include = values.instance_count
+}
+`,
+				"unit/terragrunt.hcl": declarations + `
+include "common" {
+  path   = "common.hcl"
+  expose = true
+}
+
+locals {
+  common = read_terragrunt_config("common.hcl")
+}
+
+inputs = {
+  exposed = include.common.locals.count
+  read    = local.common.locals.tags
+}
+`,
+				"unit/terragrunt.values.hcl": `instance_count = "4"`,
+			},
+			inputs: map[string]any{
+				"from_include": json.Number("4"),
+				"exposed":      json.Number("4"),
+				"read":         map[string]any{},
+			},
+		},
+		{
+			name: "a dependency path from a value",
+			files: map[string]string{
+				"unit/terragrunt.hcl": `
+values {
+  value "net_path" {
+    type = string
+  }
+}
+
+dependency "net" {
+  config_path  = values.net_path
+  mock_outputs = { id = "mock-id" }
+}
+
+inputs = {
+  net_id = dependency.net.outputs.id
+}
+`,
+				"unit/terragrunt.values.hcl": `net_path = "../net"`,
+				"net/terragrunt.hcl":         "",
+			},
+			inputs: map[string]any{"net_id": "mock-id"},
+		},
+		{
+			name:    "a JSON config",
+			cfgName: pkgconfig.DefaultTerragruntJSONConfigPath,
+			files: map[string]string{
+				"unit/terragrunt.hcl.json": `{
+  "values": {
+    "value": {
+      "instance_count": { "type": "number" },
+      "tags": { "type": "map(string)", "default": {} }
+    }
+  },
+  "inputs": {
+    "instance_count": "${values.instance_count}",
+    "tags": "${values.tags}"
+  }
+}
+`,
+				"unit/terragrunt.values.hcl": `instance_count = "2"`,
+			},
+			inputs: map[string]any{
+				"instance_count": json.Number("2"),
+				"tags":           map[string]any{},
+			},
+		},
+		{
+			name:    "a JSON config with a mistyped value",
+			cfgName: pkgconfig.DefaultTerragruntJSONConfigPath,
+			files: map[string]string{
+				"unit/terragrunt.hcl.json": `{
+  "values": {
+    "value": {
+      "instance_count": { "type": "number" }
+    }
+  },
+  "inputs": { "instance_count": "${values.instance_count}" }
+}
+`,
+				"unit/terragrunt.values.hcl": `instance_count = "two"`,
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfgName := tc.cfgName
+			if cfgName == "" {
+				cfgName = pkgconfig.DefaultTerragruntConfigPath
+			}
+
+			root := venvtest.Root("/fixture")
+
+			result := assertParity(t, parityCase{
+				newFS:   memFS(root, tc.files),
+				cfgPath: filepath.Join(root, "unit", cfgName),
+				configure: func(pctx *pkgconfig.ParsingContext) {
+					pctx.SkipOutput = true
+					pctx.OriginalTofuCommand = "plan"
+
+					if tc.experimentOff {
+						return
+					}
+
+					require.NoError(t, pctx.Experiments.EnableExperiment(experiment.ValuesBlock))
+				},
+			})
+
+			if tc.inputs == nil {
+				require.Error(t, result.toV1Err)
+
+				return
+			}
+
+			require.NoError(t, result.toV1Err)
+			assert.Equal(t, tc.inputs, result.cfg.Inputs)
+		})
+	}
+}
+
 func TestParityMergedIncludeLocals(t *testing.T) {
 	t.Parallel()
 
@@ -1491,6 +1809,8 @@ func newQueueParsingContext(t *testing.T, cfgPath string) (context.Context, *pkg
 
 	ctx, run := newTestParsingContext(t, cfgPath)
 	run.SkipOutput = true
+
+	require.NoError(t, run.Experiments.EnableExperiment(experiment.ValuesBlock))
 
 	return ctx, run.WithDecodeList(
 		pkgconfig.TerraformSource,

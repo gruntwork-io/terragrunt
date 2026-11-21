@@ -1,0 +1,36 @@
+---
+version: "v1.2.3"
+category: "experiments-added"
+---
+
+#### `values-block` — Declare the values a unit or stack accepts
+
+Enable the [`values-block`](/reference/experiments/active#values-block) experiment and add a `values` block to a `terragrunt.hcl` or `terragrunt.stack.hcl` file to declare the values the unit or stack accepts. Each value can have a type, a default, and a description. Terragrunt checks what each `unit` and `stack` block passes against these declarations, and `values.<name>` in the component returns the declared type, with the default applied when nothing sets the value.
+
+```hcl
+values {
+  value "name" {
+    type = string
+  }
+
+  value "tags" {
+    type    = map(string)
+    default = {}
+  }
+}
+```
+
+```bash
+terragrunt stack generate --experiment values-block
+```
+
+`stack generate` fails when a block passes a key the component doesn't declare, a value of the wrong type, or no value for a required one:
+
+```text
+18:10:44.033 ERROR  Error: Undeclared value "tag" for unit "app"
+18:10:44.033 ERROR    on /path/to/live/terragrunt.stack.hcl line 7, in unit "app":
+18:10:44.033 ERROR     7:     tag  = { team = "payments" }
+18:10:44.033 ERROR  The unit at ../catalog/units/app does not declare a value named "tag". Did you mean "tags"?
+```
+
+`terragrunt hcl validate` reports each `values.<name>` read that the block doesn't declare. See the [`values` block reference](/reference/hcl/blocks/values/).

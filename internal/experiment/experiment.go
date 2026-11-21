@@ -153,6 +153,9 @@ const (
 	// response, which lets Terragrunt reuse the response for every unit whose
 	// directory matches its globs.
 	AuthProviderCache = "auth-provider-cache"
+	// ValuesBlock gates the values block, which declares the values a unit or stack accepts, with a type, default and
+	// description for each.
+	ValuesBlock = "values-block"
 )
 
 const (
@@ -309,6 +312,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: AuthProviderCache,
+		},
+		{
+			Name: ValuesBlock,
 		},
 	}
 }
