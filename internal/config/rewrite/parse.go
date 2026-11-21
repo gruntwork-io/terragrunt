@@ -139,10 +139,6 @@ func (s *Store) ReadTerragruntConfig(
 	v *venv.Venv,
 	run *pkgconfig.ParsingContext,
 ) (*pkgconfig.TerragruntConfig, error) {
-	if err := pkgconfig.RejectAmbiguousUnitConfig(v.FS, run); err != nil {
-		return nil, err
-	}
-
 	l.Debugf(
 		"Reading Terragrunt config file at %s",
 		util.RelPathForLog(run.RootWorkingDir, run.TerragruntConfigPath, run.LogShowAbsPaths),

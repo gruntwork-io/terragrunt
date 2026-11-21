@@ -23,7 +23,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/view/dag"
-	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -82,14 +81,10 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, opts
 		return discoverErr
 	})
 	if err != nil {
-		// Discover returns no components with these two errors, so logging them
+		// Discover returns no components with this error, so logging it
 		// and carrying on would print an empty result.
 		if coexistenceErr, ok := errors.AsType[discovery.CoexistenceError](err); ok {
 			return coexistenceErr
-		}
-
-		if ambiguousErr, ok := errors.AsType[config.AmbiguousConfigError](err); ok {
-			return ambiguousErr
 		}
 
 		l.Debugf("Errors encountered while discovering components:\n%s", err)
