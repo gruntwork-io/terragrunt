@@ -8,7 +8,6 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -40,9 +39,6 @@ type pipelineRelations struct {
 
 // readDependencyPaths parses c when nothing has yet and returns the dependencies it declares. A component that is
 // not a unit declares none. The caller sets the parse phase on ctx.
-//
-// The paths are empty and err holds a [config.AmbiguousConfigError] when the check opts asks for is
-// [config.RejectAmbiguousConfig] and a dependency directory holds both default unit config files.
 func readDependencyPaths(
 	ctx context.Context,
 	l log.Logger,
@@ -69,18 +65,6 @@ func readDependencyPaths(
 	paths, err = stackDependencyPaths(ctx, l, v, s, opts, paths)
 	if err != nil {
 		return dependencyPaths{err: err}
-	}
-
-	check := configbridge.AmbiguousConfigCheck(opts)
-
-	for _, path := range paths {
-		if err := ctx.Err(); err != nil {
-			return dependencyPaths{err: err}
-		}
-
-		if err := config.RejectAmbiguousDefaultConfig(v.FS, path, check); err != nil {
-			return dependencyPaths{err: err}
-		}
 	}
 
 	return dependencyPaths{paths: paths}
@@ -308,14 +292,7 @@ func (r *pipelineRelations) linkForDependents(
 			continue
 		}
 
-		if err := linkReached(
-			ctx,
-			v.FS,
-			c,
-			declared.paths,
-			configbridge.AmbiguousConfigCheck(r.opts),
-			shared,
-		); err != nil {
+		if err := linkReached(ctx, v.FS, c, declared.paths, shared); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -327,15 +304,11 @@ func (r *pipelineRelations) linkForDependents(
 // discovery context of a component the graph reached from c.
 //
 // Returns the error of ctx when ctx ends before every path is linked.
-//
-// Returns a [config.AmbiguousConfigError] when check is [config.RejectAmbiguousConfig] and a dependency path that
-// components does not hold has both default unit config files.
 func linkReached(
 	ctx context.Context,
 	fsys vfs.FS,
 	c component.Component,
 	depPaths []string,
-	check config.AmbiguousConfigCheck,
 	components *component.ThreadSafeComponents,
 ) error {
 	parentCtx := c.DiscoveryContext()
@@ -345,10 +318,7 @@ func linkReached(
 			return err
 		}
 
-		dep, err := componentFromDependencyPath(fsys, depPath, check, components)
-		if err != nil {
-			return err
-		}
+		dep := componentFromDependencyPath(fsys, depPath, components)
 
 		assignGraphDiscoveryContext(fsys, dep, parentCtx, depPath)
 
@@ -545,9 +515,7 @@ func (t *dependencyTraversal) reach(
 		return nil, false
 	}
 
-	dep, err := t.graph.resolveDependency(
-		fsys, c, depPath, configbridge.AmbiguousConfigCheck(t.state.opts), t.state.threadSafeComponents,
-	)
+	dep, err := t.graph.resolveDependency(fsys, c, depPath, t.state.threadSafeComponents)
 	if err != nil {
 		t.errs = append(t.errs, err)
 
