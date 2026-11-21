@@ -161,9 +161,9 @@ func TestResolveUnitQueueConfigReturnsPartialConfigWithParseError(t *testing.T) 
 
 	ctx, run := newTestUnitParsingContext(t, path)
 
-	cfg, err := new(
-		config.Store,
-	).ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(v, run), path)
+	s := new(config.Store)
+
+	cfg, err := s.ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(v, run), path)
 	require.ErrorAs(t, err, new(config.IncludeConfigNotFoundError))
 	require.NotNil(t, cfg)
 	assert.Equal(t, "us-east-1", cfg.Locals["region"])
@@ -292,7 +292,9 @@ inputs = {
 	ctx, parseRun := newTestUnitParsingContext(t, path)
 	parseRun = parseRun.WithFileReadTracking()
 
-	parsed, err := new(config.Store).ResolveUnitConfig(ctx, l, v, config.NewParseContext(v, parseRun), path)
+	s := new(config.Store)
+
+	parsed, err := s.ResolveUnitConfig(ctx, l, v, config.NewParseContext(v, parseRun), path)
 	require.NoError(t, err)
 
 	var g errgroup.Group
@@ -336,7 +338,9 @@ func TestResolveUnitConfigSendsDiagnosticsToItsCallersHandler(t *testing.T) {
 		return diags, nil
 	}
 
-	_, err := new(config.Store).ResolveUnitConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, run), path)
+	s := new(config.Store)
+
+	_, err := s.ResolveUnitConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, run), path)
 	require.Error(t, err)
 	assert.NotEmpty(t, received)
 }
@@ -387,7 +391,9 @@ engine {
 			ctx, run := newTestUnitParsingContext(t, path)
 			run.DecodedDependencies = tc.supplied
 
-			cfg, err := new(config.Store).ResolveUnitQueueConfig(
+			s := new(config.Store)
+
+			cfg, err := s.ResolveUnitQueueConfig(
 				ctx,
 				logger.CreateLogger(),
 				v,
@@ -505,7 +511,9 @@ include "r" {
 	v := venv.MemVenv().WithFS(fsys)
 	ctx, run := newTestUnitParsingContext(t, path)
 
-	cfg, err := new(config.Store).ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, run), path)
+	s := new(config.Store)
+
+	cfg, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, run), path)
 
 	var unparsed config.UnparsedIncludeError
 
@@ -580,9 +588,9 @@ func TestResolveRunConfigReturnsNoConfigForAMissingFile(t *testing.T) {
 	v := venv.MemVenv().WithFS(vfs.NewMemMapFS())
 	ctx, run := newTestUnitParsingContext(t, path)
 
-	cfg, err := new(
-		config.Store,
-	).ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, run), path)
+	s := new(config.Store)
+
+	cfg, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, run), path)
 	require.ErrorAs(t, err, new(config.TerragruntConfigNotFoundError))
 	assert.Nil(t, cfg)
 }
@@ -833,7 +841,9 @@ func TestResolveUnitBaseVariablesReturnsNoVariablesForAMissingFile(t *testing.T)
 	v := venv.MemVenv().WithFS(vfs.NewMemMapFS())
 	ctx, run := newTestUnitParsingContext(t, path)
 
-	vars, err := new(config.Store).ResolveUnitBaseVariables(
+	s := new(config.Store)
+
+	vars, err := s.ResolveUnitBaseVariables(
 		ctx,
 		logger.CreateLogger(),
 		v,

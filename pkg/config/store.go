@@ -199,7 +199,8 @@ func (s *Store) Memoize[T any](
 
 // ParseUnitAST returns the syntax tree of the file at path, parsed by the first caller and bound to parser for every
 // caller. info is the file's current metadata, and a retained tree is parsed again when the file's size or modification
-// time no longer matches the one it was parsed from.
+// time no longer matches the one it was parsed from, or when the file was modified too recently for a stat to show a
+// rewrite and its contents changed.
 func (s *Store) ParseUnitAST(
 	ctx context.Context,
 	fsys vfs.FS,
@@ -209,13 +210,13 @@ func (s *Store) ParseUnitAST(
 ) (*hclparse.File, error) {
 	k := Key{Path: filepath.Clean(path), Stage: StageAST}
 
-	file, err := s.memoizeStamped(ctx, k, info, func(context.Context) (*hclparse.File, error) {
+	file, err := s.memoizeStamped(ctx, fsys, k, path, info, func(context.Context) (*hclparse.File, []byte, error) {
 		file, err := parser.ParseFromFile(fsys, path)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
-		return file.WithoutParser(), nil
+		return file.WithoutParser(), file.Bytes, nil
 	})
 	if err != nil {
 		return nil, err
@@ -225,7 +226,7 @@ func (s *Store) ParseUnitAST(
 }
 
 // hasDependencyBlock reports whether the file at path declares a dependency or dependencies block. The first caller
-// scans the file, and it is scanned again when its size or modification time changes.
+// scans the file, and it is scanned again when the file changes, as [Store.ParseUnitAST] parses it again.
 //
 // Returns [DependencyFileNotFoundError] when the file does not exist.
 func (s *Store) hasDependencyBlock(ctx context.Context, fsys vfs.FS, path string) (bool, error) {
@@ -240,28 +241,37 @@ func (s *Store) hasDependencyBlock(ctx context.Context, fsys vfs.FS, path string
 
 	k := Key{Path: filepath.Clean(path), Stage: StageDependencyScan}
 
-	return s.memoizeStamped(ctx, k, info, func(context.Context) (bool, error) {
-		return ConfigFileHasDependencyBlock(fsys, path)
+	return s.memoizeStamped(ctx, fsys, k, path, info, func(context.Context) (bool, []byte, error) {
+		content, err := vfs.ReadFile(fsys, path)
+		if err != nil {
+			return false, nil, err
+		}
+
+		has, err := hasDependencyBlockIn(content, path)
+
+		return has, content, err
 	})
 }
 
-// memoizeStamped returns the value and error of k as [Store.Memoize] does, where fn reads the value from the file
-// that info describes. A retained value read from another version of the file is dropped first. A call that joined a
-// run which read another version runs fn again outside s, whether that run succeeded or failed.
+// memoizeStamped returns the value and error of k as [Store.Memoize] does, where fn reads the value from the contents
+// it returns of the file at path in fsys, which info describes. A retained value read from a file of other metadata is
+// dropped first. A call that received a value read from another version of the file runs fn again outside s, whether
+// that run succeeded or failed, and drops a retained value read from a file whose contents changed since.
 func (s *Store) memoizeStamped[T any](
 	ctx context.Context,
+	fsys vfs.FS,
 	k Key,
+	path string,
 	info fs.FileInfo,
-	fn func(context.Context) (T, error),
+	fn func(context.Context) (T, []byte, error),
 ) (T, error) {
 	s.dropStale(k, info)
 
-	stamp := entryStampOf(info)
-
 	res, err := s.Memoize(ctx, k, func(ctx context.Context) (*stampedValue[T], error) {
-		val, err := fn(ctx)
+		readAt := time.Now()
+		val, content, err := fn(ctx)
 
-		return &stampedValue[T]{value: val, stamp: stamp}, err
+		return &stampedValue[T]{value: val, stamp: stampEntry(info, content, readAt)}, err
 	})
 	if res.Value == nil {
 		var zero T
@@ -269,8 +279,12 @@ func (s *Store) memoizeStamped[T any](
 		return zero, err
 	}
 
-	if !res.Value.stamp.matches(info) {
-		return fn(ctx)
+	if res.Hit && !res.Value.matches(fsys, path, info) {
+		s.forget(k, res.Value)
+
+		val, _, err := fn(ctx)
+
+		return val, err
 	}
 
 	return res.Value.value, err
@@ -356,34 +370,86 @@ func addPath(set map[string]struct{}, path string) map[string]struct{} {
 
 // entryStamp is the metadata of the file a value was read from.
 type entryStamp struct {
+	// modTime is the modification time of the file.
 	modTime time.Time
-	size    int64
+	// size is the size of the file in bytes.
+	size int64
+	// digest is the digest of the file's contents when racy is set and digested is true.
+	digest uint64
+	// racy marks a file whose modTime was too recent when the stamp was taken for a rewrite to show in a later stat.
+	racy bool
+	// digested reports whether the contents of a racy file could be read to take digest.
+	digested bool
 }
 
-// entryStampOf returns the stamp of the file info describes.
-func entryStampOf(info fs.FileInfo) entryStamp {
-	return entryStamp{modTime: info.ModTime(), size: info.Size()}
-}
+// stampEntry returns the stamp of the file info describes, whose contents a read that started at readAt returned. It
+// digests content when the file's modification time is racy as of readAt. content is nil when the read failed.
+func stampEntry(info fs.FileInfo, content []byte, readAt time.Time) entryStamp {
+	stamp := entryStamp{modTime: info.ModTime(), size: info.Size()}
+	if !isRacyModTime(stamp.modTime, readAt) {
+		return stamp
+	}
 
-// matches reports whether info describes the file as it was when the stamp was taken.
-func (stamp entryStamp) matches(info fs.FileInfo) bool {
-	return stamp.size == info.Size() && stamp.modTime.Equal(info.ModTime())
+	stamp.racy = true
+
+	if content == nil {
+		return stamp
+	}
+
+	stamp.digest = digestBytes(content)
+	stamp.digested = true
+
+	return stamp
 }
 
 // stamped is a value that goes stale when the file it was read from changes.
 type stamped interface {
-	// readFrom returns the stamp of the file the value was read from.
-	readFrom() entryStamp
+	// matchesInfo reports whether info matches the metadata of the file the value was read from.
+	matchesInfo(info fs.FileInfo) bool
 }
 
 // stampedValue is a value read from a file, with the stamp of the file it was read from.
 type stampedValue[T any] struct {
+	// value is what was read from the file.
 	value T
+	// stamp is the stamp of the file as it was read.
 	stamp entryStamp
+	// settled is set once a racy stamp's file is confirmed unchanged after its modTime left the racy window, so later
+	// checks skip reading the file.
+	settled atomic.Bool
 }
 
-func (v *stampedValue[T]) readFrom() entryStamp {
-	return v.stamp
+func (v *stampedValue[T]) matchesInfo(info fs.FileInfo) bool {
+	return v.stamp.size == info.Size() && v.stamp.modTime.Equal(info.ModTime())
+}
+
+// matches reports whether the file at path in fsys, which info describes, is the version v was read from, comparing
+// the file's contents with the stamp's digest while the stamp is racy.
+func (v *stampedValue[T]) matches(fsys vfs.FS, path string, info fs.FileInfo) bool {
+	if !v.matchesInfo(info) {
+		return false
+	}
+
+	if !v.stamp.racy || v.settled.Load() {
+		return true
+	}
+
+	if !v.stamp.digested {
+		return false
+	}
+
+	checkedAt := time.Now()
+
+	digest, err := digestFile(fsys, path)
+	if err != nil || digest != v.stamp.digest {
+		return false
+	}
+
+	if !isRacyModTime(v.stamp.modTime, checkedAt) {
+		v.settled.Store(true)
+	}
+
+	return true
 }
 
 // join returns the entry of k and whether the caller has to run its body.
@@ -539,8 +605,8 @@ func (s *Store) releaseScope(scope *releaseScope) {
 	}
 }
 
-// dropStale drops the retained value of k when info no longer matches the file it was read from. A run in
-// progress is left alone.
+// dropStale drops the retained value of k when info no longer matches the metadata of the file it was read from. A
+// run in progress is left alone.
 func (s *Store) dropStale(k Key, info fs.FileInfo) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -561,7 +627,28 @@ func (s *Store) dropStale(k Key, info fs.FileInfo) {
 		return
 	}
 
-	if !val.readFrom().matches(info) {
+	if !val.matchesInfo(info) {
+		delete(s.entries, k)
+	}
+}
+
+// forget drops the retained value of k when it is val. A run in progress is left alone.
+func (s *Store) forget(k Key, val any) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	e, ok := s.entries[k]
+	if !ok {
+		return
+	}
+
+	select {
+	case <-e.done:
+	default:
+		return
+	}
+
+	if e.val == val {
 		delete(s.entries, k)
 	}
 }

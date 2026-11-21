@@ -67,7 +67,9 @@ include "root" {
 
 			l := logger.CreateLogger()
 
-			parsed, err := config.ParseConfigFile(ctx, l, v, new(config.Store), pctx, childPath, nil)
+			s := new(config.Store)
+
+			parsed, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), childPath)
 			require.NoError(t, err)
 			require.NotNil(t, parsed)
 
@@ -144,7 +146,9 @@ exclude {
 
 			l := logger.CreateLogger()
 
-			parsed, err := config.ParseConfigFile(ctx, l, v, new(config.Store), pctx, childPath, nil)
+			s := new(config.Store)
+
+			parsed, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), childPath)
 			require.NoError(t, err)
 			require.NotNil(t, parsed)
 
@@ -209,7 +213,9 @@ include "root" {
 
 			l := logger.CreateLogger()
 
-			parsed, err := config.ParseConfigFile(ctx, l, v, new(config.Store), pctx, childPath, nil)
+			s := new(config.Store)
+
+			parsed, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), childPath)
 			require.NoError(t, err)
 			require.NotNil(t, parsed)
 
@@ -269,7 +275,9 @@ include "root" {
 
 			l := logger.CreateLogger()
 
-			parsed, err := config.ParseConfigFile(ctx, l, v, new(config.Store), pctx, childPath, nil)
+			s := new(config.Store)
+
+			parsed, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), childPath)
 			require.NoError(t, err)
 			require.NotNil(t, parsed)
 
@@ -328,7 +336,9 @@ include "root" {
 
 			l := logger.CreateLogger()
 
-			parsed, err := config.ParseConfigFile(ctx, l, v, new(config.Store), pctx, childPath, nil)
+			s := new(config.Store)
+
+			parsed, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), childPath)
 			require.NoError(t, err)
 			require.NotNil(t, parsed)
 

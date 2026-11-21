@@ -467,7 +467,9 @@ inputs = {
 
 	pc := config.NewParseContext(v, pctx)
 
-	parsed, err := new(config.Store).ResolveUnitConfig(ctx, l, v, pc, cfgPath)
+	s := new(config.Store)
+
+	parsed, err := s.ResolveUnitConfig(ctx, l, v, pc, cfgPath)
 	require.NoError(t, err)
 
 	first, err := parsed.ToV1(ctx, l, v, new(config.Store), pc)

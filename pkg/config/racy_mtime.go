@@ -22,6 +22,11 @@ func isRacyModTime(modTime, readAt time.Time) bool {
 	return !modTime.Before(readAt.Add(-racyModTimeWindow))
 }
 
+// digestBytes returns the digest [digestFile] returns for a file holding content.
+func digestBytes(content []byte) uint64 {
+	return maphash.Bytes(fileDigestSeed, content)
+}
+
 // digestFile returns a digest of the contents of the file at path, hashing the file as it reads it.
 //
 // Digests of the same contents differ between processes, so a digest is only comparable within the process that

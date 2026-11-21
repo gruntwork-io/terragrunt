@@ -25,14 +25,15 @@ func TestParseConfigFileRereadsSameSizeRewriteOfRecentFile(t *testing.T) {
 	require.NoError(t, v.FS.Chtimes(cfgPath, recent, recent))
 
 	ctx := config.WithCaches(t.Context())
+	s := new(config.Store)
 
-	before, _ := parseUnitInput(ctx, t, v, cfgPath)
+	before, _ := parseUnitInput(ctx, t, v, s, cfgPath)
 	assert.Equal(t, "first", before)
 
 	require.NoError(t, vfs.WriteFile(v.FS, cfgPath, []byte(`inputs = { value = "third" }`), 0o644))
 	require.NoError(t, v.FS.Chtimes(cfgPath, recent, recent))
 
-	after, _ := parseUnitInput(ctx, t, v, cfgPath)
+	after, _ := parseUnitInput(ctx, t, v, s, cfgPath)
 	assert.Equal(t, "third", after)
 }
 
@@ -61,11 +62,12 @@ func TestParseConfigFileReadsBackOnlyRecentFileOnCacheHit(t *testing.T) {
 			fsys := &countingFS{FS: v.FS, opens: map[string]int{}}
 			v = v.WithFS(fsys)
 			ctx := config.WithCaches(t.Context())
+			s := new(config.Store)
 
 			for range 2 {
 				_, pctx := newTestParsingContext(t, cfgPath)
 
-				cfg, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, cfgPath, nil)
+				cfg, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, pctx), cfgPath)
 				require.NoError(t, err)
 				assert.Equal(t, "first", cfg.Inputs["value"])
 			}

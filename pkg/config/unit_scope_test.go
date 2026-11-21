@@ -58,7 +58,9 @@ dependency "vpc" {
 
 			pc := config.NewParseContext(v, pctx)
 
-			parsed, parseErr := new(config.Store).ResolveUnitConfig(ctx, l, v, pc, cfgPath)
+			s := new(config.Store)
+
+			parsed, parseErr := s.ResolveUnitConfig(ctx, l, v, pc, cfgPath)
 			require.Error(t, parseErr)
 			assert.Contains(t, parseErr.Error(), "Unknown variable")
 			assert.Contains(t, parseErr.Error(), config.MetadataDependency)

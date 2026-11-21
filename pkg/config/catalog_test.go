@@ -264,8 +264,16 @@ func TestParseConfigStringKeepsCommandsInAMissingConfigDir(t *testing.T) {
 
 	ctx, pctx := newTestParsingContext(t, configPath)
 
-	_, err := config.ParseConfigString(ctx, logger.CreateLogger(), v, new(config.Store), pctx, configPath,
-		`locals { out = run_cmd("--terragrunt-quiet", "print-dir") }`, nil)
+	_, err := resolveRunConfigString(
+		t,
+		ctx,
+		logger.CreateLogger(),
+		v,
+		new(config.Store),
+		pctx,
+		configPath,
+		`locals { out = run_cmd("--terragrunt-quiet", "print-dir") }`,
+	)
 	require.NoError(t, err)
 
 	mu.Lock()

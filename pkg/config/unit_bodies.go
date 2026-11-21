@@ -57,7 +57,7 @@ func (c *UnitConfig) decodeQueue(evalCtx *hcl.EvalContext) (QueueBodies, hcl.Dia
 	)
 
 	if c.Exclude != nil && !c.Exclude.readsDependency() {
-		diags = append(diags, decodeInto(evalCtx, c.Exclude.Remain, &q.Exclude)...)
+		diags = append(diags, decodeInto(evalCtx, unmarkedBody{c.Exclude.Remain}, &q.Exclude)...)
 	}
 
 	if c.Errors != nil {
@@ -151,7 +151,7 @@ func (c *UnitConfig) decodeRun(evalCtx *hcl.EvalContext) (*RunBodies, hcl.Diagno
 	)
 
 	if c.Exclude != nil && c.Exclude.readsDependency() {
-		diags = append(diags, decodeInto(evalCtx, c.Exclude.Remain, &r.Exclude)...)
+		diags = append(diags, decodeInto(evalCtx, unmarkedBody{c.Exclude.Remain}, &r.Exclude)...)
 	}
 
 	diags = append(diags, c.decodeRunAttributes(evalCtx, &r)...)
@@ -188,6 +188,68 @@ func decodeInto[B any](evalCtx *hcl.EvalContext, remain hcl.Body, target **B) hc
 	*target = body
 
 	return diags
+}
+
+// unmarkedBody is a body whose attributes report a sensitive value as an error and pass it on unmarked, for a body
+// decoded into Go types, which gohcl panics converting a marked value to. The bodies of its blocks are not wrapped.
+type unmarkedBody struct {
+	hcl.Body
+}
+
+func (b unmarkedBody) Content(schema *hcl.BodySchema) (*hcl.BodyContent, hcl.Diagnostics) {
+	content, diags := b.Body.Content(schema)
+	content.Attributes = unmarkedAttributes(content.Attributes)
+
+	return content, diags
+}
+
+func (b unmarkedBody) PartialContent(schema *hcl.BodySchema) (*hcl.BodyContent, hcl.Body, hcl.Diagnostics) {
+	content, remain, diags := b.Body.PartialContent(schema)
+	content.Attributes = unmarkedAttributes(content.Attributes)
+
+	return content, unmarkedBody{remain}, diags
+}
+
+func (b unmarkedBody) JustAttributes() (hcl.Attributes, hcl.Diagnostics) {
+	attrs, diags := b.Body.JustAttributes()
+
+	return unmarkedAttributes(attrs), diags
+}
+
+// unmarkedAttributes returns copies of attrs whose expressions report a sensitive value as [unmarkedExpr] does.
+func unmarkedAttributes(attrs hcl.Attributes) hcl.Attributes {
+	wrapped := make(hcl.Attributes, len(attrs))
+
+	for name, attr := range attrs {
+		c := *attr
+		c.Expr = unmarkedExpr{attr.Expr}
+		wrapped[name] = &c
+	}
+
+	return wrapped
+}
+
+// unmarkedExpr is an expression that reports a value holding a sensitive part as an error, and returns it unmarked.
+type unmarkedExpr struct {
+	hcl.Expression
+}
+
+func (e unmarkedExpr) Value(evalCtx *hcl.EvalContext) (cty.Value, hcl.Diagnostics) {
+	val, diags := e.Expression.Value(evalCtx)
+	if !val.ContainsMarked() {
+		return val, diags
+	}
+
+	unmarked, _ := val.UnmarkDeep()
+
+	return unmarked, append(diags, &hcl.Diagnostic{
+		Severity:    hcl.DiagError,
+		Summary:     "Sensitive value not allowed",
+		Detail:      "This argument does not accept a value marked as sensitive.",
+		Subject:     e.Range().Ptr(),
+		Expression:  e.Expression,
+		EvalContext: evalCtx,
+	})
 }
 
 // decodeAttr evaluates attr into *target. A nil attr is absent, and a failed evaluation leaves *target nil.

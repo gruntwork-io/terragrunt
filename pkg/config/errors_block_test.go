@@ -175,7 +175,9 @@ include "root" {
 			ctx, pctx := newTestParsingContext(t, childPath)
 			l := logger.CreateLogger()
 
-			parsed, err := config.ParseConfigFile(ctx, l, v, new(config.Store), pctx, childPath, nil)
+			s := new(config.Store)
+
+			parsed, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), childPath)
 			require.NoError(t, err)
 
 			fromConfig, err := parsed.ErrorsConfig()
@@ -186,8 +188,12 @@ include "root" {
 
 			partialCtx, partialPctx := newTestParsingContext(t, childPath)
 
-			partial, err := config.PartialParseConfigFile(
-				partialCtx, l, v, new(config.Store), partialPctx.WithDecodeList(config.ErrorsBlock), childPath, nil,
+			partial, err := s.ResolvePartialConfig(
+				partialCtx,
+				l,
+				v,
+				config.NewParseContext(v, partialPctx.WithDecodeList(config.ErrorsBlock)),
+				childPath,
 			)
 			require.NoError(t, err)
 

@@ -23,7 +23,7 @@ func parseTrackingReads(t *testing.T, files map[string]string, hcl string) []str
 	ctx = config.WithCaches(ctx)
 	pctx.FilesRead = config.NewFilesRead()
 
-	_, err := config.ParseConfigString(ctx, l, v, new(config.Store), pctx, memConfigPath, hcl, nil)
+	_, err := resolveRunConfigString(t, ctx, l, v, new(config.Store), pctx, memConfigPath, hcl)
 	require.NoError(t, err)
 
 	return pctx.FilesRead.Paths()
@@ -125,7 +125,7 @@ func TestHCLFileReadsAreUnrecordedWithoutTracking(t *testing.T) {
   data = file("data.txt")
 }`
 
-	out, err := config.ParseConfigString(ctx, l, v, new(config.Store), pctx, memConfigPath, hcl, nil)
+	out, err := resolveRunConfigString(t, ctx, l, v, new(config.Store), pctx, memConfigPath, hcl)
 	require.NoError(t, err)
 	require.NotNil(t, out.Locals)
 	assert.Equal(t, "contents\n", out.Locals["data"])

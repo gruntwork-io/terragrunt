@@ -462,15 +462,10 @@ dependency "db" {
 		pctx.SkipOutput = true
 		pctx.Parser.IgnoreDiagnostics = true
 
-		cfg, err := config.PartialParseConfigFile(
-			ctx,
-			logger.CreateLogger(),
-			venvtest.NewWithOSFS(),
-			new(config.Store),
-			pctx,
-			cfgPath,
-			nil,
-		)
+		v := venvtest.NewWithOSFS()
+		s := new(config.Store)
+
+		cfg, err := s.ResolvePartialConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, pctx), cfgPath)
 		require.NoError(t, err)
 		assert.Empty(t, cfg.TerragruntDependencies)
 	})
@@ -482,15 +477,10 @@ dependency "db" {
 		pctx.SkipOutput = true
 		pctx.Parser.IgnoreDiagnostics = true
 
-		cfg, err := config.ParseConfigFile(
-			ctx,
-			logger.CreateLogger(),
-			venvtest.NewWithOSFS(),
-			new(config.Store),
-			pctx,
-			cfgPath,
-			nil,
-		)
+		v := venvtest.NewWithOSFS()
+		s := new(config.Store)
+
+		cfg, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, pctx), cfgPath)
 		require.NoError(t, err)
 		assert.Empty(t, cfg.TerragruntDependencies)
 	})
@@ -526,15 +516,10 @@ func parseFull(t *testing.T, cfgPath string) (*config.TerragruntConfig, error) {
 
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 
-	return config.ParseConfigFile(
-		ctx,
-		logger.CreateLogger(),
-		venvtest.NewWithOSFS(),
-		new(config.Store),
-		pctx,
-		cfgPath,
-		nil,
-	)
+	v := venvtest.NewWithOSFS()
+	s := new(config.Store)
+
+	return s.ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, pctx), cfgPath)
 }
 
 // parsePartial returns the config at cfgPath from a partial parse with discovery's decode list and settings.
@@ -555,15 +540,10 @@ func parsePartial(t *testing.T, cfgPath string) (*config.TerragruntConfig, error
 	).WithSkipOutputsResolution()
 	pctx.SkipOutput = true
 
-	return config.PartialParseConfigFile(
-		ctx,
-		logger.CreateLogger(),
-		venvtest.NewWithOSFS(),
-		new(config.Store),
-		pctx,
-		cfgPath,
-		nil,
-	)
+	v := venvtest.NewWithOSFS()
+	s := new(config.Store)
+
+	return s.ResolvePartialConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, pctx), cfgPath)
 }
 
 // dependencyEnabled reports whether dep is enabled, which it is unless it sets enabled to false.

@@ -73,7 +73,9 @@ func TestDependencyOutputAuthAndExtraArgsEnvLeaveCallerEnv(t *testing.T) {
 	ctx, pctx, v, configPath := prepareIsolationFixture(t, recorder, 1)
 	want := maps.Clone(v.Env)
 
-	cfg, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, configPath, nil)
+	s := new(config.Store)
+
+	cfg, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, pctx), configPath)
 	require.NoError(t, err)
 	assert.Equal(t, "from-native-output", cfg.Inputs["result0"])
 
@@ -98,7 +100,9 @@ func TestDependencyOutputsWithRunCmdLeaveCallerEnvWithRacing(t *testing.T) {
 	ctx = contextWithTraceParent(ctx)
 	want := maps.Clone(v.Env)
 
-	cfg, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, configPath, nil)
+	s := new(config.Store)
+
+	cfg, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, pctx), configPath)
 	require.NoError(t, err)
 
 	for i := range producers {

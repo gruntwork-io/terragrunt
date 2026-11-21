@@ -54,10 +54,12 @@ inputs = {
 	pc := config.NewParseContext(v, run)
 	l := logger.CreateLogger()
 
-	first, err := new(config.Store).ResolveUnitConfig(ctx, l, v, pc, cfgPath)
+	s := new(config.Store)
+
+	first, err := s.ResolveUnitConfig(ctx, l, v, pc, cfgPath)
 	require.NoError(t, err)
 
-	second, err := new(config.Store).ResolveUnitConfig(ctx, l, v, pc, cfgPath)
+	second, err := s.ResolveUnitConfig(ctx, l, v, pc, cfgPath)
 	require.NoError(t, err)
 
 	firstCfg, err := first.ToV1(ctx, l, v, new(config.Store), pc)
@@ -104,7 +106,9 @@ inputs = {
 
 	pc := config.NewParseContext(v, run)
 
-	parsed, err := new(config.Store).ResolveUnitConfig(ctx, l, v, pc, cfgPath)
+	s := new(config.Store)
+
+	parsed, err := s.ResolveUnitConfig(ctx, l, v, pc, cfgPath)
 	require.NoError(t, err)
 
 	cfg, err := parsed.ToV1(ctx, l, v, new(config.Store), pc)

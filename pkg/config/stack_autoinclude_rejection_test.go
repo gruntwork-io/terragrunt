@@ -69,7 +69,9 @@ unit "app" {
 	l := logger.CreateLogger()
 	ctx, pctx := newTestParsingContext(t, unitConfig)
 
-	_, err = config.ParseConfigFile(ctx, l, v, new(config.Store), pctx, unitConfig, nil)
+	s := new(config.Store)
+
+	_, err = s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), unitConfig)
 
 	var diags hcl.Diagnostics
 

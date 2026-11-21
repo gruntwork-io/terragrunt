@@ -52,7 +52,6 @@ func TestExternalTerragruntConfigStruct(t *testing.T) {
 		IamWebIdentityToken:         "token-value",
 		Inputs:                      map[string]any{"key": "value"},
 		Locals:                      map[string]any{"local_key": "local_value"},
-		IsPartial:                   false,
 	}
 
 	assert.Equal(t, "tofu", cfg.TerraformBinary)
@@ -64,7 +63,6 @@ func TestExternalTerragruntConfigStruct(t *testing.T) {
 	assert.Equal(t, "token-value", cfg.IamWebIdentityToken)
 	assert.Equal(t, map[string]any{"key": "value"}, cfg.Inputs)
 	assert.Equal(t, map[string]any{"local_key": "local_value"}, cfg.Locals)
-	assert.False(t, cfg.IsPartial)
 	assert.Nil(t, cfg.Terraform)
 	assert.Nil(t, cfg.RemoteState)
 	assert.Nil(t, cfg.Dependencies)
@@ -437,7 +435,8 @@ inputs = {
 	ctx := config.WithCaches(t.Context())
 	v := venvtest.NewWithOSFS()
 	pctx := config.NewParsingContext()
-	cfg, err := config.ParseConfigString(
+	cfg, err := resolveRunConfigString(
+		t,
 		ctx,
 		l,
 		v,
@@ -445,7 +444,6 @@ inputs = {
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		hclConfig,
-		nil,
 	)
 	require.NoError(t, err)
 	require.NotNil(t, cfg)
@@ -668,7 +666,7 @@ inputs = {
   region = values.region
 }
 `
-	cfg, err := config.ParseConfigString(ctx, l, v, new(config.Store), pctx, configPath, hclConfig, nil)
+	cfg, err := resolveRunConfigString(t, ctx, l, v, new(config.Store), pctx, configPath, hclConfig)
 	require.NoError(t, err)
 	require.NotNil(t, cfg)
 	assert.Equal(t, "staging", cfg.Inputs["env"])

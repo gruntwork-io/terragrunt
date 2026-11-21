@@ -218,7 +218,6 @@ type TerragruntConfig struct {
 	TerraformBinary             string
 	TerragruntDependencies      Dependencies
 	FeatureFlags                FeatureFlags
-	IsPartial                   bool
 }
 
 // GetRemoteState returns the config's `remote_state` block, or nil when the config has none.
@@ -2835,7 +2834,6 @@ func ConvertToTerragruntConfig(
 	}
 
 	cfg = &TerragruntConfig{
-		IsPartial: false,
 		// Initialize GenerateConfigs so we can append to it
 		GenerateConfigs: map[string]codegen.GenerateConfig{},
 	}
@@ -3244,10 +3242,16 @@ func ConfigFileHasDependencyBlock(fsys vfs.FS, cfgPath string) (bool, error) {
 		return false, err
 	}
 
+	return hasDependencyBlockIn(configBytes, cfgPath)
+}
+
+// hasDependencyBlockIn reports whether content, the contents of the config at cfgPath, declares a dependency or
+// dependencies block.
+func hasDependencyBlockIn(content []byte, cfgPath string) (bool, error) {
 	// We use hclwrite to parse the config instead of the normal parser because the normal parser doesn't give us an AST
 	// that we can walk and scan, and requires structured data to map against. This makes the parsing strict, so to
 	// avoid weird parsing errors due to missing dependency data, we do a structural scan here.
-	hclFile, diags := hclwrite.ParseConfig(configBytes, cfgPath, hcl.InitialPos)
+	hclFile, diags := hclwrite.ParseConfig(content, cfgPath, hcl.InitialPos)
 	if diags.HasErrors() {
 		return false, diags
 	}

@@ -132,7 +132,9 @@ func TestParseDependencyBlockMultiple(t *testing.T) {
 	v := venvtest.NewWithOSFS()
 	ctx, pctx := newTestParsingContext(t, filename)
 	v.Env = venvtest.NewOSWithEmptyEnv().Env
-	tfConfig, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, filename, nil)
+	s := new(config.Store)
+
+	tfConfig, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, pctx), filename)
 	require.NoError(t, err)
 	assert.Len(t, tfConfig.TerragruntDependencies, 2)
 	assert.Equal(t, "dependency_1", tfConfig.TerragruntDependencies[0].Name)
@@ -187,7 +189,8 @@ dependency "enabled" {
 	pctx = pctx.WithDecodeList(config.DependencyBlock)
 
 	// Should not panic - disabled deps bypass config_path validation
-	terragruntConfig, err := config.PartialParseConfigString(
+	terragruntConfig, err := resolvePartialConfigString(
+		t,
 		ctx,
 		l,
 		v,
@@ -195,7 +198,6 @@ dependency "enabled" {
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
-		nil,
 	)
 	require.NoError(t, err)
 	require.Len(t, terragruntConfig.TerragruntDependencies, 2)
@@ -231,7 +233,9 @@ func TestDependencyOriginalTerragruntDir(t *testing.T) {
 	pctx.OriginalTerragruntConfigPath = filename
 	pctx.SkipOutput = true
 
-	tfConfig, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, filename, nil)
+	s := new(config.Store)
+
+	tfConfig, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, config.NewParseContext(v, pctx), filename)
 	require.NoError(t, err)
 	require.NotNil(t, tfConfig)
 
@@ -254,14 +258,12 @@ func TestDependencyOriginalTerragruntDir(t *testing.T) {
 	ctxB, pctxB := newTestParsingContext(t, unitBFilename)
 	pctxB.OriginalTerragruntConfigPath = unitBFilename
 
-	unitBConfig, err := config.ParseConfigFile(
+	unitBConfig, err := s.ResolveRunConfig(
 		ctxB,
 		logger.CreateLogger(),
 		vB,
-		new(config.Store),
-		pctxB,
+		config.NewParseContext(vB, pctxB),
 		unitBFilename,
-		nil,
 	)
 	require.NoError(t, err)
 	require.NotNil(t, unitBConfig)
@@ -289,7 +291,8 @@ dependency "enabled" {
 	pctx = pctx.WithDecodeList(config.DependencyBlock)
 
 	// Should not error - disabled deps bypass config_path validation
-	terragruntConfig, err := config.PartialParseConfigString(
+	terragruntConfig, err := resolvePartialConfigString(
+		t,
 		ctx,
 		l,
 		v,
@@ -297,7 +300,6 @@ dependency "enabled" {
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
-		nil,
 	)
 	require.NoError(t, err)
 	require.Len(t, terragruntConfig.TerragruntDependencies, 2)
@@ -381,7 +383,8 @@ func parseDependencyStringStrict(tb testing.TB, cfg string) (*config.TerragruntC
 	require.NotNil(tb, control)
 	control.Enable()
 
-	return config.PartialParseConfigString(
+	return resolvePartialConfigString(
+		tb,
 		ctx,
 		logger.CreateLogger(),
 		v,
@@ -389,7 +392,6 @@ func parseDependencyStringStrict(tb testing.TB, cfg string) (*config.TerragruntC
 		pctx.WithDecodeList(config.DependencyBlock),
 		config.DefaultTerragruntConfigPath,
 		cfg,
-		nil,
 	)
 }
 
@@ -593,7 +595,8 @@ func parseDependencyConfigPath(
 		control.Enable()
 	}
 
-	return config.PartialParseConfigString(
+	return resolvePartialConfigString(
+		t,
 		ctx,
 		logger.CreateLogger(),
 		v,
@@ -601,7 +604,6 @@ func parseDependencyConfigPath(
 		pctx.WithDecodeList(config.DependencyBlock),
 		configPath,
 		"dependency \"db\" {\n"+args+"\n}\n",
-		nil,
 	)
 }
 

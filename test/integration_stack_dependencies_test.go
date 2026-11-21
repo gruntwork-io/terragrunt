@@ -1360,7 +1360,9 @@ func TestStackDepsAutoIncludeArbitraryRetryBlock(t *testing.T) {
 	l := logger.CreateLogger()
 	ctx, v, pctx := newStackDepsParsingContext(t, l, unitConfigPath)
 
-	parsed, err := config.ParseConfigFile(ctx, l, v, new(config.Store), pctx, unitConfigPath, nil)
+	s := new(config.Store)
+
+	parsed, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), unitConfigPath)
 	require.NoError(
 		t,
 		err,
@@ -1415,7 +1417,9 @@ func TestStackDepsAutoIncludeFeatureBlock(t *testing.T) {
 	l := logger.CreateLogger()
 	ctx, v, pctx := newStackDepsParsingContext(t, l, unitConfigPath)
 
-	parsed, err := config.ParseConfigFile(ctx, l, v, new(config.Store), pctx, unitConfigPath, nil)
+	s := new(config.Store)
+
+	parsed, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), unitConfigPath)
 	require.NoError(
 		t,
 		err,
@@ -1474,7 +1478,9 @@ func TestStackDepsAutoIncludeIgnoreBlock(t *testing.T) {
 	l := logger.CreateLogger()
 	ctx, v, pctx := newStackDepsParsingContext(t, l, unitConfigPath)
 
-	parsed, err := config.ParseConfigFile(ctx, l, v, new(config.Store), pctx, unitConfigPath, nil)
+	s := new(config.Store)
+
+	parsed, err := s.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, pctx), unitConfigPath)
 	require.NoError(
 		t,
 		err,
@@ -1999,7 +2005,9 @@ func partialParseDiscovery(t *testing.T, l log.Logger, configPath string) *confi
 	pctx = pctx.WithDecodeList(config.FeatureFlagsBlock, config.ErrorsBlock).
 		WithSkipOutputsResolution()
 
-	parsed, err := config.PartialParseConfigFile(ctx, l, v, new(config.Store), pctx, configPath, nil)
+	s := new(config.Store)
+
+	parsed, err := s.ResolvePartialConfig(ctx, l, v, config.NewParseContext(v, pctx), configPath)
 	require.NoError(t, err, "discovery-style partial parse of the merged unit config must succeed")
 
 	return parsed

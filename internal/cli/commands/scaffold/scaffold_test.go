@@ -115,13 +115,9 @@ func TestDefaultTemplateVariables(t *testing.T) {
 	v := venvtest.NewWithOSFS()
 	ctx := config.WithCaches(t.Context())
 	pctx := configbridge.NewParsingContext(opts)
-	cfg, err := config.ReadTerragruntConfig(
-		ctx,
-		l,
-		v,
-		new(config.Store),
-		pctx,
-	)
+	s := new(config.Store)
+
+	cfg, err := s.ReadTerragruntConfig(ctx, l, v, pctx)
 	require.NoError(t, err)
 	require.NotEmpty(t, cfg.Inputs)
 	assert.Len(t, cfg.Inputs, 1)
@@ -225,13 +221,9 @@ func TestDefaultTemplateUserValueOverridesTODO(t *testing.T) {
 	v := venvtest.NewWithOSFS()
 	ctx := config.WithCaches(t.Context())
 	pctx := configbridge.NewParsingContext(opts)
-	cfg, err := config.ReadTerragruntConfig(
-		ctx,
-		l,
-		v,
-		new(config.Store),
-		pctx,
-	)
+	s := new(config.Store)
+
+	cfg, err := s.ReadTerragruntConfig(ctx, l, v, pctx)
 	require.NoError(t, err)
 
 	assert.Contains(t, cfg.Inputs, "vpc_cidr")

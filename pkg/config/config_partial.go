@@ -822,8 +822,6 @@ func PartialParseConfig(
 		return nil, err
 	}
 
-	output.IsPartial = true
-
 	// Provide a dependency placeholder so remote_state can reference dependency outputs during partial decode.
 	if pctx.DecodedDependencies == nil && pctx.SkipOutputsResolution {
 		pctx = pctx.Clone()
