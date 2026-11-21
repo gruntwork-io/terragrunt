@@ -132,7 +132,13 @@ func parseUnitInput(
 // accountsOpens parses the first count units of a fixture whose common.hcl
 // holds commonHCL, all in one command, and returns how often their parses
 // opened accounts.yml.
-func accountsOpens(t *testing.T, commonHCL string, extra map[string]string, count int) int {
+func accountsOpens(
+	t *testing.T,
+	commonHCL string,
+	extra map[string]string,
+	count int,
+	opts ...func(*config.ParsingContext),
+) int {
 	t.Helper()
 
 	v, rootDir := newMemTestDir(t)
@@ -143,7 +149,7 @@ func accountsOpens(t *testing.T, commonHCL string, extra map[string]string, coun
 	ctx := config.WithCaches(t.Context())
 
 	for _, unit := range units[:count] {
-		value, filesRead := parseUnitInput(ctx, t, v, unit)
+		value, filesRead := parseUnitInput(ctx, t, v, unit, opts...)
 
 		assert.Equal(t, "111111111111", value)
 		assert.Contains(t, filesRead, filepath.Join(rootDir, "accounts.yml"))
@@ -255,6 +261,29 @@ locals {
 	extra := map[string]string{filepath.Join("dep", "terragrunt.hcl"): ""}
 
 	assert.Greater(t, accountsOpens(t, commonHCL, extra, 2), accountsOpens(t, commonHCL, extra, 1))
+}
+
+func TestReadTerragruntConfigSharesResultWithDependenciesWhenSkippingOutputs(t *testing.T) {
+	t.Parallel()
+
+	const commonHCL = `
+dependency "dep" {
+  config_path = "./dep"
+}
+
+locals {
+  value = yamldecode(file("accounts.yml"))["dev"]
+}
+`
+
+	extra := map[string]string{filepath.Join("dep", "terragrunt.hcl"): ""}
+	skipOutput := func(pctx *config.ParsingContext) { pctx.SkipOutput = true }
+
+	assert.Equal(
+		t,
+		accountsOpens(t, commonHCL, extra, 1, skipOutput),
+		accountsOpens(t, commonHCL, extra, 2, skipOutput),
+	)
 }
 
 func TestReadTerragruntConfigDoesNotSharePerCallResult(t *testing.T) {
@@ -462,6 +491,24 @@ locals {
 }
 `,
 			extra: map[string]string{filepath.Join("dep", "terragrunt.hcl"): ""},
+		},
+		{
+			name: "dependency block with outputs skipped",
+			commonHCL: `
+dependency "dep" {
+  config_path = "./dep"
+
+  mock_outputs = {
+    id = "mocked"
+  }
+}
+
+locals {
+  value = get_terragrunt_dir()
+}
+`,
+			extra: map[string]string{filepath.Join("dep", "terragrunt.hcl"): ""},
+			opts:  []func(*config.ParsingContext){func(pctx *config.ParsingContext) { pctx.SkipOutput = true }},
 		},
 	}
 
