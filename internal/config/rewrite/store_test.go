@@ -921,13 +921,39 @@ func TestResolveUnitQueueConfigReadsAChangedFileOnTheNextCall(t *testing.T) {
 func TestResolveUnitQueueConfigScansAnIncludedFileAgainWhenItChanges(t *testing.T) {
 	t.Parallel()
 
+	appendNewline := func(t *testing.T, fsys vfs.FS, path string) {
+		t.Helper()
+
+		content, err := vfs.ReadFile(fsys, path)
+		require.NoError(t, err)
+		require.NoError(t, vfs.WriteFile(fsys, path, append(content, '\n'), 0o644))
+	}
+
+	replaceLastByte := func(t *testing.T, fsys vfs.FS, path string) {
+		t.Helper()
+
+		info, err := fsys.Stat(path)
+		require.NoError(t, err)
+
+		modTime := info.ModTime()
+
+		content, err := vfs.ReadFile(fsys, path)
+		require.NoError(t, err)
+
+		content[len(content)-1] = ' '
+
+		require.NoError(t, vfs.WriteFile(fsys, path, content, 0o644))
+		require.NoError(t, fsys.Chtimes(path, modTime, modTime))
+	}
+
 	tests := []struct {
+		rewrite    func(t *testing.T, fsys vfs.FS, path string)
 		name       string
 		wantMisses uint64
-		rewrite    bool
 	}{
-		{name: "unchanged", rewrite: false, wantMisses: 5},
-		{name: "changed", rewrite: true, wantMisses: 7},
+		{name: "unchanged", wantMisses: 5},
+		{name: "changed", rewrite: appendNewline, wantMisses: 7},
+		{name: "changed at the same size and modification time", rewrite: replaceLastByte, wantMisses: 7},
 	}
 
 	for _, tt := range tests {
@@ -951,12 +977,8 @@ func TestResolveUnitQueueConfigScansAnIncludedFileAgainWhenItChanges(t *testing.
 
 			misses := store.Stats().Misses
 
-			if tt.rewrite {
-				rootPath := filepath.Join(root, "root.hcl")
-
-				content, err := vfs.ReadFile(fsys, rootPath)
-				require.NoError(t, err)
-				require.NoError(t, vfs.WriteFile(fsys, rootPath, append(content, '\n'), 0o644))
+			if tt.rewrite != nil {
+				tt.rewrite(t, fsys, filepath.Join(root, "root.hcl"))
 			}
 
 			resolve(paths[1])
