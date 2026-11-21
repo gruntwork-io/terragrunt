@@ -398,6 +398,49 @@ func TestExternalGetDefaultConfigPath(t *testing.T) {
 	assert.Contains(t, result, "terragrunt.hcl")
 }
 
+// TestGetDefaultConfigPathPrefersTerragruntHCL pins the documented lookup order: terragrunt.hcl, then
+// terragrunt.hcl.json.
+func TestGetDefaultConfigPathPrefersTerragruntHCL(t *testing.T) {
+	t.Parallel()
+
+	root := venvtest.Root("/repo")
+
+	tcs := []struct {
+		files map[string]string
+		name  string
+		want  string
+	}{
+		{
+			name: "both",
+			files: map[string]string{
+				"unit/terragrunt.hcl":      "",
+				"unit/terragrunt.hcl.json": "{}",
+			},
+			want: config.DefaultTerragruntConfigPath,
+		},
+		{
+			name:  "JSON only",
+			files: map[string]string{"unit/terragrunt.hcl.json": "{}"},
+			want:  config.DefaultTerragruntJSONConfigPath,
+		},
+		{
+			name:  "neither",
+			files: map[string]string{"unit/main.tf": ""},
+			want:  config.DefaultTerragruntConfigPath,
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			dir := filepath.Join(root, "unit")
+			got := config.GetDefaultConfigPath(venvtest.NewFS(t, root, tc.files), dir)
+			assert.Equal(t, filepath.Join(dir, tc.want), got)
+		})
+	}
+}
+
 func TestExternalParseAndDecodeVarFile(t *testing.T) {
 	t.Parallel()
 

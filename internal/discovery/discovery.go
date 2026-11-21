@@ -16,7 +16,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -387,15 +386,13 @@ func (d *Discovery) traverseGraph(
 }
 
 // returnsPhaseError reports whether Discover returns err from a phase: any error unless parse errors are suppressed,
-// and a [CoexistenceError] or a [config.AmbiguousConfigError] either way.
+// and a [CoexistenceError] either way.
 func (d *Discovery) returnsPhaseError(err error) bool {
 	if err == nil {
 		return false
 	}
 
-	return !d.suppressParseErrors ||
-		errors.As(err, new(CoexistenceError)) ||
-		errors.As(err, new(config.AmbiguousConfigError))
+	return !d.suppressParseErrors || errors.As(err, new(CoexistenceError))
 }
 
 // removeCycles removes cycles from the dependency graph.

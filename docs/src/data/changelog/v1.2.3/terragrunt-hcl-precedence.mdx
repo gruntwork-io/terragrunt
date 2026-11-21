@@ -1,0 +1,10 @@
+---
+version: "v1.2.3"
+category: "bug-fixes"
+---
+
+#### `terragrunt.hcl` takes precedence over `terragrunt.hcl.json`
+
+Since v0.50.15, Terragrunt read `terragrunt.hcl.json` from a directory holding both `terragrunt.hcl` and `terragrunt.hcl.json` when it ran the unit in that directory, read the directory as a [`dependency`](/reference/hcl/blocks/dependency), or read it with [`read_terragrunt_config`](/reference/hcl/functions/read_terragrunt_config). `run --all`, `find`, and `list` read `terragrunt.hcl` from the same directory, and the [unit configuration docs](/reference/hcl/units) list `terragrunt.hcl` first.
+
+Every command now reads `terragrunt.hcl` from such a directory. To read `terragrunt.hcl.json` there, pass it with [`--config`](/reference/cli/commands/run#config), or remove `terragrunt.hcl`.

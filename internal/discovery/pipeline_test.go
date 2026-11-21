@@ -880,37 +880,6 @@ func TestDiscoveryPipelineReportsCoexistenceWithRacing(t *testing.T) {
 func TestDiscoveryReportsConfigConflictsBeforeParsingWithRacing(t *testing.T) {
 	t.Parallel()
 
-	conflicts := []struct {
-		requireErr func(t *testing.T, err error)
-		files      map[string]string
-		name       string
-	}{
-		{
-			name: "unit and stack",
-			files: map[string]string{
-				"both/terragrunt.hcl":       `locals { mark = run_cmd("mark", "unit") }`,
-				"both/terragrunt.stack.hcl": `locals { mark = run_cmd("mark", "stack") }`,
-			},
-			requireErr: func(t *testing.T, err error) {
-				t.Helper()
-
-				require.ErrorAs(t, err, new(discovery.CoexistenceError))
-			},
-		},
-		{
-			name: "both default unit configs",
-			files: map[string]string{
-				"both/terragrunt.hcl":      `locals { mark = run_cmd("mark", "hcl") }`,
-				"both/terragrunt.hcl.json": `{"locals": {"mark": "${run_cmd(\"mark\", \"json\")}"}}`,
-			},
-			requireErr: func(t *testing.T, err error) {
-				t.Helper()
-
-				require.ErrorAs(t, err, new(config.AmbiguousConfigError))
-			},
-		},
-	}
-
 	flows := []struct {
 		configure func(d *discovery.Discovery) *discovery.Discovery
 		name      string
@@ -929,36 +898,72 @@ func TestDiscoveryReportsConfigConflictsBeforeParsingWithRacing(t *testing.T) {
 		},
 	}
 
-	for _, conflict := range conflicts {
-		for _, flow := range flows {
-			t.Run(conflict.name+"/"+flow.name, func(t *testing.T) {
-				t.Parallel()
+	for _, flow := range flows {
+		t.Run(flow.name, func(t *testing.T) {
+			t.Parallel()
 
-				var (
-					mu     sync.Mutex
-					marked []string
-				)
+			var (
+				mu     sync.Mutex
+				marked []string
+			)
 
-				run := pipelineRun{
-					files:     conflict.files,
-					configure: flow.configure,
-					exec: vexec.NewMemExec(func(_ context.Context, inv vexec.Invocation) vexec.Result {
-						mu.Lock()
-						defer mu.Unlock()
+			run := pipelineRun{
+				files: map[string]string{
+					"both/terragrunt.hcl":       `locals { mark = run_cmd("mark", "unit") }`,
+					"both/terragrunt.stack.hcl": `locals { mark = run_cmd("mark", "stack") }`,
+				},
+				configure: flow.configure,
+				exec: vexec.NewMemExec(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+					mu.Lock()
+					defer mu.Unlock()
 
-						marked = append(marked, inv.Args...)
+					marked = append(marked, inv.Args...)
 
-						return vexec.Result{}
-					}),
-				}
+					return vexec.Result{}
+				}),
+			}
 
-				_, err := run.discover(t.Context(), t)
-				conflict.requireErr(t, err)
+			_, err := run.discover(t.Context(), t)
+			require.ErrorAs(t, err, new(discovery.CoexistenceError))
 
-				assert.Empty(t, marked)
-			})
-		}
+			assert.Empty(t, marked)
+		})
 	}
+}
+
+func TestDiscoveryParsesOnlyTerragruntHCLBesideTheJSONConfigWithRacing(t *testing.T) {
+	t.Parallel()
+
+	var (
+		mu     sync.Mutex
+		marked []string
+	)
+
+	run := pipelineRun{
+		files: map[string]string{
+			"both/terragrunt.hcl":      `locals { mark = run_cmd("mark", "hcl") }`,
+			"both/terragrunt.hcl.json": `{"locals": {"mark": "${run_cmd(\"mark\", \"json\")}"}}`,
+		},
+		configure: func(d *discovery.Discovery) *discovery.Discovery {
+			return d.WithParseExclude()
+		},
+		exec: vexec.NewMemExec(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+			mu.Lock()
+			defer mu.Unlock()
+
+			marked = append(marked, inv.Args...)
+
+			return vexec.Result{}
+		}),
+	}
+
+	got, err := run.discover(t.Context(), t)
+	require.NoError(t, err)
+
+	require.Len(t, got, 1)
+	assert.Equal(t, repoPath("both"), got[0].Path())
+	assert.Equal(t, config.DefaultTerragruntConfigPath, got[0].ConfigFile())
+	assert.Equal(t, []string{"hcl"}, marked)
 }
 
 func TestDiscoveryFindsJSONUnitsWithRacing(t *testing.T) {

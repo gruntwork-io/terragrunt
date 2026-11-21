@@ -3,6 +3,7 @@ package discovery_test
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
@@ -555,37 +556,67 @@ func TestDiscovery_BothHclAndStackFileInSameDir(t *testing.T) {
 }
 
 // TestDiscovery_BothHclAndJSONInSameDir pins that a directory holding both terragrunt.hcl and
-// terragrunt.hcl.json is rejected with an [config.AmbiguousConfigError].
+// terragrunt.hcl.json is discovered once, from terragrunt.hcl.
 func TestDiscovery_BothHclAndJSONInSameDir(t *testing.T) {
 	t.Parallel()
 
 	root := venvtest.Root("/repo")
-	fsys := venvtest.NewFS(t, root, map[string]string{
-		"app/terragrunt.hcl":      "",
-		"app/terragrunt.hcl.json": "{}",
-	})
 
-	opts := &options.TerragruntOptions{WorkingDir: root}
+	tests := []struct {
+		name          string
+		relationships bool
+	}{
+		{name: "walk"},
+		{name: "walk with relationships", relationships: true},
+	}
 
-	d := discovery.NewDiscovery(root).
-		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: root})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	_, err := d.Discover(
-		config.WithCaches(t.Context()),
-		logger.CreateLogger(),
-		venv.MemVenv().WithFS(fsys),
-		new(rewrite.Store),
-		opts,
-	)
+			fsys := venvtest.NewFS(t, root, map[string]string{
+				"app/terragrunt.hcl":      "",
+				"app/terragrunt.hcl.json": "{",
+				"web/terragrunt.hcl":      "dependency \"app\" {\n  config_path = \"../app\"\n}\n",
+			})
 
-	var ambiguousErr config.AmbiguousConfigError
-	require.ErrorAs(t, err, &ambiguousErr)
-	assert.Equal(t, filepath.Join(root, "app"), ambiguousErr.ComponentPath)
+			opts := &options.TerragruntOptions{WorkingDir: root}
+
+			d := discovery.NewDiscovery(root).
+				WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: root})
+
+			if tt.relationships {
+				d = d.WithRelationships()
+			}
+
+			components, err := d.Discover(
+				config.WithCaches(t.Context()),
+				logger.CreateLogger(),
+				venv.MemVenv().WithFS(fsys),
+				new(rewrite.Store),
+				opts,
+			)
+			require.NoError(t, err)
+			require.Len(t, components, 2)
+
+			app := components.FilterByPath(filepath.Join(root, "app"))
+			require.Len(t, app, 1)
+			assert.Equal(t, config.DefaultTerragruntConfigPath, app[0].ConfigFile())
+
+			if !tt.relationships {
+				return
+			}
+
+			web := components.FilterByPath(filepath.Join(root, "web"))
+			require.Len(t, web, 1)
+			assert.Equal(t, component.Components{app[0]}, web[0].Dependencies())
+		})
+	}
 }
 
-// TestDiscovery_SuppressedParseErrorsKeepAmbiguousConfigError pins that suppressing parse errors still reports
-// a dependency or dependent directory holding both terragrunt.hcl and terragrunt.hcl.json.
-func TestDiscovery_SuppressedParseErrorsKeepAmbiguousConfigError(t *testing.T) {
+// TestDiscovery_ReachesTerragruntHCLBesideTheJSONConfig pins that discovery reads terragrunt.hcl from a dependency
+// or dependent directory that also holds terragrunt.hcl.json. Each terragrunt.hcl.json fails to parse.
+func TestDiscovery_ReachesTerragruntHCLBesideTheJSONConfig(t *testing.T) {
 	t.Parallel()
 
 	root := venvtest.Root("/repo")
@@ -603,7 +634,7 @@ func TestDiscovery_SuppressedParseErrorsKeepAmbiguousConfigError(t *testing.T) {
 			files: map[string]string{
 				"live/app/terragrunt.hcl": "dependency \"dep\" {\n  config_path = \"../../dep\"\n}\n",
 				"dep/terragrunt.hcl":      "",
-				"dep/terragrunt.hcl.json": "{}",
+				"dep/terragrunt.hcl.json": "{",
 			},
 			walkDir:       "live",
 			relationships: true,
@@ -614,46 +645,10 @@ func TestDiscovery_SuppressedParseErrorsKeepAmbiguousConfigError(t *testing.T) {
 			files: map[string]string{
 				"live/app/terragrunt.hcl": "dependency \"dep\" {\n  config_path = \"../../dep\"\n}\n",
 				"dep/terragrunt.hcl":      "",
-				"dep/terragrunt.hcl.json": "{}",
+				"dep/terragrunt.hcl.json": "{",
 			},
 			walkDir:       "live",
 			filterQueries: []string{"app..."},
-			wantPath:      filepath.Join(root, "dep"),
-		},
-		{
-			name: "dependency also holding a stack file",
-			files: map[string]string{
-				"live/app/terragrunt.hcl":  "dependency \"dep\" {\n  config_path = \"../../dep\"\n}\n",
-				"dep/terragrunt.hcl":       "",
-				"dep/terragrunt.hcl.json":  "{}",
-				"dep/terragrunt.stack.hcl": "unit \"u\" {\n  source = \"../src\"\n  path   = \"u\"\n}\n",
-			},
-			walkDir:       "live",
-			filterQueries: []string{"app..."},
-			wantPath:      filepath.Join(root, "dep"),
-		},
-		{
-			name: "dependency also holding a stack file found while building relationships",
-			files: map[string]string{
-				"live/app/terragrunt.hcl":  "dependency \"dep\" {\n  config_path = \"../../dep\"\n}\n",
-				"dep/terragrunt.hcl":       "",
-				"dep/terragrunt.hcl.json":  "{}",
-				"dep/terragrunt.stack.hcl": "unit \"u\" {\n  source = \"../src\"\n  path   = \"u\"\n}\n",
-			},
-			walkDir:       "live",
-			relationships: true,
-			wantPath:      filepath.Join(root, "dep"),
-		},
-		{
-			name: "dependency also holding a stack file found while linking dependents",
-			files: map[string]string{
-				"live/app/terragrunt.hcl":  "dependency \"dep\" {\n  config_path = \"../../dep\"\n}\n",
-				"dep/terragrunt.hcl":       "",
-				"dep/terragrunt.hcl.json":  "{}",
-				"dep/terragrunt.stack.hcl": "unit \"u\" {\n  source = \"../src\"\n  path   = \"u\"\n}\n",
-			},
-			walkDir:       "live",
-			filterQueries: []string{"...app"},
 			wantPath:      filepath.Join(root, "dep"),
 		},
 		{
@@ -661,23 +656,12 @@ func TestDiscovery_SuppressedParseErrorsKeepAmbiguousConfigError(t *testing.T) {
 			files: map[string]string{
 				".git":                     "gitdir: /elsewhere/.git\n",
 				"svc/vpc/terragrunt.hcl":   "",
-				"dual/terragrunt.hcl":      "",
-				"dual/terragrunt.hcl.json": `{"dependency": {"vpc": {"config_path": "../svc/vpc"}}}`,
+				"dual/terragrunt.hcl":      "dependency \"vpc\" {\n  config_path = \"../svc/vpc\"\n}\n",
+				"dual/terragrunt.hcl.json": "{",
 			},
 			walkDir:       "svc",
 			filterQueries: []string{"...vpc"},
 			wantPath:      filepath.Join(root, "dual"),
-		},
-		{
-			name: "dependency found while linking dependents",
-			files: map[string]string{
-				"live/app/terragrunt.hcl": "dependency \"dep\" {\n  config_path = \"../../dep\"\n}\n",
-				"dep/terragrunt.hcl":      "",
-				"dep/terragrunt.hcl.json": "{}",
-			},
-			walkDir:       "live",
-			filterQueries: []string{"...app"},
-			wantPath:      filepath.Join(root, "dep"),
 		},
 	}
 
@@ -690,8 +674,7 @@ func TestDiscovery_SuppressedParseErrorsKeepAmbiguousConfigError(t *testing.T) {
 			opts := &options.TerragruntOptions{WorkingDir: walkDir}
 
 			d := discovery.NewDiscovery(walkDir).
-				WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: walkDir}).
-				WithSuppressParseErrors()
+				WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: walkDir})
 
 			if tt.relationships {
 				d = d.WithRelationships()
@@ -704,17 +687,23 @@ func TestDiscovery_SuppressedParseErrorsKeepAmbiguousConfigError(t *testing.T) {
 				d = d.WithFilters(filters)
 			}
 
-			_, err := d.Discover(
+			components, err := d.Discover(
 				config.WithCaches(t.Context()),
 				l,
 				venv.MemVenv().WithFS(venvtest.NewFS(t, root, tt.files)),
 				new(rewrite.Store),
 				opts,
 			)
+			require.NoError(t, err)
 
-			var ambiguousErr config.AmbiguousConfigError
-			require.ErrorAs(t, err, &ambiguousErr)
-			assert.Equal(t, tt.wantPath, ambiguousErr.ComponentPath)
+			reached := slices.Clone(components)
+			for _, c := range components {
+				reached = append(reached, c.Dependencies()...)
+			}
+
+			found := reached.FilterByPath(tt.wantPath)
+			require.NotEmpty(t, found)
+			assert.Equal(t, config.DefaultTerragruntConfigPath, found[0].ConfigFile())
 		})
 	}
 }

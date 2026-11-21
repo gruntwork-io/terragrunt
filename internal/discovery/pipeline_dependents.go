@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -226,15 +225,7 @@ func (p *graphTraversal) linkUnitsOf(
 
 		linked, _ := state.threadSafeComponents.EnsureComponent(unit.found)
 
-		if err := linkReached(
-			v.FS,
-			linked,
-			relocation.move(declared.paths),
-			configbridge.AmbiguousConfigCheck(state.opts),
-			state.threadSafeComponents,
-		); err != nil {
-			errs = append(errs, err)
-		}
+		linkReached(v.FS, linked, relocation.move(declared.paths), state.threadSafeComponents)
 	}
 
 	return errs
@@ -359,10 +350,8 @@ func (r worktreeRelocation) relIn(root, path string) (string, bool) {
 }
 
 // units returns the units below the start of the walk and below each directory above it, up to the boundary. A
-// directory is walked once, and a start outside the boundary has no units.
-//
-// Returns a [config.AmbiguousConfigError] when two of the units are at one path, read from the two default unit
-// config files.
+// directory is walked once, and a start outside the boundary has no units. A config file [shadowedUnitConfig] skips is
+// left out.
 func (w dependentWalk) units(
 	ctx context.Context,
 	v *venv.Venv,
@@ -393,7 +382,8 @@ func (w dependentWalk) units(
 			return util.SkipDirIfIgnorable(entry.Name())
 		}
 
-		if !slices.Contains(d.configFilenames, filepath.Base(path)) {
+		if !slices.Contains(d.configFilenames, filepath.Base(path)) ||
+			shadowedUnitConfig(v.FS, path, d.configFilenames) {
 			return nil
 		}
 
@@ -414,15 +404,6 @@ func (w dependentWalk) units(
 		if err := walkDir(dir, visit); err != nil {
 			return nil, err
 		}
-	}
-
-	found := make([]component.Component, 0, len(units))
-	for _, unit := range units {
-		found = append(found, unit.found)
-	}
-
-	if err := rejectAmbiguousUnits(found); err != nil {
-		return nil, err
 	}
 
 	return units, nil
