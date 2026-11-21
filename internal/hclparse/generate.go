@@ -80,7 +80,7 @@ func AutoIncludeFileNameForKind(kind AutoIncludeKind) string {
 //     literal it evaluated to and config_path looked up per element, so the generated unit expands
 //     it again. each.* and count.index stay verbatim inside the block.
 //   - All non-dependency content (inputs, generate, remote_state, etc.) is partially
-//     evaluated the same way: only dependency.* (and any expression referencing it) is
+//     evaluated the same way: only dependency.* and resolved.UnitRoots (and any expression referencing them) are
 //     preserved verbatim for runtime resolution.
 //
 // resolved may be nil, which writes nothing. srcBytes must be the bytes of the file resolved.RawBody
@@ -143,6 +143,7 @@ func GenerateAutoIncludeFile(
 			srcBytes,
 			targetDir,
 			evalCtx,
+			resolved.UnitRoots,
 		); err != nil {
 			return err
 		}
@@ -151,7 +152,9 @@ func GenerateAutoIncludeFile(
 	}
 
 	// Write non-dependency content with binary per-attribute evaluation.
-	if err := writeNonDependencyContent(outBody, body, srcBytes, evalCtx); err != nil {
+	deferred := deferredWith(deferredRoots, resolved.UnitRoots)
+
+	if err := writeNonDependencyContent(outBody, body, srcBytes, evalCtx, deferred); err != nil {
 		return err
 	}
 
@@ -299,13 +302,14 @@ func writeDependencyBlock(
 	srcBytes []byte,
 	targetDir string,
 	evalCtx *hcl.EvalContext,
+	unitRoots []string,
 ) error {
 	depBlock := outBody.AppendNewBlock(blockDependency, []string{dep.Name})
 	depBody := depBlock.Body()
 
 	dep.ConfigPath.writeConfigPath(depBody, targetDir)
 
-	deferred := dep.ConfigPath.deferred()
+	deferred := deferredWith(dep.ConfigPath.deferred(), unitRoots)
 
 	// Render the remaining attributes (mock_outputs, etc.) with the same partial evaluation.
 	for _, attr := range SortedAttributes(origBlock.Body.Attributes) {
@@ -415,17 +419,16 @@ func relativeConfigPath(targetDir, configPath string) string {
 	return relPath
 }
 
-// writeNonDependencyContent writes non-dependency attributes and blocks from the autoinclude body. Generate-time
-// roots (local.*, values.*, unit.*, stack.*) and function calls resolve to literals; only dependency.* (and any
-// expression referencing it) stays verbatim so it resolves in the generated unit.
+// writeNonDependencyContent writes the non-dependency content of body and keeps the deferred roots verbatim.
 func writeNonDependencyContent(
 	outBody *hclwrite.Body,
 	body *hclsyntax.Body,
 	srcBytes []byte,
 	evalCtx *hcl.EvalContext,
+	deferred map[string]struct{},
 ) error {
 	for _, attr := range SortedAttributes(body.Attributes) {
-		if err := writeAttribute(outBody, attr, srcBytes, evalCtx, deferredRoots); err != nil {
+		if err := writeAttribute(outBody, attr, srcBytes, evalCtx, deferred); err != nil {
 			return err
 		}
 	}
@@ -435,12 +438,28 @@ func writeNonDependencyContent(
 			continue
 		}
 
-		if err := copyBlock(outBody, block, srcBytes, evalCtx, deferredRoots, 0); err != nil {
+		if err := copyBlock(outBody, block, srcBytes, evalCtx, deferred, 0); err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+// deferredWith returns roots extended with extra, or roots when extra is empty.
+func deferredWith(roots map[string]struct{}, extra []string) map[string]struct{} {
+	if len(extra) == 0 {
+		return roots
+	}
+
+	extended := make(map[string]struct{}, len(roots)+len(extra))
+	maps.Copy(extended, roots)
+
+	for _, root := range extra {
+		extended[root] = struct{}{}
+	}
+
+	return extended
 }
 
 // quotedStringTokens creates hclwrite tokens for a quoted string literal.

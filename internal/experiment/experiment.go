@@ -153,6 +153,8 @@ const (
 	// response, which lets Terragrunt reuse the response for every unit whose
 	// directory matches its globs.
 	AuthProviderCache = "auth-provider-cache"
+	// PathVariable gates the path variable, which exposes the unit, stack, module, include, and read paths.
+	PathVariable = "path-variable"
 )
 
 const (
@@ -309,6 +311,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: AuthProviderCache,
+		},
+		{
+			Name: PathVariable,
 		},
 	}
 }

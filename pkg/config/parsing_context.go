@@ -50,6 +50,8 @@ type ParsingContext struct {
 	Values              *cty.Value
 	Features            *cty.Value
 	Locals              *cty.Value
+	// Path is the `path` value of the file being parsed.
+	Path *cty.Value
 
 	SourceMap map[string]string
 	// dependencyOutputEnvKeys records environment keys set for dependency output resolution through
@@ -328,6 +330,7 @@ func (ctx *ParsingContext) WithConfigPath(
 
 	c.TerragruntConfigPath = cfgPath
 	c.WorkingDir = workingDir
+	c.Path = nil
 
 	return l, c, nil
 }

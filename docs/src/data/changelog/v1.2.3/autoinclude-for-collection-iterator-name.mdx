@@ -1,0 +1,54 @@
+---
+version: "v1.2.3"
+category: "bug-fixes"
+---
+
+#### `autoinclude` resolves a `for` collection that shares the name of its iterator
+
+A `for` expression in an [`autoinclude`](/reference/hcl/blocks/autoinclude/) block kept its collection unresolved when the iterator shared the name of the variable that the collection reads, and the result read a `dependency`:
+
+```hcl
+# terragrunt.stack.hcl
+locals {
+  names = ["a", "b"]
+}
+
+unit "db" {
+  source = "../units/db"
+  path   = "db"
+}
+
+unit "app" {
+  source = "../units/app"
+  path   = "app"
+
+  autoinclude {
+    dependency "db" {
+      config_path = unit.db.path
+    }
+
+    inputs = {
+      names = [for local in local.names : "${local}-${dependency.db.outputs.id}"]
+    }
+  }
+}
+```
+
+[`terragrunt stack generate`](/reference/cli/commands/stack/generate) wrote `local.names` to `terragrunt.autoinclude.hcl`, and the generated unit failed:
+
+```text
+This object does not have an attribute named "names".
+```
+
+Terragrunt now resolves the collection in the stack file and writes it as a literal:
+
+```hcl
+# .terragrunt-stack/app/terragrunt.autoinclude.hcl
+dependency "db" {
+  config_path = "../db"
+}
+
+inputs = {
+  names = [for local in ["a", "b"] : "${local}-${dependency.db.outputs.id}"]
+}
+```

@@ -41,6 +41,8 @@ type fileScope struct {
 	includes *Includes
 	// values is the file's unit values.
 	values *cty.Value
+	// path is the file's `path` value, nil when the path-variable experiment is disabled.
+	path *cty.Value
 	// features is the file's feature flags.
 	features *cty.Value
 	// locals is the file's evaluated locals.
@@ -180,6 +182,14 @@ func (pc *ParseContext) withValues(values *cty.Value) *ParseContext {
 	return &c
 }
 
+// withPath returns a copy of pc with the file's `path` value.
+func (pc *ParseContext) withPath(path *cty.Value) *ParseContext {
+	c := *pc
+	c.file.path = path
+
+	return &c
+}
+
 // withDecodedDependencies returns a copy of pc with the file's `dependency` value and the blocks it was resolved
 // from.
 func (pc *ParseContext) withDecodedDependencies(decodedDeps *resolvedDependencies) *ParseContext {
@@ -262,6 +272,7 @@ func (pc *ParseContext) parsingContext() *pkgconfig.ParsingContext {
 	c.FilesRead = pc.sinks.filesRead
 	c.TrackInclude = pc.file.includes.v1()
 	c.Values = pc.file.values
+	c.Path = pc.file.path
 	c.Features = pc.file.features
 	c.Locals = pc.file.locals
 	c.Parser = pc.parserSettings()

@@ -1,6 +1,7 @@
 package hclparse_test
 
 import (
+	"maps"
 	"math/big"
 	"strings"
 	"testing"
@@ -191,6 +192,13 @@ func TestPartialEval(t *testing.T) {
 			hcl:      `val = "${[1, 2]}-${dependency.vpc.outputs.id}"`,
 			evalCtx:  buildEvalCtx(),
 			contains: []string{"${[1, 2]}", "${dependency.vpc.outputs.id}"},
+		},
+		{
+			name:     "for collection named as its iterator",
+			hcl:      `val = [for local in local.names : "${local}-${dependency.vpc.outputs.id}"]`,
+			evalCtx:  buildEvalCtx(),
+			contains: []string{`for local in ["a", "b"] :`, `"${local}-${dependency.vpc.outputs.id}"`},
+			excludes: []string{"local.names"},
 		},
 		{
 			name:     "parentheses pure inner",
@@ -1298,6 +1306,112 @@ func TestPartialEval_TemplateDirectives(t *testing.T) {
 			"a generate-time-knowable directive template resolves to its literal",
 		)
 	})
+}
+
+func TestPartialEval_ResolvesPathIncludeOfDeferredPath(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		hcl  string
+		want string
+	}{
+		{name: "attribute", hcl: `val = path.include`, want: `"/catalog/components.hcl"`},
+		{name: "index", hcl: `val = path["include"]`, want: `"/catalog/components.hcl"`},
+		{name: "other attribute", hcl: `val = path.unit`, want: `path.unit`},
+		{name: "whole object", hcl: `val = path`, want: `path`},
+		{
+			name: "template",
+			hcl:  `val = "${path.include}:${path.unit}"`,
+			want: `"/catalog/components.hcl:${path.unit}"`,
+		},
+		{
+			name: "iterator named path",
+			hcl:  `val = [for path in dependency.db.outputs.items : path.include]`,
+			want: `[for path in dependency.db.outputs.items : path.include]`,
+		},
+		{
+			name: "other iterator",
+			hcl:  `val = [for item in dependency.db.outputs.items : path.include]`,
+			want: `[for item in dependency.db.outputs.items : "/catalog/components.hcl"]`,
+		},
+		{
+			name: "collection of an iterator named path",
+			hcl:  `val = [for path in [path.include] : "${path}:${dependency.db.outputs.value}"]`,
+			want: `[for path in ["/catalog/components.hcl"] : "${path}:${dependency.db.outputs.value}"]`,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			expr, srcBytes := parseFirstAttrExpr(t, tc.hcl)
+
+			result, err := hclparse.PartialEval(expr, &hclparse.EvalArgs{
+				SrcBytes: srcBytes,
+				EvalCtx:  pathEvalCtx(map[string]cty.Value{"include": cty.StringVal("/catalog/components.hcl")}),
+				Deferred: pathDeferred,
+			})
+			require.NoError(t, err)
+
+			assert.Equal(t, tc.want, string(result))
+		})
+	}
+}
+
+func TestPartialEval_PathIncludeOutsideIncludedFileReturnsTypedError(t *testing.T) {
+	t.Parallel()
+
+	expr, srcBytes := parseFirstAttrExpr(t, `val = path.include`)
+
+	_, err := hclparse.PartialEval(expr, &hclparse.EvalArgs{
+		SrcBytes: srcBytes,
+		EvalCtx:  pathEvalCtx(map[string]cty.Value{}),
+		Deferred: pathDeferred,
+	})
+
+	var unresolved hclparse.PartialEvalUnresolvedError
+
+	require.ErrorAs(t, err, &unresolved)
+}
+
+func TestIsPure_PathIncludeIsNotADeferredRead(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		hcl  string
+		want bool
+	}{
+		{name: "path.include", hcl: `val = path.include`, want: true},
+		{name: "path.unit", hcl: `val = path.unit`, want: false},
+		{name: "both", hcl: `val = "${path.include}:${path.unit}"`, want: false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			expr, _ := parseFirstAttrExpr(t, tc.hcl)
+
+			assert.Equal(t, tc.want, hclparse.IsPure(expr, pathDeferred))
+		})
+	}
+}
+
+// pathDeferred is the deferred roots of a unit autoinclude that keeps `path` for the generated unit.
+var pathDeferred = map[string]struct{}{
+	"dependency": {},
+	"path":       {},
+}
+
+// pathEvalCtx returns the eval context of a stack file whose `path` object holds path.stack and attrs.
+func pathEvalCtx(attrs map[string]cty.Value) *hcl.EvalContext {
+	path := map[string]cty.Value{"stack": cty.StringVal("/live")}
+	maps.Copy(path, attrs)
+
+	return &hcl.EvalContext{Variables: map[string]cty.Value{"path": cty.ObjectVal(path)}}
 }
 
 // buildEvalCtx creates an eval context with local.env = "production" and

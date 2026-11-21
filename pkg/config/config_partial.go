@@ -56,6 +56,8 @@ const (
 	TerraformExtraArgs
 	// OutputsBlock decodes the `outputs` block.
 	OutputsBlock
+	// moduleDirAttributes decodes the attributes that select the directory in which OpenTofu/Terraform runs.
+	moduleDirAttributes
 )
 
 // terragruntIncludeMultiple is a struct that can be used to only decode the include block with labels.
@@ -104,6 +106,20 @@ type terragruntTerraformSource struct {
 type terraformConfigSourceOnly struct {
 	Source *string  `hcl:"source,attr"`
 	Remain hcl.Body `hcl:",remain"`
+}
+
+// terragruntModuleDir decodes the attributes that select the module directory.
+type terragruntModuleDir struct {
+	Terraform   *terraformConfigModuleDir `hcl:"terraform,block"`
+	DownloadDir *string                   `hcl:"download_dir,attr"`
+	Remain      hcl.Body                  `hcl:",remain"`
+}
+
+// terraformConfigModuleDir decodes the module directory attributes of the terraform block.
+type terraformConfigModuleDir struct {
+	Source               *string  `hcl:"source,attr"`
+	NoDotTerragruntCache *bool    `hcl:"no_dot_terragrunt_cache,attr"`
+	Remain               hcl.Body `hcl:",remain"`
 }
 
 // TerraformSourceReferencesDependency reports whether the terraform block's `source` attribute references the
@@ -672,6 +688,7 @@ func TerragruntConfigFromPartialConfig(
 
 	// Fold the sibling autoinclude existence and content into the key so an in-process create, remove, or edit cannot return a stale entry, with the merge experiment-gated so the experiment-off key is byte-for-byte unchanged.
 	cacheKey += autoIncludeCacheKeySuffix(ctx, v, pctx, file.ConfigPath)
+	cacheKey += pathCacheKeySuffix(pctx)
 
 	terragruntConfigCache := cache.ContextCache[*TerragruntConfig](
 		ctx,
@@ -772,7 +789,10 @@ func PartialParseConfig(
 		)
 	}
 
-	pctx = pctx.WithTrackInclude(nil)
+	pctx, err := withPathVariable(ctx, l, v, pctx.WithTrackInclude(nil), file, includeFromChild)
+	if err != nil {
+		return nil, err
+	}
 
 	// read unit files and add to context
 	unitValues, err := ReadValues(ctx, l, v, pctx, filepath.Dir(file.ConfigPath))
@@ -1041,6 +1061,32 @@ func PartialParseConfig(
 
 			output.Outputs.Merge(decoded.Outputs)
 
+		case moduleDirAttributes:
+			if TerraformSourceReferencesDependency(file) {
+				return nil, TerraformSourceReferencesDependencyError{ConfigPath: file.ConfigPath}
+			}
+
+			if attr := moduleDirDependencyReference(file); attr != "" {
+				return nil, ModuleDirReferencesDependencyError{ConfigPath: file.ConfigPath, Attribute: attr}
+			}
+
+			decoded := terragruntModuleDir{}
+
+			if err := file.Decode(&decoded, evalParsingContext); err != nil {
+				return nil, err
+			}
+
+			if decoded.DownloadDir != nil {
+				output.DownloadDir = *decoded.DownloadDir
+			}
+
+			if decoded.Terraform != nil {
+				output.Terraform = &TerraformConfig{
+					Source:               decoded.Terraform.Source,
+					NoDotTerragruntCache: decoded.Terraform.NoDotTerragruntCache,
+				}
+			}
+
 		default:
 			return nil, InvalidPartialBlockName{decode}
 		}
@@ -1294,6 +1340,33 @@ func autoIncludeContentSuffix(fsys vfs.FS, autoIncludePath string) string {
 	}
 
 	return fmt.Sprintf("-autoinclude:%#v-%#v", true, content)
+}
+
+// moduleDirDependencyReference returns the module directory attribute of file that references a dependency, or "".
+func moduleDirDependencyReference(file *hclparse.File) string {
+	const noDotTerragruntCache = "no_dot_terragrunt_cache"
+
+	body, ok := file.Body.(*hclsyntax.Body)
+	if !ok {
+		return ""
+	}
+
+	if attr, found := body.Attributes[MetadataDownloadDir]; found && expressionReferencesDependency(attr.Expr) {
+		return MetadataDownloadDir
+	}
+
+	for _, block := range body.Blocks {
+		if block.Type != MetadataTerraform {
+			continue
+		}
+
+		attr, found := block.Body.Attributes[noDotTerragruntCache]
+		if found && expressionReferencesDependency(attr.Expr) {
+			return MetadataTerraform + "." + noDotTerragruntCache
+		}
+	}
+
+	return ""
 }
 
 // Custom error types

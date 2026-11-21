@@ -5,6 +5,7 @@ package configbridge
 
 import (
 	"context"
+	"path/filepath"
 
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
@@ -18,6 +19,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
+	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 )
 
@@ -53,6 +55,40 @@ func StackFuncFactory(
 
 	return func(stackDir string) (map[string]function.Function, error) {
 		return config.EarlyStackParseFunctions(ctx, l, v, pctx, stackDir)
+	}
+}
+
+// StackVarFactory returns a factory for the HCL variables the stack file in a stack dir evaluates with.
+func StackVarFactory(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	opts *options.TerragruntOptions,
+) inthclparse.StackVarFactory {
+	pctx := NewParsingContext(opts)
+
+	return func(stackDir string) (map[string]cty.Value, error) {
+		stackFile := filepath.Join(stackDir, config.DefaultStackFile)
+
+		scopedLogger, scopedPctx, err := pctx.WithConfigPath(l, stackFile)
+		if err != nil {
+			return nil, err
+		}
+
+		return config.TerragruntEvalVariables(ctx, scopedLogger, scopedPctx, stackFile, config.ParsedExposedInclude(v))
+	}
+}
+
+// StackDirArgs returns the dir-scoped function and variable factories for early stack discovery parsing.
+func StackDirArgs(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	opts *options.TerragruntOptions,
+) *inthclparse.StackDirArgs {
+	return &inthclparse.StackDirArgs{
+		FuncsFor: StackFuncFactory(ctx, l, v, opts),
+		VarsFor:  StackVarFactory(ctx, l, v, opts),
 	}
 }
 

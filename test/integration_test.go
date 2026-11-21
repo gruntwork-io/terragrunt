@@ -159,6 +159,14 @@ func TestHclvalidateDiagnostic(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHclvalidate)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureHclvalidate)
 
+	localsVariables := "local, include, feature, values"
+	if helpers.IsExperimentMode(t) {
+		localsVariables += ", path"
+	}
+
+	localsDetail := "Locals can only reference these variables: " + localsVariables +
+		". This expression references \"dependency\"."
+
 	expectedDiags := diagnostic.Diagnostics{
 		&diagnostic.Diagnostic{
 			Severity: diagnostic.DiagnosticSeverity(hcl.DiagError),
@@ -197,7 +205,7 @@ func TestHclvalidateDiagnostic(t *testing.T) {
 		&diagnostic.Diagnostic{
 			Severity: diagnostic.DiagnosticSeverity(hcl.DiagError),
 			Summary:  "Can't evaluate expression",
-			Detail:   "Locals can only reference these variables: local, include, feature, values. This expression references \"dependency\".",
+			Detail:   localsDetail,
 			Range: &diagnostic.Range{
 				Filename: filepath.Join(rootPath, "second/c/terragrunt.hcl"),
 				Start:    diagnostic.Pos{Line: 12, Column: 9, Byte: 149},
@@ -214,7 +222,7 @@ func TestHclvalidateDiagnostic(t *testing.T) {
 		&diagnostic.Diagnostic{
 			Severity: diagnostic.DiagnosticSeverity(hcl.DiagError),
 			Summary:  "Can't evaluate expression",
-			Detail:   "Locals can only reference these variables: local, include, feature, values. This expression references \"dependency\".",
+			Detail:   localsDetail,
 			Range: &diagnostic.Range{
 				Filename: filepath.Join(rootPath, "second/c/terragrunt.hcl"),
 				Start:    diagnostic.Pos{Line: 10, Column: 9, Byte: 117},

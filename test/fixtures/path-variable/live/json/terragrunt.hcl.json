@@ -1,0 +1,6 @@
+{
+  "inputs": {
+    "unit": "${path.unit}",
+    "indexed": "${path[\"unit\"]}"
+  }
+}

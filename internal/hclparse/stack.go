@@ -131,7 +131,7 @@ func componentBlocksSchema() *hcl.BodySchema {
 func expandComponentBlocks[T any, P expandedComponent[T]](
 	ctx context.Context,
 	blocks hcl.Blocks,
-	evalCtx *hcl.EvalContext,
+	contexts blockContexts,
 ) ([]P, error) {
 	var (
 		components []P
@@ -140,7 +140,7 @@ func expandComponentBlocks[T any, P expandedComponent[T]](
 	)
 
 	for _, block := range blocks {
-		instances, err := pkghclparse.ExpandBlock(ctx, block, new(T), evalCtx)
+		instances, err := pkghclparse.ExpandBlock(ctx, block, new(T), contexts.forBlock(block))
 		if err != nil {
 			if blockDiags, ok := errors.AsType[hcl.Diagnostics](err); ok {
 				diags = append(diags, blockDiags...)
@@ -181,13 +181,13 @@ func expandComponentBlocks[T any, P expandedComponent[T]](
 func decodeComponentPaths(
 	ctx context.Context,
 	blocks hcl.Blocks,
-	evalCtx *hcl.EvalContext,
+	contexts blockContexts,
 ) (*discoveryDecode, error) {
-	units, unitErr := expandComponentBlocks[unitPathOnlyHCL](ctx, blocks.OfType(blockUnit), evalCtx)
+	units, unitErr := expandComponentBlocks[unitPathOnlyHCL](ctx, blocks.OfType(blockUnit), contexts)
 	stacks, stackErr := expandComponentBlocks[stackPathOnlyHCL](
 		ctx,
 		blocks.OfType(blockStack),
-		evalCtx,
+		contexts,
 	)
 
 	return &discoveryDecode{Units: units, Stacks: stacks}, errors.Join(unitErr, stackErr)
@@ -389,10 +389,23 @@ const DefaultMaxStackRecursionDepth = 1000
 // exercise only literal attributes return an empty map.
 type StackFuncFactory func(stackDir string) (map[string]function.Function, error)
 
+// StackVarFactory builds the HCL variables the stack file in a given stack directory evaluates with.
+type StackVarFactory func(stackDir string) (map[string]cty.Value, error)
+
 // StackDirArgs bundles the shared arguments for nested-stack expansion.
 type StackDirArgs struct {
 	FuncsFor StackFuncFactory
+	VarsFor  StackVarFactory
 	MaxDepth int
+}
+
+// varsFor returns the variables for stackDir, or none when args sets no factory.
+func (args *StackDirArgs) varsFor(stackDir string) (map[string]cty.Value, error) {
+	if args.VarsFor == nil {
+		return nil, nil
+	}
+
+	return args.VarsFor(stackDir)
 }
 
 // maxDepth returns the recursion bound to enforce, falling back to
@@ -440,13 +453,13 @@ func UnitPathsFromStackDir(
 // DirectComponentPaths returns the generated on-disk paths of the direct enabled unit and
 // stack components declared in stackDir's terragrunt.stack.hcl, honoring
 // no_dot_terragrunt_stack. It does not recurse into nested stacks; an absent stack
-// file yields empty slices and a nil error without calling funcsFor. funcsFor must be
+// file yields empty slices and a nil error without calling args.FuncsFor. args.FuncsFor must be
 // non-nil and return a non-nil map.
 func DirectComponentPaths(
 	ctx context.Context,
 	fsys vfs.FS,
 	stackDir string,
-	funcsFor StackFuncFactory,
+	args *StackDirArgs,
 ) (unitPaths, stackPaths []string, err error) {
 	if fsys == nil {
 		panic(fmt.Sprintf("hclparse.DirectComponentPaths: fsys is nil (stackDir=%q)", stackDir))
@@ -456,7 +469,11 @@ func DirectComponentPaths(
 		panic("hclparse.DirectComponentPaths: stackDir is empty")
 	}
 
-	if funcsFor == nil {
+	if args == nil {
+		panic(fmt.Sprintf("hclparse.DirectComponentPaths: args is nil (stackDir=%q)", stackDir))
+	}
+
+	if args.FuncsFor == nil {
 		panic(fmt.Sprintf("hclparse.DirectComponentPaths: funcsFor is nil (stackDir=%q)", stackDir))
 	}
 
@@ -472,7 +489,7 @@ func DirectComponentPaths(
 		return nil, nil, nil
 	}
 
-	funcs, err := funcsFor(stackDir)
+	funcs, err := args.FuncsFor(stackDir)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -486,7 +503,12 @@ func DirectComponentPaths(
 		)
 	}
 
-	units, stacks, err := decodeDiscovery(ctx, fsys, stackDir, stackFile, data, funcs)
+	vars, err := args.varsFor(stackDir)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	units, stacks, err := decodeDiscovery(ctx, fsys, stackDir, stackFile, data, funcs, vars)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -558,7 +580,12 @@ func unitPathsFromStackDir(
 		)
 	}
 
-	units, stacks, err := decodeDiscovery(ctx, fsys, stackDir, stackFile, data, funcs)
+	vars, err := args.varsFor(stackDir)
+	if err != nil {
+		return nil, err
+	}
+
+	units, stacks, err := decodeDiscovery(ctx, fsys, stackDir, stackFile, data, funcs, vars)
 	if err != nil {
 		return nil, err
 	}
@@ -627,6 +654,7 @@ func decodeDiscovery(
 	stackDir, stackFile string,
 	data []byte,
 	funcs map[string]function.Function,
+	vars map[string]cty.Value,
 ) ([]*unitPathOnlyHCL, []*stackPathOnlyHCL, error) {
 	parsedFile, err := parseStackFileRoot(data, stackFile)
 	if err != nil {
@@ -638,11 +666,13 @@ func decodeDiscovery(
 		Variables: map[string]cty.Value{},
 	}
 
+	maps.Copy(evalCtx.Variables, vars)
+
 	// Load the sibling terragrunt.values.hcl written by stack generation and publish it
 	// as the `values` variable, so locals (and unit/stack attributes) referencing
 	// values.* resolve during discovery exactly as they do in the full stack parse.
 	// An absent file leaves the variable unset, matching a stack that received no values.
-	values, err := readDiscoveryValues(fsys, stackDir, funcs)
+	values, err := readDiscoveryValues(fsys, stackDir, funcs, vars)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -659,7 +689,7 @@ func decodeDiscovery(
 
 	srcByFilename := map[string][]byte{stackFile: data}
 
-	mergedRemain, err := mergeIncludes(fsys, parsedFile, stackDir, evalCtx, srcByFilename)
+	mergedRemain, contexts, err := mergeIncludes(fsys, parsedFile, stackDir, evalCtx, srcByFilename)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -669,7 +699,7 @@ func decodeDiscovery(
 		return nil, nil, FileDecodeError{Name: stackFile, Err: diags}
 	}
 
-	decoded, err := decodeComponentPaths(ctx, content.Blocks, evalCtx)
+	decoded, err := decodeComponentPaths(ctx, content.Blocks, contexts)
 	if err != nil {
 		return nil, nil, FileDecodeError{Name: stackFile, Err: err}
 	}
@@ -717,6 +747,7 @@ func readDiscoveryValues(
 	fsys vfs.FS,
 	stackDir string,
 	funcs map[string]function.Function,
+	vars map[string]cty.Value,
 ) (*cty.Value, error) {
 	valuesPath := filepath.Join(stackDir, valuesFileName)
 
@@ -738,6 +769,8 @@ func readDiscoveryValues(
 		Functions: funcs,
 		Variables: map[string]cty.Value{},
 	}
+
+	maps.Copy(evalCtx.Variables, vars)
 
 	// Decoding into a map evaluates every top-level attribute and rejects blocks,
 	// the same shape pkg/config's ReadValues decodes.
@@ -799,7 +832,7 @@ func mergeDiscoveryStackAutoInclude(
 		return FileDecodeError{Name: autoIncludePath, Err: diags}
 	}
 
-	autoDecoded, err := decodeComponentPaths(ctx, content.Blocks, evalCtx)
+	autoDecoded, err := decodeComponentPaths(ctx, content.Blocks, blockContexts{base: evalCtx})
 	if err != nil {
 		return FileDecodeError{Name: autoIncludePath, Err: err}
 	}

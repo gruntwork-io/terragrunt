@@ -755,6 +755,20 @@ func (err TerraformSourceReferencesDependencyError) Error() string {
 	)
 }
 
+// ModuleDirReferencesDependencyError reports a module directory attribute that references the `dependency` namespace.
+type ModuleDirReferencesDependencyError struct {
+	ConfigPath string
+	Attribute  string
+}
+
+func (err ModuleDirReferencesDependencyError) Error() string {
+	return fmt.Sprintf(
+		"%s in %s cannot reference dependency outputs when path.module is read; the module directory must be resolvable before dependencies are evaluated",
+		err.Attribute,
+		err.ConfigPath,
+	)
+}
+
 // ExcludeReferencesDependencyError is returned when an `exclude` block references the `dependency` namespace.
 // Discovery evaluates exclude blocks to build the run queue before any dependency has run, so the reference can
 // never be satisfied there.

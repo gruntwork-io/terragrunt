@@ -1230,6 +1230,40 @@ variables {
 	}
 }
 
+func TestParityPathVariable(t *testing.T) {
+	t.Parallel()
+
+	fixtures := loadFixtures(t, []string{"path-variable"}, map[string]struct{}{
+		"path-variable/module/dependency":           {},
+		"path-variable/stack/units":                 {},
+		"path-variable/stack-include/catalog/units": {},
+	})
+	require.NotEmpty(t, fixtures.configs)
+
+	for _, fixture := range fixtures.configs {
+		t.Run(fixture.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := assertParity(t, parityCase{
+				newFS:   fixtures.newFS,
+				cfgPath: fixture.path,
+				configure: func(pctx *pkgconfig.ParsingContext) {
+					pctx.SkipOutput = true
+					pctx.OriginalTofuCommand = "plan"
+					pctx.OriginalTerragruntConfigPath = fixture.path
+
+					require.NoError(t, pctx.Experiments.EnableExperiment(experiment.PathVariable))
+					require.NoError(t, pctx.Experiments.EnableExperiment(experiment.NoDotTerragruntCache))
+				},
+			})
+
+			require.NoError(t, result.toV1Err)
+			require.NotNil(t, result.cfg)
+			assert.NotEmpty(t, result.cfg.Inputs)
+		})
+	}
+}
+
 func TestParityMergedIncludeLocals(t *testing.T) {
 	t.Parallel()
 
