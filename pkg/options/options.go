@@ -212,8 +212,6 @@ type TerragruntOptions struct {
 	ScaffoldNoIncludeRoot bool
 	// Enable check mode, by default it's disabled.
 	Check bool
-	// Enables caching of includes during partial parsing operations.
-	UsePartialParseConfigCache bool
 	// True if is required to show dependent units and confirm action
 	CheckDependentUnits bool
 	// True if is required to check for dependent modules during destroy operations

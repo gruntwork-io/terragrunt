@@ -112,7 +112,6 @@ type ParsingContext struct {
 	CheckDependentUnits bool
 
 	NoDependencyFetchOutputFromState bool
-	UsePartialParseConfigCache       bool
 	SkipOutputsResolution            bool
 	NoStackValidate                  bool
 	NoCAS                            bool

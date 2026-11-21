@@ -1019,7 +1019,6 @@ inputs = {
 `), 0644))
 
 	ctx, pctx := newTestParsingContext(t, cfgPath)
-	pctx.UsePartialParseConfigCache = true
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctx = pctx.WithDecodeList(config.DependencyBlock, config.RemoteStateBlock).
 		WithSkipOutputsResolution()
@@ -1107,7 +1106,6 @@ inputs = {
 			require.NoError(t, vfs.WriteFile(v.FS, autoIncludePath, autoIncludeRemoteStateHCL("first"), 0644))
 
 			ctx, pctx := newTestParsingContext(t, cfgPath)
-			pctx.UsePartialParseConfigCache = true
 			pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 			pctx = pctx.WithDecodeList(config.RemoteStateBlock).WithSkipOutputsResolution()
 

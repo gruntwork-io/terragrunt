@@ -97,7 +97,6 @@ var parsingContextFieldsOutsideKey = map[string]string{
 	"StrictControls":  sameForCommand,
 	"AmbiguousConfigCheck": "it only decides whether a directory holding both default unit configs fails the " +
 		"read, and failed reads aren't cached",
-	"UsePartialParseConfigCache":       "it chooses whether partial parses are cached, not what they return",
 	"ScaffoldRootFileName":             "only catalog scaffolding reads it",
 	"ProviderCacheOptions":             "parsing doesn't read it",
 	"NoStackValidate":                  "only stack files read it, and they aren't cached",

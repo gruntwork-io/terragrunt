@@ -76,7 +76,6 @@ func populateFromOpts(pctx *config.ParsingContext, opts *options.TerragruntOptio
 	pctx.LogDisableErrorSummary = opts.LogDisableErrorSummary
 	pctx.IAMRoleOptions = opts.IAMRoleOptions
 	pctx.OriginalIAMRoleOptions = opts.OriginalIAMRoleOptions
-	pctx.UsePartialParseConfigCache = opts.UsePartialParseConfigCache
 	pctx.MaxFoldersToCheck = opts.MaxFoldersToCheck
 	pctx.NoDependencyFetchOutputFromState = opts.NoDependencyFetchOutputFromState
 	pctx.SkipOutput = opts.SkipOutput

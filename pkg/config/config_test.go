@@ -2145,29 +2145,16 @@ func BenchmarkReadTerragruntConfig(b *testing.B) {
 	testDir := "../test"
 
 	fixtureDirs := []struct {
-		description          string
-		workingDir           string
-		usePartialParseCache bool
+		description string
+		workingDir  string
 	}{
 		{
-			"PartialParseBenchmarkRegressionCaching",
+			"PartialParseBenchmarkRegression",
 			"regressions/benchmark-parsing/production/deployment-group-1/webserver/terragrunt.hcl",
-			true,
 		},
 		{
-			"PartialParseBenchmarkRegressionNoCache",
-			"regressions/benchmark-parsing/production/deployment-group-1/webserver/terragrunt.hcl",
-			false,
-		},
-		{
-			"PartialParseBenchmarkRegressionIncludesCaching",
+			"PartialParseBenchmarkRegressionIncludes",
 			"regressions/benchmark-parsing-includes/production/deployment-group-1/webserver/terragrunt.hcl",
-			true,
-		},
-		{
-			"PartialParseBenchmarkRegressionIncludesNoCache",
-			"regressions/benchmark-parsing-includes/production/deployment-group-1/webserver/terragrunt.hcl",
-			false,
 		},
 	}
 
@@ -2182,7 +2169,6 @@ func BenchmarkReadTerragruntConfig(b *testing.B) {
 			l := createLogger()
 			v := venvtest.NewWithOSFS()
 			_, pctx := newTestParsingContext(b, workingDir)
-			pctx.UsePartialParseConfigCache = fixture.usePartialParseCache
 			s := new(config.Store)
 
 			b.ResetTimer()

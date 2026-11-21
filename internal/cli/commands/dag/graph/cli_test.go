@@ -27,29 +27,16 @@ func BenchmarkRunGraphDependencies(b *testing.B) {
 	testDir := "../../../../../test/fixtures"
 
 	fixtureDirs := []struct {
-		description          string
-		workingDir           string
-		usePartialParseCache bool
+		description string
+		workingDir  string
 	}{
 		{
-			"PartialParseBenchmarkRegressionCaching",
+			"PartialParseBenchmarkRegression",
 			"regressions/benchmark-parsing/production/deployment-group-1/webserver/terragrunt.hcl",
-			true,
 		},
 		{
-			"PartialParseBenchmarkRegressionNoCache",
-			"regressions/benchmark-parsing/production/deployment-group-1/webserver/terragrunt.hcl",
-			false,
-		},
-		{
-			"PartialParseBenchmarkRegressionIncludesCaching",
+			"PartialParseBenchmarkRegressionIncludes",
 			"regressions/benchmark-parsing-includes/production/deployment-group-1/webserver/terragrunt.hcl",
-			true,
-		},
-		{
-			"PartialParseBenchmarkRegressionIncludesNoCache",
-			"regressions/benchmark-parsing-includes/production/deployment-group-1/webserver/terragrunt.hcl",
-			false,
 		},
 	}
 
@@ -60,12 +47,6 @@ func BenchmarkRunGraphDependencies(b *testing.B) {
 			require.NoError(b, err)
 
 			terragruntOptions, err := options.NewTerragruntOptionsForTest(workingDir)
-			if fixture.usePartialParseCache {
-				terragruntOptions.UsePartialParseConfigCache = true
-			} else {
-				terragruntOptions.UsePartialParseConfigCache = false
-			}
-
 			require.NoError(b, err)
 
 			b.ResetTimer()
