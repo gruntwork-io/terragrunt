@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 )
 
 // Shape names a unit layout that [Write] can produce.
@@ -26,6 +27,11 @@ const DepsFanOut = 4
 
 // MaxUnits is the most units [Write] produces.
 const MaxUnits = 10_000
+
+// FileAge is how long before [Write] returns the modification time of every file it writes lies. Terragrunt re-reads
+// a config whose modification time is within a few seconds of the read to catch a rewrite the time can't show, which
+// files in a real repository are too old for.
+const FileAge = time.Hour
 
 const (
 	dirPermissions  = 0o755
@@ -100,7 +106,8 @@ func UnitName(index int) string {
 	return "unit-" + strconv.Itoa(index)
 }
 
-// Write creates dir and fills it with a root.hcl and the given number of units laid out as shape.
+// Write creates dir and fills it with a root.hcl and the given number of units laid out as shape. Every file it writes
+// is [FileAge] old.
 //
 // Returns [ErrUnknownShape] when shape is not a declared constant, and [ErrUnitCount] when units is
 // outside 1 to [MaxUnits].
@@ -113,7 +120,9 @@ func Write(dir string, shape Shape, units int) error {
 		return err
 	}
 
-	if err := os.WriteFile(filepath.Join(dir, "root.hcl"), []byte(rootConfig), filePermissions); err != nil {
+	modTime := time.Now().Add(-FileAge)
+
+	if err := writeFile(filepath.Join(dir, "root.hcl"), rootConfig, modTime); err != nil {
 		return err
 	}
 
@@ -129,16 +138,25 @@ func Write(dir string, shape Shape, units int) error {
 			return err
 		}
 
-		if err := os.WriteFile(filepath.Join(unitDir, "terragrunt.hcl"), []byte(config), filePermissions); err != nil {
+		if err := writeFile(filepath.Join(unitDir, "terragrunt.hcl"), config, modTime); err != nil {
 			return err
 		}
 
-		if err := os.WriteFile(filepath.Join(unitDir, "main.tf"), []byte(unitModule), filePermissions); err != nil {
+		if err := writeFile(filepath.Join(unitDir, "main.tf"), unitModule, modTime); err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+// writeFile writes content to the file at path and sets its access and modification times to modTime.
+func writeFile(path, content string, modTime time.Time) error {
+	if err := os.WriteFile(path, []byte(content), filePermissions); err != nil {
+		return err
+	}
+
+	return os.Chtimes(path, modTime, modTime)
 }
 
 // unitConfig returns the terragrunt.hcl content of the unit at index.

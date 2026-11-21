@@ -64,7 +64,7 @@ func (c *UnitConfig) newDependencySet(
 		evalCtx = dependencyBlockContext(pctx, c.evalContext(fns, pctx))
 	}
 
-	own, err := s.decodeOwnDependencies(ctx, l, v, pc, file, evalCtx)
+	own, err := s.decodeOwnDependencies(ctx, l, v, pc, pctx, file, evalCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -235,7 +235,7 @@ func failedDependencyValue(value *cty.Value) *cty.Value {
 }
 
 // decodeOwnDependencies decodes the dependency blocks of file, which pc parses, with evalCtx and folds in those of its
-// sibling autoinclude.
+// sibling autoinclude. pctx is the parsing context of pc, which the caller has already built.
 //
 // Returns [DependencyInvalidConfigPathError] when an enabled block has no usable config_path, unless pc skips
 // outputs.
@@ -244,11 +244,10 @@ func (s *Store) decodeOwnDependencies(
 	l log.Logger,
 	v *venv.Venv,
 	pc *ParseContext,
+	pctx *ParsingContext,
 	file *hclparse.File,
 	evalCtx *hcl.EvalContext,
 ) (Dependencies, error) {
-	pctx := pc.parsingContext()
-
 	dependencies, err := DecodeDependencyBlocks(ctx, l, v, pctx, file, evalCtx)
 	if err != nil {
 		return nil, err
