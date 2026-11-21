@@ -163,7 +163,7 @@ type OutputsHCL struct {
 
 // MockStrategyHCL is the mock_strategy block of an outputs block.
 type MockStrategyHCL struct {
-	AllowedCommands *[]string                    `hcl:"allowed_commands,attr"`
+	AllowedCommands *[]string          `hcl:"allowed_commands,attr"`
 	MergeWithState  *MergeStrategyType `hcl:"merge_with_state,attr"`
 }
 

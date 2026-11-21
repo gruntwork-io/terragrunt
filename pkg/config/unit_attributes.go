@@ -6,7 +6,6 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
-
 )
 
 // The top-level attributes that [ParseConfig] decodes after it resolves the dependency outputs, so each

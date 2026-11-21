@@ -1,4 +1,18 @@
-// Package config provides functionality for parsing Terragrunt configuration files.
+// Package config parses Terragrunt configuration files.
+//
+// A [Store] parses unit configs. It decodes each file into block structs of its own and converts them to a
+// [TerragruntConfig]. A parse fetches no dependency outputs: it decodes the parts that read no `dependency` value,
+// which [QueueBodies] names, and keeps the rest. [UnitConfig.ToV1] fetches the outputs and decodes the parts that read
+// them, which [RunBodies] names, including an exclude block that reads `dependency`. Every part evaluates once, and
+// nothing a parse produced changes afterwards.
+//
+// The engine block is the one part of both: a parse decodes it with `dependency` unknown, as discovery needs it, and
+// ToV1 decodes it again with the outputs.
+//
+// The Store shares a file's syntax tree across the units that include it, and shares a unit's parse with the callers
+// that wait on it while it runs. Which parts of a caller's context a memoized stage depends on is the contract of the
+// run digest in store_profile.go. A memoized result holds nothing of its caller's: each stage takes the settings and
+// sinks of a [ParseContext], and assembles a [TerragruntConfig] of the caller's own, which the merges change in place.
 package config
 
 import (
@@ -1157,12 +1171,12 @@ func (include *IncludeConfig) String() string {
 		return "IncludeConfig{nil}"
 	}
 
-	exposeStr := "nil"
+	exposeStr := nilText
 	if include.Expose != nil {
 		exposeStr = strconv.FormatBool(*include.Expose)
 	}
 
-	mergeStrategyStr := "nil"
+	mergeStrategyStr := nilText
 	if include.MergeStrategy != nil {
 		mergeStrategyStr = fmt.Sprintf("%v", include.MergeStrategy)
 	}
@@ -1738,12 +1752,12 @@ func ParseConfigFile(
 	hclCache := cache.ContextCache[*CachedHCLFile](ctx, HclCacheContextKey)
 
 	// Build cache key components before tracing to determine cache hit status
-	childKey := "nil"
+	childKey := nilText
 	if includeFromChild != nil {
 		childKey = includeFromChild.String()
 	}
 
-	decodeListKey := "nil"
+	decodeListKey := nilText
 	if pctx.PartialParseDecodeList != nil {
 		decodeListKey = fmt.Sprintf("%v", pctx.PartialParseDecodeList)
 	}

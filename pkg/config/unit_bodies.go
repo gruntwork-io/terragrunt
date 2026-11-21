@@ -8,7 +8,6 @@ import (
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hcldec"
 	"github.com/zclconf/go-cty/cty"
-
 )
 
 // QueueBodies is the parts of a [UnitConfig] beyond its tagged fields that discovery reads, decoded. The parse

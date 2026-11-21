@@ -32,7 +32,7 @@ import (
 )
 
 const (
-	fixturesDir = "../../../test/fixtures"
+	fixturesDir = "../../test/fixtures"
 	// maxErrorTreeNodes caps the walk of an error tree.
 	maxErrorTreeNodes = 10000
 	// maxFixtureFiles caps the files a fixture tree may hold.

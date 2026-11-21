@@ -237,10 +237,13 @@ func (pc *ParseContext) incrementDepth() (*ParseContext, error) {
 	return &c, nil
 }
 
+// nilText is how a digest, a cache key, or a String method renders a nil value.
+const nilText = "nil"
+
 // formatBoolPtr renders p for a digest, telling nil from false.
 func formatBoolPtr(p *bool) string {
 	if p == nil {
-		return "nil"
+		return nilText
 	}
 
 	return strconv.FormatBool(*p)
@@ -249,7 +252,7 @@ func formatBoolPtr(p *bool) string {
 // formatStringPtr renders p for a digest, telling nil from the empty string.
 func formatStringPtr(p *string) string {
 	if p == nil {
-		return "nil"
+		return nilText
 	}
 
 	return strconv.Quote(*p)
