@@ -181,7 +181,7 @@ func TestHCLUnknownFunctionSuggestsAFunctionOfAnyContext(t *testing.T) {
 	}{
 		{name: "bound to the parse", call: "get_terragrunt_dri()", want: "get_terragrunt_dir"},
 		{name: "shared Terragrunt function", call: "get_default_retryable_error()", want: "get_default_retryable_errors"},
-		{name: "OpenTofu function", call: `uper("a")`, want: "upper"},
+		{name: "OpenTofu function", call: `uppr("a")`, want: "upper"},
 	}
 
 	for _, tc := range testCases {
