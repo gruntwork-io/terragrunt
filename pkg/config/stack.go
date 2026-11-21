@@ -10,6 +10,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -37,6 +38,7 @@ import (
 	"github.com/hashicorp/hcl/v2/hclwrite"
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/valuesblock"
 
 	"github.com/zclconf/go-cty/cty"
 
@@ -57,6 +59,7 @@ const (
 // StackConfigFile represents the structure of terragrunt.stack.hcl stack file.
 type StackConfigFile struct {
 	Locals      *terragruntLocal    `hcl:"locals,block"`
+	Values      *valuesBlockHeader  `hcl:"values,block"`
 	Includes    []*StackIncludeFile `hcl:"include,block"`
 	StackBlocks []componentHeader   `hcl:"stack,block"`
 	UnitBlocks  []componentHeader   `hcl:"unit,block"`
@@ -81,9 +84,14 @@ type StackIncludeFile struct {
 
 // StackConfig represents the structure of terragrunt.stack.hcl stack file.
 type StackConfig struct {
+	// Locals is the evaluated locals block.
 	Locals map[string]any
+	// Values is what [ReadValues] returns for the file.
+	Values *cty.Value
+	// Stacks is the stack blocks, with those of includes and the stack autoinclude merged in.
 	Stacks []*Stack
-	Units  []*Unit
+	// Units is the unit blocks, with those of includes and the stack autoinclude merged in.
+	Units []*Unit
 }
 
 // Unit represents unit from a stack file.
@@ -101,6 +109,8 @@ type Unit struct {
 	Name                string     `hcl:",label"`
 	Source              string     `hcl:"source,attr"`
 	Path                string     `hcl:"path,attr"`
+
+	supply valuesSupply
 }
 
 // IsEnabled reports whether this unit is present at all. Omitting enabled keeps the unit,
@@ -141,6 +151,8 @@ type Stack struct {
 	Name                string     `hcl:",label"`
 	Source              string     `hcl:"source,attr"`
 	Path                string     `hcl:"path,attr"`
+
+	supply valuesSupply
 }
 
 // IsEnabled reports whether this stack is present at all. Omitting enabled keeps the
@@ -178,12 +190,7 @@ func GenerateStackFile(
 ) error {
 	stackSourceDir := filepath.Dir(stackFilePath)
 
-	values, err := ReadValues(ctx, l, v, s, pctx, stackSourceDir)
-	if err != nil {
-		return fmt.Errorf("failed to read values from directory %s: %w", stackSourceDir, err)
-	}
-
-	stackFile, err := ReadStackConfigFile(ctx, l, v, s, pctx, stackFilePath, values)
+	stackFile, err := ReadStackConfigFile(ctx, l, v, s, pctx, stackFilePath)
 	if err != nil {
 		return fmt.Errorf(
 			"failed to read stack file %s in %s %w",
@@ -205,7 +212,6 @@ func GenerateStackFile(
 		pctx,
 		stackFilePath,
 		stackFile,
-		values,
 	)
 	if err != nil {
 		return err
@@ -248,6 +254,9 @@ func GenerateStackFile(
 		casOffline:      pctx.CASOffline,
 		casInstance:     cs.Instance,
 		strictControls:  pctx.StrictControls,
+		experiments:     pctx.Experiments,
+		parserOpts:      pctx.ParserOptions(l, v),
+		diagsMu:         new(sync.Mutex),
 		// One getter per stack, so every component shares its credential resolution.
 		ociGetter: getter.NewOCIGetter(l, v),
 	}
@@ -283,9 +292,8 @@ func StackAutoIncludes(
 	pctx *ParsingContext,
 	stackFilePath string,
 	stackFile *StackConfig,
-	values *cty.Value,
 ) (map[string]*inthclparse.AutoIncludeResolved, error) {
-	autoIncludes, _, err := resolveStackAutoIncludes(ctx, l, v, s, pctx, stackFilePath, stackFile, values)
+	autoIncludes, _, err := resolveStackAutoIncludes(ctx, l, v, s, pctx, stackFilePath, stackFile)
 
 	return autoIncludes, err
 }
@@ -302,7 +310,6 @@ func resolveStackAutoIncludes(
 	pctx *ParsingContext,
 	stackFilePath string,
 	stackFile *StackConfig,
-	values *cty.Value,
 ) (map[string]*inthclparse.AutoIncludeResolved, []byte, error) {
 	if !stackConfigHasAutoInclude(stackFile) {
 		return nil, nil, nil
@@ -378,7 +385,7 @@ func resolveStackAutoIncludes(
 			Src:              stackSrcBytes,
 			Filename:         filepath.Base(stackFilePath),
 			StackDir:         stackSourceDir,
-			Values:           values,
+			Values:           stackFile.Values,
 			Variables:        prodEvalCtx.Variables,
 			Functions:        earlyFuncs,
 			OverrideSrc:      overrideSrc,
@@ -539,7 +546,10 @@ type generateOpts struct {
 	casInstance     *cas.CAS
 	ociGetter       *getter.OCIGetter
 	sourceMap       map[string]string
+	diagsMu         *sync.Mutex
 	strictControls  strict.Controls
+	experiments     experiment.Experiments
+	parserOpts      []hclparse.Option
 	rootWorkingDir  string
 	stackConfigPath string
 	sourceFile      string
@@ -579,6 +589,7 @@ func generateUnits(
 				path:         unit.Path,
 				source:       unit.Source,
 				values:       unit.Values,
+				supply:       unit.supply,
 				noStack:      unit.NoStack != nil && *unit.NoStack,
 				noValidation: unit.NoValidation != nil && *unit.NoValidation,
 				mutable:      unit.Mutable != nil && *unit.Mutable,
@@ -637,6 +648,7 @@ func generateStacks(
 				noValidation: stack.NoValidation != nil && *stack.NoValidation,
 				mutable:      stack.Mutable != nil && *stack.Mutable,
 				values:       stack.Values,
+				supply:       stack.supply,
 				kind:         stackKind,
 			}
 
@@ -681,6 +693,7 @@ type componentToGenerate struct {
 	address      string
 	path         string
 	source       string
+	supply       valuesSupply
 	noStack      bool
 	noValidation bool
 	mutable      bool
@@ -882,11 +895,98 @@ func generateComponent(
 		return err
 	}
 
+	if err := checkSuppliedValues(v, opts, cmp, dest); err != nil {
+		return err
+	}
+
 	if err := writeValues(l, v.FS, cmp.values, dest); err != nil {
 		return fmt.Errorf("failed to write values for %s %s: %w", kindStr, cmp.address, err)
 	}
 
 	return generateAutoInclude(l, v, opts, cmp, dest)
+}
+
+// checkSuppliedValues resolves the values cmp sets against the values block of the config generated to dest.
+//
+// Reports a diagnostic, through the file whose block sets the values, for each key the block does not declare, each
+// value that does not convert to its type, and each required value cmp does not set.
+//
+// Checks nothing when the config at dest declares no values block, when the values are not yet known, or when cmp
+// sets no values and dest has a terragrunt.values.hcl of its own.
+func checkSuppliedValues(v *venv.Venv, opts *generateOpts, cmp *componentToGenerate, dest string) error {
+	if !opts.experiments.Evaluate(experiment.ValuesBlock) {
+		return nil
+	}
+
+	unset := cmp.values == nil || cmp.values.IsNull()
+
+	if !unset && !cmp.values.IsWhollyKnown() {
+		return nil
+	}
+
+	if unset && vfs.IsFile(v.FS, filepath.Join(dest, valuesFile)) {
+		return nil
+	}
+
+	opts.diagsMu.Lock()
+	defer opts.diagsMu.Unlock()
+
+	decls, err := declaredValues(v, opts, cmp, dest)
+	if err != nil || decls == nil {
+		return err
+	}
+
+	supplied := valuesblock.NothingSupplied(cmp.supply.defRange)
+	if cmp.values != nil {
+		supplied = valuesblock.SuppliedByExpr(*cmp.values, cmp.supply.expr)
+	}
+
+	kind := valuesblock.KindUnit
+	if cmp.kind == stackKind {
+		kind = valuesblock.KindStack
+	}
+
+	_, diags := decls.Resolve(supplied, valuesblock.Component{
+		Kind:     kind,
+		Address:  cmp.address,
+		Location: redact.NewURL(cmp.source).String(),
+	})
+
+	return cmp.supply.file.HandleDiagnostics(diags)
+}
+
+// declaredValues returns the values block of the config generated to dest, or nil when dest holds no config or its
+// config has no values block.
+func declaredValues(
+	v *venv.Venv,
+	opts *generateOpts,
+	cmp *componentToGenerate,
+	dest string,
+) (*valuesblock.Declarations, error) {
+	target := filepath.Join(dest, DefaultStackFile)
+	if cmp.kind == unitKind {
+		target = GetDefaultConfigPath(v.FS, dest)
+	}
+
+	if !vfs.IsFile(v.FS, target) {
+		return nil, nil
+	}
+
+	file, err := hclparse.NewParser(opts.parserOpts...).ParseFromFile(v.FS, target)
+	if err != nil {
+		return nil, err
+	}
+
+	decls, diags := valuesblock.Decode(file.Body)
+	if decls == nil {
+		return nil, nil
+	}
+
+	if err := file.HandleDiagnostics(diags); err != nil {
+		return nil, err
+	}
+
+	return decls, nil
 }
 
 // fetchComponentSource copies a component from its cas:: tree, the CAS when enabled, or the standard getter.
@@ -1456,7 +1556,6 @@ func ReadStackConfigFile(
 	s *Store,
 	pctx *ParsingContext,
 	filePath string,
-	values *cty.Value,
 ) (*StackConfig, error) {
 	l.Debugf("Reading Terragrunt stack config file at %s", filePath)
 
@@ -1470,10 +1569,10 @@ func ReadStackConfigFile(
 		return nil, err
 	}
 
-	return ParseStackConfig(ctx, l, v, s, stackPctx, file, values)
+	return ParseStackConfig(ctx, l, v, s, stackPctx, file)
 }
 
-// ReadStackConfigString reads and parses a Terragrunt stack configuration from a string.
+// ReadStackConfigString reads and parses a Terragrunt stack configuration from a string, as the stack file at cfgPath.
 func ReadStackConfigString(
 	ctx context.Context,
 	l log.Logger,
@@ -1482,22 +1581,18 @@ func ReadStackConfigString(
 	pctx *ParsingContext,
 	cfgPath string,
 	configString string,
-	values *cty.Value,
 ) (*StackConfig, error) {
-	if values != nil {
-		pctx = pctx.WithValues(values)
-	}
-
 	hclFile, err := pctx.NewParser(l, v).
 		ParseFromString(configString, cfgPath)
 	if err != nil {
 		return nil, err
 	}
 
-	return ParseStackConfig(ctx, l, v, s, pctx, hclFile, values)
+	return ParseStackConfig(ctx, l, v, s, pctx, hclFile)
 }
 
-// ParseStackConfig parses the stack configuration from the given file and values.
+// ParseStackConfig parses the stack configuration from the given file, evaluated with the values [ReadValues] returns
+// for it. When there are none, the file is evaluated with the values of parser.
 func ParseStackConfig(
 	ctx context.Context,
 	l log.Logger,
@@ -1505,8 +1600,12 @@ func ParseStackConfig(
 	s *Store,
 	parser *ParsingContext,
 	file *hclparse.File,
-	values *cty.Value,
 ) (*StackConfig, error) {
+	values, err := ReadValues(ctx, l, v, s, parser, file, fileRole(file))
+	if err != nil {
+		return nil, err
+	}
+
 	if values != nil {
 		parser = parser.WithValues(values)
 	}
@@ -1602,6 +1701,7 @@ func ParseStackConfig(
 
 	stackConfig := &StackConfig{
 		Locals: localsParsed,
+		Values: values,
 		Stacks: config.Stacks,
 		Units:  config.Units,
 	}
@@ -1843,7 +1943,7 @@ func decodeComponents(
 	file *hclparse.File,
 	evalCtx *hcl.EvalContext,
 ) ([]*Unit, []*Stack, error) {
-	units, err := decodeUnitBlocks(ctx, file, evalCtx)
+	units, err := decodeComponentBlocks(ctx, file, MetadataUnit, &Unit{}, evalCtx)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1853,7 +1953,7 @@ func decodeComponents(
 		return nil, nil, err
 	}
 
-	stacks, err := decodeStackBlocks(ctx, file, evalCtx)
+	stacks, err := decodeComponentBlocks(ctx, file, MetadataStack, &Stack{}, evalCtx)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1866,90 +1966,107 @@ func decodeComponents(
 	return units, stacks, nil
 }
 
-// decodeUnitBlocks decodes a stack file's unit blocks, returning one Unit per iteration
-// element. A block that declares no expansion yields a single Unit.
-func decodeUnitBlocks(
+// decodeComponentBlocks decodes a stack file's blockType blocks into values of the type of out, returning one value
+// per iteration element. A block that declares no expansion yields a single value.
+func decodeComponentBlocks[C valuesComponent](
 	ctx context.Context,
 	file *hclparse.File,
+	blockType string,
+	out C,
 	evalContext *hcl.EvalContext,
-) ([]*Unit, error) {
-	instances, err := file.ExpandBlocks(ctx, MetadataUnit, &Unit{}, evalContext)
+) ([]C, error) {
+	instances, err := file.ExpandBlocks(ctx, blockType, out, evalContext)
 	if err != nil {
 		return nil, err
 	}
 
-	units := make([]*Unit, 0, len(instances))
+	components := make([]C, 0, len(instances))
 
 	for _, instance := range instances {
-		unit, ok := instance.Value.(*Unit)
+		component, ok := instance.Value.(C)
 		if !ok {
 			panic(fmt.Sprintf(
-				"ExpandBlocks returned %T for a unit block, but it decodes into the type it is given",
+				"ExpandBlocks returned %T for a %s block, but it decodes into the type it is given",
 				instance.Value,
+				blockType,
 			))
 		}
 
-		if unit.Expansion != nil {
-			unit.Expansion.InstanceKey = instance.InstanceKey
+		supply, err := blockSupply(file, instance.Block)
+		if err != nil {
+			return nil, err
 		}
 
-		units = append(units, unit)
+		component.setInstance(instance.InstanceKey, &supply)
+
+		components = append(components, component)
 	}
 
-	return units, nil
-}
-
-// decodeStackBlocks decodes a stack file's stack blocks, returning one Stack per iteration
-// element. A block that declares no expansion yields a single Stack.
-func decodeStackBlocks(
-	ctx context.Context,
-	file *hclparse.File,
-	evalContext *hcl.EvalContext,
-) ([]*Stack, error) {
-	instances, err := file.ExpandBlocks(ctx, MetadataStack, &Stack{}, evalContext)
-	if err != nil {
-		return nil, err
-	}
-
-	stacks := make([]*Stack, 0, len(instances))
-
-	for _, instance := range instances {
-		stack, ok := instance.Value.(*Stack)
-		if !ok {
-			panic(fmt.Sprintf(
-				"ExpandBlocks returned %T for a stack block, but it decodes into the type it is given",
-				instance.Value,
-			))
-		}
-
-		if stack.Expansion != nil {
-			stack.Expansion.InstanceKey = instance.InstanceKey
-		}
-
-		stacks = append(stacks, stack)
-	}
-
-	return stacks, nil
+	return components, nil
 }
 
 // componentValues is the values one unit or stack instance sets, with where they were set.
 type componentValues struct {
-	values     *cty.Value
-	blockLabel string
-	address    string
+	values  *cty.Value
+	expr    hcl.Expression
+	address string
+}
+
+// valuesSupply is where a unit or stack block sets its values.
+type valuesSupply struct {
+	// file is the stack file, stack include or stack autoinclude the block was decoded from.
+	file *hclparse.File
+	// expr is the values attribute of the block, or nil when the block sets no values.
+	expr hcl.Expression
+	// defRange is the header of the block.
+	defRange hcl.Range
+}
+
+// blockSupply returns where block, a unit or stack block of file, sets its values.
+func blockSupply(file *hclparse.File, block *hcl.Block) (valuesSupply, error) {
+	attrs, _, diags := block.Body.PartialContent(&hcl.BodySchema{
+		Attributes: []hcl.AttributeSchema{{Name: MetadataValues}},
+	})
+	if err := file.HandleDiagnostics(diags); err != nil {
+		return valuesSupply{}, err
+	}
+
+	supply := valuesSupply{file: file, defRange: block.DefRange}
+	if attr, ok := attrs.Attributes[MetadataValues]; ok {
+		supply.expr = attr.Expr
+	}
+
+	return supply, nil
 }
 
 // valuesComponent is a unit or stack decoded from a stack file.
 type valuesComponent interface {
+	setInstance(key hclparse.InstanceKey, supply *valuesSupply)
 	valuesOf() componentValues
 }
 
+func (u *Unit) setInstance(key hclparse.InstanceKey, supply *valuesSupply) {
+	u.supply = *supply
+
+	if u.Expansion != nil {
+		u.Expansion.InstanceKey = key
+	}
+}
+
 func (u *Unit) valuesOf() componentValues {
-	return componentValues{values: u.Values, blockLabel: u.Name, address: componentAddress(u.Name, u.Expansion)}
+	return componentValues{values: u.Values, expr: u.supply.expr, address: componentAddress(u.Name, u.Expansion)}
+}
+
+func (s *Stack) setInstance(key hclparse.InstanceKey, supply *valuesSupply) {
+	s.supply = *supply
+
+	if s.Expansion != nil {
+		s.Expansion.InstanceKey = key
+	}
 }
 
 func (s *Stack) valuesOf() componentValues {
-	return componentValues{values: s.Values, blockLabel: s.Name, address: componentAddress(s.Name, s.Expansion)}
+	return componentValues{values: s.Values, expr: s.supply.expr, address: componentAddress(s.Name, s.Expansion)}
 }
 
 // withValidValuesKeys returns components, decoded from the blockType blocks of file, without those whose values set a
@@ -1991,11 +2108,6 @@ func valuesKeysValid(file *hclparse.File, blockType string, cv componentValues) 
 		return true, nil
 	}
 
-	expr, err := valuesExpr(file, blockType, cv.blockLabel)
-	if err != nil {
-		return false, err
-	}
-
 	diags := make(hcl.Diagnostics, 0, len(invalid))
 
 	for _, key := range invalid {
@@ -2010,7 +2122,7 @@ func valuesKeysValid(file *hclparse.File, blockType string, cv componentValues) 
 				key,
 				valuesFile,
 			),
-			Subject: objectKeyRange(expr, key).Ptr(),
+			Subject: valuesblock.KeyRange(cv.expr, key).Ptr(),
 		})
 	}
 
@@ -2038,40 +2150,6 @@ func valuesKeys(values *cty.Value) []string {
 	}
 
 	return keys
-}
-
-// valuesExpr returns the values expression of the blockType block labeled label in file.
-//
-// Panics when file has no such block setting values. A component that decoded values from file came from one.
-func valuesExpr(file *hclparse.File, blockType, label string) (hcl.Expression, error) {
-	content, _, diags := file.Body.PartialContent(&hcl.BodySchema{
-		Blocks: []hcl.BlockHeaderSchema{{Type: blockType, LabelNames: []string{"name"}}},
-	})
-	if diags.HasErrors() {
-		return nil, diags
-	}
-
-	for _, block := range content.Blocks {
-		if block.Labels[0] != label {
-			continue
-		}
-
-		attrs, _, diags := block.Body.PartialContent(&hcl.BodySchema{
-			Attributes: []hcl.AttributeSchema{{Name: MetadataValues}},
-		})
-		if diags.HasErrors() {
-			return nil, diags
-		}
-
-		attr, found := attrs.Attributes[MetadataValues]
-		if !found {
-			continue
-		}
-
-		return attr.Expr, nil
-	}
-
-	panic(fmt.Sprintf("no %s block labeled %q sets values in %s", blockType, label, file.ConfigPath))
 }
 
 // processStackConfigIncludes resolves include blocks during stack file parsing.
@@ -2113,6 +2191,10 @@ func processStackConfigIncludes(
 
 		if included.Locals != nil {
 			return fmt.Errorf("included stack file %q must not define locals", inc.Name)
+		}
+
+		if included.Values != nil {
+			return ValuesBlockInIncludeError{ConfigPath: includePath}
 		}
 
 		if len(included.Includes) > 0 {
@@ -2216,6 +2298,10 @@ func mergeStackAutoIncludeFile(
 
 	if included.Locals != nil {
 		return fmt.Errorf("stack autoinclude %q must not define locals", autoIncludePath)
+	}
+
+	if included.Values != nil {
+		return ValuesBlockInIncludeError{ConfigPath: autoIncludePath}
 	}
 
 	if len(included.Includes) > 0 {
@@ -2371,50 +2457,6 @@ func writeValues(l log.Logger, fsys vfs.FS, values *cty.Value, directory string)
 	}
 
 	return nil
-}
-
-// ReadValues reads values from the terragrunt.values.hcl file in the specified directory.
-func ReadValues(
-	ctx context.Context,
-	l log.Logger,
-	v *venv.Venv,
-	s *Store,
-	pctx *ParsingContext,
-	directory string,
-) (*cty.Value, error) {
-	if directory == "" {
-		return nil, errors.New("ReadValues: directory path cannot be empty")
-	}
-
-	filePath := filepath.Join(directory, valuesFile)
-
-	exists, err := vfs.FileExists(v.FS, filePath)
-	if err != nil {
-		return nil, err
-	}
-
-	if !exists {
-		return nil, nil
-	}
-
-	l.Debugf("Reading Terragrunt stack values file at %s", filePath)
-
-	file, err := pctx.NewParser(l, v).ParseFromFile(v.FS, filePath)
-	if err != nil {
-		return nil, err
-	}
-
-	evalParsingContext := evalContextWithoutIncludes(ctx, l, v, s, pctx, file.ConfigPath, file.FunctionCalls())
-
-	values := map[string]cty.Value{}
-
-	if err := file.Decode(&values, evalParsingContext); err != nil {
-		return nil, err
-	}
-
-	result := cty.ObjectVal(values)
-
-	return &result, nil
 }
 
 // evaluateStackLocals evaluates the locals block of the stack file as [EvaluateLocalsBlock] does for a unit config

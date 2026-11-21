@@ -91,7 +91,10 @@ stack "app" {
 
 			ctx, pctx := newTestParsingContext(t, valuesPath)
 
-			values, err := config.ReadValues(ctx, logger.CreateLogger(), v, new(config.Store), pctx, filepath.Dir(valuesPath))
+			l := logger.CreateLogger()
+			unit := emptyUnitConfig(t, l, v, pctx, filepath.Dir(valuesPath))
+
+			values, err := config.ReadValues(ctx, l, v, new(config.Store), pctx, unit, config.ComponentConfig)
 			require.NoError(t, err, name)
 			require.NotNil(t, values, name)
 			assert.Equal(t, map[string]cty.Value{normalized: cty.StringVal("v")}, values.AsValueMap(), name)

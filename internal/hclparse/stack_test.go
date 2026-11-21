@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
+	"github.com/hashicorp/hcl/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty/function"
@@ -328,6 +329,212 @@ func TestUnitPathsFromStackDir_MalformedValuesFileReturnsError(t *testing.T) {
 
 	var typed hclparse.FileParseError
 	require.ErrorAs(t, err, &typed)
+}
+
+// TestUnitPathsFromStackDir_ValuesBlockResolvesValues pins that discovery resolves the values file against the
+// stack's values block before it evaluates locals and component paths, as the full stack parse does.
+func TestUnitPathsFromStackDir_ValuesBlockResolvesValues(t *testing.T) {
+	t.Parallel()
+
+	const stackFile = `values {
+  value "regions" {
+    type    = set(string)
+    default = ["east", "west"]
+  }
+
+  value "shard" {
+    type    = number
+    default = 1
+  }
+}
+
+locals {
+  shard = values.shard
+}
+
+unit "vpc" {
+  expansion {
+    for_each = values.regions
+  }
+
+  source = "../units/vpc"
+  path   = "vpc/${each.key}-${local.shard}"
+}
+`
+
+	testCases := []struct {
+		files map[string]string
+		name  string
+		want  []string
+	}{
+		{
+			name:  "defaults only",
+			files: map[string]string{"terragrunt.stack.hcl": stackFile},
+			want:  []string{"vpc/east-1", "vpc/west-1"},
+		},
+		{
+			name: "converted value",
+			files: map[string]string{
+				"terragrunt.stack.hcl":  stackFile,
+				"terragrunt.values.hcl": `shard = "03"`,
+			},
+			want: []string{"vpc/east-3", "vpc/west-3"},
+		},
+		{
+			name: "supplied over default",
+			files: map[string]string{
+				"terragrunt.stack.hcl":  stackFile,
+				"terragrunt.values.hcl": `regions = ["north"]`,
+			},
+			want: []string{"vpc/north-1"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			fs := writeStackDir(t, "/test", tc.files)
+
+			paths, err := hclparse.UnitPathsFromStackDir(
+				t.Context(),
+				fs,
+				"/test",
+				&hclparse.StackDirArgs{FuncsFor: noFuncs},
+			)
+			require.NoError(t, err)
+
+			want := make([]string, 0, len(tc.want))
+			for _, path := range tc.want {
+				want = append(want, filepath.Join("/test", hclparse.StackDir, filepath.FromSlash(path)))
+			}
+
+			assert.ElementsMatch(t, want, paths)
+		})
+	}
+}
+
+// TestUnitPathsFromStackDir_ValuesBlockRejectsValues pins that discovery returns a [hclparse.FileDecodeError] for
+// values that do not resolve against the stack's values block, with the diagnostic in the file at fault.
+func TestUnitPathsFromStackDir_ValuesBlockRejectsValues(t *testing.T) {
+	t.Parallel()
+
+	const stackFile = `values {
+  value "env" {
+    type = string
+  }
+}
+
+unit "vpc" {
+  source = "../units/vpc"
+  path   = "${values.env}-vpc"
+}
+`
+
+	testCases := []struct {
+		files       map[string]string
+		name        string
+		wantSubject string
+	}{
+		{
+			name: "undeclared value",
+			files: map[string]string{
+				"terragrunt.stack.hcl":  stackFile,
+				"terragrunt.values.hcl": "env = \"dev\"\nenvs = \"dev\"\n",
+			},
+			wantSubject: "terragrunt.values.hcl",
+		},
+		{
+			name: "value of the wrong type",
+			files: map[string]string{
+				"terragrunt.stack.hcl":  stackFile,
+				"terragrunt.values.hcl": `env = ["dev"]`,
+			},
+			wantSubject: "terragrunt.values.hcl",
+		},
+		{
+			name:        "missing required value",
+			files:       map[string]string{"terragrunt.stack.hcl": stackFile},
+			wantSubject: "terragrunt.stack.hcl",
+		},
+		{
+			name: "invalid declaration",
+			files: map[string]string{
+				"terragrunt.stack.hcl": `values {
+  value "env" {
+    type = text
+  }
+}
+
+unit "vpc" {
+  source = "../units/vpc"
+  path   = "vpc"
+}
+`,
+			},
+			wantSubject: "terragrunt.stack.hcl",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			fs := writeStackDir(t, "/test", tc.files)
+
+			_, err := hclparse.UnitPathsFromStackDir(
+				t.Context(),
+				fs,
+				"/test",
+				&hclparse.StackDirArgs{FuncsFor: noFuncs},
+			)
+
+			var typed hclparse.FileDecodeError
+			require.ErrorAs(t, err, &typed)
+			assert.Equal(t, filepath.Join("/test", "terragrunt.stack.hcl"), typed.Name)
+
+			var diags hcl.Diagnostics
+			require.ErrorAs(t, err, &diags)
+			require.Len(t, diags, 1)
+			require.NotNil(t, diags[0].Subject)
+			assert.Equal(t, filepath.Join("/test", tc.wantSubject), diags[0].Subject.Filename)
+		})
+	}
+}
+
+// TestUnitPathsFromStackDir_IncludedValuesBlockRejected pins that discovery rejects a values block in an included
+// stack file, as the full parse does.
+func TestUnitPathsFromStackDir_IncludedValuesBlockRejected(t *testing.T) {
+	t.Parallel()
+
+	fs := writeStackDir(t, "/test", map[string]string{
+		"terragrunt.stack.hcl": `include "shared" {
+  path = "./shared.hcl"
+}
+`,
+		"shared.hcl": `values {
+  value "env" {
+    default = "dev"
+  }
+}
+
+unit "vpc" {
+  source = "../units/vpc"
+  path   = "vpc"
+}
+`,
+	})
+
+	_, err := hclparse.UnitPathsFromStackDir(
+		t.Context(),
+		fs,
+		"/test",
+		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+	)
+
+	var typed hclparse.IncludeValidationError
+	require.ErrorAs(t, err, &typed)
+	assert.Equal(t, "shared", typed.IncludeName)
 }
 
 // TestUnitPathsFromStackDir_MergesStackAutoInclude pins that discovery folds a sibling
@@ -1288,4 +1495,46 @@ func TestBuildComponentRefMap_WithRefs(t *testing.T) {
 	appVal := result.GetAttr("app")
 	require.True(t, appVal.Type().IsObjectType())
 	assert.Equal(t, "app-service", appVal.GetAttr("path").AsString())
+}
+
+// TestParseStackFile_IncludedValuesBlockRejected pins that the phased parse rejects a values block in an included
+// stack file.
+func TestParseStackFile_IncludedValuesBlockRejected(t *testing.T) {
+	t.Parallel()
+
+	stackDir := venvtest.Root("/test")
+	fs := writeStackDir(t, stackDir, map[string]string{
+		"shared.hcl": `values {}
+`,
+	})
+
+	_, err := hclparse.ParseStackFile(
+		t.Context(),
+		fs,
+		&hclparse.ParseStackFileInput{
+			Src: []byte(`include "shared" {
+  path = "./shared.hcl"
+}
+`),
+			Filename: filepath.Join(stackDir, "terragrunt.stack.hcl"),
+			StackDir: stackDir,
+		},
+	)
+
+	var typed hclparse.IncludeValidationError
+	require.ErrorAs(t, err, &typed)
+	assert.Equal(t, "shared", typed.IncludeName)
+}
+
+// writeStackDir returns an in-memory filesystem holding files, keyed by slash-separated paths under dir.
+func writeStackDir(t *testing.T, dir string, files map[string]string) vfs.FS {
+	t.Helper()
+
+	fs := vfs.NewMemMapFS()
+
+	for path, content := range files {
+		require.NoError(t, vfs.WriteFile(fs, filepath.Join(dir, filepath.FromSlash(path)), []byte(content), 0o644))
+	}
+
+	return fs
 }

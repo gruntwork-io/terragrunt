@@ -116,6 +116,7 @@ attributes:
 
 import { Aside } from '@astrojs/starlight/components';
 import SideBySide from '@components/SideBySide.astro';
+import Since from '@components/Since.astro';
 import FileTree from '@components/vendored/starlight/FileTree.astro';
 
 The `stack` block defines a nested stack in a `terragrunt.stack.hcl` file. [`terragrunt stack generate`](/reference/cli/commands/stack/generate) fetches the stack's `terragrunt.stack.hcl` file from `source` into `path`, writes `values` to a `terragrunt.values.hcl` file next to it, then generates the units and stacks that file defines:
@@ -160,6 +161,12 @@ unit "vpc" {
   }
 }
 ```
+
+<Since version="v1.2.3">
+
+The nested stack file can declare the values it accepts in a [`values`](/reference/hcl/blocks/values) block.
+
+</Since>
 
 <Aside type="caution" title="Use a remote source in the nested stack file">
 

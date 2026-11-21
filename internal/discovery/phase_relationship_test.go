@@ -228,7 +228,7 @@ dependency "shard" {
 		WithNumWorkers(1).
 		WithRelationships()
 
-	_, err := d.Discover(config.WithCaches(ctx), logger.CreateLogger(), v.WithFS(fsys), new(rewrite.Store), opts)
+	_, err := d.Discover(config.WithCaches(ctx), logger.CreateLogger(), v.WithFS(fsys), new(config.Store), opts)
 
 	return err
 }

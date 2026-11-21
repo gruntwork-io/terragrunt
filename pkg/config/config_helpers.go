@@ -1504,18 +1504,7 @@ func ParseTerragruntConfig(
 	isStackAutoIncludeFile := targetBase == DefaultAutoIncludeStackFile
 
 	if targetBase == DefaultStackFile || isStackAutoIncludeFile {
-		stackSourceDir := filepath.Dir(targetConfig)
-
-		values, readErr := ReadValues(ctx, l, v, s, pctx, stackSourceDir)
-		if readErr != nil {
-			return cty.NilVal, fmt.Errorf(
-				"failed to read values from directory %s: %w",
-				stackSourceDir,
-				readErr,
-			)
-		}
-
-		stackFile, readErr := ReadStackConfigFile(ctx, l, v, s, pctx, targetConfig, values)
+		stackFile, readErr := ReadStackConfigFile(ctx, l, v, s, pctx, targetConfig)
 		if readErr != nil {
 			return cty.NilVal, readErr
 		}
@@ -1525,17 +1514,17 @@ func ParseTerragruntConfig(
 
 	// check if file is a values file, decode as values file
 	if targetBase == valuesFile {
-		unitValues, readErr := ReadValues(ctx, l, v, s, pctx, filepath.Dir(targetConfig))
+		content, readErr := readValuesFile(ctx, l, v, s, pctx, filepath.Dir(targetConfig))
 		if readErr != nil {
 			return cty.NilVal, readErr
 		}
 
-		// ReadValues returns nil when the file is gone, e.g. removed after the check above.
-		if unitValues == nil {
+		// The file is gone when it was removed after the check above.
+		if content == nil {
 			return cty.NilVal, TerragruntConfigNotFoundError{Path: targetConfig}
 		}
 
-		return *unitValues, nil
+		return content.value, nil
 	}
 
 	return readTerragruntConfigCached(ctx, l, v, s, pctx)

@@ -237,3 +237,8 @@ type IncludeHCL struct {
 type LocalsHCL struct {
 	Remain hcl.Body `hcl:",remain"`
 }
+
+// ValuesHCL is a values block. [ReadValues] resolves the values file of the unit against its body.
+type ValuesHCL struct {
+	Remain hcl.Body `hcl:",remain"`
+}

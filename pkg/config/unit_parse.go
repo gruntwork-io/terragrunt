@@ -500,7 +500,7 @@ func (s *Store) prepareBase(
 
 	pctx = pc.detach()
 
-	unitValues, err := ReadValues(ctx, l, v, s, pctx, filepath.Dir(file.ConfigPath))
+	unitValues, err := ReadValues(ctx, l, v, s, pctx, file, RoleOf(file, include))
 	if err != nil {
 		return nil, err
 	}
@@ -599,7 +599,8 @@ func (s *Store) withFileIAMRole(
 
 	pctx := pc.detach()
 
-	if pctx.OriginalIAMRoleOptions.RoleARN != "" || !mayMergeDeclaration(ctx, l, v, s, pctx, file, iamRoleSchema) {
+	if pctx.OriginalIAMRoleOptions.RoleARN != "" ||
+		!mayMergeDeclaration(ctx, l, v, s, pctx, file, RoleOf(file, pc.include), iamRoleSchema) {
 		return pc.withIAMRole(FileIAMRoleOptions(pctx, iam.RoleOptions{})), nil
 	}
 

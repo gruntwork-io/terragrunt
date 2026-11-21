@@ -1000,6 +1000,35 @@ func (err BlockNestingExceededError) Error() string {
 	)
 }
 
+// ValuesBlockRequiresExperimentError reports a values block declared without the values-block experiment.
+type ValuesBlockRequiresExperimentError struct {
+	ConfigPath string
+}
+
+func (err ValuesBlockRequiresExperimentError) Error() string {
+	return fmt.Sprintf(
+		"%s declares a values block, which needs the %s experiment. "+
+			"Enable it with --experiment %s or TG_EXPERIMENT=%s, or remove the block.",
+		err.ConfigPath,
+		experiment.ValuesBlock,
+		experiment.ValuesBlock,
+		experiment.ValuesBlock,
+	)
+}
+
+// ValuesBlockInIncludeError reports a values block in a file that another config includes, or in an autoinclude file.
+type ValuesBlockInIncludeError struct {
+	ConfigPath string
+}
+
+func (err ValuesBlockInIncludeError) Error() string {
+	return fmt.Sprintf(
+		"%s declares a values block, but it is included by another config or generated as an autoinclude. "+
+			"Move the block to the terragrunt.hcl or terragrunt.stack.hcl of the component.",
+		err.ConfigPath,
+	)
+}
+
 // OutputsBlockRequiresExperimentError reports an outputs block declared without the outputs-block experiment.
 type OutputsBlockRequiresExperimentError struct {
 	ConfigPath string

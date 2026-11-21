@@ -1341,9 +1341,9 @@ func collectStackOutputs(
 			continue
 		}
 
-		nestedConfig, err := readStackConfigWithValues(ctx, l, v, s, pctx, nestedFile)
+		nestedConfig, err := ReadStackConfigFile(ctx, l, v, s, pctx, nestedFile)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to parse stack config %s: %w", nestedFile, err)
 		}
 
 		nested, err := collectStackOutputs(
@@ -1545,29 +1545,6 @@ func stackMockOutput(dep *Dependency, address []string) (cty.Value, bool, error)
 	return mock, true, nil
 }
 
-// readStackConfigWithValues parses the stack file at stackFilePath with the terragrunt.values.hcl
-// generated beside it, as stack generation does, so a stack whose locals read values.* parses.
-func readStackConfigWithValues(
-	ctx context.Context,
-	l log.Logger,
-	v *venv.Venv,
-	s *Store,
-	pctx *ParsingContext,
-	stackFilePath string,
-) (*StackConfig, error) {
-	values, err := ReadValues(ctx, l, v, s, pctx, filepath.Dir(stackFilePath))
-	if err != nil {
-		return nil, fmt.Errorf("failed to read values for stack %s: %w", stackFilePath, err)
-	}
-
-	stackConfig, err := ReadStackConfigFile(ctx, l, v, s, pctx, stackFilePath, values)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse stack config %s: %w", stackFilePath, err)
-	}
-
-	return stackConfig, nil
-}
-
 // tryGetStackOutput checks if targetConfigPath points to a stack directory
 // (contains terragrunt.stack.hcl) and resolves aggregated outputs from all
 // units in the stack. Returns (output, handled, error) where handled=true
@@ -1599,9 +1576,9 @@ func tryGetStackOutput(
 		stackFilePath,
 	)
 
-	stackConfig, err := readStackConfigWithValues(ctx, l, v, s, pctx, stackFilePath)
+	stackConfig, err := ReadStackConfigFile(ctx, l, v, s, pctx, stackFilePath)
 	if err != nil {
-		return nil, true, err
+		return nil, true, fmt.Errorf("failed to parse stack config %s: %w", stackFilePath, err)
 	}
 
 	stackOutputs, err := CollectStackOutputs(

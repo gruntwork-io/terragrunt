@@ -46,7 +46,6 @@ stack "projects" {
 		pctx,
 		config.DefaultStackFile,
 		cfg,
-		nil,
 	)
 	require.NoError(t, err)
 
@@ -128,7 +127,6 @@ stack "network" {
 		pctx,
 		config.DefaultStackFile,
 		cfg,
-		nil,
 	)
 	require.NoError(t, err)
 
@@ -195,7 +193,6 @@ locals {
 		pctx,
 		config.DefaultStackFile,
 		invalidCfg,
-		nil,
 	)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "Invalid multi-line string")
@@ -513,13 +510,18 @@ unit "app" {
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --working-dir "+tmpDir)
 	require.NoError(t, err)
 
+	l := logger.CreateLogger()
+	v := venvtest.NewWithOSFS()
+	pctx := config.NewParsingContext()
+
 	values, err := config.ReadValues(
 		config.WithCaches(t.Context()),
-		logger.CreateLogger(),
-		venvtest.NewWithOSFS(),
+		l,
+		v,
 		new(config.Store),
-		config.NewParsingContext(),
-		filepath.Join(tmpDir, ".terragrunt-stack", "app"),
+		pctx,
+		emptyUnitConfig(t, l, v, pctx, filepath.Join(tmpDir, ".terragrunt-stack", "app")),
+		config.ComponentConfig,
 	)
 	require.NoError(t, err)
 	require.NotNil(t, values)

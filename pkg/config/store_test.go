@@ -14,6 +14,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -1394,6 +1395,7 @@ var sharedStoreFixtureRoots = []string{
 	"render-json-mock-outputs",
 	"dependency-expansion/mocks",
 	"dependency-expansion/keyed",
+	"values-block/dependency",
 }
 
 // sharedStoreExcludedDirs are fixtures that call run_cmd, which the tofu stub cannot answer, or AWS, including
@@ -1450,6 +1452,7 @@ func resolveFixture(
 
 	v := venv.MemVenv().WithFS(fixtures.newFS(t)).WithHandler(new(tofuStub).handler())
 	ctx, pctx := newTestUnitParsingContext(t, cfgPath)
+	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.ValuesBlock))
 
 	return s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, cfgPath)
 }

@@ -11,6 +11,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/topo"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/valuesblock"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
@@ -726,6 +727,18 @@ func mergeOneInclude(
 			IncludeName: inc.Name,
 			Reason:      "must not define nested includes",
 		}
+	}
+
+	decls, diags := valuesblock.Decode(included.Remain)
+	if decls != nil {
+		return resolvedInclude{}, IncludeValidationError{
+			IncludeName: inc.Name,
+			Reason:      "must not define a values block",
+		}
+	}
+
+	if diags.HasErrors() {
+		return resolvedInclude{}, FileDecodeError{Name: includePath, Err: diags}
 	}
 
 	return resolvedInclude{Remain: included.Remain, Src: data, Path: includePath}, nil
