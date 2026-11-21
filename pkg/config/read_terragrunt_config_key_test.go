@@ -183,19 +183,23 @@ func TestReadTerragruntConfigKeyChangesWithEachKeyedField(t *testing.T) {
 	}
 }
 
-// parsingContextFieldNames returns the names of the fields of [config.ParsingContext], with the fields of its Parser
-// settings in place of Parser.
+// parsingContextFieldNames returns the names of the fields of [config.ParsingContext], with the fields of its run
+// settings in place of RunSettings and the fields of its Parser settings in place of Parser.
 func parsingContextFieldNames() []string {
 	var names []string
 
 	for field := range reflect.TypeFor[config.ParsingContext]().Fields() {
-		if field.Name != "Parser" {
+		switch field.Name {
+		case "RunSettings":
+			for settingsField := range reflect.TypeFor[config.RunSettings]().Fields() {
+				names = append(names, settingsField.Name)
+			}
+		case "Parser":
+			for parserField := range field.Type.Fields() {
+				names = append(names, "Parser."+parserField.Name)
+			}
+		default:
 			names = append(names, field.Name)
-			continue
-		}
-
-		for parserField := range field.Type.Fields() {
-			names = append(names, "Parser."+parserField.Name)
 		}
 	}
 

@@ -28,97 +28,65 @@ const (
 	MaxParseDepth = 1000
 )
 
-// ParsingContext provides various variables that are used throughout all funcs and passed from function to function.
-// Using `ParsingContext` makes the code more readable.
+// ParsingContext is what a parse of a config reads: the run's settings, shared by every context derived from the one
+// that holds them, and the state of the file being parsed.
+//
+// A context derived with a With method shares its settings unless the method changes one, so a write to a field of
+// [RunSettings] goes only to a context from [NewParsingContext] or [ParsingContext.Clone].
+//
 // Note: context.Context should be passed explicitly as the first parameter to functions, not embedded in this struct.
 type ParsingContext struct {
-	TerraformCliArgs *iacargs.IacArgs
-	TrackInclude     *TrackInclude
-	EngineConfig     *engine.EngineConfig
-	EngineOptions    *engine.EngineOptions
+	// RunSettings is the settings of the run, which contexts derived from this one share.
+	*RunSettings
 
-	// FeatureFlags contains explicit feature flag overrides supplied by the user.
-	FeatureFlags map[string]string
+	// TrackInclude is the include blocks of the file and the include that functions such as
+	// get_parent_terragrunt_dir() resolve against.
+	TrackInclude *TrackInclude
 
+	// FilesRead records every file the parse reads. Nil keeps no record.
 	FilesRead *FilesRead
-	Telemetry *telemetry.Options
 
-	// DependencyBlocks are the dependency blocks DecodedDependencies was resolved from.
-	DependencyBlocks []Dependency
-
+	// DecodedDependencies is the `dependency` value expressions in the file read, nil until it is resolved.
 	DecodedDependencies *cty.Value
-	Values              *cty.Value
-	Features            *cty.Value
-	Locals              *cty.Value
 
-	SourceMap map[string]string
+	// Values is the `values` value expressions in the file read.
+	Values *cty.Value
+
+	// Features is the `feature` value expressions in the file read.
+	Features *cty.Value
+
+	// Locals is the `local` value expressions in the file read.
+	Locals *cty.Value
+
 	// dependencyOutputEnvKeys records environment keys set for dependency output resolution through
 	// extra_arguments.env_vars. Inherited process values stay eligible for direct state reads until
 	// output-specific configuration overrides them.
 	dependencyOutputEnvKeys map[string]struct{}
 
-	TerragruntConfigPath         string
-	OriginalTerragruntConfigPath string
-	WorkingDir                   string
-	RootWorkingDir               string
-	DownloadDir                  string
-	Source                       string
-	TerraformCommand             string
-	OriginalTofuCommand          string
-	AuthProviderCmd              string
-	TFPath                       string
-	ScaffoldRootFileName         string
-	TerragruntStackConfigPath    string
-
 	// catalogStubDir is the directory of the child config [ReadCatalogConfig] generates, which exists only in
 	// memory, so run_cmd runs in its parent beside the root config. It is empty when no child was generated.
 	catalogStubDir string
 
-	IAMRoleOptions         iam.RoleOptions
-	OriginalIAMRoleOptions iam.RoleOptions
+	// IAMRoleOptions is the IAM role the file's functions and dependency output fetches assume.
+	IAMRoleOptions iam.RoleOptions
 
-	Experiments            experiment.Experiments
-	StrictControls         strict.Controls
-	PartialParseDecodeList []PartialDecodeSectionType
-	VersionManagerFileName []string
-
-	// Parser configures the HCL parsers this context builds.
-	Parser ParserSettings
+	// DependencyBlocks are the dependency blocks DecodedDependencies was resolved from.
+	DependencyBlocks []Dependency
 
 	// readConfigChain lists the configs being parsed by nested read_terragrunt_config calls,
 	// outermost first: each read target, plus each config a dependency block parses in between.
 	// Clones share it, so it is only ever extended with slices.Concat.
 	readConfigChain []readConfigFrame
 
-	ProviderCacheOptions pcoptions.ProviderCacheOptions
+	// Parser configures the HCL parsers this context builds.
+	Parser ParserSettings
 
-	MaxFoldersToCheck int
-	ParseDepth        int
-	CASCloneDepth     int
-	CASProbeTTL       time.Duration
+	// ParseDepth is the number of parses the parse of the file is nested in, at most [MaxParseDepth].
+	ParseDepth int
 
-	// AmbiguousConfigCheck says whether a unit directory holding both default unit configuration files fails to
-	// resolve. [AllowAmbiguousConfig] when the user named the config file with the --config flag.
-	AmbiguousConfigCheck AmbiguousConfigCheck
-
-	TFPathExplicitlySet bool
-	SkipOutput          bool
-	ForwardTFStdout     bool
-	JSONLogFormat       bool
-	Debug               bool
-	AutoInit            bool
-	Headless            bool
-	BackendBootstrap    bool
-	CheckDependentUnits bool
-
-	NoDependencyFetchOutputFromState bool
-	SkipOutputsResolution            bool
-	NoStackValidate                  bool
-	NoCAS                            bool
-	CASOffline                       bool
-	CASRefresh                       bool
-	LogShowAbsPaths                  bool
-	LogDisableErrorSummary           bool
+	// SkipOutputsResolution stops the parse fetching dependency outputs. A partial parse with no decoded
+	// dependencies then evaluates `dependency` references to unknown values.
+	SkipOutputsResolution bool
 
 	// SkipAutoIncludeMerge is set on contexts that parse the files an autoinclude pulls in through its
 	// own include blocks, so those files do not re-merge a sibling autoinclude. This bounds the merge to
@@ -133,6 +101,149 @@ type ParsingContext struct {
 	stubWorkingDirFunc bool
 }
 
+// RunSettings is the settings of the run a [ParsingContext] parses for.
+type RunSettings struct {
+	// TerraformCliArgs is the tofu command and arguments the run executes.
+	TerraformCliArgs *iacargs.IacArgs
+
+	// EngineConfig is the engine block of the unit the run targets, nil when it configures none.
+	EngineConfig *engine.EngineConfig
+
+	// EngineOptions is the engine options passed on the CLI.
+	EngineOptions *engine.EngineOptions
+
+	// FeatureFlags contains explicit feature flag overrides supplied by the user.
+	FeatureFlags map[string]string
+
+	// Telemetry configures the run's traces and metrics.
+	Telemetry *telemetry.Options
+
+	// SourceMap replaces the prefix of a terraform source URL, from the --source-map flag.
+	SourceMap map[string]string
+
+	// TerragruntConfigPath is the path of the config being parsed.
+	TerragruntConfigPath string
+
+	// OriginalTerragruntConfigPath is the path of the config the run started from, which
+	// get_original_terragrunt_dir() reads.
+	OriginalTerragruntConfigPath string
+
+	// WorkingDir is the directory of the config being parsed.
+	WorkingDir string
+
+	// RootWorkingDir is the working directory the run started in, the same for every unit and dependency.
+	RootWorkingDir string
+
+	// DownloadDir is the directory the run downloads terraform sources into.
+	DownloadDir string
+
+	// Source overrides the terraform source of the unit, from the --source flag.
+	Source string
+
+	// TerraformCommand is the name of the tofu command the run executes, such as plan.
+	TerraformCommand string
+
+	// OriginalTofuCommand is the tofu command the run started with, before any command it runs in its place.
+	OriginalTofuCommand string
+
+	// AuthProviderCmd is the command whose output gives the credentials for the parse, from the
+	// --auth-provider-cmd flag.
+	AuthProviderCmd string
+
+	// TFPath is the tofu binary that --tf-path or a unit's terraform_binary named. Empty when neither did, and the
+	// binary is then the default detected on PATH.
+	TFPath string
+
+	// ScaffoldRootFileName is the name of the root config a catalog reads, from the --root-file-name flag.
+	ScaffoldRootFileName string
+
+	// TerragruntStackConfigPath is the path of the stack file the run generates from.
+	TerragruntStackConfigPath string
+
+	// OriginalIAMRoleOptions is the IAM role options passed on the CLI.
+	OriginalIAMRoleOptions iam.RoleOptions
+
+	// Experiments is the experiments the run enables.
+	Experiments experiment.Experiments
+
+	// StrictControls is the strict controls the run enables.
+	StrictControls strict.Controls
+
+	// PartialParseDecodeList is the sections a partial parse decodes. Empty for a full parse.
+	PartialParseDecodeList []PartialDecodeSectionType
+
+	// VersionManagerFileName is the files whose contents key the cache of tofu -version checks.
+	VersionManagerFileName []string
+
+	// ProviderCacheOptions configures the provider cache.
+	ProviderCacheOptions pcoptions.ProviderCacheOptions
+
+	// MaxFoldersToCheck is the most parent directories a search such as find_in_parent_folders() checks before
+	// it fails.
+	MaxFoldersToCheck int
+
+	// CASCloneDepth is the --depth CAS passes to git clone. A negative value clones the whole history.
+	CASCloneDepth int
+
+	// CASProbeTTL is how long CAS trusts a persisted probe of a branch, HEAD, or non-version tag before
+	// querying the remote again. Zero re-queries on every run.
+	CASProbeTTL time.Duration
+
+	// AmbiguousConfigCheck says whether a unit directory holding both default unit configuration files fails to
+	// resolve. [AllowAmbiguousConfig] when the user named the config file with the --config flag.
+	AmbiguousConfigCheck AmbiguousConfigCheck
+
+	// TFPathExplicitlySet reports that --tf-path named the tofu binary, which then wins over a unit's
+	// terraform_binary.
+	TFPathExplicitlySet bool
+
+	// SkipOutput skips fetching the outputs of every dependency.
+	SkipOutput bool
+
+	// ForwardTFStdout forwards tofu's output unformatted.
+	ForwardTFStdout bool
+
+	// JSONLogFormat writes logs as JSON.
+	JSONLogFormat bool
+
+	// Debug runs in debug mode.
+	Debug bool
+
+	// AutoInit runs tofu init when a command needs it.
+	AutoInit bool
+
+	// Headless reports that Terragrunt runs in headless mode, which changes how tofu output is logged.
+	Headless bool
+
+	// BackendBootstrap bootstraps the backend before using it.
+	BackendBootstrap bool
+
+	// CheckDependentUnits shows the units that depend on the unit and asks for confirmation before a destroy.
+	CheckDependentUnits bool
+
+	// NoDependencyFetchOutputFromState stops dependencies reading their outputs straight from state.
+	NoDependencyFetchOutputFromState bool
+
+	// NoStackValidate skips validating generated stacks.
+	NoStackValidate bool
+
+	// NoCAS stops sources resolving through the content addressable store.
+	NoCAS bool
+
+	// CASOffline stops CAS contacting a Git remote. Git sources are answered from the local store and the
+	// persisted probe cache or fail.
+	CASOffline bool
+
+	// CASRefresh makes CAS ignore its persisted probe cache.
+	CASRefresh bool
+
+	// LogShowAbsPaths shows absolute paths in logs in place of paths relative to the working directory.
+	LogShowAbsPaths bool
+
+	// LogDisableErrorSummary leaves out the summary of errors at the end of the run.
+	LogDisableErrorSummary bool
+}
+
 // NewParsingContext builds a parsing context from opts.
 //
 // The returned context keeps no record of the files it reads. Recording them
@@ -141,7 +252,7 @@ type ParsingContext struct {
 // [ParsingContext.WithFileReadTracking] and the rest pay nothing.
 func NewParsingContext(opts ...Option) *ParsingContext {
 	pctx := &ParsingContext{
-		TerraformCliArgs: iacargs.New(),
+		RunSettings: &RunSettings{TerraformCliArgs: iacargs.New()},
 	}
 
 	for _, opt := range opts {
@@ -153,10 +264,11 @@ func NewParsingContext(opts ...Option) *ParsingContext {
 	return pctx
 }
 
-// Clone returns a copy of the ParsingContext. Its maps and slices are
-// deep-copied.
+// Clone returns a copy of the ParsingContext with its own settings. Its maps and slices are deep-copied.
 func (ctx *ParsingContext) Clone() *ParsingContext {
-	clone := *ctx
+	clone := ctx.derive()
+	settings := *ctx.RunSettings
+	clone.RunSettings = &settings
 
 	if ctx.SourceMap != nil {
 		clone.SourceMap = maps.Clone(ctx.SourceMap)
@@ -167,20 +279,14 @@ func (ctx *ParsingContext) Clone() *ParsingContext {
 		clone.EngineOptions = &eo
 	}
 
-	clone.Parser.HaltOnErrorOnlyInBlocks = slices.Clone(ctx.Parser.HaltOnErrorOnlyInBlocks)
-
 	clone.ProviderCacheOptions.RegistryNames = slices.Clone(ctx.ProviderCacheOptions.RegistryNames)
 
-	if ctx.dependencyOutputEnvKeys != nil {
-		clone.dependencyOutputEnvKeys = maps.Clone(ctx.dependencyOutputEnvKeys)
-	}
-
-	return &clone
+	return clone
 }
 
 // WithDecodeList returns a copy whose partial parses decode only the sections in decodeList.
 func (ctx *ParsingContext) WithDecodeList(decodeList ...PartialDecodeSectionType) *ParsingContext {
-	c := ctx.Clone()
+	c := ctx.withOwnSettings()
 	c.PartialParseDecodeList = decodeList
 
 	return c
@@ -188,7 +294,7 @@ func (ctx *ParsingContext) WithDecodeList(decodeList ...PartialDecodeSectionType
 
 // WithLocals returns a copy that exposes locals to expressions as `local`.
 func (ctx *ParsingContext) WithLocals(locals *cty.Value) *ParsingContext {
-	c := ctx.Clone()
+	c := ctx.derive()
 	c.Locals = locals
 
 	return c
@@ -196,7 +302,7 @@ func (ctx *ParsingContext) WithLocals(locals *cty.Value) *ParsingContext {
 
 // WithValues returns a copy that exposes values to expressions as `values`.
 func (ctx *ParsingContext) WithValues(values *cty.Value) *ParsingContext {
-	c := ctx.Clone()
+	c := ctx.derive()
 	c.Values = values
 
 	return c
@@ -204,7 +310,7 @@ func (ctx *ParsingContext) WithValues(values *cty.Value) *ParsingContext {
 
 // WithFeatures sets the feature flags to be used in evaluation context.
 func (ctx *ParsingContext) WithFeatures(features *cty.Value) *ParsingContext {
-	c := ctx.Clone()
+	c := ctx.derive()
 	c.Features = features
 
 	return c
@@ -212,7 +318,7 @@ func (ctx *ParsingContext) WithFeatures(features *cty.Value) *ParsingContext {
 
 // WithTrackInclude returns a copy that resolves includes and include functions against trackInclude.
 func (ctx *ParsingContext) WithTrackInclude(trackInclude *TrackInclude) *ParsingContext {
-	c := ctx.Clone()
+	c := ctx.derive()
 	c.TrackInclude = trackInclude
 
 	return c
@@ -220,7 +326,7 @@ func (ctx *ParsingContext) WithTrackInclude(trackInclude *TrackInclude) *Parsing
 
 // WithParserSettings returns a copy whose parsers use s.
 func (ctx *ParsingContext) WithParserSettings(s ParserSettings) *ParsingContext {
-	c := ctx.Clone()
+	c := ctx.derive()
 	c.Parser = s
 	c.Parser.HaltOnErrorOnlyInBlocks = slices.Clone(s.HaltOnErrorOnlyInBlocks)
 
@@ -231,7 +337,7 @@ func (ctx *ParsingContext) WithParserSettings(s ParserSettings) *ParsingContext 
 // level and discard them otherwise. This avoids false positive "There is no variable named
 // dependency" errors while dependency outputs are not yet resolved.
 func (ctx *ParsingContext) WithDiagnosticsSuppressed() *ParsingContext {
-	c := ctx.Clone()
+	c := ctx.derive()
 	c.Parser.Diagnostics = DiagnosticsSuppressed
 
 	return c
@@ -239,7 +345,7 @@ func (ctx *ParsingContext) WithDiagnosticsSuppressed() *ParsingContext {
 
 // WithDiagnosticsDiscarded returns a copy whose parsers discard diagnostics.
 func (ctx *ParsingContext) WithDiagnosticsDiscarded() *ParsingContext {
-	c := ctx.Clone()
+	c := ctx.derive()
 	c.Parser.Diagnostics = DiagnosticsDiscarded
 
 	return c
@@ -259,7 +365,7 @@ func (ctx *ParsingContext) NewParser(l log.Logger, v *venv.Venv) *hclparse.Parse
 // the caller can read them back off [ParsingContext.FilesRead] once parsing is
 // done. Clones made from the returned context share the one record.
 func (ctx *ParsingContext) WithFileReadTracking() *ParsingContext {
-	c := ctx.Clone()
+	c := ctx.derive()
 	c.FilesRead = NewFilesRead()
 
 	return c
@@ -268,7 +374,7 @@ func (ctx *ParsingContext) WithFileReadTracking() *ParsingContext {
 // WithSkipOutputsResolution returns a copy for parses that do not fetch dependency outputs. A partial parse with no
 // decoded dependencies then evaluates `dependency` references to unknown values.
 func (ctx *ParsingContext) WithSkipOutputsResolution() *ParsingContext {
-	c := ctx.Clone()
+	c := ctx.derive()
 	c.SkipOutputsResolution = true
 
 	return c
@@ -284,7 +390,7 @@ func (ctx *ParsingContext) WithIncrementedDepth() (*ParsingContext, error) {
 		}
 	}
 
-	c := ctx.Clone()
+	c := ctx.derive()
 	c.ParseDepth = ctx.ParseDepth + 1
 
 	return c, nil
@@ -315,7 +421,7 @@ func (ctx *ParsingContext) WithConfigPath(
 		l = l.WithField(placeholders.WorkDirKeyName, workingDir)
 	}
 
-	c := ctx.Clone()
+	c := ctx.withOwnSettings()
 
 	// Keep DownloadDir in sync with TerragruntConfigPath: if the current context was
 	// using the default download dir for the old config, update it to the default for
@@ -365,6 +471,27 @@ func (ctx *ParsingContext) WithDependencyConfigPath(
 	return l, c, nil
 }
 
+// derive returns a copy of ctx that shares its settings.
+func (ctx *ParsingContext) derive() *ParsingContext {
+	c := *ctx
+	c.Parser.HaltOnErrorOnlyInBlocks = slices.Clone(ctx.Parser.HaltOnErrorOnlyInBlocks)
+
+	if ctx.dependencyOutputEnvKeys != nil {
+		c.dependencyOutputEnvKeys = maps.Clone(ctx.dependencyOutputEnvKeys)
+	}
+
+	return &c
+}
+
+// withOwnSettings returns a copy of ctx with a copy of its settings, which the caller may change.
+func (ctx *ParsingContext) withOwnSettings() *ParsingContext {
+	c := ctx.derive()
+	settings := *ctx.RunSettings
+	c.RunSettings = &settings
+
+	return c
+}
+
 // ReadConfigChain returns the configs being parsed by nested read_terragrunt_config calls, outermost first, as
 // each config's path followed by the original config it is parsed under.
 func (ctx *ParsingContext) ReadConfigChain() []string {
@@ -404,7 +531,7 @@ func readConfigChainPaths(chain []readConfigFrame, last readConfigFrame) []strin
 // target evaluates its own locals and feature flags, and its include and feature blocks would otherwise see the
 // reading config's values.
 func (ctx *ParsingContext) forReadTarget() *ParsingContext {
-	c := ctx.Clone()
+	c := ctx.derive()
 	c.DependencyBlocks = nil
 	c.DecodedDependencies = nil
 	c.SkipOutputsResolution = false

@@ -16,16 +16,23 @@ import (
 // the state of the file being parsed. settings never changes, and holds none of the sinks of the
 // [ParsingContext] it came from.
 type ParseContext struct {
+	// settings is the settings the parse reads, with no sinks.
 	settings *ParsingContext
-	sinks    sinks
-	file     fileScope
+	// sinks is where the parse writes its effects.
+	sinks sinks
+	// file is the state of the file being parsed.
+	file fileScope
+	// memoized reports that the Store shares the parse's stages with other callers.
 	memoized bool
-	merging  bool
+	// merging marks a parse whose config only merges into the config of the including file.
+	merging bool
 }
 
 // sinks is where a stage writes its effects. Sinks belong to the caller, and a stage's result holds none.
 type sinks struct {
-	filesRead   *FilesRead
+	// filesRead records the files the stage reads. Nil keeps no record.
+	filesRead *FilesRead
+	// diagnostics receives the diagnostics of the stage's parsers.
 	diagnostics func(*hcl.File, hcl.Diagnostics) (hcl.Diagnostics, error)
 }
 
@@ -270,7 +277,7 @@ func formatStringPtr(p *string) string {
 
 // parsingContext returns a [ParsingContext] of pc's settings with its sinks and file state applied.
 func (pc *ParseContext) parsingContext() *ParsingContext {
-	c := pc.settings.Clone()
+	c := pc.settings.derive()
 	c.FilesRead = pc.sinks.filesRead
 	c.TrackInclude = pc.file.includes.v1()
 	c.Values = pc.file.values
