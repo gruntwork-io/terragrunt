@@ -118,7 +118,8 @@ type ParsingContext struct {
 	// merging marks a parse whose config only merges into the config of the including file.
 	merging bool
 
-	// inheritsDependencies marks an included file whose `dependency` value the including file resolves in ToV1.
+	// inheritsDependencies marks an included file whose `dependency` value the including file resolves in
+	// ResolveRunConfig.
 	inheritsDependencies bool
 }
 

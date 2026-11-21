@@ -18,7 +18,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
-func TestToV1DecodesTheOutputsBlock(t *testing.T) {
+func TestResolveRunConfigDecodesTheOutputsBlock(t *testing.T) {
 	t.Parallel()
 
 	root := venvtest.Root("/fixture")
@@ -82,7 +82,7 @@ inputs = {
 			check: func(t *testing.T, result unitResult) {
 				t.Helper()
 
-				require.NoError(t, result.toV1Err)
+				require.NoError(t, result.runConfigErr)
 				assert.Equal(t, []string{"vpc_id", "subnet_ids"}, result.cfg.Outputs.Names())
 			},
 		},
@@ -95,7 +95,7 @@ inputs = {
 
 				var experimentErr config.OutputsBlockRequiresExperimentError
 
-				require.ErrorAs(t, result.toV1Err, &experimentErr)
+				require.ErrorAs(t, result.runConfigErr, &experimentErr)
 			},
 		},
 		{
@@ -106,7 +106,7 @@ inputs = {
 			check: func(t *testing.T, result unitResult) {
 				t.Helper()
 
-				require.NoError(t, result.toV1Err)
+				require.NoError(t, result.runConfigErr)
 				assert.Equal(t, "vpc-real", result.cfg.Inputs["vpc_id"])
 				assert.Equal(t, []any{"subnet-mock"}, result.cfg.Inputs["subnet_ids"])
 			},
@@ -119,7 +119,7 @@ inputs = {
 			check: func(t *testing.T, result unitResult) {
 				t.Helper()
 
-				require.NoError(t, result.toV1Err)
+				require.NoError(t, result.runConfigErr)
 				assert.Equal(t, "app-mock", result.cfg.Inputs["vpc_id"])
 				assert.Equal(t, []any{"subnet-mock"}, result.cfg.Inputs["subnet_ids"])
 			},
@@ -181,7 +181,7 @@ terraform_version_constraint = local.use ? dependency.vpc.outputs.data : ">= 1.0
 	}
 }
 
-func TestToV1DecodesAttributesThatReadDependencyOutputs(t *testing.T) {
+func TestResolveRunConfigDecodesAttributesThatReadDependencyOutputs(t *testing.T) {
 	t.Parallel()
 
 	for name, content := range dependencyAttributeCases() {
@@ -190,12 +190,12 @@ func TestToV1DecodesAttributesThatReadDependencyOutputs(t *testing.T) {
 
 			result := resolveDependencyAttributeUnit(t, name, content)
 
-			require.NoError(t, result.toV1Err)
+			require.NoError(t, result.runConfigErr)
 		})
 	}
 }
 
-func TestToV1RejectsVersionAttributesThatReferenceDependency(t *testing.T) {
+func TestResolveRunConfigRejectsVersionAttributesThatReferenceDependency(t *testing.T) {
 	t.Parallel()
 
 	for name, content := range unitVersionAttributeCases() {
@@ -204,7 +204,7 @@ func TestToV1RejectsVersionAttributesThatReferenceDependency(t *testing.T) {
 
 			result := resolveDependencyAttributeUnit(t, name, content)
 
-			requireDependencyReferenceDiagnostic(t, result.toV1Err)
+			requireDependencyReferenceDiagnostic(t, result.runConfigErr)
 		})
 	}
 }
@@ -315,7 +315,7 @@ func resolveDependencyAttributeQueueConfig(t *testing.T, name, content string) (
 	)
 }
 
-func TestToV1RejectsEmptyDependencyOutputs(t *testing.T) {
+func TestResolveRunConfigRejectsEmptyDependencyOutputs(t *testing.T) {
 	t.Parallel()
 
 	const dependency = `
@@ -368,7 +368,7 @@ include "root" {
 				},
 			})
 
-			require.ErrorAs(t, result.toV1Err, new(config.TerragruntOutputTargetNoOutputs))
+			require.ErrorAs(t, result.runConfigErr, new(config.TerragruntOutputTargetNoOutputs))
 		})
 	}
 }
@@ -440,7 +440,7 @@ exclude {
 					configure: func(*config.ParsingContext) {},
 				})
 
-				require.Error(t, result.toV1Err)
+				require.Error(t, result.runConfigErr)
 			})
 		}
 	}

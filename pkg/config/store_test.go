@@ -138,17 +138,17 @@ func TestResolveUnitConfigServesALaterCallTheTreesAndScan(t *testing.T) {
 	second, err := store.ResolveUnitConfig(secondCtx, l, v, secondPC, paths[0])
 	require.NoError(t, err)
 
-	firstV1, err := first.ToV1(ctx, l, v, new(config.Store), firstPC)
+	firstRunCfg, err := first.ResolveRunConfig(ctx, l, v, new(config.Store), firstPC)
 	require.NoError(t, err)
 
-	secondV1, err := second.ToV1(secondCtx, l, v, new(config.Store), secondPC)
+	secondRunCfg, err := second.ResolveRunConfig(secondCtx, l, v, new(config.Store), secondPC)
 	require.NoError(t, err)
 
-	assert.Equal(t, firstV1, secondV1)
+	assert.Equal(t, firstRunCfg, secondRunCfg)
 	assert.Equal(
 		t,
 		map[string]any{"name": "unit", "region": "us-east-1", "unit": "unit-0"},
-		secondV1.Inputs,
+		secondRunCfg.Inputs,
 	)
 }
 
@@ -325,7 +325,7 @@ locals {
 	return fsys, path
 }
 
-func TestToV1WritesToTheSinksOfItsCallerWithRacing(t *testing.T) {
+func TestResolveRunConfigWritesToTheSinksOfItsCallerWithRacing(t *testing.T) {
 	t.Parallel()
 
 	const callers = 8
@@ -365,7 +365,7 @@ inputs = {
 			runCtx, run := newTestUnitParsingContext(t, path)
 			run = run.WithFileReadTracking()
 
-			if _, err := parsed.ToV1(runCtx, l, v, new(config.Store), run); err != nil {
+			if _, err := parsed.ResolveRunConfig(runCtx, l, v, new(config.Store), run); err != nil {
 				return err
 			}
 
@@ -932,7 +932,7 @@ func TestResolveUnitConfigSharesIncludedFilesAcrossUnits(t *testing.T) {
 		parsed, err := store.ResolveUnitConfig(ctx, l, v, pc, path)
 		require.NoError(t, err)
 
-		cfg, err := parsed.ToV1(ctx, l, v, new(config.Store), pc)
+		cfg, err := parsed.ResolveRunConfig(ctx, l, v, new(config.Store), pc)
 		require.NoError(t, err)
 		assert.Equal(t, filepath.Base(filepath.Dir(path)), cfg.Inputs["unit"])
 	}

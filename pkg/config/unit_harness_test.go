@@ -66,20 +66,20 @@ type unitCase struct {
 	cfgPath string
 }
 
-// tofuStub answers tofu invocations and counts them, keeping the ones ToV1 makes apart.
+// tofuStub answers tofu invocations and counts them, keeping the ones ResolveRunConfig makes apart.
 type tofuStub struct {
-	outputs    map[string]string
-	parseExecs atomic.Int64
-	toV1Execs  atomic.Int64
-	inToV1     atomic.Bool
+	outputs        map[string]string
+	parseExecs     atomic.Int64
+	runConfigExecs atomic.Int64
+	inRunConfig    atomic.Bool
 }
 
 // handler counts invocations and answers `output` with the outputs of the target whose cache directory it runs in.
 // Other commands succeed with no output.
 func (s *tofuStub) handler() vexec.Handler {
 	return func(_ context.Context, inv vexec.Invocation) vexec.Result {
-		if s.inToV1.Load() {
-			s.toV1Execs.Add(1)
+		if s.inRunConfig.Load() {
+			s.runConfigExecs.Add(1)
 		} else {
 			s.parseExecs.Add(1)
 		}
@@ -101,21 +101,21 @@ func (s *tofuStub) handler() vexec.Handler {
 type unitResult struct {
 	// parsed is the parsed config, nil when the parse produced none.
 	parsed *config.UnitConfig
-	// cfg is the config ToV1 returned, nil when the parse produced none.
+	// cfg is the config ResolveRunConfig returned, nil when the parse produced none.
 	cfg *config.TerragruntConfig
 	// parseErr is the error of the parse.
 	parseErr error
-	// toV1Err is the error of ToV1, or parseErr when the parse produced no config.
-	toV1Err error
+	// runConfigErr is the error of ResolveRunConfig, or parseErr when the parse produced no config.
+	runConfigErr error
 	// parseExecs is the tofu invocations the parse made.
 	parseExecs int64
-	// toV1Execs is the tofu invocations ToV1 made.
-	toV1Execs int64
+	// runConfigExecs is the tofu invocations ResolveRunConfig made.
+	runConfigExecs int64
 }
 
-// resolveUnit resolves tc with [config.Store.ResolveUnitConfig] and converts the parse with [config.UnitConfig.ToV1],
-// asserting that ToV1 returns every error type and diagnostic the parse returns. When the parse returns no config,
-// its error stands in for ToV1's.
+// resolveUnit resolves tc with [config.Store.ResolveUnitConfig] and converts the parse with
+// [config.UnitConfig.ResolveRunConfig], asserting that ResolveRunConfig returns every error type and diagnostic the
+// parse returns. When the parse returns no config, its error stands in for ResolveRunConfig's.
 func resolveUnit(t *testing.T, tc unitCase) unitResult {
 	t.Helper()
 
@@ -130,24 +130,24 @@ func resolveUnit(t *testing.T, tc unitCase) unitResult {
 
 	parsed, parseErr := new(config.Store).ResolveUnitConfig(ctx, l, v, pc, tc.cfgPath)
 
-	stub.inToV1.Store(true)
+	stub.inRunConfig.Store(true)
 
 	var cfg *config.TerragruntConfig
 
-	toV1Err := parseErr
+	runConfigErr := parseErr
 
 	if parsed != nil {
-		cfg, toV1Err = parsed.ToV1(ctx, l, v, new(config.Store), pc)
-		assertErrorsWithin(t, parseErr, toV1Err)
+		cfg, runConfigErr = parsed.ResolveRunConfig(ctx, l, v, new(config.Store), pc)
+		assertErrorsWithin(t, parseErr, runConfigErr)
 	}
 
 	return unitResult{
-		parsed:     parsed,
-		cfg:        cfg,
-		parseErr:   parseErr,
-		toV1Err:    toV1Err,
-		parseExecs: stub.parseExecs.Load(),
-		toV1Execs:  stub.toV1Execs.Load(),
+		parsed:         parsed,
+		cfg:            cfg,
+		parseErr:       parseErr,
+		runConfigErr:   runConfigErr,
+		parseExecs:     stub.parseExecs.Load(),
+		runConfigExecs: stub.runConfigExecs.Load(),
 	}
 }
 

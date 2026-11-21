@@ -16,9 +16,9 @@ import (
 type fetches int
 
 const (
-	// fetchesInToV1 runs tofu in ToV1 and never in the parse.
-	fetchesInToV1 fetches = iota
-	// fetchesInParse runs tofu in the parse, where it resolves an exposed include, and never in ToV1.
+	// fetchesInRunConfig runs tofu in ResolveRunConfig and never in the parse.
+	fetchesInRunConfig fetches = iota
+	// fetchesInParse runs tofu in the parse, where it resolves an exposed include, and never in ResolveRunConfig.
 	fetchesInParse
 	// fetchesNowhere runs no tofu.
 	fetchesNowhere
@@ -54,14 +54,14 @@ func TestParityDeferral(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		files        map[string]string
-		runDeps      *cty.Value
-		name         string
-		cfgPath      string
-		fetches      fetches
-		skipOutput   bool
-		wantParseErr bool
-		wantToV1Err  bool
+		files            map[string]string
+		runDeps          *cty.Value
+		name             string
+		cfgPath          string
+		fetches          fetches
+		skipOutput       bool
+		wantParseErr     bool
+		wantRunConfigErr bool
 	}{
 		{
 			name: "unit inputs read an output",
@@ -189,10 +189,10 @@ inputs = {
 			},
 		},
 		{
-			name:         "inputs read dependency inputs",
-			fetches:      fetchesNowhere,
-			wantParseErr: true,
-			wantToV1Err:  true,
+			name:             "inputs read dependency inputs",
+			fetches:          fetchesNowhere,
+			wantParseErr:     true,
+			wantRunConfigErr: true,
 			files: map[string]string{
 				"app/terragrunt.hcl": `
 dependency "vpc" {
@@ -226,8 +226,8 @@ inputs = {
 			},
 		},
 		{
-			name:        "unknown output key",
-			wantToV1Err: true,
+			name:             "unknown output key",
+			wantRunConfigErr: true,
 			files: map[string]string{
 				"app/terragrunt.hcl": `
 dependency "vpc" {
@@ -241,10 +241,10 @@ inputs = {
 			},
 		},
 		{
-			name:        "run-supplied dependency value with an unknown output key",
-			runDeps:     new(vpcOutputs),
-			fetches:     fetchesNowhere,
-			wantToV1Err: true,
+			name:             "run-supplied dependency value with an unknown output key",
+			runDeps:          new(vpcOutputs),
+			fetches:          fetchesNowhere,
+			wantRunConfigErr: true,
 			files: map[string]string{
 				"app/terragrunt.hcl": `
 dependency "vpc" {
@@ -258,8 +258,8 @@ inputs = {
 			},
 		},
 		{
-			name:        "missing local inside deferred inputs",
-			wantToV1Err: true,
+			name:             "missing local inside deferred inputs",
+			wantRunConfigErr: true,
 			files: map[string]string{
 				"app/terragrunt.hcl": `
 dependency "vpc" {
@@ -274,8 +274,8 @@ inputs = {
 			},
 		},
 		{
-			name:        "unreferenced dependency that was never applied",
-			wantToV1Err: true,
+			name:             "unreferenced dependency that was never applied",
+			wantRunConfigErr: true,
 			files: map[string]string{
 				"app/terragrunt.hcl": `
 dependency "broken" {
@@ -289,8 +289,8 @@ inputs = {
 			},
 		},
 		{
-			name:        "failed resolution leaves the include to resolve its own",
-			wantToV1Err: true,
+			name:             "failed resolution leaves the include to resolve its own",
+			wantRunConfigErr: true,
 			files: map[string]string{
 				"root.hcl": `
 dependency "vpc" {
@@ -313,19 +313,19 @@ dependency "broken" {
 			},
 		},
 		{
-			name:         "config path from another dependency output",
-			fetches:      fetchesNowhere,
-			wantParseErr: true,
-			wantToV1Err:  true,
-			files:        chainedDependencyFiles,
+			name:             "config path from another dependency output",
+			fetches:          fetchesNowhere,
+			wantParseErr:     true,
+			wantRunConfigErr: true,
+			files:            chainedDependencyFiles,
 		},
 		{
-			name:         "config path from another dependency output under validation",
-			fetches:      fetchesNowhere,
-			skipOutput:   true,
-			wantParseErr: true,
-			wantToV1Err:  true,
-			files:        chainedDependencyFiles,
+			name:             "config path from another dependency output under validation",
+			fetches:          fetchesNowhere,
+			skipOutput:       true,
+			wantParseErr:     true,
+			wantRunConfigErr: true,
+			files:            chainedDependencyFiles,
 		},
 		{
 			name: "hook reads an output beside one that does not",
@@ -420,10 +420,10 @@ remote_state = {
 			},
 		},
 		{
-			name:         "an exposed include fails to evaluate",
-			fetches:      fetchesNowhere,
-			wantParseErr: true,
-			wantToV1Err:  true,
+			name:             "an exposed include fails to evaluate",
+			fetches:          fetchesNowhere,
+			wantParseErr:     true,
+			wantRunConfigErr: true,
 			files: map[string]string{
 				"exposed.hcl": `
 inputs = {
@@ -439,10 +439,10 @@ include "exposed" {
 			},
 		},
 		{
-			name:         "engine meta reads a missing local",
-			fetches:      fetchesNowhere,
-			wantParseErr: true,
-			wantToV1Err:  true,
+			name:             "engine meta reads a missing local",
+			fetches:          fetchesNowhere,
+			wantParseErr:     true,
+			wantRunConfigErr: true,
 			files: map[string]string{
 				"app/terragrunt.hcl": `
 engine {
@@ -621,23 +621,23 @@ inputs = {
 			if result.parsed != nil {
 				assert.Equal(
 					t,
-					tc.wantToV1Err,
-					result.toV1Err != nil,
-					"ToV1 error: %v",
-					result.toV1Err,
+					tc.wantRunConfigErr,
+					result.runConfigErr != nil,
+					"ResolveRunConfig error: %v",
+					result.runConfigErr,
 				)
 			}
 
 			switch tc.fetches {
-			case fetchesInToV1:
+			case fetchesInRunConfig:
 				assert.Zero(t, result.parseExecs, "the parse ran tofu")
-				assert.Positive(t, result.toV1Execs, "ToV1 ran no tofu")
+				assert.Positive(t, result.runConfigExecs, "ResolveRunConfig ran no tofu")
 			case fetchesInParse:
 				assert.Positive(t, result.parseExecs, "the parse ran no tofu")
-				assert.Zero(t, result.toV1Execs, "ToV1 ran tofu")
+				assert.Zero(t, result.runConfigExecs, "ResolveRunConfig ran tofu")
 			case fetchesNowhere:
 				assert.Zero(t, result.parseExecs, "the parse ran tofu")
-				assert.Zero(t, result.toV1Execs, "ToV1 ran tofu")
+				assert.Zero(t, result.runConfigExecs, "ResolveRunConfig ran tofu")
 			}
 		})
 	}

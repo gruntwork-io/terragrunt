@@ -45,7 +45,7 @@ func TestSchemaCoverage(t *testing.T) {
 		configure: func(*config.ParsingContext) {},
 	})
 
-	require.Error(t, result.toV1Err)
+	require.Error(t, result.runConfigErr)
 }
 
 // TestSchemaMatchesPkgConfig pins that each header and body pair declares exactly the attributes, block types,
@@ -269,9 +269,9 @@ func TestSchemaMatchesPkgConfig(t *testing.T) {
 	}
 }
 
-// TestToV1LeavesDecodedBlocksUnchanged pins that repeated ToV1 calls on one parse return equal configs, although
-// include merges mutate what they merge and ToV1 decodes the run parts.
-func TestToV1LeavesDecodedBlocksUnchanged(t *testing.T) {
+// TestResolveRunConfigLeavesDecodedBlocksUnchanged pins that repeated ResolveRunConfig calls on one parse return equal
+// configs, although include merges mutate what they merge and ResolveRunConfig decodes the run parts.
+func TestResolveRunConfigLeavesDecodedBlocksUnchanged(t *testing.T) {
 	t.Parallel()
 
 	root := venvtest.Root("/fixture")
@@ -468,10 +468,10 @@ inputs = {
 	parsed, err := s.ResolveUnitConfig(ctx, l, v, pc, cfgPath)
 	require.NoError(t, err)
 
-	first, err := parsed.ToV1(ctx, l, v, new(config.Store), pc)
+	first, err := parsed.ResolveRunConfig(ctx, l, v, new(config.Store), pc)
 	require.NoError(t, err)
 
-	second, err := parsed.ToV1(ctx, l, v, new(config.Store), pc)
+	second, err := parsed.ResolveRunConfig(ctx, l, v, new(config.Store), pc)
 	require.NoError(t, err)
 
 	assert.Equal(t, first, second)

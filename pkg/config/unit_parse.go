@@ -28,8 +28,8 @@ import (
 //
 // The [UnitConfig] is shared with every call that shares its evaluation, and must not be changed.
 //
-// Returns the errors of the parse, which [UnitConfig.ToV1] returns again with those of resolving the outputs. Returns
-// nil when the parse produced no config.
+// Returns the errors of the parse, which [UnitConfig.ResolveRunConfig] returns again with those of resolving the
+// outputs. Returns nil when the parse produced no config.
 func (s *Store) ResolveUnitConfig(
 	ctx context.Context,
 	l log.Logger,
@@ -160,7 +160,7 @@ func (s *Store) ResolvePartialConfig(
 }
 
 // ResolveRunConfig fetches the dependency outputs of the file at cfgPath and returns its merged config with the run
-// parts, as [UnitConfig.ToV1] does, resolving the file as [Store.ResolveUnitConfig] does.
+// parts, as [UnitConfig.ResolveRunConfig] does, resolving the file as [Store.ResolveUnitConfig] does.
 //
 // Each call fetches the outputs again, and s retains neither them nor the config.
 //
@@ -179,7 +179,7 @@ func (s *Store) ResolveRunConfig(
 		return nil, err
 	}
 
-	return c.ToV1(ctx, l, v, s, pc)
+	return c.ResolveRunConfig(ctx, l, v, s, pc)
 }
 
 // ResolveRunConfigFromBytes resolves the config file at cfgPath as [Store.ResolveRunConfig] does, as if the file held

@@ -164,13 +164,13 @@ func (set *dependencySet) loaded(
 	return MergeIncludedDependencies(ctx, l, pctx, own, kept)
 }
 
-// dependencyValue returns the `dependency` value ToV1 decodes c with, and the blocks it was resolved from: the
-// run's when it supplied one, and otherwise the outputs of c's dependency blocks, fetched now. An included file
+// dependencyValue returns the `dependency` value ResolveRunConfig decodes c with, and the blocks it was resolved from:
+// the run's when it supplied one, and otherwise the outputs of c's dependency blocks, fetched now. An included file
 // whose including file resolved none decodes its own blocks first. It reports the files the parse read decoding the
 // blocks to pc's sinks.
 //
-// Returns the value a failed resolution leaves in the `dependency` variable with the error when the fetch fails. When the parse already reported
-// that the blocks failed to decode, it returns that value and no error.
+// Returns the value a failed resolution leaves in the `dependency` variable with the error when the fetch fails. When
+// the parse already reported that the blocks failed to decode, it returns that value and no error.
 func (c *UnitConfig) dependencyValue(
 	ctx context.Context,
 	l log.Logger,

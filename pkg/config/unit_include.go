@@ -17,7 +17,7 @@ import (
 )
 
 // includeSource is where an assembly gets the config of each file it merges, and whether it decodes the run parts of
-// each one: the parse presents the queue parts it decoded, and ToV1 adds the run parts.
+// each one: the parse presents the queue parts it decoded, and ResolveRunConfig adds the run parts.
 type includeSource interface {
 	// parts returns the parts of each file the assembly decodes.
 	parts() assemblyParts

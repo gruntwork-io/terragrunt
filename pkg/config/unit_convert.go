@@ -14,30 +14,30 @@ import (
 // file points to.
 func (c *UnitConfig) queueFile(q *QueueBodies) *TerragruntConfigFile {
 	return &TerragruntConfigFile{
-		Catalog:                     c.Catalog.v1(),
-		Terraform:                   c.Terraform.v1(),
+		Catalog:                     c.Catalog.convert(),
+		Terraform:                   c.Terraform.convert(),
 		TerraformBinary:             clonePtr(c.TerraformBinary),
 		TerraformVersionConstraint:  clonePtr(c.TerraformVersionConstraint),
 		TerragruntVersionConstraint: clonePtr(c.TerragruntVersionConstraint),
-		Dependencies:                c.Dependencies.v1(),
+		Dependencies:                c.Dependencies.convert(),
 		DownloadDir:                 clonePtr(c.DownloadDir),
 		PreventDestroy:              clonePtr(c.PreventDestroy),
 		IamRole:                     clonePtr(c.IamRole),
 		IamAssumeRoleDuration:       clonePtr(c.IamAssumeRoleDuration),
 		IamAssumeRoleSessionName:    clonePtr(c.IamAssumeRoleSessionName),
 		IamWebIdentityToken:         clonePtr(c.IamWebIdentityToken),
-		FeatureFlags:                convertAll(c.FeatureFlags, (*FeatureFlagHCL).v1),
-		Exclude:                     c.Exclude.v1(q.Exclude),
-		Engine:                      c.Engine.v1(q.Engine),
-		Errors:                      c.Errors.v1(q),
-		Outputs:                     c.Outputs.v1(q.MockValues),
+		FeatureFlags:                convertAll(c.FeatureFlags, (*FeatureFlagHCL).convert),
+		Exclude:                     c.Exclude.convert(q.Exclude),
+		Engine:                      c.Engine.convert(q.Engine),
+		Errors:                      c.Errors.convert(q),
+		Outputs:                     c.Outputs.convert(q.MockValues),
 	}
 }
 
 // fill adds the run parts r of c to file, which queueFile built from c.
 func (r *RunBodies) fill(c *UnitConfig, file *TerragruntConfigFile) {
 	if r.Exclude != nil {
-		file.Exclude = c.Exclude.v1(r.Exclude)
+		file.Exclude = c.Exclude.convert(r.Exclude)
 	}
 
 	c.fillRunAttributes(r, file)
@@ -45,23 +45,23 @@ func (r *RunBodies) fill(c *UnitConfig, file *TerragruntConfigFile) {
 	file.Inputs = r.Inputs
 	file.GenerateAttrs = r.GenerateAttrs
 	file.RemoteStateAttr = r.RemoteStateAttr
-	file.RemoteState = c.RemoteState.v1(r.RemoteState)
-	file.Engine = c.Engine.v1(r.Engine)
-	file.GenerateBlocks = convertEach(c.GenerateBlocks, r.Generate, (*GenerateHCL).v1)
-	file.Variables = convertEach(c.VariablesBlocks, r.Variables, (*VariablesHCL).v1)
-	file.Outputs = c.Outputs.v1(r.MockValues)
+	file.RemoteState = c.RemoteState.convert(r.RemoteState)
+	file.Engine = c.Engine.convert(r.Engine)
+	file.GenerateBlocks = convertEach(c.GenerateBlocks, r.Generate, (*GenerateHCL).convert)
+	file.Variables = convertEach(c.VariablesBlocks, r.Variables, (*VariablesHCL).convert)
+	file.Outputs = c.Outputs.convert(r.MockValues)
 
 	if c.Terraform == nil {
 		return
 	}
 
-	file.Terraform.ExtraArgs = convertEach(c.Terraform.ExtraArgs, r.ExtraArgs, (*ExtraArgumentsHCL).v1)
-	file.Terraform.BeforeHooks = convertEach(c.Terraform.BeforeHooks, r.BeforeHooks, (*HookHCL).v1)
-	file.Terraform.AfterHooks = convertEach(c.Terraform.AfterHooks, r.AfterHooks, (*HookHCL).v1)
-	file.Terraform.ErrorHooks = convertEach(c.Terraform.ErrorHooks, r.ErrorHooks, (*ErrorHookHCL).v1)
+	file.Terraform.ExtraArgs = convertEach(c.Terraform.ExtraArgs, r.ExtraArgs, (*ExtraArgumentsHCL).convert)
+	file.Terraform.BeforeHooks = convertEach(c.Terraform.BeforeHooks, r.BeforeHooks, (*HookHCL).convert)
+	file.Terraform.AfterHooks = convertEach(c.Terraform.AfterHooks, r.AfterHooks, (*HookHCL).convert)
+	file.Terraform.ErrorHooks = convertEach(c.Terraform.ErrorHooks, r.ErrorHooks, (*ErrorHookHCL).convert)
 }
 
-func (c *CatalogHCL) v1() *CatalogConfig {
+func (c *CatalogHCL) convert() *CatalogConfig {
 	if c == nil {
 		return nil
 	}
@@ -74,7 +74,7 @@ func (c *CatalogHCL) v1() *CatalogConfig {
 	}
 }
 
-func (e *EngineHCL) v1(body *EngineBody) *EngineConfig {
+func (e *EngineHCL) convert(body *EngineBody) *EngineConfig {
 	if e == nil {
 		return nil
 	}
@@ -88,7 +88,7 @@ func (e *EngineHCL) v1(body *EngineBody) *EngineConfig {
 }
 
 // v1 converts the tagged fields of t. The nested blocks are run parts that [RunBodies.fill] adds.
-func (t *TerraformHCL) v1() *TerraformConfig {
+func (t *TerraformHCL) convert() *TerraformConfig {
 	if t == nil {
 		return nil
 	}
@@ -105,7 +105,7 @@ func (t *TerraformHCL) v1() *TerraformConfig {
 	}
 }
 
-func (a *ExtraArgumentsHCL) v1(body *ExtraArgumentsBody) TerraformExtraArguments {
+func (a *ExtraArgumentsHCL) convert(body *ExtraArgumentsBody) TerraformExtraArguments {
 	return TerraformExtraArguments{
 		Arguments:        body.Arguments,
 		RequiredVarFiles: body.RequiredVarFiles,
@@ -116,7 +116,7 @@ func (a *ExtraArgumentsHCL) v1(body *ExtraArgumentsBody) TerraformExtraArguments
 	}
 }
 
-func (h *HookHCL) v1(body *HookBody) Hook {
+func (h *HookHCL) convert(body *HookBody) Hook {
 	return Hook{
 		If:             body.If,
 		RunOnError:     body.RunOnError,
@@ -128,7 +128,7 @@ func (h *HookHCL) v1(body *HookBody) Hook {
 	}
 }
 
-func (h *ErrorHookHCL) v1(body *ErrorHookBody) ErrorHook {
+func (h *ErrorHookHCL) convert(body *ErrorHookBody) ErrorHook {
 	return ErrorHook{
 		SuppressStdout: body.SuppressStdout,
 		WorkingDir:     body.WorkingDir,
@@ -139,7 +139,7 @@ func (h *ErrorHookHCL) v1(body *ErrorHookBody) ErrorHook {
 	}
 }
 
-func (r *RemoteStateHCL) v1(body *RemoteStateBody) *remotestate.ConfigFile {
+func (r *RemoteStateHCL) convert(body *RemoteStateBody) *remotestate.ConfigFile {
 	if r == nil {
 		return nil
 	}
@@ -154,7 +154,7 @@ func (r *RemoteStateHCL) v1(body *RemoteStateBody) *remotestate.ConfigFile {
 	}
 }
 
-func (d *ModuleDependenciesHCL) v1() *ModuleDependencies {
+func (d *ModuleDependenciesHCL) convert() *ModuleDependencies {
 	if d == nil {
 		return nil
 	}
@@ -164,7 +164,7 @@ func (d *ModuleDependenciesHCL) v1() *ModuleDependencies {
 
 // v1 converts e with its decoded body, returning nil when the file has no exclude block or body is nil because the
 // block reads `dependency` and [RunBodies.fill] converts it instead.
-func (e *ExcludeHCL) v1(body *ExcludeBody) *ExcludeConfig {
+func (e *ExcludeHCL) convert(body *ExcludeBody) *ExcludeConfig {
 	if e == nil || body == nil {
 		return nil
 	}
@@ -177,18 +177,18 @@ func (e *ExcludeHCL) v1(body *ExcludeBody) *ExcludeConfig {
 	}
 }
 
-func (e *ErrorsHCL) v1(q *QueueBodies) *ErrorsConfig {
+func (e *ErrorsHCL) convert(q *QueueBodies) *ErrorsConfig {
 	if e == nil {
 		return nil
 	}
 
 	return &ErrorsConfig{
-		Retry:  convertEach(e.Retry, q.Retry, (*RetryHCL).v1),
-		Ignore: convertEach(e.Ignore, q.Ignore, (*IgnoreHCL).v1),
+		Retry:  convertEach(e.Retry, q.Retry, (*RetryHCL).convert),
+		Ignore: convertEach(e.Ignore, q.Ignore, (*IgnoreHCL).convert),
 	}
 }
 
-func (r *RetryHCL) v1(body *RetryBody) *RetryBlock {
+func (r *RetryHCL) convert(body *RetryBody) *RetryBlock {
 	return &RetryBlock{
 		Label:            r.Label,
 		RetryableErrors:  slices.Clone(body.RetryableErrors),
@@ -197,7 +197,7 @@ func (r *RetryHCL) v1(body *RetryBody) *RetryBlock {
 	}
 }
 
-func (i *IgnoreHCL) v1(body *IgnoreBody) *IgnoreBlock {
+func (i *IgnoreHCL) convert(body *IgnoreBody) *IgnoreBlock {
 	return &IgnoreBlock{
 		Signals:         maps.Clone(body.Signals),
 		Label:           i.Label,
@@ -206,18 +206,18 @@ func (i *IgnoreHCL) v1(body *IgnoreBody) *IgnoreBlock {
 	}
 }
 
-func (o *OutputsHCL) v1(mockValues []*cty.Value) *OutputsConfig {
+func (o *OutputsHCL) convert(mockValues []*cty.Value) *OutputsConfig {
 	if o == nil {
 		return nil
 	}
 
 	return &OutputsConfig{
-		MockStrategy: o.MockStrategy.v1(),
-		Outputs:      convertEach(o.Output, mockValues, (*OutputHCL).v1),
+		MockStrategy: o.MockStrategy.convert(),
+		Outputs:      convertEach(o.Output, mockValues, (*OutputHCL).convert),
 	}
 }
 
-func (s *MockStrategyHCL) v1() *OutputsMockStrategy {
+func (s *MockStrategyHCL) convert() *OutputsMockStrategy {
 	if s == nil {
 		return nil
 	}
@@ -228,21 +228,21 @@ func (s *MockStrategyHCL) v1() *OutputsMockStrategy {
 	}
 }
 
-func (d *OutputHCL) v1(mockValue **cty.Value) *OutputDeclaration {
+func (d *OutputHCL) convert(mockValue **cty.Value) *OutputDeclaration {
 	return &OutputDeclaration{
 		MockValue: clonePtr(*mockValue),
 		Name:      d.Name,
 	}
 }
 
-func (f *FeatureFlagHCL) v1() *FeatureFlag {
+func (f *FeatureFlagHCL) convert() *FeatureFlag {
 	return &FeatureFlag{
 		Default: clonePtr(f.Default),
 		Name:    f.Name,
 	}
 }
 
-func (g *GenerateHCL) v1(body *GenerateBody) TerragruntGenerateBlock {
+func (g *GenerateHCL) convert(body *GenerateBody) TerragruntGenerateBlock {
 	return TerragruntGenerateBlock{
 		IfDisabled:       body.IfDisabled,
 		CommentPrefix:    body.CommentPrefix,
@@ -257,7 +257,7 @@ func (g *GenerateHCL) v1(body *GenerateBody) TerragruntGenerateBlock {
 	}
 }
 
-func (*VariablesHCL) v1(body *VariablesBody) VariablesBlock {
+func (*VariablesHCL) convert(body *VariablesBody) VariablesBlock {
 	return VariablesBlock{
 		Kind:     clonePtr(body.Kind),
 		Nullable: clonePtr(body.Nullable),

@@ -16,8 +16,8 @@ import (
 // index with the HCL slice it decodes.
 //
 // Engine and MockValues are the exceptions to that scope: the parse decodes them with `dependency` unknown, and
-// [RunBodies] holds them again decoded with the outputs. MockValues aligns by index with the output blocks of the outputs block, and holds nil for an output
-// with no mock value.
+// [RunBodies] holds them again decoded with the outputs. MockValues aligns by index with the output blocks of the
+// outputs block, and holds nil for an output with no mock value.
 type QueueBodies struct {
 	Exclude    *ExcludeBody
 	Engine     *EngineBody
@@ -26,8 +26,8 @@ type QueueBodies struct {
 	MockValues []*cty.Value
 }
 
-// RunBodies is the parts of a [UnitConfig] that only the run reads, decoded. [UnitConfig.ToV1] decodes them with
-// the `dependency` outputs resolved, and the parse never does. A nil pointer is an absent part, and each slice
+// RunBodies is the parts of a [UnitConfig] that only the run reads, decoded. [UnitConfig.ResolveRunConfig] decodes them
+// with the `dependency` outputs resolved, and the parse never does. A nil pointer is an absent part, and each slice
 // aligns by index with the HCL slice it decodes. Exclude is set only for an exclude block that reads `dependency`.
 type RunBodies struct {
 	Exclude                  *ExcludeBody

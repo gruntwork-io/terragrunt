@@ -15,7 +15,7 @@ import (
 )
 
 // TestQueuePartsCannotReadDependency pins that a queue part which reads `dependency` fails in the parse, and that
-// ToV1 reports the same failure, since the parse decodes those parts once with no `dependency` in scope.
+// ResolveRunConfig reports the same failure, since the parse decodes those parts once with no `dependency` in scope.
 func TestQueuePartsCannotReadDependency(t *testing.T) {
 	t.Parallel()
 
@@ -68,9 +68,9 @@ dependency "vpc" {
 
 			assert.Zero(t, stub.parseExecs.Load(), "the parse ran tofu")
 
-			_, toV1Err := parsed.ToV1(ctx, l, v, new(config.Store), pc)
-			require.Error(t, toV1Err)
-			assert.Contains(t, toV1Err.Error(), "Unknown variable")
+			_, runConfigErr := parsed.ResolveRunConfig(ctx, l, v, new(config.Store), pc)
+			require.Error(t, runConfigErr)
+			assert.Contains(t, runConfigErr.Error(), "Unknown variable")
 		})
 	}
 }

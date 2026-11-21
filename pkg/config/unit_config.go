@@ -8,15 +8,15 @@ import (
 )
 
 // UnitConfig is a parsed config file with the autoinclude and included files it merges.
-// [UnitConfig.ToV1] assembles them into the config a run reads.
+// [UnitConfig.ResolveRunConfig] assembles them into the config a run reads.
 //
-// The tagged fields decode in the parse, which fetches no dependency outputs, so an attribute among them cannot
-// read `dependency`. The exceptions are the top-level attributes ToV1 decodes after it resolves the outputs, which
-// discovery never reads: each of those is a run part. The Remain of each block, and each
-// [hcl.Attribute] field, is a queue part or a run part. The parse decodes the queue parts, which [QueueBodies] names,
-// into Queue, with no `dependency` variable in scope, or an unknown one for the engine block.
-// ToV1 decodes the run parts, which [RunBodies] names, with the outputs resolved. An exclude block that reads
-// `dependency` is a run part. A nil block field means the file has no such block.
+// The tagged fields decode in the parse, which fetches no dependency outputs, so an attribute among them cannot read
+// `dependency`. The exceptions are the top-level attributes ResolveRunConfig decodes after it resolves the outputs,
+// which discovery never reads: each of those is a run part. The Remain of each block, and each [hcl.Attribute] field,
+// is a queue part or a run part. The parse decodes the queue parts, which [QueueBodies] names, into Queue, with no
+// `dependency` variable in scope, or an unknown one for the engine block. ResolveRunConfig decodes the run parts, which
+// [RunBodies] names, with the outputs resolved. An exclude block that reads `dependency` is a run part. A nil block
+// field means the file has no such block.
 //
 // A UnitConfig is shared between the callers of a memoized parse. It holds none of a caller's settings or sinks, and
 // nothing changes it once its parse returns.
@@ -100,10 +100,11 @@ type UnitConfig struct {
 	// queueDecodeErr is decodeErr without the diagnostics of the top-level arguments and blocks the schema does not
 	// name, which a queue assembly does not report.
 	queueDecodeErr error
-	// runAttrs is the top-level attributes ToV1 decodes with the outputs, by name. The tagged field of each stays nil.
+	// runAttrs is the top-level attributes ResolveRunConfig decodes with the outputs, by name. The tagged field of each
+	// stays nil.
 	runAttrs map[string]*hcl.Attribute
-	// queueEngineDiags is the diagnostics of decoding Queue.Engine, which only a queue assembly reports. ToV1 decodes
-	// the block again with the outputs and reports its own.
+	// queueEngineDiags is the diagnostics of decoding Queue.Engine, which only a queue assembly reports. ResolveRunConfig
+	// decodes the block again with the outputs and reports its own.
 	queueEngineDiags hcl.Diagnostics
 	// prepErrs is the non-fatal errors of the stages before the decode.
 	prepErrs []error

@@ -8,7 +8,7 @@ import (
 	"github.com/hashicorp/hcl/v2/gohcl"
 )
 
-// The top-level attributes that [UnitConfig.ToV1] decodes after it resolves the dependency outputs, so each
+// The top-level attributes that [UnitConfig.ResolveRunConfig] decodes after it resolves the dependency outputs, so each
 // can read `dependency`. Discovery never reads them.
 const (
 	attrDownloadDir              = "download_dir"

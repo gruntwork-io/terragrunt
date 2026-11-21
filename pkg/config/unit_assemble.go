@@ -26,13 +26,14 @@ const (
 	runParts
 )
 
-// ToV1 resolves the dependency outputs the parse deferred, decodes the run parts of c with them, and returns the
-// config a run reads, which can be a partial config with an error. Each call fetches the outputs again. It never changes c.
+// ResolveRunConfig resolves the dependency outputs the parse deferred, decodes the run parts of c with them, and
+// returns the config a run reads, which can be a partial config with an error. Each call fetches the outputs again. It
+// never changes c.
 //
 // pc gives the run's settings and sinks, and c the state of each file.
 //
 // Panics when c did not come from [Store.ResolveUnitConfig].
-func (c *UnitConfig) ToV1(
+func (c *UnitConfig) ResolveRunConfig(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
