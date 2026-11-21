@@ -254,7 +254,8 @@ func evalContextWithoutIncludes(
 // The context may leave out the functions that calls does not name, so pass the calls of the HCL it evaluates.
 //
 // The context defines only the functions bound to the parse. Its parent, which every such context shares, defines
-// the rest. [EvalFunctions] returns the functions of both.
+// the rest. [EvalFunctions] returns the functions of both. When calls names a function no context defines, the context
+// also holds every function of its parent, so the error for that call can suggest any of them.
 func TerragruntEvalContext(
 	ctx context.Context,
 	l log.Logger,
@@ -268,6 +269,12 @@ func TerragruntEvalContext(
 	evalCtx := sharedFunctions().NewChild()
 	evalCtx.Functions = boundFunctions(ctx, l, v, s, pctx, cfgPath, calls)
 	evalCtx.Variables = vars
+
+	// hcl suggests a name for an unknown function only from the functions of the context it evaluates with, not of
+	// its parents.
+	if calls.Known() && callsUndefined(calls, evalCtx.Functions) {
+		evalCtx.Functions = EvalFunctions(evalCtx)
+	}
 
 	return evalCtx
 }

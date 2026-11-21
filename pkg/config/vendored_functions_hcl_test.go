@@ -169,25 +169,41 @@ func TestHCLTemplatesCallFunctionsTheConfigDoesNotCall(t *testing.T) {
 	}
 }
 
-func TestHCLUnknownFunctionSuggestsATerragruntFunction(t *testing.T) {
+// TestHCLUnknownFunctionSuggestsAFunctionOfAnyContext pins that a call to an unknown function suggests the closest
+// function whether a parse binds it, every parse shares it, or OpenTofu defines it.
+func TestHCLUnknownFunctionSuggestsAFunctionOfAnyContext(t *testing.T) {
 	t.Parallel()
 
-	l := logger.CreateLogger()
-	v := venv.MemVenv().WithFS(memUnitFS(t, nil))
-	ctx, pctx := newTestParsingContext(t, memConfigPath)
-	ctx = config.WithCaches(ctx)
+	testCases := []struct {
+		name string
+		call string
+		want string
+	}{
+		{name: "bound to the parse", call: "get_terragrunt_dri()", want: "get_terragrunt_dir"},
+		{name: "shared Terragrunt function", call: "get_default_retryable_error()", want: "get_default_retryable_errors"},
+		{name: "OpenTofu function", call: `uper("a")`, want: "upper"},
+	}
 
-	const content = `locals {
-  dir = get_terragrunt_dri()
-}`
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	_, err := resolveRunConfigString(t, ctx, l, v, new(config.Store), pctx, memConfigPath, content)
+			l := logger.CreateLogger()
+			v := venv.MemVenv().WithFS(memUnitFS(t, nil))
+			ctx, pctx := newTestParsingContext(t, memConfigPath)
+			ctx = config.WithCaches(ctx)
 
-	var diags hcl.Diagnostics
-	require.ErrorAs(t, err, &diags)
-	require.NotEmpty(t, diags)
-	assert.Equal(t, "Call to unknown function", diags[0].Summary)
-	assert.Contains(t, diags[0].Detail, `Did you mean "get_terragrunt_dir"?`)
+			content := "locals {\n  value = " + tc.call + "\n}"
+
+			_, err := resolveRunConfigString(t, ctx, l, v, new(config.Store), pctx, memConfigPath, content)
+
+			var diags hcl.Diagnostics
+			require.ErrorAs(t, err, &diags)
+			require.NotEmpty(t, diags)
+			assert.Equal(t, "Call to unknown function", diags[0].Summary)
+			assert.Contains(t, diags[0].Detail, `Did you mean "`+tc.want+`"?`)
+		})
+	}
 }
 
 func TestHCLConcurrentParsesCallSharedAndBoundFunctionsWithRacing(t *testing.T) {
