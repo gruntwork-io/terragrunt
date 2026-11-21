@@ -126,23 +126,6 @@ func ensureParsed(
 	})
 }
 
-// parseConfig parses the config of c at cfgPath: through s when c is a unit, and with pkg/config otherwise.
-func parseConfig(
-	ctx context.Context,
-	l log.Logger,
-	v *venv.Venv,
-	pctx *config.ParsingContext,
-	s *config.Store,
-	c component.Component,
-	cfgPath string,
-) (*config.TerragruntConfig, error) {
-	if _, isUnit := c.(*component.Unit); !isUnit {
-		return config.PartialParseConfigFile(ctx, l, v, s, pctx, cfgPath, nil)
-	}
-
-	return s.ResolveUnitQueueConfig(ctx, l, v, config.NewParseContext(v, pctx), cfgPath)
-}
-
 // parseAndReclassify parses a component and reclassifies it based on filter evaluation.
 func (d *Discovery) parseAndReclassify(
 	ctx context.Context,
@@ -307,13 +290,11 @@ func parseComponent(
 				parsingCtx.Parser.IgnoreDiagnostics = true
 			}
 
-			cfg, err := parseConfig(
+			cfg, err := s.ResolveUnitQueueConfig(
 				ctx,
 				l,
 				parseV,
-				parsingCtx,
-				s,
-				c,
+				config.NewParseContext(parseV, parsingCtx),
 				parseOpts.TerragruntConfigPath,
 			)
 			if err != nil {
