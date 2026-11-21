@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/hcl/v2"
@@ -536,6 +537,40 @@ func TestResolveRunConfigAddsTheRunParts(t *testing.T) {
 		runCfg.Inputs,
 	)
 	assert.Equal(t, config.Stats{Hits: 15, Misses: 11}, store.Stats())
+}
+
+func TestResolveRunConfigEvaluatesGetWorkingDirInLocals(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(vfs.MemRoot, "unit", config.DefaultTerragruntConfigPath)
+	fsys := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(fsys, path, []byte(`
+terraform {
+  source = "../modules/app"
+}
+
+locals {
+  dir = get_working_dir()
+}
+
+inputs = {
+  dir = local.dir
+}
+`), 0o644))
+
+	v := venv.MemVenv().WithFS(fsys)
+	l := logger.CreateLogger()
+	store := &config.Store{}
+
+	ctx, run := newTestUnitParsingContext(t, path)
+
+	first, err := store.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, run), path)
+	require.NoError(t, err)
+	assert.True(t, strings.HasPrefix(first.Inputs["dir"].(string), run.DownloadDir), "the working dir is downloaded")
+
+	second, err := store.ResolveRunConfig(ctx, l, v, config.NewParseContext(v, run), path)
+	require.NoError(t, err)
+	assert.Equal(t, first.Inputs, second.Inputs)
 }
 
 func TestResolveRunConfigReturnsNoConfigForAMissingFile(t *testing.T) {

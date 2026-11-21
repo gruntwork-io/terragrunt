@@ -1282,7 +1282,7 @@ func getWorkingDir(ctx context.Context, l log.Logger, v *venv.Venv, s *Store, pc
 	sourcePctx := pctx.Clone()
 	sourcePctx.stubWorkingDirFunc = true
 
-	cfg, err := ParseConfigFile(ctx, l, v, s, sourcePctx, pctx.TerragruntConfigPath, nil)
+	cfg, err := s.ResolveRunConfig(ctx, l, v, NewParseContext(v, sourcePctx), pctx.TerragruntConfigPath)
 	if err != nil {
 		return "", err
 	}

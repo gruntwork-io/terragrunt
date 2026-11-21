@@ -19,7 +19,8 @@ import (
 // directory, source, and source map; the tofu command, original command, and CLI args; the IAM role options and their
 // original values; the feature flag overrides; the auth provider command; the parser settings; the
 // read_terragrunt_config chain; SkipOutput; SkipOutputsResolution; the parse depth; SkipAutoIncludeMerge; whether
-// reads are tracked; the sections of the decode list; the environment of v; and whether v discards output.
+// the parse decodes only the catalog block; whether get_working_dir is stubbed; whether reads are tracked; the
+// sections of the decode list; the environment of v; and whether v discards output.
 //
 // It leaves out the experiments, the strict controls, the maximum number of parent folders to check, the engine,
 // the tofu binary and implementation, the provider cache and CAS options, and the telemetry and logging options.
@@ -61,6 +62,8 @@ func runDigest(v *venv.Venv, run *ParsingContext) (string, bool) {
 	d.bool(run.SkipOutputsResolution)
 	d.int(run.ParseDepth)
 	d.bool(run.SkipAutoIncludeMerge)
+	d.bool(run.catalogOnly)
+	d.bool(run.stubWorkingDirFunc)
 	d.bool(run.FilesRead.Tracking())
 	d.sections(run.PartialParseDecodeList)
 	d.uint64(HashEnv(v.Env))

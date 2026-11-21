@@ -284,7 +284,7 @@ func parseTerragruntConfigAsCty(
 	s *Store,
 	pctx *ParsingContext,
 ) (cty.Value, error) {
-	config, err := ParseConfigFile(ctx, l, v, s, pctx, pctx.TerragruntConfigPath, nil)
+	config, err := s.ResolveRunConfig(ctx, l, v, NewParseContext(v, pctx), pctx.TerragruntConfigPath)
 	if err != nil {
 		return cty.NilVal, err
 	}
@@ -293,11 +293,8 @@ func parseTerragruntConfigAsCty(
 		markNotShareable(ctx)
 	}
 
-	// We have to set the rendered outputs here because ParseConfigFile will not do so on the TerragruntConfig. The
-	// outputs are stored in a special map that is used only for rendering and thus is not available when we try to
-	// serialize the config for consumption.
-	// NOTE: this will not call terragrunt output, since all the values are cached from the ParseConfigFile call
-	// NOTE: we don't use range here because range will copy the slice, thereby undoing the set attribute.
+	// The parse leaves the rendered outputs off the config, and the cty value needs them. They come from the output
+	// cache the parse filled, so no output runs again. Indexing, not range, keeps the set on the slice element.
 	for i := range len(config.TerragruntDependencies) {
 		err := config.TerragruntDependencies[i].setRenderedOutputs(ctx, l, v, s, pctx)
 		if err != nil {
