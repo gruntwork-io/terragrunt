@@ -21,6 +21,9 @@ import (
 type includeSource interface {
 	// parts returns the parts of each file the assembly decodes.
 	parts() assemblyParts
+	// reported returns the decode list that limits the decode diagnostics the assembly reports for each file it
+	// assembles with pc to those of the list's sections and the base blocks. An empty list reports them all.
+	reported(pc *ParsingContext) []PartialDecodeSectionType
 	// file builds the v1 file of c from its queue parts, decoding the run parts with evalCtx when the assembly
 	// reaches them, and returns the diagnostics of that decode.
 	file(c *UnitConfig, evalCtx *hcl.EvalContext) (*TerragruntConfigFile, hcl.Diagnostics)
@@ -64,6 +67,10 @@ type includeResolver struct {
 
 func (p includeResolver) parts() assemblyParts {
 	return queueParts
+}
+
+func (p includeResolver) reported(pc *ParsingContext) []PartialDecodeSectionType {
+	return pc.PartialParseDecodeList
 }
 
 func (p includeResolver) file(
@@ -127,6 +134,10 @@ type keptIncludes struct {
 
 func (k keptIncludes) parts() assemblyParts {
 	return runParts
+}
+
+func (k keptIncludes) reported(*ParsingContext) []PartialDecodeSectionType {
+	return nil
 }
 
 func (k keptIncludes) file(
@@ -214,6 +225,10 @@ func (q keptQueue) parts() assemblyParts {
 	return queueParts
 }
 
+func (q keptQueue) reported(pc *ParsingContext) []PartialDecodeSectionType {
+	return pc.PartialParseDecodeList
+}
+
 func (q keptQueue) file(
 	c *UnitConfig,
 	_ *hcl.EvalContext,
@@ -280,12 +295,19 @@ func (q keptQueue) autoIncluded(
 type keptUnknownOutputs struct {
 	// readers collects a [PartialParseReadsDependencyError] for each file whose parts it leaves out for reading
 	// `dependency`, and is nil to collect none.
-	readers    *[]error
+	readers *[]error
+	// decodeList is the sections whose run parts the assembly decodes.
 	decodeList []PartialDecodeSectionType
+	// reportedList is the sections whose decode diagnostics the assembly reports, and none to report them all.
+	reportedList []PartialDecodeSectionType
 }
 
 func (k keptUnknownOutputs) parts() assemblyParts {
 	return queueParts
+}
+
+func (k keptUnknownOutputs) reported(*ParsingContext) []PartialDecodeSectionType {
+	return k.reportedList
 }
 
 func (k keptUnknownOutputs) file(
@@ -501,7 +523,8 @@ type includedFileContext struct {
 // includedContext returns how the file include names is parsed from pc, the context of the including file. A file
 // with a dependency block parses with its diagnostics suppressed.
 //
-// Returns [IncludedConfigMissingPathError] when include has no path.
+// Returns [IncludedConfigMissingPathError] when include has no path, and [IncludeConfigNotFoundError] when the file
+// does not exist.
 func (s *Store) includedContext(
 	ctx context.Context,
 	v *venv.Venv,
@@ -513,6 +536,13 @@ func (s *Store) includedContext(
 	}
 
 	hasDependencyBlock, err := s.hasDependencyBlock(ctx, v.FS, include.Path)
+	if errors.As(err, new(DependencyFileNotFoundError)) {
+		return includedFileContext{}, IncludeConfigNotFoundError{
+			IncludePath: include.Path,
+			SourcePath:  pc.TerragruntConfigPath,
+		}
+	}
+
 	if err != nil {
 		return includedFileContext{}, err
 	}
@@ -650,13 +680,18 @@ func (s *Store) includedDependencies(v *venv.Venv, pc *ParsingContext) IncludedD
 // converted from the config of the file the block names. Each block resolves once.
 //
 // The file resolves as merging it does, with its dependency outputs fetched and every run part decoded. A partial
-// parse fetches no outputs of a file with a dependency or dependencies block, and decodes only the run parts of that
-// file that read no `dependency`, whatever the decode list, so every partial parse shares one resolution. A partial
-// parse of a file without such a block evaluates it with the IAM role options the file sets.
+// parse evaluates the file with the IAM role options it sets. A partial parse fetches no outputs of a file with a
+// dependency or dependencies block, and decodes the remote_state and terraform blocks of that file only when file, the
+// including file, reads them, and then only their parts that read no `dependency`. That holds whatever the decode
+// list, so every partial parse shares one resolution.
 //
 // The second function returns the errors of the blocks that failed to resolve, in name order, each annotated by
 // [ExposedIncludeError].
-func (s *Store) exposedInclude(v *venv.Venv, pc *ParsingContext) (ExposedInclude, func() error) {
+func (s *Store) exposedInclude(
+	v *venv.Venv,
+	pc *ParsingContext,
+	file *hclparse.File,
+) (ExposedInclude, func() error) {
 	type exposedValue struct {
 		err     error
 		include *IncludeConfig
@@ -675,7 +710,7 @@ func (s *Store) exposedInclude(v *venv.Venv, pc *ParsingContext) (ExposedInclude
 			return kept.value, kept.err
 		}
 
-		value, err := s.resolveExposedInclude(ctx, l, v, pc, include)
+		value, err := s.resolveExposedInclude(ctx, l, v, pc, file, include)
 		resolved[include.Name] = exposedValue{err: err, include: include, value: value}
 
 		return value, err
@@ -696,7 +731,8 @@ func (s *Store) exposedInclude(v *venv.Venv, pc *ParsingContext) (ExposedInclude
 	return exposed, failed
 }
 
-// resolveExposedInclude resolves the file include names from pc and converts its config for the `include` variable.
+// resolveExposedInclude resolves the file include names from pc, the context of file, and converts its config for the
+// `include` variable.
 //
 // Returns [IncludedConfigMissingPathError] when include has no path.
 func (s *Store) resolveExposedInclude(
@@ -704,6 +740,7 @@ func (s *Store) resolveExposedInclude(
 	l log.Logger,
 	v *venv.Venv,
 	pc *ParsingContext,
+	file *hclparse.File,
 	include *IncludeConfig,
 ) (cty.Value, error) {
 	includedCtx, err := s.includedContext(ctx, v, pc, include)
@@ -720,13 +757,14 @@ func (s *Store) resolveExposedInclude(
 	)
 
 	switch {
-	case partial && includedCtx.hasDependencyBlock:
-		included, _, err = s.resolveFile(ctx, l, v, includedPC, include.Path)
-		src = keptUnknownOutputs{decodeList: runSections}
 	case partial:
 		included, err = s.resolveWithFileIAMRole(ctx, l, v, includedPC, include.Path)
 	default:
 		included, _, err = s.resolveFile(ctx, l, v, includedPC, include.Path)
+	}
+
+	if partial && includedCtx.hasDependencyBlock {
+		src = keptUnknownOutputs{decodeList: exposedRunSections(file.Body, include.Name)}
 	}
 
 	if included == nil {

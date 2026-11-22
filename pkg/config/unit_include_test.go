@@ -165,6 +165,115 @@ locals {
 	assert.Equal(t, "s3", cfg.Locals["backend"])
 }
 
+func TestResolveUnitQueueConfigEvaluatesNoUnreadRemoteStateOfAnExposedInclude(t *testing.T) {
+	t.Parallel()
+
+	root := vfs.MemRoot
+	path := filepath.Join(root, "unit", config.DefaultTerragruntConfigPath)
+
+	fsys := memFS(root, map[string]string{
+		"root.hcl": `
+dependencies {
+  paths = ["${get_terragrunt_dir()}/../dep"]
+}
+
+locals {
+  region = "us-east-1"
+}
+
+remote_state {
+  backend = "s3"
+
+  config = {
+    bucket = file("not-generated.txt")
+  }
+}
+`,
+		"dep/terragrunt.hcl": "",
+		"unit/terragrunt.hcl": `
+include "root" {
+  path   = find_in_parent_folders("root.hcl")
+  expose = true
+}
+
+locals {
+  region = include.root.locals.region
+}
+`,
+	})(t)
+
+	v := venv.MemVenv().WithFS(fsys)
+	ctx, run := newTestUnitParsingContext(t, path)
+	run.PartialParseDecodeList = []config.PartialDecodeSectionType{config.DependencyBlock, config.RemoteStateBlock}
+
+	cfg, err := (&config.Store{}).ResolveUnitQueueConfig(
+		ctx,
+		logger.CreateLogger(),
+		v,
+		run,
+		path,
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "us-east-1", cfg.Locals["region"])
+}
+
+func TestResolveUnitQueueConfigEvaluatesTheReadRemoteStateOfAnExposedIncludeWithTheIAMRoleItSets(t *testing.T) {
+	t.Parallel()
+
+	root := vfs.MemRoot
+	path := filepath.Join(root, "unit", config.DefaultTerragruntConfigPath)
+
+	fsys := memFS(root, map[string]string{
+		"root.hcl": `
+dependencies {
+  paths = ["${get_terragrunt_dir()}/../dep"]
+}
+
+iam_role               = "arn:aws:iam::222222222222:role/parent"
+iam_web_identity_token = "parent-token"
+
+remote_state {
+  backend = "s3"
+
+  config = {
+    bucket = "state-${get_aws_account_id()}"
+  }
+}
+`,
+		"dep/terragrunt.hcl": "",
+		"unit/terragrunt.hcl": `
+include "root" {
+  path   = find_in_parent_folders("root.hcl")
+  expose = true
+}
+
+locals {
+  bucket = include.root.remote_state.config.bucket
+}
+`,
+	})(t)
+
+	sts, _ := memSTS()
+
+	v := venv.MemVenv().WithFS(fsys).WithHTTP(sts).WithEnv(map[string]string{"AWS_REGION": "us-east-1"})
+	ctx, run := newTestUnitParsingContext(t, path)
+	run.PartialParseDecodeList = []config.PartialDecodeSectionType{config.DependencyBlock}
+	run.IAMRoleOptions = iam.RoleOptions{
+		RoleARN:          "arn:aws:iam::111111111111:role/run",
+		WebIdentityToken: "run-token",
+	}
+
+	cfg, err := (&config.Store{}).ResolveUnitQueueConfig(
+		ctx,
+		logger.CreateLogger(),
+		v,
+		run,
+		path,
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "state-222222222222", cfg.Locals["bucket"])
+}
+
 func TestResolveUnitQueueConfigEvaluatesAnExposedIncludeWithTheIAMRoleItSets(t *testing.T) {
 	t.Parallel()
 
@@ -320,6 +429,28 @@ exclude {
 	}
 
 	assert.Contains(t, files, filepath.Join(root, "root.hcl"))
+}
+
+func TestResolveUnitConfigReportsAMissingIncludeAsAnInclude(t *testing.T) {
+	t.Parallel()
+
+	root := vfs.MemRoot
+	path := filepath.Join(root, "unit", config.DefaultTerragruntConfigPath)
+
+	fsys := memFS(root, map[string]string{
+		"unit/terragrunt.hcl": `
+include "root" {
+  path = "../missing.hcl"
+}
+`,
+	})(t)
+
+	v := venv.MemVenv().WithFS(fsys)
+	ctx, run := newTestUnitParsingContext(t, path)
+
+	_, err := (&config.Store{}).ResolveUnitConfig(ctx, logger.CreateLogger(), v, run, path)
+	require.ErrorAs(t, err, new(config.IncludeConfigNotFoundError))
+	assert.NotErrorAs(t, err, new(config.DependencyFileNotFoundError))
 }
 
 // memSTS returns an STS endpoint that assumes any role with a web identity token, and the session names of the roles

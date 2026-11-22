@@ -7,6 +7,7 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hcldec"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -380,6 +381,67 @@ func readsDependencyIn[B, T any](items []T, remain func(*T) hcl.Body) bool {
 
 // runSections is the decode list sections that ask for every run part [UnitConfig.withRequestedRunParts] can keep.
 var runSections = []PartialDecodeSectionType{RemoteStateBlock, TerraformBlock}
+
+// exposedRunSections returns [runSections] when an expression of body may read the remote_state or terraform of the
+// exposed include name, and none otherwise. It may read them through include.<name>.remote_state,
+// include.<name>.terraform, or include or include.<name> as a whole. A body whose expressions fail to list may read
+// them.
+func exposedRunSections(body hcl.Body, name string) []PartialDecodeSectionType {
+	traversals, diags := bodyTraversals(body)
+	if diags.HasErrors() || slices.ContainsFunc(traversals, func(traversal hcl.Traversal) bool {
+		return readsExposedRunParts(traversal, name)
+	}) {
+		return runSections
+	}
+
+	return nil
+}
+
+// readsExposedRunParts reports whether traversal may read the remote_state or terraform of the exposed include name.
+func readsExposedRunParts(traversal hcl.Traversal, name string) bool {
+	if traversal.RootName() != MetadataInclude {
+		return false
+	}
+
+	label, ok := keyStep(traversal[1:])
+	if !ok {
+		return true
+	}
+
+	if label.name != name {
+		return false
+	}
+
+	part, ok := keyStep(label.rest)
+
+	return !ok || part.name == MetadataRemoteState || part.name == MetadataTerraform
+}
+
+// bodyTraversals returns the variable traversals of every expression in body. A body of HCL JSON gives those of
+// each of its properties.
+//
+// Returns the diagnostics of a body of HCL JSON whose properties fail to list.
+func bodyTraversals(body hcl.Body) ([]hcl.Traversal, hcl.Diagnostics) {
+	var traversals []hcl.Traversal
+
+	syntax, ok := body.(*hclsyntax.Body)
+	if !ok {
+		attrs, diags := body.JustAttributes()
+		for _, attr := range attrs {
+			traversals = append(traversals, attr.Expr.Variables()...)
+		}
+
+		return traversals, diags
+	}
+
+	walkNodes(syntax, func(node hclsyntax.Node) {
+		if expr, ok := node.(*hclsyntax.ScopeTraversalExpr); ok {
+			traversals = append(traversals, expr.Traversal)
+		}
+	})
+
+	return traversals, nil
+}
 
 // decodesRunParts reports whether section decodes run parts, which [UnitConfig.withRequestedRunParts] keeps.
 func decodesRunParts(section PartialDecodeSectionType) bool {

@@ -72,7 +72,12 @@ func (c *UnitConfig) assemble(
 
 	parts := src.parts()
 	file, diags := src.file(c, evalCtx)
-	decodeErr := joinDecodeErrors(c.parseDecodeErr(parts), bound.HandleDiagnostics(diags))
+	decodeErr := reportedDiagnostics(
+		src.reported(pc),
+		c.file.Body,
+		joinDecodeErrors(c.parseDecodeErr(parts), bound.FilterDiagnostics(diags)),
+	)
+	decodeErr = c.written.write(bound, decodeErr)
 
 	cfgFile, err := CompleteTerragruntConfigFile(
 		ctx,

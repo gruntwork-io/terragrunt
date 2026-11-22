@@ -97,7 +97,8 @@ func (s *Store) ResolveUnitBaseVariables(
 }
 
 // ResolveUnitQueueConfig returns the merged config of the file at cfgPath with the run parts left out, resolving the
-// file as [Store.ResolveUnitConfig] does. Each call gets a config of its own.
+// file as [Store.ResolveUnitConfig] does. Each call gets a config of its own. When pc has a decode list, the decode
+// diagnostics it reports and writes are only those of the base blocks and of the sections the list names.
 //
 // Returns a partial config with the error when part of the parse fails, and no config when the parse produced none.
 func (s *Store) ResolveUnitQueueConfig(
@@ -119,8 +120,8 @@ func (s *Store) ResolveUnitQueueConfig(
 
 // ResolvePartialConfig returns the merged config of the file at cfgPath with the run parts that a section of pc's
 // decode list decodes and that read no `dependency`, resolving the file as [Store.ResolveUnitConfig] does. It fetches
-// no outputs. The config also holds every queue part, and the errors are those of the queue parts and the requested
-// run parts, whatever the decode list names.
+// no outputs. The config also holds every queue part, but the decode diagnostics it reports and writes are only those
+// of the base blocks and of the sections the decode list names.
 //
 // Returns [PartialParseReadsDependencyError], with the config, for each merged file with a requested run part that
 // reads `dependency`, unless pc skips resolving outputs. Returns a partial config with the error when part of the
@@ -144,7 +145,7 @@ func (s *Store) ResolvePartialConfig(
 		return cfg, err
 	}
 
-	src := keptUnknownOutputs{decodeList: decodeList}
+	src := keptUnknownOutputs{decodeList: decodeList, reportedList: decodeList}
 
 	var readers []error
 	if !pc.SkipOutputsResolution {
@@ -495,7 +496,7 @@ func (s *Store) prepareBase(
 	pc = pc.withUnitValues(unitValues)
 	pctx = pc.detach()
 
-	exposed, exposedErr := s.exposedInclude(v, pc)
+	exposed, exposedErr := s.exposedInclude(v, pc, file)
 
 	baseBlocks, err := DecodeBaseBlocks(
 		ctx,
@@ -592,6 +593,7 @@ func (s *Store) prepare(
 		evalVars: base.evalVars,
 		evalErr:  base.evalErr,
 		scope:    pc.scope(),
+		written:  &writtenDiagnostics{},
 	}
 
 	if includes := pc.includes; includes != nil {
@@ -640,7 +642,7 @@ func (s *Store) prepare(
 		c.Queue.Engine, c.queueEngineDiags = c.decodeQueueEngine(evalCtx)
 
 		diags = append(diags, queueDiags...)
-		c.decodeErr = file.HandleDiagnostics(diags)
+		c.decodeErr = file.FilterDiagnostics(diags)
 		c.queueDecodeErr = c.decodeErr
 
 		if diags.HasErrors() {

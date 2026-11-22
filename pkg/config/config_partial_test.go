@@ -64,7 +64,7 @@ dependencies {
 
 // TestPartialParseFailsOnABrokenBlockOutsideTheDecodeList pins that a partial parse decodes every block discovery
 // reads, so a block that fails to decode fails the parse whatever the decode list names.
-func TestPartialParseFailsOnABrokenBlockOutsideTheDecodeList(t *testing.T) {
+func TestPartialParseDoesNotResolveIgnoredBlock(t *testing.T) {
 	t.Parallel()
 
 	cfg := `
@@ -79,12 +79,32 @@ prevent_destroy = false
 
 	v := venvtest.NewWithOSFS()
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
-	pctx = pctx.WithDecodeList(config.TerragruntFlags)
 
 	s := new(config.Store)
 
-	_, err := resolvePartialConfigString(t, ctx, l, v, s, pctx, config.DefaultTerragruntConfigPath, cfg)
-	require.Error(t, err)
+	_, err := resolvePartialConfigString(
+		t,
+		ctx,
+		l,
+		v,
+		s,
+		pctx.WithDecodeList(config.TerragruntFlags),
+		config.DefaultTerragruntConfigPath,
+		cfg,
+	)
+	require.NoError(t, err)
+
+	_, err = resolvePartialConfigString(
+		t,
+		ctx,
+		l,
+		v,
+		s,
+		pctx.WithDecodeList(config.DependenciesBlock),
+		config.DefaultTerragruntConfigPath,
+		cfg,
+	)
+	assert.Error(t, err)
 }
 
 func TestPartialParseMultipleItems(t *testing.T) {
@@ -158,7 +178,7 @@ func TestPartialParseOmittedItems(t *testing.T) {
 
 // TestPartialParseFailsOnABrokenBlockOutsideTheDecodeListInParent pins that a block of an included file that fails
 // to decode fails a partial parse whatever the decode list names.
-func TestPartialParseFailsOnABrokenBlockOutsideTheDecodeListInParent(t *testing.T) {
+func TestPartialParseDoesNotResolveIgnoredBlockEvenInParent(t *testing.T) {
 	t.Parallel()
 
 	configPath, err := filepath.Abs(
@@ -178,11 +198,13 @@ func TestPartialParseFailsOnABrokenBlockOutsideTheDecodeListInParent(t *testing.
 
 	v := venvtest.NewWithOSFS()
 	ctx, pctx := newTestParsingContext(t, configPath)
-	pctx = pctx.WithDecodeList(config.TerragruntFlags)
 	s := new(config.Store)
 
-	_, err = s.ResolvePartialConfig(ctx, l, v, pctx, configPath)
-	require.Error(t, err)
+	_, err = s.ResolvePartialConfig(ctx, l, v, pctx.WithDecodeList(config.TerragruntFlags), configPath)
+	require.NoError(t, err)
+
+	_, err = s.ResolvePartialConfig(ctx, l, v, pctx.WithDecodeList(config.DependenciesBlock), configPath)
+	assert.Error(t, err)
 }
 
 // Regression test for https://github.com/gruntwork-io/terragrunt/issues/5949: various invalid

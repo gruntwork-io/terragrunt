@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
+	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
@@ -40,9 +41,12 @@ func TestIncludeConfigAsCtyValWrapsErrorWithIncludeNameAndPath(t *testing.T) {
 	expose := true
 	inc := IncludeConfig{Name: "root", Path: parentPath, Expose: &expose}
 
-	exposed, _ := new(Store).exposedInclude(v, pctx)
+	childFile, err := hclparse.NewParser().ParseFromFile(v.FS, childPath)
+	require.NoError(t, err)
 
-	_, err := includeConfigAsCtyVal(ctx, l, pctx, inc, exposed)
+	exposed, _ := new(Store).exposedInclude(v, pctx, childFile)
+
+	_, err = includeConfigAsCtyVal(ctx, l, pctx, inc, exposed)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), `exposed include "root"`,
 		"error should name the include block so the user knows WHERE resolution failed")

@@ -95,7 +95,7 @@ type UnitConfig struct {
 	// dependencyReads is the files decoding the dependency blocks read, which only a run reports.
 	dependencyReads []string
 	// decodeErr is the error of the file update before the decode, which leaves the blocks empty, or of the
-	// parse's decode diagnostics.
+	// parse's decode diagnostics, which the parse does not write. Each assembly writes those it reports.
 	decodeErr error
 	// queueDecodeErr is decodeErr without the diagnostics of the top-level arguments and blocks the schema does not
 	// name, which a queue assembly does not report.
@@ -110,6 +110,8 @@ type UnitConfig struct {
 	prepErrs []error
 	// kept is the files the parse merged.
 	kept keptFiles
+	// written is the diagnostics the assemblies of the parse wrote.
+	written *writtenDiagnostics
 	// scope is the file's state after its base blocks decoded.
 	scope ParsingContext
 }
