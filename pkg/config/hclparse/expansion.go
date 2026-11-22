@@ -6,12 +6,14 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/gocty"
+
+	"github.com/gruntwork-io/terragrunt/internal/vendored/hcl/hcldecode"
 )
 
 const (
@@ -247,15 +249,10 @@ func (file *File) UnexpandedLabels(blockType string, out any) (map[string]struct
 
 // blockContent returns the file's blockType blocks.
 func (file *File) blockContent(blockType string, out any) (*hcl.BodyContent, error) {
-	labels := labelFields(reflect.TypeOf(out).Elem())
-	labelNames := make([]string, 0, len(labels))
+	labels := labelsOf(reflect.TypeOf(out).Elem())
 
-	for _, label := range labels {
-		labelNames = append(labelNames, label.name)
-	}
-
-	content, _, diags := file.Body.PartialContent(&hcl.BodySchema{
-		Blocks: []hcl.BlockHeaderSchema{{Type: blockType, LabelNames: labelNames}},
+	content, diags := hcldecode.PartialContent(file.Body, &hcl.BodySchema{
+		Blocks: []hcl.BlockHeaderSchema{{Type: blockType, LabelNames: labels.names}},
 	})
 	if err := file.HandleDiagnostics(diags); err != nil {
 		return nil, err
@@ -391,9 +388,7 @@ func ExpandBlock(
 
 // expansionBlock returns the block's expansion sub-block, or nil when it declares none.
 func expansionBlock(block *hcl.Block) (*hcl.Block, error) {
-	content, _, diags := block.Body.PartialContent(&hcl.BodySchema{
-		Blocks: []hcl.BlockHeaderSchema{{Type: ExpansionBlockName}},
-	})
+	content, diags := hcldecode.PartialContent(block.Body, expansionSchema)
 	if diags.HasErrors() {
 		return nil, diags
 	}
@@ -680,12 +675,12 @@ func decodeInstance(
 ) (any, hcl.Diagnostics) {
 	instance := reflect.New(outType.Elem())
 
-	if diags := gohcl.DecodeBody(block.Body, ctx, instance.Interface()); diags.HasErrors() {
+	if diags := hcldecode.DecodeBody(block.Body, ctx, instance.Interface()); diags.HasErrors() {
 		return nil, diags
 	}
 
 	// gohcl assigns label fields only when it decodes a block through its parent body.
-	for i, field := range labelFields(outType.Elem()) {
+	for i, field := range labelsOf(outType.Elem()).fields {
 		if i >= len(block.Labels) {
 			break
 		}
@@ -699,6 +694,59 @@ func decodeInstance(
 type labelField struct {
 	name  string
 	index int
+}
+
+// structLabels is the `hcl:",label"` fields of a block struct, in declaration order, and their names.
+type structLabels struct {
+	fields []labelField
+	names  []string
+}
+
+var (
+	// expansionSchema names the expansion block of a block body.
+	expansionSchema = &hcl.BodySchema{Blocks: []hcl.BlockHeaderSchema{{Type: ExpansionBlockName}}}
+
+	// labelsMu guards labelsByType.
+	labelsMu sync.RWMutex
+	// labelsByType holds what [labelsOf] returned for each block struct type. It holds no more entries than the
+	// program has struct types.
+	labelsByType = map[reflect.Type]structLabels{}
+)
+
+// labelsOf returns the label fields of structType, a block struct type, reading its tags on the first call for the
+// type. The slices are shared, and must not be changed.
+func labelsOf(structType reflect.Type) structLabels {
+	if labels, ok := cachedLabels(structType); ok {
+		return labels
+	}
+
+	fields := labelFields(structType)
+
+	labels := structLabels{fields: fields, names: make([]string, 0, len(fields))}
+	for _, field := range fields {
+		labels.names = append(labels.names, field.name)
+	}
+
+	labelsMu.Lock()
+	defer labelsMu.Unlock()
+
+	if stored, ok := labelsByType[structType]; ok {
+		return stored
+	}
+
+	labelsByType[structType] = labels
+
+	return labels
+}
+
+// cachedLabels returns what [labelsOf] returned for structType, and whether it has been called for the type.
+func cachedLabels(structType reflect.Type) (structLabels, bool) {
+	labelsMu.RLock()
+	defer labelsMu.RUnlock()
+
+	labels, ok := labelsByType[structType]
+
+	return labels, ok
 }
 
 // labelFields returns the `hcl:",label"` fields of a block struct, in declaration order.

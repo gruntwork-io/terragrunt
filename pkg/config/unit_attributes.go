@@ -6,6 +6,8 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
+
+	"github.com/gruntwork-io/terragrunt/internal/vendored/hcl/hcldecode"
 )
 
 // The top-level attributes that [UnitConfig.ResolveRunConfig] decodes after it resolves the dependency outputs, so each
@@ -31,17 +33,24 @@ var versionAttributeNames = []string{
 	MetadataTerragruntVersionConstraint,
 }
 
-// runAttributes returns the attributes of body among runAttributeNames, by name. It returns none for a body whose
-// content has errors, which the decode of the whole body reports.
+var (
+	// runAttributesSchema names the attributes of runAttributeNames.
+	runAttributesSchema = attributesSchemaOf(runAttributeNames)
+	// versionAttributesSchema names the attributes of versionAttributeNames.
+	versionAttributesSchema = attributesSchemaOf(versionAttributeNames)
+)
+
+// runAttributes returns the attributes of body, a parsed file's body, among runAttributeNames, by name. It returns
+// none for a body whose content has errors, which the decode of the whole body reports.
 func runAttributes(body hcl.Body) map[string]*hcl.Attribute {
-	return attributesNamed(body, runAttributeNames)
+	return attributesNamed(body, runAttributesSchema)
 }
 
-// dependencyVersionAttributes returns the attributes of body among versionAttributeNames that read `dependency`, by
-// name, which [ValidateVersionAttributeReferences] reports. It returns none for a body whose content has
-// errors, which the decode of the whole body reports.
+// dependencyVersionAttributes returns the attributes of body, a parsed file's body, among versionAttributeNames that
+// read `dependency`, by name, which [ValidateVersionAttributeReferences] reports. It returns none for a body whose
+// content has errors, which the decode of the whole body reports.
 func dependencyVersionAttributes(body hcl.Body) map[string]*hcl.Attribute {
-	attrs := attributesNamed(body, versionAttributeNames)
+	attrs := attributesNamed(body, versionAttributesSchema)
 	maps.DeleteFunc(attrs, func(_ string, attr *hcl.Attribute) bool {
 		return !slices.ContainsFunc(attr.Expr.Variables(), func(traversal hcl.Traversal) bool {
 			return traversal.RootName() == MetadataDependency
@@ -51,20 +60,25 @@ func dependencyVersionAttributes(body hcl.Body) map[string]*hcl.Attribute {
 	return attrs
 }
 
-// attributesNamed returns the top-level attributes of body among names, by name, and none for a body whose content
-// has errors.
-func attributesNamed(body hcl.Body, names []string) map[string]*hcl.Attribute {
-	schema := &hcl.BodySchema{Attributes: make([]hcl.AttributeSchema, 0, len(names))}
-	for _, name := range names {
-		schema.Attributes = append(schema.Attributes, hcl.AttributeSchema{Name: name})
-	}
-
-	content, _, diags := body.PartialContent(schema)
+// attributesNamed returns the top-level attributes of body, a parsed file's body, that schema names, by name, and none
+// for a body whose content has errors.
+func attributesNamed(body hcl.Body, schema *hcl.BodySchema) map[string]*hcl.Attribute {
+	content, diags := hcldecode.PartialContent(body, schema)
 	if diags.HasErrors() {
 		return nil
 	}
 
 	return content.Attributes
+}
+
+// attributesSchemaOf returns a schema of the attributes names, none of them required.
+func attributesSchemaOf(names []string) *hcl.BodySchema {
+	schema := &hcl.BodySchema{Attributes: make([]hcl.AttributeSchema, 0, len(names))}
+	for _, name := range names {
+		schema.Attributes = append(schema.Attributes, hcl.AttributeSchema{Name: name})
+	}
+
+	return schema
 }
 
 // withoutAttributes is a body whose content leaves out the attributes in hidden.

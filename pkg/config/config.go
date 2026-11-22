@@ -1551,6 +1551,53 @@ func GetDefaultConfigPath(fsys vfs.FS, workingDir string) string {
 	return cfgPath
 }
 
+// defaultConfigIn returns the path of the default configuration file in dir, as [GetDefaultConfigPath] does, and
+// whether a file exists at that path. It stats each default file at most once.
+//
+// Returns an [AmbiguousConfigError] when check is [RejectAmbiguousConfig] and dir holds both default files, as
+// [RejectAmbiguousDefaultConfig] does. With that check, it also returns the error of a stat that fails for a reason
+// other than the file being absent, unless a default file before it in [DefaultTerragruntConfigPaths] is absent.
+func defaultConfigIn(fsys vfs.FS, dir string, check AmbiguousConfigCheck) (string, bool, error) {
+	var found string
+
+	ambiguous := check == RejectAmbiguousConfig
+
+	for _, name := range DefaultTerragruntConfigPaths {
+		path := filepath.Join(dir, name)
+
+		_, err := fsys.Stat(path)
+		if ambiguous && err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return "", false, err
+		}
+
+		ambiguous = ambiguous && err == nil
+
+		if err == nil && found == "" {
+			found = path
+		}
+
+		if found != "" && !ambiguous {
+			break
+		}
+	}
+
+	if ambiguous {
+		return "", false, AmbiguousConfigError{
+			ComponentPath: dir,
+			ConfigFileA:   DefaultTerragruntConfigPath,
+			ConfigFileB:   DefaultTerragruntJSONConfigPath,
+		}
+	}
+
+	if found == "" {
+		fallback := DefaultTerragruntConfigPaths[len(DefaultTerragruntConfigPaths)-1]
+
+		return filepath.Join(dir, fallback), false, nil
+	}
+
+	return found, true, nil
+}
+
 // AmbiguousConfigCheck says whether resolving a unit directory fails when the directory holds both default unit
 // configuration files.
 type AmbiguousConfigCheck int

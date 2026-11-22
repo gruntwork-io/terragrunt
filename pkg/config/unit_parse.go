@@ -10,11 +10,11 @@ import (
 	"slices"
 
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vendored/hcl/hcldecode"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
@@ -671,7 +671,7 @@ func (s *Store) prepare(
 		maps.Copy(hidden, runAttrs)
 		maps.Copy(hidden, dependencyVersionAttributes(file.Body))
 
-		diags := gohcl.DecodeBody(withoutAttributes{Body: file.Body, hidden: hidden}, evalCtx, c)
+		diags := hcldecode.DecodeBody(withoutAttributes{Body: file.Body, hidden: hidden}, evalCtx, c)
 		c.runAttrs = runAttrs
 		c.terraformRunPart = c.Terraform != nil && c.Terraform.readsDependency()
 		c.errorsRunPart = c.Errors != nil && c.Errors.readsDependency()
@@ -698,7 +698,7 @@ func (s *Store) prepare(
 // unsupportedContent returns the diagnostics that decoding body into c reports for the top-level arguments and blocks
 // the schema of c does not name.
 func unsupportedContent(body hcl.Body, c *UnitConfig) hcl.Diagnostics {
-	schema, _ := gohcl.ImpliedBodySchema(c)
+	schema, _ := hcldecode.ImpliedBodySchema(c)
 
 	_, all := body.Content(schema)
 	_, _, partial := body.PartialContent(schema)

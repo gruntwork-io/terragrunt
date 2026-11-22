@@ -10,6 +10,8 @@ import (
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
+
+	"github.com/gruntwork-io/terragrunt/internal/vendored/hcl/hcldecode"
 )
 
 // QueueBodies is the parts of a [UnitConfig] beyond its tagged fields that discovery reads, decoded. The parse
@@ -163,12 +165,15 @@ func dependencyBlockContext(pctx *ParsingContext, evalCtx *hcl.EvalContext) *hcl
 	return withUnknownDependency(evalCtx)
 }
 
-// declaresDependencies reports whether body has a dependency block. A body whose dependency blocks fail to parse
-// reports true, so that their decode reports why.
+// dependencyBlocksSchema names the dependency blocks of a body.
+var dependencyBlocksSchema = &hcl.BodySchema{
+	Blocks: []hcl.BlockHeaderSchema{{Type: MetadataDependency, LabelNames: []string{"name"}}},
+}
+
+// declaresDependencies reports whether body, a parsed file's body, has a dependency block. A body whose dependency
+// blocks fail to parse reports true, so that their decode reports why.
 func declaresDependencies(body hcl.Body) bool {
-	content, _, diags := body.PartialContent(&hcl.BodySchema{
-		Blocks: []hcl.BlockHeaderSchema{{Type: MetadataDependency, LabelNames: []string{"name"}}},
-	})
+	content, diags := hcldecode.PartialContent(body, dependencyBlocksSchema)
 
 	return diags.HasErrors() || len(content.Blocks) > 0
 }
@@ -226,7 +231,7 @@ func (c *UnitConfig) decodeRun(evalCtx *hcl.EvalContext) (*RunBodies, hcl.Diagno
 // decodeInto decodes remain into a new body at *target.
 func decodeInto[B any](evalCtx *hcl.EvalContext, remain hcl.Body, target **B) hcl.Diagnostics {
 	body := new(B)
-	diags := gohcl.DecodeBody(remain, evalCtx, body)
+	diags := hcldecode.DecodeBody(remain, evalCtx, body)
 	*target = body
 
 	return diags
@@ -320,7 +325,7 @@ func decodeEach[T, B any](
 	bodies := make([]B, len(items))
 
 	for i := range items {
-		diags = append(diags, gohcl.DecodeBody(remain(&items[i]), evalCtx, &bodies[i])...)
+		diags = append(diags, hcldecode.DecodeBody(remain(&items[i]), evalCtx, &bodies[i])...)
 	}
 
 	*target = bodies
@@ -542,27 +547,48 @@ func bodyReadsDependency[B any](remain hcl.Body) bool {
 	return false
 }
 
-// attributesSchemas holds the schema [attributesSchema] returns for each type.
-var attributesSchemas sync.Map
+var (
+	// attributesSchemasMu guards attributesSchemas.
+	attributesSchemasMu sync.RWMutex
+	// attributesSchemas holds the schema [attributesSchema] returns for each type.
+	attributesSchemas = map[reflect.Type]*hcl.BodySchema{}
+)
 
 // attributesSchema returns a schema of the attributes of the body B decodes, none of them required. The schema is
 // shared and must not be changed.
 func attributesSchema[B any]() *hcl.BodySchema {
 	ty := reflect.TypeFor[B]()
-	if schema, ok := attributesSchemas.Load(ty); ok {
-		return schema.(*hcl.BodySchema)
+	if schema, ok := cachedAttributesSchema(ty); ok {
+		return schema
 	}
 
-	implied, _ := gohcl.ImpliedBodySchema(new(B))
+	implied, _ := hcldecode.ImpliedBodySchema(new(B))
 
 	schema := &hcl.BodySchema{Attributes: make([]hcl.AttributeSchema, 0, len(implied.Attributes))}
 	for _, attr := range implied.Attributes {
 		schema.Attributes = append(schema.Attributes, hcl.AttributeSchema{Name: attr.Name})
 	}
 
-	stored, _ := attributesSchemas.LoadOrStore(ty, schema)
+	attributesSchemasMu.Lock()
+	defer attributesSchemasMu.Unlock()
 
-	return stored.(*hcl.BodySchema)
+	if stored, ok := attributesSchemas[ty]; ok {
+		return stored
+	}
+
+	attributesSchemas[ty] = schema
+
+	return schema
+}
+
+// cachedAttributesSchema returns the schema [attributesSchema] built for ty, and whether it has built one.
+func cachedAttributesSchema(ty reflect.Type) (*hcl.BodySchema, bool) {
+	attributesSchemasMu.RLock()
+	defer attributesSchemasMu.RUnlock()
+
+	schema, ok := attributesSchemas[ty]
+
+	return schema, ok
 }
 
 // attrReadsDependency reports whether attr, which is nil when absent, reads the `dependency` variable.

@@ -4,8 +4,9 @@ import (
 	"fmt"
 
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclparse"
+
+	"github.com/gruntwork-io/terragrunt/internal/vendored/hcl/hcldecode"
 )
 
 const (
@@ -78,7 +79,7 @@ func (file *File) Decode(out any, evalContext *hcl.EvalContext) (err error) {
 		return err
 	}
 
-	diags := gohcl.DecodeBody(file.Body, evalContext, out)
+	diags := hcldecode.DecodeBody(file.Body, evalContext, out)
 	if err := file.HandleDiagnostics(diags); err != nil {
 		return err
 	}
@@ -104,7 +105,7 @@ func (file *File) Blocks(name string, isMultipleAllowed bool) ([]*Block, error) 
 		},
 	}
 	// We use PartialContent here, because we are only interested in parsing out the catalog block.
-	parsed, _, diags := file.Body.PartialContent(catalogSchema)
+	parsed, diags := hcldecode.PartialContent(file.Body, catalogSchema)
 	if err := file.HandleDiagnostics(diags); err != nil {
 		return nil, err
 	}

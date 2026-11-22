@@ -11,11 +11,11 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vendored/hcl/hcldecode"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	hcljson "github.com/hashicorp/hcl/v2/json"
 	"oras.land/oras-go/v2/registry/remote/auth"
@@ -373,7 +373,7 @@ func decodeOCITofuDefaultHelper(body hcl.Body) (ociTofuDefaults, error) {
 		Remain          hcl.Body  `hcl:",remain"`
 	}
 
-	if diags := gohcl.DecodeBody(body, nil, &decoded); diags.HasErrors() {
+	if diags := hcldecode.DecodeBody(body, nil, &decoded); diags.HasErrors() {
 		return ociTofuDefaults{}, diags
 	}
 
@@ -406,7 +406,7 @@ func decodeOCITofuDefaultHelper(body hcl.Body) (ociTofuDefaults, error) {
 func decodeOCITofuRepoBlock(block *hcl.Block) (ociTofuRepoCredential, error) {
 	var decoded ociTofuRepoBody
 
-	if diags := gohcl.DecodeBody(block.Body, nil, &decoded); diags.HasErrors() {
+	if diags := hcldecode.DecodeBody(block.Body, nil, &decoded); diags.HasErrors() {
 		return ociTofuRepoCredential{}, diags
 	}
 

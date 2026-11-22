@@ -656,7 +656,7 @@ func decodeDependencies(
 			return &updatedDependencies, DependencyInvalidConfigPathError{DependencyName: dep.Name}
 		}
 
-		depPath, err := getCleanedTargetConfigPath(
+		depPath, exists, err := getCleanedTargetConfigPath(
 			v.FS,
 			dep.ConfigPath.AsString(),
 			pctx.TerragruntConfigPath,
@@ -666,7 +666,7 @@ func decodeDependencies(
 			return &updatedDependencies, err
 		}
 
-		if !vfs.Exists(v.FS, depPath) {
+		if !exists {
 			updatedDependencies.Dependencies = append(updatedDependencies.Dependencies, dep)
 
 			continue
@@ -762,7 +762,7 @@ func checkForDependencyBlockCycles(
 			return DependencyInvalidConfigPathError{DependencyName: dependency.Name}
 		}
 
-		dependencyPath, err := getCleanedTargetConfigPath(
+		dependencyPath, exists, err := getCleanedTargetConfigPath(
 			v.FS,
 			dependency.ConfigPath.AsString(),
 			cfgPath,
@@ -773,7 +773,7 @@ func checkForDependencyBlockCycles(
 		}
 
 		// Skip cycle checking for nonexistent dependency targets — there is nothing to traverse.
-		if !vfs.Exists(v.FS, dependencyPath) {
+		if !exists {
 			continue
 		}
 
@@ -836,13 +836,18 @@ func checkForDependencyBlockCyclesUsingDFS(
 	}
 
 	for _, dependency := range dependencyPaths {
-		dependencyPath, err := getCleanedTargetConfigPath(v.FS, dependency, dependencyPath, pctx.AmbiguousConfigCheck)
+		dependencyPath, exists, err := getCleanedTargetConfigPath(
+			v.FS,
+			dependency,
+			dependencyPath,
+			pctx.AmbiguousConfigCheck,
+		)
 		if err != nil {
 			return err
 		}
 
 		// Skip cycle checking for nonexistent dependency targets such as stack directories.
-		if !vfs.Exists(v.FS, dependencyPath) {
+		if !exists {
 			continue
 		}
 
@@ -1080,7 +1085,7 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(
 		return nil, DependencyConfigPathNotStringError{Name: dependencyConfig.Name}
 	}
 
-	targetConfig, err := getCleanedTargetConfigPath(
+	targetConfig, _, err := getCleanedTargetConfigPath(
 		v.FS,
 		configPath,
 		pctx.TerragruntConfigPath,
@@ -1149,7 +1154,7 @@ func getTerragruntOutput(
 	declared *OutputsConfig,
 ) (*cty.Value, bool, error) {
 	// target config check: make sure the target config exists
-	targetConfigPath, err := getCleanedTargetConfigPath(
+	targetConfigPath, targetExists, err := getCleanedTargetConfigPath(
 		v.FS,
 		dependencyConfig.ConfigPath.AsString(),
 		pctx.TerragruntConfigPath,
@@ -1174,7 +1179,7 @@ func getTerragruntOutput(
 		return stackOutput, stackOutput == nil, err
 	}
 
-	if !vfs.Exists(v.FS, targetConfigPath) {
+	if !targetExists {
 		return nil, true, DependencyConfigNotFound{Path: targetConfigPath}
 	}
 
@@ -2966,7 +2971,7 @@ func ValidateDependencyConfigPaths(
 
 		rawPath := dep.ConfigPath.AsString()
 
-		targetConfigPath, err := getCleanedTargetConfigPath(fsys, rawPath, configPath, check)
+		targetConfigPath, _, err := getCleanedTargetConfigPath(fsys, rawPath, configPath, check)
 		if err != nil {
 			errs = append(errs, DependencyBlockError{Name: dep.Name, ConfigPath: configPath, Err: err})
 

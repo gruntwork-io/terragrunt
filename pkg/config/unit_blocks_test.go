@@ -10,12 +10,12 @@ import (
 	"testing"
 
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
+	"github.com/gruntwork-io/terragrunt/internal/vendored/hcl/hcldecode"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -488,7 +488,7 @@ func writeSchemaBody(t *testing.T, w *strings.Builder, ty reflect.Type, depth in
 
 	require.Less(t, depth, maxSchemaDepth, "schema of %s nests too deep", ty)
 
-	schema, _ := gohcl.ImpliedBodySchema(reflect.New(ty).Interface())
+	schema, _ := hcldecode.ImpliedBodySchema(reflect.New(ty).Interface())
 	blockTypes := map[string]struct{}{}
 
 	for _, block := range schema.Blocks {
@@ -554,7 +554,7 @@ type schemaRow struct {
 
 // impliedSchema returns the schema gohcl derives from the struct type ty.
 func impliedSchema(ty reflect.Type) *hcl.BodySchema {
-	schema, _ := gohcl.ImpliedBodySchema(reflect.New(ty).Interface())
+	schema, _ := hcldecode.ImpliedBodySchema(reflect.New(ty).Interface())
 
 	return schema
 }

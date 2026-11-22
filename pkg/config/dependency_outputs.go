@@ -134,13 +134,13 @@ func (dep *Dependency) unitTarget(fsys vfs.FS, pctx *ParsingContext) (dependency
 		return dependencyTarget{}, nil
 	}
 
-	targetConfig, err := getCleanedTargetConfigPath(
+	targetConfig, exists, err := getCleanedTargetConfigPath(
 		fsys,
 		configPath,
 		pctx.TerragruntConfigPath,
 		pctx.AmbiguousConfigCheck,
 	)
-	if err != nil || !vfs.Exists(fsys, targetConfig) {
+	if err != nil || !exists {
 		return dependencyTarget{}, err
 	}
 

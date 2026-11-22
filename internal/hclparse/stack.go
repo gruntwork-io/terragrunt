@@ -12,10 +12,10 @@ import (
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vendored/hcl/hcldecode"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	pkghclparse "github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
@@ -742,7 +742,7 @@ func readDiscoveryValues(
 	// Decoding into a map evaluates every top-level attribute and rejects blocks,
 	// the same shape pkg/config's ReadValues decodes.
 	values := map[string]cty.Value{}
-	if diags := gohcl.DecodeBody(file.Body, evalCtx, &values); diags.HasErrors() {
+	if diags := hcldecode.DecodeBody(file.Body, evalCtx, &values); diags.HasErrors() {
 		return nil, FileDecodeError{Name: valuesPath, Err: diags}
 	}
 

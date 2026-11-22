@@ -11,9 +11,9 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/topo"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vendored/hcl/hcldecode"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
@@ -212,7 +212,7 @@ func parseStackFileRoot(src []byte, filename string) (*StackFileHCL, error) {
 	}
 
 	stackFile := &StackFileHCL{}
-	if decodeDiags := gohcl.DecodeBody(file.Body, nil, stackFile); decodeDiags.HasErrors() {
+	if decodeDiags := hcldecode.DecodeBody(file.Body, nil, stackFile); decodeDiags.HasErrors() {
 		return nil, FileDecodeError{Name: filename, Err: decodeDiags}
 	}
 

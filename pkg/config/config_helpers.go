@@ -1438,12 +1438,15 @@ func ParseTerragruntConfig(
 	// target config check: make sure the target config exists. If the file does not exist, and there is no default val,
 	// return an error. If the file does not exist but there is a default val, return the default val. Otherwise,
 	// proceed to parse the file as a terragrunt config file.
-	targetConfig, err := getCleanedTargetConfigPath(v.FS, cfgPath, pctx.TerragruntConfigPath, pctx.AmbiguousConfigCheck)
+	targetConfig, targetConfigFileExists, err := getCleanedTargetConfigPath(
+		v.FS,
+		cfgPath,
+		pctx.TerragruntConfigPath,
+		pctx.AmbiguousConfigCheck,
+	)
 	if err != nil {
 		return cty.NilVal, err
 	}
-
-	targetConfigFileExists := vfs.Exists(v.FS, targetConfig)
 
 	if !targetConfigFileExists && defaultVal == nil {
 		return cty.NilVal, TerragruntConfigNotFoundError{Path: targetConfig}
@@ -1585,8 +1588,8 @@ func readTerragruntConfigAsFuncImpl(
 }
 
 // Returns a cleaned path to the target config (the `terragrunt.hcl` or `terragrunt.hcl.json` file), handling relative
-// paths correctly. This will automatically append `terragrunt.hcl` or `terragrunt.hcl.json` to the path if the target
-// path is a directory.
+// paths correctly, and whether a file exists at that path. This will automatically append `terragrunt.hcl` or
+// `terragrunt.hcl.json` to the path if the target path is a directory.
 //
 // Returns an [AmbiguousConfigError] when the target path is a directory that holds both files and check is
 // [RejectAmbiguousConfig], even when the directory also holds terragrunt.stack.hcl.
@@ -1595,7 +1598,7 @@ func getCleanedTargetConfigPath(
 	cfgPath string,
 	workingPath string,
 	check AmbiguousConfigCheck,
-) (string, error) {
+) (string, bool, error) {
 	cwd := filepath.Dir(workingPath)
 
 	targetConfig := cfgPath
@@ -1603,15 +1606,33 @@ func getCleanedTargetConfigPath(
 		targetConfig = filepath.Join(cwd, targetConfig)
 	}
 
-	if !vfs.IsDir(fsys, targetConfig) {
-		return filepath.Clean(targetConfig), nil
+	exists, isDir := statKind(fsys, targetConfig)
+	if isDir {
+		path, exists, err := defaultConfigIn(fsys, targetConfig, check)
+		if err != nil {
+			return "", false, err
+		}
+
+		return filepath.Clean(path), exists, nil
 	}
 
-	if err := RejectAmbiguousDefaultConfig(fsys, targetConfig, check); err != nil {
-		return "", err
+	cleaned := filepath.Clean(targetConfig)
+	if cleaned != targetConfig {
+		exists, _ = statKind(fsys, cleaned)
 	}
 
-	return filepath.Clean(GetDefaultConfigPath(fsys, targetConfig)), nil
+	return cleaned, exists, nil
+}
+
+// statKind reports whether path exists and whether it is a directory, following symlinks. A path that cannot be
+// stat'd counts as absent, as [vfs.Exists] counts it.
+func statKind(fsys vfs.FS, path string) (exists, isDir bool) {
+	info, err := fsys.Stat(path)
+	if err != nil {
+		return false, false
+	}
+
+	return true, info.IsDir()
 }
 
 // GetTerragruntSourceForModule returns the source path for a module based on the source path of the parent module and the

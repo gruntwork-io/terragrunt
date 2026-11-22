@@ -218,6 +218,9 @@ linters:
         - pattern: ^testing\.(T|B|F|TB)\.(Error|Errorf|Fatal|Fatalf|Fail|FailNow)$
           pkg: ^testing$
           msg: fail through testify's require or assert instead of the testing.TB failure methods
+        - pattern: ^gohcl\.(DecodeBody|ImpliedBodySchema)$
+          pkg: ^github.com/hashicorp/hcl/v2/gohcl$
+          msg: decode through hcldecode, which reads the hcl tags of each type once, instead of gohcl
     errcheck:
       check-type-assertions: false
       check-blank: true
@@ -286,6 +289,11 @@ linters:
       - linters:
           - godoclint
         text: should have a godoc \("(Error|Unwrap|String)"\)
+      # hcldecode delegates map targets to gohcl and tests itself against it.
+      - linters:
+          - forbidigo
+        text: hcldecode
+        path: ^internal/vendored/hcl/hcldecode/
       # Tests frequently drive real fixtures on disk, so tests
       # are allowed to bypass venv. The text match lifts only the venv rules,
       # so the testify rule still applies here.

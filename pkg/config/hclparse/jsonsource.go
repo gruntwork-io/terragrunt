@@ -151,7 +151,7 @@ func writeJSONBody(sb *strings.Builder, members []jsonMember, structType reflect
 			continue
 		}
 
-		if labels := labelFields(nestedType); len(labels) > 0 {
+		if labels := labelsOf(nestedType).fields; len(labels) > 0 {
 			return UnsupportedJSONBlockError{BlockType: member.name}
 		}
 

@@ -201,7 +201,7 @@ func (address dependencyAddress) noOutputsError(v *venv.Venv, pctx *ParsingConte
 			return nil, false
 		}
 
-		targetConfig, err := getCleanedTargetConfigPath(
+		targetConfig, _, err := getCleanedTargetConfigPath(
 			v.FS,
 			configPath,
 			pctx.TerragruntConfigPath,

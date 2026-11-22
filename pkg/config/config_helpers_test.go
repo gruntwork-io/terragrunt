@@ -2110,6 +2110,37 @@ func TestReadTerragruntConfigLocals(t *testing.T) {
 }
 
 // pins that read_terragrunt_config resolves get_original_terragrunt_dir() relative to OriginalTerragruntConfigPath
+func TestReadTerragruntConfigReadsATargetWhoseDotDotPassesAMissingDirectory(t *testing.T) {
+	t.Parallel()
+
+	v := venv.MemVenv().WithFS(vfs.NewOSFS())
+	rootDir := helpers.TmpDirWOSymlinks(t)
+
+	files := map[string]string{
+		filepath.Join("dep", config.DefaultTerragruntConfigPath): `locals { value = "dep" }`,
+		filepath.Join("unit", config.DefaultTerragruntConfigPath): `
+locals {
+  dep = read_terragrunt_config("${get_terragrunt_dir()}/missing/../../dep/terragrunt.hcl")
+}
+
+inputs = {
+  value = local.dep.locals.value
+}
+`,
+	}
+
+	for name, contents := range files {
+		path := filepath.Join(rootDir, name)
+		require.NoError(t, v.FS.MkdirAll(filepath.Dir(path), 0o755))
+		require.NoError(t, vfs.WriteFile(v.FS, path, []byte(contents), 0o644))
+	}
+
+	cfgPath := filepath.Join(rootDir, "unit", config.DefaultTerragruntConfigPath)
+
+	value, _ := parseUnitInput(config.WithCaches(t.Context()), t, v, new(config.Store), cfgPath)
+	assert.Equal(t, "dep", value)
+}
+
 func TestReadTerragruntConfigResolvesRelativeToOriginalTerragruntDir(t *testing.T) {
 	t.Parallel()
 

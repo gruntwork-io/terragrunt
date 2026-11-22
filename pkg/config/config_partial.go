@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/gruntwork-io/terragrunt/internal/vendored/hcl/hcldecode"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -129,25 +130,14 @@ func ValidateExcludeReferences(file *hclparse.File) error {
 // Returns what [hclparse.File.HandleDiagnostics] returns for those diagnostics, or for the diagnostics of a body
 // whose top-level content fails to parse.
 func ValidateVersionAttributeReferences(file *hclparse.File) error {
-	names := []string{
-		MetadataTerraformBinary,
-		MetadataTerraformVersionConstraint,
-		MetadataTerragruntVersionConstraint,
-	}
-
-	schema := &hcl.BodySchema{Attributes: make([]hcl.AttributeSchema, 0, len(names))}
-	for _, name := range names {
-		schema.Attributes = append(schema.Attributes, hcl.AttributeSchema{Name: name})
-	}
-
-	content, _, diags := file.Body.PartialContent(schema)
+	content, diags := hcldecode.PartialContent(file.Body, versionAttributesSchema)
 	if err := file.HandleDiagnostics(diags); err != nil {
 		return err
 	}
 
 	var refDiags hcl.Diagnostics
 
-	for _, name := range names {
+	for _, name := range versionAttributeNames {
 		attr, ok := content.Attributes[name]
 		if !ok {
 			continue
