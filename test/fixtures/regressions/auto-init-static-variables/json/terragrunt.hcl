@@ -7,3 +7,7 @@ variable "src" {
 }
 EOT
 }
+
+inputs = {
+  other = get_env("TG_TEST_AUTO_INIT_OTHER", "x")
+}

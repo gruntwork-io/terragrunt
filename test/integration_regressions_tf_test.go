@@ -253,6 +253,11 @@ func TestTFAutoInitRunsOnlyWhenGeneratedContentInitReadsChanges(t *testing.T) {
 func TestTFAutoInitRunsWhenAVariableAModuleSourceReadsChanges(t *testing.T) {
 	t.Parallel()
 
+	if helpers.IsTerraform(t.Context()) {
+		t.Skip("Terraform does not evaluate variables in module sources")
+		return
+	}
+
 	testCases := []struct {
 		name string
 		unit string
@@ -270,12 +275,13 @@ func TestTFAutoInitRunsWhenAVariableAModuleSourceReadsChanges(t *testing.T) {
 
 			recorder := helpers.NewExecRecorder(vexec.NewOSExec())
 
-			plan := func(module string) bool {
+			plan := func(module, other string) bool {
 				t.Helper()
 
 				v := helpers.RunVenv(t).WithExec(recorder)
 				env := maps.Clone(v.Env)
 				env["TG_TEST_AUTO_INIT_MODULE"] = module
+				env["TG_TEST_AUTO_INIT_OTHER"] = other
 
 				return planRunsInit(
 					t,
@@ -285,7 +291,7 @@ func TestTFAutoInitRunsWhenAVariableAModuleSourceReadsChanges(t *testing.T) {
 				)
 			}
 
-			ranInit := []bool{plan("a"), plan("a"), plan("b"), plan("b")}
+			ranInit := []bool{plan("a", "1"), plan("a", "2"), plan("b", "2"), plan("b", "3")}
 
 			assert.Equal(t, []bool{true, false, true, false}, ranInit)
 		})

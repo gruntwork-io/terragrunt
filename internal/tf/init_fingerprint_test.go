@@ -623,7 +623,7 @@ func TestInitFingerprintCountsInputsWhenInitEvaluatesVariables(t *testing.T) {
 		{
 			name: "values in generated var files changed",
 			mutate: func(_ *testing.T, _ vfs.FS, _ string, inputs *tf.InitInputs) {
-				inputs.Generated = []byte(`{"src": "./b"}`)
+				inputs.Generated["src"] = `"./b"`
 			},
 			wantChanged: true,
 		},
@@ -650,6 +650,27 @@ func TestInitFingerprintCountsInputsWhenInitEvaluatesVariables(t *testing.T) {
 			},
 			wantChanged: false,
 		},
+		{
+			name: "TF_VAR_ variable of a variable init does not read changed",
+			mutate: func(_ *testing.T, _ vfs.FS, _ string, inputs *tf.InitInputs) {
+				inputs.Env["TF_VAR_other"] = "y"
+			},
+			wantChanged: false,
+		},
+		{
+			name: "TF_VAR_ variable of a variable init does not read added",
+			mutate: func(_ *testing.T, _ vfs.FS, _ string, inputs *tf.InitInputs) {
+				inputs.Env["TF_VAR_zzz"] = "1"
+			},
+			wantChanged: false,
+		},
+		{
+			name: "generated value of a variable init does not read changed",
+			mutate: func(_ *testing.T, _ vfs.FS, _ string, inputs *tf.InitInputs) {
+				inputs.Generated["other"] = `"y"`
+			},
+			wantChanged: false,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -671,9 +692,9 @@ func TestInitFingerprintCountsInputsWhenInitEvaluatesVariables(t *testing.T) {
 			}
 
 			inputs := tf.InitInputs{
-				Env:               map[string]string{"TF_VAR_src": "./a", "HOME": "/home"},
+				Env:               map[string]string{"TF_VAR_src": "./a", "TF_VAR_other": "x", "HOME": "/home"},
 				Args:              []string{"-var-file=init.tfvars"},
-				Generated:         []byte(`{"src": "./a"}`),
+				Generated:         map[string]string{"src": `"./a"`, "other": `"x"`},
 				GeneratedVarFiles: []string{"generated.auto.tfvars"},
 			}
 
@@ -688,6 +709,173 @@ func TestInitFingerprintCountsInputsWhenInitEvaluatesVariables(t *testing.T) {
 			assert.Equal(t, tc.wantChanged, !got)
 		})
 	}
+}
+
+func TestInitFingerprintCountsTheVariablesStaticReferencesRead(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		files         map[string]string
+		name          string
+		changedVar    string
+		wantInputVars string
+		wantChanged   bool
+	}{
+		{
+			name:          "module source reads the variable",
+			files:         map[string]string{"static.tf": "module \"static\" {\n  source = var.src\n}\n"},
+			changedVar:    "src",
+			wantInputVars: "src",
+			wantChanged:   true,
+		},
+		{
+			name:          "module source reads another variable",
+			files:         map[string]string{"static.tf": "module \"static\" {\n  source = var.src\n}\n"},
+			changedVar:    "other",
+			wantInputVars: "src",
+			wantChanged:   false,
+		},
+		{
+			name: "module source reads a local that reads the variable",
+			files: map[string]string{
+				"static.tf": "locals {\n  dir = local.base\n  base = \"./${var.ver}\"\n}\n\n" +
+					"module \"static\" {\n  source = local.dir\n}\n",
+			},
+			changedVar:    "ver",
+			wantInputVars: "ver",
+			wantChanged:   true,
+		},
+		{
+			name: "module source reads a constant local",
+			files: map[string]string{
+				"static.tf": "locals {\n  dir = \"./example\"\n}\n\nmodule \"static\" {\n  source = local.dir\n}\n",
+			},
+			changedVar:    "src",
+			wantInputVars: "",
+			wantChanged:   false,
+		},
+		{
+			name:          "backend reads the variable",
+			files:         map[string]string{"static.tf": "terraform {\n  backend \"s3\" {\n    key = var.key\n  }\n}\n"},
+			changedVar:    "key",
+			wantInputVars: "key",
+			wantChanged:   true,
+		},
+		{
+			name:          "module source in a .tf.json file reads the variable",
+			files:         map[string]string{"static.tf.json": `{"module": {"static": {"source": "${var.src}"}}}`},
+			changedVar:    "src",
+			wantInputVars: "src",
+			wantChanged:   true,
+		},
+		{
+			name:          "module source in a .tf.json file reads another variable",
+			files:         map[string]string{"static.tf.json": `{"module": {"static": {"source": "${var.src}"}}}`},
+			changedVar:    "other",
+			wantInputVars: "src",
+			wantChanged:   false,
+		},
+		{
+			name: "module source reads a local a .tf.json file defines",
+			files: map[string]string{
+				"locals.tf.json": `{"locals": {"dir": "./${var.ver}"}}`,
+				"static.tf":      "module \"static\" {\n  source = local.dir\n}\n",
+			},
+			changedVar:    "ver",
+			wantInputVars: "ver",
+			wantChanged:   true,
+		},
+		{
+			name:          "module source reads an undefined local",
+			files:         map[string]string{"static.tf": "module \"static\" {\n  source = local.missing\n}\n"},
+			changedVar:    "other",
+			wantInputVars: "*",
+			wantChanged:   true,
+		},
+		{
+			name:          "module inside the unit reads a variable in its module source",
+			files:         map[string]string{"example/static.tf": "module \"nested\" {\n  source = var.src\n}\n"},
+			changedVar:    "other",
+			wantInputVars: "*",
+			wantChanged:   true,
+		},
+		{
+			name:          "file fails to parse",
+			files:         map[string]string{"broken.tf": fingerprintBrokenTF},
+			changedVar:    "other",
+			wantInputVars: "*",
+			wantChanged:   true,
+		},
+		{
+			name:          ".tf.json file fails to decode",
+			files:         map[string]string{"broken.tf.json": `{"module": `},
+			changedVar:    "other",
+			wantInputVars: "*",
+			wantChanged:   true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			fsys := vfs.NewMemMapFS()
+			unit := writeInitializedUnit(t, fsys, "/work")
+			dataDir := filepath.Join(unit, ".terraform")
+
+			for name, content := range tc.files {
+				writeTestFile(t, fsys, filepath.Join(unit, name), content)
+			}
+
+			inputs := tf.InitInputs{
+				Env:       map[string]string{"TF_VAR_" + tc.changedVar: "before"},
+				Generated: map[string]string{tc.changedVar: `"before"`},
+			}
+
+			before, err := tf.ComputeInitFingerprint(fsys, unit, dataDir, returnInitInputs(&inputs))
+			require.NoError(t, err)
+			assert.NotEmpty(t, before.Inputs)
+			assert.Equal(t, tc.wantInputVars, before.InputVars)
+
+			inputs = tf.InitInputs{
+				Env:       map[string]string{"TF_VAR_" + tc.changedVar: "after"},
+				Generated: map[string]string{tc.changedVar: `"after"`},
+			}
+
+			got, err := tf.InitFingerprintCurrent(fsys, unit, dataDir, before, returnInitInputs(&inputs))
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantChanged, !got)
+		})
+	}
+}
+
+func TestInitFingerprintSkipsInputsForJSONWithoutStaticReferences(t *testing.T) {
+	t.Parallel()
+
+	fsys := vfs.NewMemMapFS()
+	unit := writeInitializedUnit(t, fsys, "/work")
+	dataDir := filepath.Join(unit, ".terraform")
+	writeTestFile(t, fsys, filepath.Join(unit, "cdk.tf.json"), `{
+  "terraform": {"required_providers": {"null": {"source": "registry.opentofu.org/hashicorp/null"}}},
+  "resource": {"null_resource": {"this": {"triggers": {"id": "${var.id}"}}}},
+  "output": {"id": {"value": "${var.id}"}}
+}`)
+
+	calls := 0
+	inputs := func() (tf.InitInputs, error) {
+		calls++
+
+		return tf.InitInputs{Env: map[string]string{"TF_VAR_id": strconv.Itoa(calls)}}, nil
+	}
+
+	recorded, err := tf.ComputeInitFingerprint(fsys, unit, dataDir, inputs)
+	require.NoError(t, err)
+	assert.Empty(t, recorded.Inputs)
+
+	got, err := tf.InitFingerprintCurrent(fsys, unit, dataDir, recorded, inputs)
+	require.NoError(t, err)
+	assert.True(t, got)
+	assert.Zero(t, calls)
 }
 
 func TestInitFingerprintSkipsInputsWithoutStaticReferences(t *testing.T) {
@@ -800,7 +988,7 @@ func TestWriteInitFingerprintCreatesTheDataDir(t *testing.T) {
 
 	fsys := vfs.NewMemMapFS()
 	dataDir := "/work/unit/.terraform"
-	written := tf.InitFingerprint{Files: "abc", Config: "def"}
+	written := tf.InitFingerprint{Files: "abc", Config: "def", Inputs: "ghi", InputVars: "a,b"}
 
 	require.NoError(t, tf.WriteInitFingerprint(fsys, dataDir, written))
 

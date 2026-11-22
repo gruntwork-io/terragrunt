@@ -997,23 +997,29 @@ func initInputs(cfg *runcfg.RunConfig, env map[string]string) func() (tf.InitInp
 
 		args := extraArgs(cfg, tf.CommandNameInit, keepVarArgs)
 
-		nullInputs := []string{}
+		generated := make(map[string]string, len(cfg.TFVarsInputs)+len(cfg.JSONInputs))
 
-		for name, value := range cfg.Inputs {
-			if value == nil {
-				nullInputs = append(nullInputs, name)
+		for _, inputs := range []struct {
+			values map[string]any
+			kind   string
+		}{
+			{values: cfg.TFVarsInputs, kind: "tfvars"},
+			{values: cfg.JSONInputs, kind: "json"},
+		} {
+			for name, value := range inputs.values {
+				encoded, err := json.Marshal(value)
+				if err != nil {
+					return tf.InitInputs{}, err
+				}
+
+				generated[name] += inputs.kind + ":" + string(encoded) + "\n"
 			}
 		}
 
-		slices.Sort(nullInputs)
-
-		generated, err := json.Marshal(struct {
-			TFVars map[string]any `json:"tfvars"`
-			JSON   map[string]any `json:"json"`
-			Null   []string       `json:"null"`
-		}{TFVars: cfg.TFVarsInputs, JSON: cfg.JSONInputs, Null: nullInputs})
-		if err != nil {
-			return tf.InitInputs{}, err
+		for name, value := range cfg.Inputs {
+			if value == nil {
+				generated[name] += "null\n"
+			}
 		}
 
 		return tf.InitInputs{
