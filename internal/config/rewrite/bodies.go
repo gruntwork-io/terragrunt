@@ -81,6 +81,18 @@ func (c *UnitConfig) decodeQueueEngine(evalCtx *hcl.EvalContext) (*EngineBody, h
 	return body, diags
 }
 
+// noteGenerateReads evaluates the generate blocks of c with evalCtx and `dependency` unknown, so that the functions
+// in them note the files they read, as they do in locals. The generate blocks are run parts, so a parse does not
+// decode them otherwise, and reading and Git filters would miss a unit that reads a file only in a generate block.
+// The values and diagnostics are discarded: the run decodes the blocks again with the outputs and reports them.
+func (c *UnitConfig) noteGenerateReads(evalCtx *hcl.EvalContext) {
+	var bodies []GenerateBody
+
+	_ = decodeEach( //nolint:errcheck // the run decodes the blocks again and reports their diagnostics
+		withUnknownDependency(evalCtx), c.GenerateBlocks, &bodies, (*GenerateHCL).remain,
+	)
+}
+
 // withUnknownDependency returns evalCtx with an unknown `dependency` variable, or evalCtx itself when it is nil or
 // already defines one, which is the value the run supplied.
 func withUnknownDependency(evalCtx *hcl.EvalContext) *hcl.EvalContext {

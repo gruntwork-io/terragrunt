@@ -520,6 +520,85 @@ func TestDiscovery_PopulatesReadingField(t *testing.T) {
 	assert.Contains(t, appComponent.Reading(), sharedTFVars, "should contain shared.tfvars")
 }
 
+// TestDiscovery_TracksGenerateBlockReads pins that a file read in a generate block is in the unit's Reading field,
+// whether the block is in the unit's config or in an included file, and when the block also reads dependency
+// outputs, which discovery does not fetch.
+func TestDiscovery_TracksGenerateBlockReads(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+
+	files := map[string]string{
+		"shared.tf.tpl":   `variable "shared" { default = "v1" }`,
+		"provider.tf.tpl": `provider "aws" {}`,
+		"app.tpl":         `x = 1`,
+		"root.hcl": `
+generate "provider" {
+  path      = "provider.tf"
+  if_exists = "overwrite_terragrunt"
+  contents  = file("${get_parent_terragrunt_dir()}/provider.tf.tpl")
+}
+`,
+		"unit/terragrunt.hcl": `
+generate "shared" {
+  path      = "shared.tf"
+  if_exists = "overwrite_terragrunt"
+  contents  = file("../shared.tf.tpl")
+}
+`,
+		"child/terragrunt.hcl": `
+include "root" {
+  path = "../root.hcl"
+}
+`,
+		"vpc/terragrunt.hcl": ``,
+		"app/terragrunt.hcl": `
+dependency "vpc" {
+  config_path  = "../vpc"
+  mock_outputs = { id = "mock" }
+}
+
+generate "cfg" {
+  path      = "cfg.tf"
+  if_exists = "overwrite_terragrunt"
+  contents  = "${file("../app.tpl")} # ${dependency.vpc.outputs.id}"
+}
+`,
+	}
+
+	for name, content := range files {
+		path := filepath.Join(tmpDir, name)
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0755))
+		require.NoError(t, os.WriteFile(path, []byte(content), 0644))
+	}
+
+	opts := &options.TerragruntOptions{
+		WorkingDir:     tmpDir,
+		RootWorkingDir: tmpDir,
+	}
+
+	d := discovery.NewDiscovery(tmpDir).
+		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
+		WithReadFiles()
+
+	components, err := d.Discover(
+		config.WithCaches(t.Context()), logger.CreateLogger(), venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts,
+	)
+	require.NoError(t, err)
+
+	reading := map[string][]string{}
+
+	for _, c := range components {
+		if unit, ok := c.(*component.Unit); ok {
+			reading[filepath.Base(unit.Path())] = unit.Reading()
+		}
+	}
+
+	assert.Contains(t, reading["unit"], filepath.Join(tmpDir, "shared.tf.tpl"))
+	assert.Contains(t, reading["child"], filepath.Join(tmpDir, "provider.tf.tpl"))
+	assert.Contains(t, reading["app"], filepath.Join(tmpDir, "app.tpl"))
+}
+
 func TestDiscovery_BothHclAndStackFileInSameDir(t *testing.T) {
 	t.Parallel()
 

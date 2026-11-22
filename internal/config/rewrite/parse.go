@@ -552,6 +552,10 @@ func (s *Store) prepare(
 		c.Queue, queueDiags = c.decodeQueue(evalCtx)
 		c.Queue.Engine, c.queueEngineDiags = c.decodeQueueEngine(evalCtx)
 
+		if pc.sinks.filesRead.Tracking() {
+			c.noteGenerateReads(evalCtx)
+		}
+
 		diags = append(diags, queueDiags...)
 		c.decodeErr = file.HandleDiagnostics(diags)
 		c.queueDecodeErr = c.decodeErr
