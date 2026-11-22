@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -46,8 +45,8 @@ func WithBlockSize(n int) DirsDifferOption {
 // or content.
 //
 // File contents are read only when both directories hold the same paths with the same sizes and permissions, and
-// only up to the first difference. A pair of paths that name the same file, as two hard links to one inode do, is
-// never read.
+// only up to the first difference. Outside Windows, a pair of paths that name the same file, as two hard links to one
+// inode do, is never read.
 //
 // Returns [ErrNotRegularFile] when a file below either directory is neither a regular file nor a symbolic link to
 // one.
@@ -182,7 +181,7 @@ func listDirFiles(fsys FS, rootDir string, ignore []func(fs.DirEntry) bool) ([]d
 // toFiles, which lists the same relative paths.
 func filesDiffer(fsys FS, fromDir, toDir string, fromFiles, toFiles []dirFile, bufs *compareBuffers) (bool, error) {
 	for i, from := range fromFiles {
-		if os.SameFile(from.info, toFiles[i].info) {
+		if sameFile(from.info, toFiles[i].info) {
 			continue
 		}
 

@@ -245,6 +245,10 @@ func TestDirsDifferHardLinks(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
+			if tc.hardLink && runtime.GOOS == "windows" {
+				t.Skip("Skipping on Windows: hard links are read like copies")
+			}
+
 			osFS := vfs.NewOSFS()
 			root := t.TempDir()
 			fromFile := filepath.Join(root, "from", "file.txt")
