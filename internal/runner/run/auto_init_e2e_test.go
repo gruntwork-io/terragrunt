@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -61,6 +62,22 @@ resource "random_pet" "this" {}
 `
 	childOutputTF = `output "ok" {
   value = true
+}
+`
+	generatedTF = `locals {
+  generated_at = "2026-01-01T00:00:00Z"
+}
+
+provider "null" {
+  default_tags {
+    tags = { Commit = "0123abc" }
+  }
+}
+`
+	backendTF = `terraform {
+  backend "s3" {
+    key = "unit/tofu.tfstate"
+  }
 }
 `
 	autoInitPlanRuns = 3
@@ -277,6 +294,26 @@ resource "null_resource" "this" {
 			inPlace:           true,
 			artifacts:         initInstallsProvidersAndModules,
 			localModules:      []string{"../modules/outside"},
+			want: []string{
+				tf.CommandNameInit, tf.CommandNamePlan,
+				tf.CommandNameInit, tf.CommandNamePlan,
+				tf.CommandNamePlan,
+			},
+		},
+		{
+			name:  "in place, generated locals and provider arguments change after init",
+			files: map[string]string{"main.tf": nullProviderTF, "generated.tf": generatedTF},
+			editAfterFirstRun: map[string]string{
+				"generated.tf": strings.NewReplacer("2026-01-01", "2026-01-02", "0123abc", "4567def").Replace(generatedTF),
+			},
+			inPlace: true,
+			want:    []string{tf.CommandNameInit, tf.CommandNamePlan, tf.CommandNamePlan, tf.CommandNamePlan},
+		},
+		{
+			name:              "in place, generated backend configuration changes after init",
+			files:             map[string]string{"main.tf": nullProviderTF, "backend.tf": backendTF},
+			editAfterFirstRun: map[string]string{"backend.tf": strings.Replace(backendTF, "unit/", "other/", 1)},
+			inPlace:           true,
 			want: []string{
 				tf.CommandNameInit, tf.CommandNamePlan,
 				tf.CommandNameInit, tf.CommandNamePlan,

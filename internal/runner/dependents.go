@@ -14,7 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
-// FindDependentUnits returns the units that depend on the unit in the working directory.
+// FindDependentUnits returns the units that depend on the unit in the working directory, sorted by path.
 func FindDependentUnits(
 	ctx context.Context,
 	l log.Logger,
@@ -41,8 +41,8 @@ func FindDependentUnits(
 	}
 
 	matchedUnits := make([]*component.Unit, 0, len(matchedUnitsMap))
-	for _, unit := range matchedUnitsMap {
-		matchedUnits = append(matchedUnits, unit)
+	for _, path := range slices.Sorted(maps.Keys(matchedUnitsMap)) {
+		matchedUnits = append(matchedUnits, matchedUnitsMap[path])
 	}
 
 	return matchedUnits

@@ -25,6 +25,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
@@ -2714,4 +2716,66 @@ func assertRootTerragruntHCLLookup(
 	ctrl.OnceWarn.Do(func() { warned = false })
 
 	assert.Equal(t, want.outcome == rootWarned, warned, "the disabled control should warn only for a terragrunt.hcl root")
+}
+
+func TestJSONDecodeRejectsKeysThatNormalizeToTheSameString(t *testing.T) {
+	t.Parallel()
+
+	v, rootDir := newMemTestDir(t)
+	configPath := filepath.Join(rootDir, config.DefaultTerragruntConfigPath)
+
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(rootDir, "keys.json"), []byte(`{"\u00e9":1,"e\u0301":2}`), 0644))
+	require.NoError(t, vfs.WriteFile(v.FS, configPath, []byte(`
+locals {
+  keys = jsondecode(file("keys.json"))
+}
+`), 0644))
+
+	ctx, pctx := newTestParsingContext(t, configPath)
+
+	_, err := new(config.Store).ReadTerragruntConfig(ctx, logger.CreateLogger(), v, pctx)
+
+	var diags hcl.Diagnostics
+
+	require.ErrorAs(t, err, &diags)
+	require.Len(t, diags, 1)
+
+	call, ok := diags[0].Extra.(hclsyntax.FunctionCallDiagExtra)
+	require.True(t, ok)
+	require.ErrorAs(t, call.FunctionCallError(), new(ctyhelper.JSONKeyCollisionError))
+}
+
+func TestTerraformOutputJSONToCtyValueMapRejectsKeysThatNormalizeToTheSameString(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		output string
+	}{
+		{
+			name:   "output names",
+			output: `{"\u00e9":{"type":"number","value":1},"e\u0301":{"type":"number","value":2}}`,
+		},
+		{
+			name:   "object type attributes",
+			output: `{"out":{"type":["object",{"\u00e9":"number","e\u0301":"number"}],"value":{"\u00e9":1,"e\u0301":2}}}`,
+		},
+		{
+			name:   "map keys",
+			output: `{"out":{"type":["map","number"],"value":{"\u00e9":1,"e\u0301":2}}}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := config.TerraformOutputJSONToCtyValueMap(config.DefaultTerragruntConfigPath, []byte(tt.output))
+
+			var parsingErr config.TerragruntOutputParsingError
+
+			require.ErrorAs(t, err, &parsingErr)
+			require.ErrorAs(t, parsingErr.Err, new(ctyhelper.JSONKeyCollisionError))
+		})
+	}
 }

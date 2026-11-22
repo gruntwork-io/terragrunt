@@ -30,18 +30,23 @@ type EngineBody struct {
 
 // TerraformHCL is a terraform block.
 type TerraformHCL struct {
-	Source                *string             `hcl:"source,attr"`
-	Version               *string             `hcl:"version,attr"`
-	UpdateSourceWithCAS   *bool               `hcl:"update_source_with_cas,attr"`
-	Mutable               *bool               `hcl:"mutable,attr"`
-	IncludeInCopy         *[]string           `hcl:"include_in_copy,attr"`
-	ExcludeFromCopy       *[]string           `hcl:"exclude_from_copy,attr"`
-	CopyTerraformLockFile *bool               `hcl:"copy_terraform_lock_file,attr"`
-	NoDotTerragruntCache  *bool               `hcl:"no_dot_terragrunt_cache,attr"`
-	ExtraArgs             []ExtraArgumentsHCL `hcl:"extra_arguments,block"`
-	BeforeHooks           []HookHCL           `hcl:"before_hook,block"`
-	AfterHooks            []HookHCL           `hcl:"after_hook,block"`
-	ErrorHooks            []ErrorHookHCL      `hcl:"error_hook,block"`
+	Remain      hcl.Body            `hcl:",remain"`
+	Source      *string             `hcl:"source,attr"`
+	ExtraArgs   []ExtraArgumentsHCL `hcl:"extra_arguments,block"`
+	BeforeHooks []HookHCL           `hcl:"before_hook,block"`
+	AfterHooks  []HookHCL           `hcl:"after_hook,block"`
+	ErrorHooks  []ErrorHookHCL      `hcl:"error_hook,block"`
+}
+
+// TerraformBody is decoded from [TerraformHCL.Remain].
+type TerraformBody struct {
+	Version               *string   `hcl:"version,attr"`
+	UpdateSourceWithCAS   *bool     `hcl:"update_source_with_cas,attr"`
+	Mutable               *bool     `hcl:"mutable,attr"`
+	IncludeInCopy         *[]string `hcl:"include_in_copy,attr"`
+	ExcludeFromCopy       *[]string `hcl:"exclude_from_copy,attr"`
+	CopyTerraformLockFile *bool     `hcl:"copy_terraform_lock_file,attr"`
+	NoDotTerragruntCache  *bool     `hcl:"no_dot_terragrunt_cache,attr"`
 }
 
 // ExtraArgumentsHCL is an extra_arguments block.
@@ -92,17 +97,17 @@ type ErrorHookBody struct {
 
 // RemoteStateHCL is a remote_state block.
 type RemoteStateHCL struct {
-	Remain                        hcl.Body                        `hcl:",remain"`
-	DisableInit                   *bool                           `hcl:"disable_init,attr"`
-	DisableDependencyOptimization *bool                           `hcl:"disable_dependency_optimization,attr"`
-	Generate                      *remotestate.ConfigFileGenerate `hcl:"generate,attr"`
-	BackendName                   string                          `hcl:"backend,attr"`
+	Remain hcl.Body `hcl:",remain"`
 }
 
 // RemoteStateBody is decoded from [RemoteStateHCL.Remain].
 type RemoteStateBody struct {
-	BackendConfig cty.Value  `hcl:"config,attr"`
-	Encryption    *cty.Value `hcl:"encryption,attr"`
+	BackendConfig                 cty.Value                       `hcl:"config,attr"`
+	Encryption                    *cty.Value                      `hcl:"encryption,attr"`
+	DisableInit                   *bool                           `hcl:"disable_init,attr"`
+	DisableDependencyOptimization *bool                           `hcl:"disable_dependency_optimization,attr"`
+	Generate                      *remotestate.ConfigFileGenerate `hcl:"generate,attr"`
+	BackendName                   string                          `hcl:"backend,attr"`
 }
 
 // ModuleDependenciesHCL is a dependencies block.

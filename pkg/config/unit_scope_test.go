@@ -14,17 +14,18 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
-// TestQueuePartsCannotReadDependency pins that a queue part which reads `dependency` fails in the parse, and that
-// ResolveRunConfig reports the same failure, since the parse decodes those parts once with no `dependency` in scope.
-func TestQueuePartsCannotReadDependency(t *testing.T) {
+// TestErrorsBlocksReadDependencyInTheRun pins that the parse leaves out an errors block that reads `dependency`,
+// running no tofu, and that ResolveRunConfig decodes it with the outputs.
+func TestErrorsBlocksReadDependencyInTheRun(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		name string
-		body string
+		check func(t *testing.T, errs *config.ErrorsConfig)
+		name  string
+		body  string
 	}{
 		{
-			name: "errors blocks",
+			name: "retry block",
 			body: `
 errors {
   retry "transient" {
@@ -34,6 +35,28 @@ errors {
   }
 }
 `,
+			check: func(t *testing.T, errs *config.ErrorsConfig) {
+				t.Helper()
+
+				require.Len(t, errs.Retry, 1)
+				assert.Equal(t, []string{"vpc-123"}, errs.Retry[0].RetryableErrors)
+			},
+		},
+		{
+			name: "ignore block",
+			body: `
+errors {
+  ignore "known" {
+    ignorable_errors = [dependency.vpc.outputs.id]
+  }
+}
+`,
+			check: func(t *testing.T, errs *config.ErrorsConfig) {
+				t.Helper()
+
+				require.Len(t, errs.Ignore, 1)
+				assert.Equal(t, []string{"vpc-123"}, errs.Ignore[0].IgnorableErrors)
+			},
 		},
 	}
 
@@ -50,27 +73,26 @@ dependency "vpc" {
 }
 ` + tc.body
 
-			stub := &tofuStub{}
+			outputs := map[string]string{filepath.Join(root, "vpc"): targetOutputs["vpc"]}
+			stub := &tofuStub{outputs: outputs}
 			v := venv.MemVenv().WithFS(memFS(root, files)(t)).WithHandler(stub.handler())
 			cfgPath := filepath.Join(root, "app", config.DefaultTerragruntConfigPath)
-			ctx, pctx := newTestUnitParsingContext(t, cfgPath)
+			ctx, pc := newTestUnitParsingContext(t, cfgPath)
 			l := logger.CreateLogger()
-
-			pc := pctx
 
 			s := new(config.Store)
 
 			parsed, parseErr := s.ResolveUnitConfig(ctx, l, v, pc, cfgPath)
-			require.Error(t, parseErr)
-			assert.Contains(t, parseErr.Error(), "Unknown variable")
-			assert.Contains(t, parseErr.Error(), config.MetadataDependency)
+			require.NoError(t, parseErr)
 			require.NotNil(t, parsed)
+			assert.Nil(t, parsed.Queue.Errors)
 
 			assert.Zero(t, stub.parseExecs.Load(), "the parse ran tofu")
 
-			_, runConfigErr := parsed.ResolveRunConfig(ctx, l, v, new(config.Store), pc)
-			require.Error(t, runConfigErr)
-			assert.Contains(t, runConfigErr.Error(), "Unknown variable")
+			cfg, runConfigErr := parsed.ResolveRunConfig(ctx, l, v, new(config.Store), pc)
+			require.NoError(t, runConfigErr)
+			require.NotNil(t, cfg.Errors)
+			tc.check(t, cfg.Errors)
 		})
 	}
 }

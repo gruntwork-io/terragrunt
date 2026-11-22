@@ -561,7 +561,7 @@ func (d *Discovery) dropOutsideBoundary(
 	kept := make(component.Components, 0, len(components))
 
 	for _, c := range components {
-		if !reachedByTraversal(c) {
+		if !component.ReachedByTraversal(c) {
 			kept = append(kept, c)
 			continue
 		}
@@ -586,20 +586,6 @@ func (d *Discovery) dropOutsideBoundary(
 	}
 
 	return kept
-}
-
-// reachedByTraversal reports whether a component entered discovery by following
-// the dependency graph rather than by being walked to.
-func reachedByTraversal(c component.Component) bool {
-	dctx := c.DiscoveryContext()
-	if dctx == nil {
-		return false
-	}
-
-	origin := dctx.Origin()
-
-	return origin == component.OriginGraphDiscovery ||
-		origin == component.OriginRelationshipDiscovery
 }
 
 // applyExcludeModules marks units (and optionally their dependencies) excluded via terragrunt exclude blocks.

@@ -2,14 +2,12 @@ package config_test
 
 import (
 	"context"
-	"fmt"
 	"maps"
 	"os"
 	"path/filepath"
 	"slices"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -482,40 +480,31 @@ terraform {
 	assert.Equal(t, "../../modules/app", *terragruntConfig.Terraform.Source)
 }
 
-func TestPartialParseCacheWithInvalidFile(t *testing.T) {
+func TestPartialParseParsesAgainAfterTheFileIsFixed(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 	configPath := filepath.Join(tmpDir, "terragrunt.hcl")
-	invalidContent := `invalid hcl syntax {`
-	require.NoError(t, os.WriteFile(configPath, []byte(invalidContent), 0644))
+	require.NoError(t, os.WriteFile(configPath, []byte(`invalid hcl syntax {`), 0644))
 
-	hclCache := cache.NewCache[*config.CachedHCLFile]("test-hcl-cache")
 	l := logger.CreateLogger()
 	v := venvtest.NewWithOSFS()
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
-	ctx = context.WithValue(ctx, config.HclCacheContextKey, hclCache)
 	pctx = pctx.WithDecodeList(config.DependenciesBlock)
-
-	// Parse should fail and not cache an invalid file
 	s := new(config.Store)
 
 	_, err := s.ResolvePartialConfig(ctx, l, v, pctx, configPath)
-	require.Error(t, err, "parsing invalid HCL should fail")
+	require.Error(t, err)
 
-	// Verify nothing was cached
-	fileInfo, err := os.Stat(configPath)
+	require.NoError(t, os.WriteFile(configPath, []byte(`dependencies {
+  paths = ["../app"]
+}
+`), 0644))
+
+	cfg, err := s.ResolvePartialConfig(ctx, l, v, pctx, configPath)
 	require.NoError(t, err)
-
-	cacheKey := fmt.Sprintf(
-		"configPath-%v-modTime-%v-size-%v",
-		configPath,
-		fileInfo.ModTime().UnixMicro(),
-		fileInfo.Size(),
-	)
-
-	_, found := hclCache.Get(ctx, cacheKey)
-	require.False(t, found, "invalid file should not be cached")
+	require.NotNil(t, cfg.Dependencies)
+	assert.Equal(t, []string{"../app"}, cfg.Dependencies.Paths)
 }
 
 // TestPartialParseFeatureFlagDefaultInExcludeBlock tests that feature flag default values

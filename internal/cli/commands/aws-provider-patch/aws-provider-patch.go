@@ -14,6 +14,7 @@ import (
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/discoverysetup"
+	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/hclhelper"
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
 	"github.com/gruntwork-io/terragrunt/internal/report"
@@ -346,7 +347,7 @@ func overrideAttributeInBlock(block *hclwrite.Block, key string, value string) (
 	// assume the user provided input is json, and convert to cty that way.
 	valueBytes := []byte(value)
 
-	ctyType, err := ctyjson.ImpliedType(valueBytes)
+	ctyType, err := ctyhelper.ImpliedJSONType(valueBytes)
 	if err != nil {
 		// Wrap error in a custom error type that has better error messaging to the user.
 		returnErr := TypeInferenceError{value: value, underlyingErr: err}

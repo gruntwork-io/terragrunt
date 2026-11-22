@@ -1855,7 +1855,7 @@ func mayMergeDeclaration(
 		return true
 	}
 
-	return anyDeclares(ctx, l, v, pctx, withSiblingAutoInclude(v, pctx, file.ConfigPath, paths), schemas)
+	return anyDeclares(ctx, l, v, s, pctx, withSiblingAutoInclude(v, pctx, file.ConfigPath, paths), schemas)
 }
 
 // anyDeclares reports whether a config at one of paths declares an attribute or block of one of schemas. A config
@@ -1864,6 +1864,7 @@ func anyDeclares(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 	paths []string,
 	schemas []*hcl.BodySchema,
@@ -1875,10 +1876,32 @@ func anyDeclares(
 	pctx = pctx.WithDiagnosticsDiscarded()
 
 	return slices.ContainsFunc(paths, func(path string) bool {
-		body, err := configBody(ctx, l, v, pctx, path)
+		body, err := configBody(ctx, l, v, s, pctx, path)
 
 		return err == nil && declares(body, schemas)
 	})
+}
+
+// configBody returns the body of the config at path, parsed through s with a parser from pctx.
+func configBody(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	s *Store,
+	pctx *ParsingContext,
+	path string,
+) (hcl.Body, error) {
+	info, err := v.FS.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+
+	file, err := s.ParseUnitAST(ctx, v.FS, path, info, pctx.NewParser(l, v))
+	if err != nil {
+		return nil, err
+	}
+
+	return file.Body, nil
 }
 
 // withSiblingAutoInclude returns paths with the sibling autoinclude of the config at cfgPath appended when a parse
@@ -1975,7 +1998,7 @@ func pureValues(
 	valuesPath := filepath.Join(dir, valuesFile)
 
 	if vfs.Exists(v.FS, valuesPath) {
-		body, err := configBody(ctx, l, v, pctx, valuesPath)
+		body, err := configBody(ctx, l, v, s, pctx, valuesPath)
 		if err != nil {
 			return nil, false
 		}
@@ -2156,6 +2179,7 @@ func declaresRemoteState(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 	cfgPath string,
 	includes map[string]IncludeConfig,
@@ -2168,7 +2192,7 @@ func declaresRemoteState(
 		}
 	}
 
-	return anyDeclares(ctx, l, v, pctx, withSiblingAutoInclude(v, pctx, cfgPath, paths), remoteStateSchemas)
+	return anyDeclares(ctx, l, v, s, pctx, withSiblingAutoInclude(v, pctx, cfgPath, paths), remoteStateSchemas)
 }
 
 // FileIAMRoleOptions returns the IAM role options a parse with pctx evaluates a file with when the file's config sets
@@ -2191,6 +2215,7 @@ func CompleteTerragruntConfigFile(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 	file *hclparse.File,
 	evalContext *hcl.EvalContext,
@@ -2218,6 +2243,7 @@ func CompleteTerragruntConfigFile(
 		ctx,
 		l,
 		v,
+		s,
 		pctx,
 		file,
 		evalContext,

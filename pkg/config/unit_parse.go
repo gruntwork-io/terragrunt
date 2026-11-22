@@ -126,6 +126,10 @@ func (s *Store) ResolveUnitQueueConfig(
 // Returns [PartialParseReadsDependencyError], with the config, for each merged file with a requested run part that
 // reads `dependency`, unless pc skips resolving outputs. Returns a partial config with the error when part of the
 // parse fails, and no config when the parse produced none.
+//
+// Returns [TerraformSourceReferencesDependencyError], [ExcludeReferencesDependencyError], or a diagnostic for a merged
+// file whose terraform source, exclude block, or version attributes read `dependency`, only when the decode list names
+// [TerraformSource], [ExcludeBlock], or [TerragruntVersionConstraints] respectively.
 func (s *Store) ResolvePartialConfig(
 	ctx context.Context,
 	l log.Logger,
@@ -463,15 +467,7 @@ func (s *Store) prepareBase(
 		return nil, err
 	}
 
-	if TerraformSourceReferencesDependency(file) {
-		return nil, TerraformSourceReferencesDependencyError{ConfigPath: file.ConfigPath}
-	}
-
-	if err := ValidateExcludeReferences(file); err != nil {
-		return nil, err
-	}
-
-	if err := ValidateVersionAttributeReferences(file); err != nil {
+	if err := validateDependencyReferences(pc, file); err != nil {
 		return nil, err
 	}
 
@@ -510,7 +506,10 @@ func (s *Store) prepareBase(
 		exposed,
 	)
 	if err != nil {
-		l.Warnf("Errors decoding base blocks in %s: %v", file.ConfigPath, err)
+		if len(pc.PartialParseDecodeList) == 0 {
+			l.Warnf("Errors decoding base blocks in %s: %v", file.ConfigPath, err)
+		}
+
 		errs = append(errs, err)
 	}
 
@@ -539,6 +538,29 @@ func (s *Store) prepareBase(
 	base.scope = pc.scope()
 
 	return base, nil
+}
+
+// validateDependencyReferences rejects each part of file that a parse with pc decodes and that reads `dependency`
+// where no dependency has run: the terraform source, the exclude block, and the version attributes.
+//
+// Returns [TerraformSourceReferencesDependencyError], [ExcludeReferencesDependencyError], or the diagnostics of
+// [ValidateVersionAttributeReferences] for the first such part.
+func validateDependencyReferences(pc *ParsingContext, file *hclparse.File) error {
+	if pc.decodes(TerraformSource) && TerraformSourceReferencesDependency(file) {
+		return TerraformSourceReferencesDependencyError{ConfigPath: file.ConfigPath}
+	}
+
+	if pc.decodes(ExcludeBlock) {
+		if err := ValidateExcludeReferences(file); err != nil {
+			return err
+		}
+	}
+
+	if pc.decodes(TerragruntVersionConstraints) {
+		return ValidateVersionAttributeReferences(file)
+	}
+
+	return nil
 }
 
 // withFileIAMRole returns pc with the IAM role options a full parse of file evaluates with: the iam_role and
@@ -635,6 +657,8 @@ func (s *Store) prepare(
 
 		diags := gohcl.DecodeBody(withoutAttributes{Body: file.Body, hidden: hidden}, evalCtx, c)
 		c.runAttrs = runAttrs
+		c.terraformRunPart = c.Terraform != nil && c.Terraform.readsDependency()
+		c.errorsRunPart = c.Errors != nil && c.Errors.readsDependency()
 
 		var queueDiags hcl.Diagnostics
 

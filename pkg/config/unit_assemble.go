@@ -83,6 +83,7 @@ func (c *UnitConfig) assemble(
 		ctx,
 		l,
 		v,
+		s,
 		pctx,
 		bound,
 		dependencyBlockContext(pctx, evalCtx),
@@ -133,11 +134,11 @@ func (c *UnitConfig) assemble(
 		if err != nil {
 			errs = append(errs, err)
 
-			return cfg, errors.Join(errs...)
+			return cfg, joinDistinct(errs)
 		}
 
 		if mergedCfg == nil {
-			return cfg, errors.Join(errs...)
+			return cfg, joinDistinct(errs)
 		}
 
 		mergedCfg.ProcessedIncludes = includes.ByName()
@@ -156,7 +157,7 @@ func (c *UnitConfig) assemble(
 		}
 	}
 
-	return cfg, errors.Join(errs...)
+	return cfg, joinDistinct(errs)
 }
 
 // parseDecodeErr returns the error of the parse's decode that an assembly of parts reports.
@@ -280,4 +281,57 @@ func sameDiagnostic(a, b *hcl.Diagnostic) bool {
 	}
 
 	return *a.Subject == *b.Subject
+}
+
+// joinDistinct joins errs as [errors.Join] does, leaving out each error whose joined errors all read as one that an
+// earlier error of errs joins.
+func joinDistinct(errs []error) error {
+	seen := map[string]struct{}{}
+	distinct := make([]error, 0, len(errs))
+
+	for _, err := range errs {
+		leaves := joinedErrors(err)
+
+		repeated := !slices.ContainsFunc(leaves, func(leaf error) bool {
+			_, ok := seen[leaf.Error()]
+			return !ok
+		})
+		if repeated {
+			continue
+		}
+
+		for _, leaf := range leaves {
+			seen[leaf.Error()] = struct{}{}
+		}
+
+		distinct = append(distinct, err)
+	}
+
+	return errors.Join(distinct...)
+}
+
+// joinedErrors returns the non-nil errors err joins, through every level of joins, and err itself when it joins none.
+func joinedErrors(err error) []error {
+	var leaves []error
+
+	pending := []error{err}
+
+	for len(pending) > 0 {
+		last := len(pending) - 1
+		next := pending[last]
+		pending = pending[:last]
+
+		joined, ok := next.(interface{ Unwrap() []error })
+		if !ok {
+			if next != nil {
+				leaves = append(leaves, next)
+			}
+
+			continue
+		}
+
+		pending = append(pending, joined.Unwrap()...)
+	}
+
+	return leaves
 }

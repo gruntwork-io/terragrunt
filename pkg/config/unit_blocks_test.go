@@ -67,6 +67,7 @@ func TestSchemaMatchesPkgConfig(t *testing.T) {
 			block:  config.MetadataTerraform,
 			v1:     reflect.TypeFor[config.TerraformConfig](),
 			header: reflect.TypeFor[config.TerraformHCL](),
+			bodies: []reflect.Type{reflect.TypeFor[config.TerraformBody]()},
 		},
 		{
 			block:  "before_hook",

@@ -314,6 +314,12 @@ func (ctx *ParsingContext) WithDecodeList(decodeList ...PartialDecodeSectionType
 	return c
 }
 
+// decodes reports whether a parse with ctx decodes section: a full parse decodes every section, and a partial parse
+// those of its decode list.
+func (ctx *ParsingContext) decodes(section PartialDecodeSectionType) bool {
+	return len(ctx.PartialParseDecodeList) == 0 || slices.Contains(ctx.PartialParseDecodeList, section)
+}
+
 // WithLocals returns a copy that exposes locals to expressions as `local`.
 func (ctx *ParsingContext) WithLocals(locals *cty.Value) *ParsingContext {
 	c := ctx.detach()

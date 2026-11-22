@@ -249,3 +249,65 @@ func errorsBlockHCL(rules []errorRule) string {
 
 	return b.String()
 }
+
+func TestReadTerragruntConfigLeavesRetryNullWithoutRetryBlocks(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		errors string
+	}{
+		{
+			name: "ignore blocks only",
+			errors: `
+errors {
+  ignore "known" {
+    ignorable_errors = [".*foo.*"]
+    message          = "ignored"
+  }
+}
+`,
+		},
+		{
+			name:   "empty errors block",
+			errors: "errors {}\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpDir := t.TempDir()
+
+			readPath := filepath.Join(tmpDir, "read", config.DefaultTerragruntConfigPath)
+			require.NoError(t, os.MkdirAll(filepath.Dir(readPath), 0755))
+			require.NoError(t, os.WriteFile(readPath, []byte(tt.errors), 0644))
+
+			readerPath := filepath.Join(tmpDir, "reader", config.DefaultTerragruntConfigPath)
+			require.NoError(t, os.MkdirAll(filepath.Dir(readerPath), 0755))
+			require.NoError(t, os.WriteFile(readerPath, []byte(`
+inputs = {
+  retry_is_null = read_terragrunt_config("../read/terragrunt.hcl").errors.retry == null
+}
+`), 0644))
+
+			v := venvtest.NewWithOSFS()
+			l := logger.CreateLogger()
+			s := new(config.Store)
+
+			ctx, pctx := newTestParsingContext(t, readPath)
+			read, err := s.ReadTerragruntConfig(ctx, l, v, pctx)
+			require.NoError(t, err)
+
+			readCty, err := config.TerragruntConfigAsCty(read)
+			require.NoError(t, err)
+			assert.True(t, readCty.GetAttr("errors").GetAttr("retry").IsNull())
+
+			ctx, pctx = newTestParsingContext(t, readerPath)
+			reader, err := s.ReadTerragruntConfig(ctx, l, v, pctx)
+			require.NoError(t, err)
+			assert.Equal(t, true, reader.Inputs["retry_is_null"])
+		})
+	}
+}

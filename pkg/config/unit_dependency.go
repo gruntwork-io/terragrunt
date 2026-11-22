@@ -239,7 +239,7 @@ func (s *Store) decodeOwnDependencies(
 	file *hclparse.File,
 	evalCtx *hcl.EvalContext,
 ) (Dependencies, error) {
-	dependencies, err := DecodeDependencyBlocks(ctx, l, v, pctx, file, evalCtx)
+	dependencies, err := DecodeDependencyBlocks(ctx, l, v, s, pctx, file, evalCtx)
 	if err != nil {
 		return nil, err
 	}

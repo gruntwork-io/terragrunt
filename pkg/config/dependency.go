@@ -20,6 +20,7 @@ import (
 	"cloud.google.com/go/storage"
 	"github.com/gruntwork-io/terragrunt/internal/azurehelper"
 	"github.com/gruntwork-io/terragrunt/internal/cache"
+	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
@@ -1661,8 +1662,13 @@ func isRemoteStateMissing(err error) bool {
 
 // shouldFallBackToMockOutputs reports whether a failed dependency output fetch should fall back to
 // mock outputs instead of being fatal: either the target's remote state doesn't exist yet, or the
-// command is a render, which tolerates unresolved outputs.
+// command is a render, which tolerates unresolved outputs. A fetch that failed because the target's terraform source
+// reads `dependency` never falls back.
 func shouldFallBackToMockOutputs(pctx *ParsingContext, err error) bool {
+	if errors.As(err, new(TerraformSourceReferencesDependencyError)) {
+		return false
+	}
+
 	return isRemoteStateMissing(err) || isRenderJSONCommand(pctx) || isRenderCommand(pctx)
 }
 
@@ -1922,7 +1928,7 @@ func resolveOutputJSON(
 
 	var remoteStateTGConfig *TerragruntConfig
 
-	if declaresRemoteState(ctx, l, v, pctx, targetConfig, partialTerragruntConfig.ProcessedIncludes) {
+	if declaresRemoteState(ctx, l, v, s, pctx, targetConfig, partialTerragruntConfig.ProcessedIncludes) {
 		// we need to suspend logging diagnostic errors on this attempt
 		remoteStateTGConfig, err = s.ResolvePartialConfig(
 			ctx,
@@ -2798,6 +2804,10 @@ func TerraformOutputJSONToCtyValueMap(
 		Sensitive bool            `json:"sensitive"`
 	}
 
+	if err := ctyhelper.CheckJSONKeys(jsonBytes); err != nil {
+		return nil, TerragruntOutputParsingError{Path: targetConfigPath, Err: err}
+	}
+
 	var outputs map[string]OutputMeta
 
 	err := json.Unmarshal(jsonBytes, &outputs)
@@ -2859,33 +2869,6 @@ func runTerraformInitForDependencyOutput(
 	}
 }
 
-// parseAutoIncludeFileCached parses the sibling autoinclude through the run-scoped HCL file cache so repeated dependency-output decodes reuse one parse, rebinding the shared AST to a fresh parser per call.
-func parseAutoIncludeFileCached(
-	ctx context.Context,
-	l log.Logger,
-	v *venv.Venv,
-	pctx *ParsingContext,
-	autoIncludePath string,
-) (*hclparse.File, error) {
-	fileInfo, err := v.FS.Stat(autoIncludePath)
-	if err != nil {
-		return nil, err
-	}
-
-	hclCache := cache.ContextCache[*CachedHCLFile](ctx, HclCacheContextKey)
-	// Prefix the key so it cannot collide with the keys of the unit configs in the cache.
-	cacheKey := fmt.Sprintf(
-		"autoinclude-%v-%v-%v",
-		autoIncludePath,
-		fileInfo.ModTime().UnixMicro(),
-		fileInfo.Size(),
-	)
-
-	cached := cachedHCLFile(ctx, v.FS, hclCache, cacheKey, autoIncludePath)
-
-	return rebindOrParseHCLFile(ctx, l, v, pctx, hclCache, cached, cacheKey, autoIncludePath, fileInfo.ModTime())
-}
-
 // DecodeDependencyBlocks decodes the file's dependency blocks, leaving
 // out the ones a sibling autoinclude replaces wholesale.
 //
@@ -2896,11 +2879,12 @@ func DecodeDependencyBlocks(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 	file *hclparse.File,
 	evalContext *hcl.EvalContext,
 ) (Dependencies, error) {
-	overrides, err := siblingAutoIncludeDepOverrides(ctx, l, v, pctx)
+	overrides, err := siblingAutoIncludeDepOverrides(ctx, l, v, s, pctx)
 	if err != nil {
 		return nil, err
 	}
@@ -2928,19 +2912,21 @@ func siblingAutoIncludeDepOverrides(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 ) (map[string]struct{}, error) {
 	if !hasSiblingAutoInclude(pctx) {
 		return nil, nil
 	}
 
-	autoFile, err := parseAutoIncludeFileCached(
-		ctx,
-		l,
-		v,
-		pctx,
-		pctx.includes.AutoIncludePath,
-	)
+	autoIncludePath := pctx.includes.AutoIncludePath
+
+	info, err := v.FS.Stat(autoIncludePath)
+	if err != nil {
+		return nil, err
+	}
+
+	autoFile, err := s.ParseUnitAST(ctx, v.FS, autoIncludePath, info, pctx.NewParser(l, v))
 	if err != nil {
 		return nil, err
 	}

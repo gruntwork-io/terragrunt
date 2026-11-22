@@ -29,19 +29,13 @@ type readTerragruntConfigResult struct {
 	files map[string]fileStamp
 }
 
-// fileStamp is what a stat of a file said about it. Two stamps that differ mean the file changed in between.
-//
-// A file whose mtime was racy when it was read also gets a digest of its contents, since a same-size rewrite of it
-// can keep the stat unchanged.
+// fileStamp is the stamp of a file the parse read, or of its absence when exists is false.
 type fileStamp struct {
-	modTime  time.Time
-	digest   uint64
-	size     int64
-	exists   bool
-	digested bool
+	entryStamp
+	exists bool
 }
 
-// stampFile stats path, and digests the file when its mtime is racy as of readAt, a time taken before the file was
+// stampFile stats path, and digests the file when its stamp is racy as of readAt, a time taken before the file was
 // read. A file that is missing or unreadable gets the zero stamp.
 func stampFile(fsys vfs.FS, path string, readAt time.Time) fileStamp {
 	info, err := fsys.Stat(path)
@@ -49,9 +43,9 @@ func stampFile(fsys vfs.FS, path string, readAt time.Time) fileStamp {
 		return fileStamp{}
 	}
 
-	stamp := fileStamp{modTime: info.ModTime(), size: info.Size(), exists: true}
-	if !isRacyModTime(stamp.modTime, readAt) {
-		return stamp
+	stamp := statStamp(info)
+	if !stamp.racyAt(readAt) {
+		return fileStamp{entryStamp: stamp, exists: true}
 	}
 
 	digest, err := digestFile(fsys, path)
@@ -59,30 +53,25 @@ func stampFile(fsys vfs.FS, path string, readAt time.Time) fileStamp {
 		return fileStamp{}
 	}
 
+	stamp.racy = true
 	stamp.digest = digest
 	stamp.digested = true
 
-	return stamp
+	return fileStamp{entryStamp: stamp, exists: true}
 }
 
-// matches reports whether the file at path still has stamp, reading the file back when stamp has a digest.
-func (stamp fileStamp) matches(fsys vfs.FS, path string) bool {
+// matches reports whether the file at path still has stamp, reading the file back when stamp is racy.
+func (stamp *fileStamp) matches(fsys vfs.FS, path string) bool {
 	info, err := fsys.Stat(path)
 	if err != nil {
 		return !stamp.exists
 	}
 
-	if !stamp.exists || info.Size() != stamp.size || !info.ModTime().Equal(stamp.modTime) {
+	if !stamp.exists || !stamp.sameMetadata(new(statStamp(info))) {
 		return false
 	}
 
-	if !stamp.digested {
-		return true
-	}
-
-	digest, err := digestFile(fsys, path)
-
-	return err == nil && digest == stamp.digest
+	return !stamp.racy || stamp.matchesContents(fsys, path)
 }
 
 // current reports whether every file the parse read still matches the stamp it had right after the parse.
@@ -96,13 +85,13 @@ func (r *readTerragruntConfigResult) current(fsys vfs.FS) bool {
 	return true
 }
 
-// settled returns r without the digests of the stamps whose mtime is no longer racy as of checkedAt, a time taken
-// before [readTerragruntConfigResult.current] confirmed r. It returns nil when no digest is dropped.
+// settled returns r without the digests of the stamps that are no longer racy as of checkedAt, a time taken before
+// [readTerragruntConfigResult.current] confirmed r. It returns nil when no digest is dropped.
 func (r *readTerragruntConfigResult) settled(checkedAt time.Time) *readTerragruntConfigResult {
 	var files map[string]fileStamp
 
 	for path, stamp := range r.files {
-		if !stamp.digested || isRacyModTime(stamp.modTime, checkedAt) {
+		if !stamp.racy || stamp.racyAt(checkedAt) {
 			continue
 		}
 
@@ -110,6 +99,7 @@ func (r *readTerragruntConfigResult) settled(checkedAt time.Time) *readTerragrun
 			files = maps.Clone(r.files)
 		}
 
+		stamp.racy = false
 		stamp.digest = 0
 		stamp.digested = false
 		files[path] = stamp

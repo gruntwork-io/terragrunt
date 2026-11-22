@@ -295,13 +295,17 @@ func EvalFunctions(evalCtx *hcl.EvalContext) map[string]function.Function {
 	return functions
 }
 
-const funcNameTemplateString = "templatestring"
+const (
+	funcNameTemplateString = "templatestring"
+	funcNameJSONDecode     = "jsondecode"
+)
 
 // openTofuFunctions returns the context that defines the OpenTofu functions that read nothing from a parse. Nothing
 // may write to it, since parses read it concurrently.
 var openTofuFunctions = sync.OnceValue(func() *hcl.EvalContext {
 	functions := lang.MakeBaseFunctionTable("")
 	delete(functions, funcNameTemplateString)
+	functions[funcNameJSONDecode] = ctyhelper.JSONDecodeFunc()
 
 	return &hcl.EvalContext{Functions: functions}
 })

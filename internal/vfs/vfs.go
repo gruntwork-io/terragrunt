@@ -5,9 +5,9 @@ package vfs
 import (
 	"archive/zip"
 	"context"
-	"crypto/sha256"
 	"errors"
 	"fmt"
+	"hash"
 	"io"
 	"io/fs"
 	"iter"
@@ -251,8 +251,17 @@ func IsDir(fsys FS, path string) bool {
 	return err == nil && info.IsDir()
 }
 
-// checksumReadBlock is the block size FileSHA256 hashes with.
-const checksumReadBlock = 8192
+// hashReadBlock is the size of the blocks [HashFile] reads.
+const hashReadBlock = 8192
+
+// hashBuffers holds the buffers of finished [HashFile] calls for later ones to read into.
+var hashBuffers = sync.Pool{
+	New: func() any {
+		buf := make([]byte, hashReadBlock)
+
+		return &buf
+	},
+}
 
 // IsFile reports whether path points to a regular file. A path that cannot be
 // stat'd is not a file.
@@ -300,12 +309,11 @@ func IsDirectoryEmpty(fsys FS, path string) (retEmpty bool, retErr error) {
 	return true, nil
 }
 
-// FileSHA256 returns the SHA256 of the file at path, read in fixed-size blocks
-// so hashing a large archive does not pull it entirely into memory.
-func FileSHA256(fsys FS, path string) (_ []byte, retErr error) {
+// HashFile writes the contents of the file at path to h in fixed-size blocks.
+func HashFile(fsys FS, h hash.Hash, path string) (retErr error) {
 	file, err := fsys.Open(path)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	defer func() {
@@ -314,13 +322,14 @@ func FileSHA256(fsys FS, path string) (_ []byte, retErr error) {
 		}
 	}()
 
-	hash := sha256.New()
+	buf := hashBuffers.Get().(*[]byte)
+	defer hashBuffers.Put(buf)
 
-	if _, err := io.CopyBuffer(hash, file, make([]byte, checksumReadBlock)); err != nil {
-		return nil, err
-	}
+	reader := struct{ io.Reader }{file}
 
-	return hash.Sum(nil), nil
+	_, err = io.CopyBuffer(h, reader, *buf)
+
+	return err
 }
 
 // CopyFile copies a file from source to destination on the given filesystem,

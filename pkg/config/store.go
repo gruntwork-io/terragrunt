@@ -203,9 +203,9 @@ func (s *Store) Memoize[T any](
 }
 
 // ParseUnitAST returns the syntax tree of the file at path, parsed by the first caller and bound to parser for every
-// caller. info is the file's current metadata, and a retained tree is parsed again when the file's size or modification
-// time no longer matches the one it was parsed from, or when the file was modified too recently for a stat to show a
-// rewrite and its contents changed.
+// caller. info is the file's current metadata, and a retained tree is parsed again when the file's size, modification
+// time, or [vfs.StatusChange] no longer matches the one it was parsed from, or when the file was modified too recently
+// for a stat to show a rewrite and its contents changed.
 func (s *Store) ParseUnitAST(
 	ctx context.Context,
 	fsys vfs.FS,
@@ -377,21 +377,34 @@ func addPath(set map[string]struct{}, path string) map[string]struct{} {
 type entryStamp struct {
 	// modTime is the modification time of the file.
 	modTime time.Time
+	// change is the status change of the file when hasChange is true.
+	change vfs.StatusChange
 	// size is the size of the file in bytes.
 	size int64
 	// digest is the digest of the file's contents when racy is set and digested is true.
 	digest uint64
-	// racy marks a file whose modTime was too recent when the stamp was taken for a rewrite to show in a later stat.
+	// hasChange reports whether the file's metadata carried a status change.
+	hasChange bool
+	// racy marks a file whose modTime or status change was too recent when the stamp was taken for a rewrite to show
+	// in a later stat.
 	racy bool
 	// digested reports whether the contents of a racy file could be read to take digest.
 	digested bool
 }
 
+// statStamp returns the stamp of the metadata info describes, with no digest.
+func statStamp(info fs.FileInfo) entryStamp {
+	change, hasChange := vfs.StatusChangeOf(info)
+
+	return entryStamp{modTime: info.ModTime(), change: change, size: info.Size(), hasChange: hasChange}
+}
+
 // stampEntry returns the stamp of the file info describes, whose contents a read that started at readAt returned. It
-// digests content when the file's modification time is racy as of readAt. content is nil when the read failed.
+// digests content when the file's modification time or status change is racy as of readAt. content is nil when the
+// read failed.
 func stampEntry(info fs.FileInfo, content []byte, readAt time.Time) entryStamp {
-	stamp := entryStamp{modTime: info.ModTime(), size: info.Size()}
-	if !isRacyModTime(stamp.modTime, readAt) {
+	stamp := statStamp(info)
+	if !stamp.racyAt(readAt) {
 		return stamp
 	}
 
@@ -407,6 +420,32 @@ func stampEntry(info fs.FileInfo, content []byte, readAt time.Time) entryStamp {
 	return stamp
 }
 
+// racyAt reports whether a rewrite of the file at t can leave every time in s unchanged.
+func (s *entryStamp) racyAt(t time.Time) bool {
+	return isRacyModTime(s.modTime, t) || s.hasChange && isRacyModTime(s.change.Time, t)
+}
+
+// matchesContents reports whether the file at path holds the contents s digested. It reports false when s has no
+// digest.
+func (s *entryStamp) matchesContents(fsys vfs.FS, path string) bool {
+	if !s.digested {
+		return false
+	}
+
+	digest, err := digestFile(fsys, path)
+
+	return err == nil && digest == s.digest
+}
+
+// sameMetadata reports whether s and o hold the same metadata of a file. A stamp with a status change never matches
+// one without.
+func (s *entryStamp) sameMetadata(o *entryStamp) bool {
+	return s.size == o.size &&
+		s.modTime.Equal(o.modTime) &&
+		s.hasChange == o.hasChange &&
+		s.change.Equal(o.change)
+}
+
 // stamped is a value that goes stale when the file it was read from changes.
 type stamped interface {
 	// matchesInfo reports whether info matches the metadata of the file the value was read from.
@@ -419,13 +458,13 @@ type stampedValue[T any] struct {
 	value T
 	// stamp is the stamp of the file as it was read.
 	stamp entryStamp
-	// settled is set once a racy stamp's file is confirmed unchanged after its modTime left the racy window, so later
+	// settled is set once a racy stamp's file is confirmed unchanged after its times left the racy window, so later
 	// checks skip reading the file.
 	settled atomic.Bool
 }
 
 func (v *stampedValue[T]) matchesInfo(info fs.FileInfo) bool {
-	return v.stamp.size == info.Size() && v.stamp.modTime.Equal(info.ModTime())
+	return v.stamp.sameMetadata(new(statStamp(info)))
 }
 
 // matches reports whether the file at path in fsys, which info describes, is the version v was read from, comparing
@@ -439,18 +478,13 @@ func (v *stampedValue[T]) matches(fsys vfs.FS, path string, info fs.FileInfo) bo
 		return true
 	}
 
-	if !v.stamp.digested {
-		return false
-	}
-
 	checkedAt := time.Now()
 
-	digest, err := digestFile(fsys, path)
-	if err != nil || digest != v.stamp.digest {
+	if !v.stamp.matchesContents(fsys, path) {
 		return false
 	}
 
-	if !isRacyModTime(v.stamp.modTime, checkedAt) {
+	if !v.stamp.racyAt(checkedAt) {
 		v.settled.Store(true)
 	}
 

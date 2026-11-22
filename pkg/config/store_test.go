@@ -98,10 +98,10 @@ func TestResolveUnitConfigServesALaterCallTheTreesAndScan(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(
 		t,
-		config.Stats{Hits: 6, Misses: 7},
+		config.Stats{Hits: 7, Misses: 7},
 		store.Stats(),
 		"two files, each at three stages, and the root's dependency scan; the unit's dependency decode and merge are "+
-			"served the root's scan, tree, and base",
+			"served the root's scan, tree, and base, and the unit's iam_role check the root's tree",
 	)
 
 	secondCtx, secondRun := newTestUnitParsingContext(t, paths[0])
@@ -117,7 +117,7 @@ func TestResolveUnitConfigServesALaterCallTheTreesAndScan(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(
 		t,
-		config.Stats{Hits: 15, Misses: 11},
+		config.Stats{Hits: 17, Misses: 11},
 		store.Stats(),
 		"both files' base and queue stages run again, served the trees and the root's scan",
 	)
@@ -605,7 +605,7 @@ func TestResolveRunConfigAddsTheRunParts(t *testing.T) {
 		map[string]any{"name": "unit", "region": "us-east-1", "unit": "unit-0"},
 		runCfg.Inputs,
 	)
-	assert.Equal(t, config.Stats{Hits: 15, Misses: 11}, store.Stats())
+	assert.Equal(t, config.Stats{Hits: 17, Misses: 11}, store.Stats())
 }
 
 func TestResolveRunConfigEvaluatesGetWorkingDirInLocals(t *testing.T) {
@@ -744,9 +744,10 @@ func TestResolveUnitQueueConfigBuildsOnTheBaseVariables(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(
 		t,
-		config.Stats{Hits: 0, Misses: 5},
+		config.Stats{Hits: 1, Misses: 5},
 		store.Stats(),
-		"the syntax tree and the base of both files, and the root's dependency scan",
+		"the syntax tree and the base of both files, and the root's dependency scan; the unit's iam_role check is "+
+			"served the root's tree",
 	)
 
 	_, err = store.ResolveUnitQueueConfig(ctx, l, v, run, paths[0])
@@ -755,10 +756,10 @@ func TestResolveUnitQueueConfigBuildsOnTheBaseVariables(t *testing.T) {
 	stats := store.Stats()
 	assert.Equal(
 		t,
-		uint64(8),
+		uint64(9),
 		stats.Hits,
 		"the unit's tree and base are served, and the root's scan, tree, and base to the dependency decode and to "+
-			"the merge",
+			"the merge, and the root's tree to the iam_role check",
 	)
 }
 
@@ -939,7 +940,7 @@ func TestResolveUnitConfigSharesIncludedFilesAcrossUnits(t *testing.T) {
 
 	assert.Equal(
 		t,
-		config.Stats{Hits: 22, Misses: 17},
+		config.Stats{Hits: 25, Misses: 17},
 		store.Stats(),
 		"the root's syntax tree is parsed once; each unit evaluates it in its own context",
 	)
@@ -1111,7 +1112,7 @@ locals {
 	assert.Equal(t, "us-east-1", cfg.Locals["region"])
 	assert.Equal(
 		t,
-		config.Stats{Hits: 8, Misses: 7},
+		config.Stats{Hits: 9, Misses: 7},
 		store.Stats(),
 		"each file's tree, base, and queue stage and the exposed file's dependency scan ran once, "+
 			"and the merge was served the exposed file's queue stage",
@@ -1138,7 +1139,7 @@ func TestResolveUnitConfigRunsUnmemoizedForSuppliedValues(t *testing.T) {
 
 	assert.Equal(
 		t,
-		config.Stats{Hits: 11, Misses: 3},
+		config.Stats{Hits: 13, Misses: 3},
 		store.Stats(),
 		"only the syntax trees and the root's dependency scan are shared",
 	)
@@ -1330,11 +1331,43 @@ func TestStoreContextKeysWhetherTheParseIsPartial(t *testing.T) {
 		return key
 	}
 
-	excludeOnly := key(t, config.ExcludeBlock)
+	remoteStateOnly := key(t, config.RemoteStateBlock)
 
-	assert.NotEqual(t, key(t), excludeOnly)
-	assert.Equal(t, excludeOnly, key(t, config.RemoteStateBlock))
-	assert.Equal(t, excludeOnly, key(t, config.ExcludeBlock, config.RemoteStateBlock))
+	assert.NotEqual(t, key(t), remoteStateOnly)
+	assert.Equal(t, remoteStateOnly, key(t, config.TerragruntFlags))
+	assert.Equal(t, remoteStateOnly, key(t, config.RemoteStateBlock, config.TerragruntFlags))
+}
+
+func TestStoreContextKeysWhichSectionsThePartialParseRejectsDependencyReferencesIn(t *testing.T) {
+	t.Parallel()
+
+	cfgPath := filepath.Join(t.TempDir(), config.DefaultTerragruntConfigPath)
+	v := venv.MemVenv().WithWriter(new(bytes.Buffer))
+
+	key := func(t *testing.T, sections ...config.PartialDecodeSectionType) string {
+		t.Helper()
+
+		_, run := newTestUnitParsingContext(t, cfgPath)
+		run.PartialParseDecodeList = sections
+
+		key, memoized := config.StoreContext(v, run)
+		require.True(t, memoized)
+
+		return key
+	}
+
+	unchecked := key(t, config.RemoteStateBlock)
+
+	for _, section := range []config.PartialDecodeSectionType{
+		config.TerraformSource,
+		config.ExcludeBlock,
+		config.TerragruntVersionConstraints,
+	} {
+		checked := key(t, section)
+
+		assert.NotEqual(t, unchecked, checked, section)
+		assert.Equal(t, checked, key(t, section, config.RemoteStateBlock), section)
+	}
 }
 
 // sharedStoreFixtureRoots are the fixture directories whose terragrunt.hcl files

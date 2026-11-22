@@ -15,7 +15,7 @@ import (
 func (c *UnitConfig) queueFile(q *QueueBodies) *TerragruntConfigFile {
 	return &TerragruntConfigFile{
 		Catalog:                     c.Catalog.convert(),
-		Terraform:                   c.Terraform.convert(),
+		Terraform:                   c.Terraform.convert(q.Terraform),
 		TerraformBinary:             clonePtr(c.TerraformBinary),
 		TerraformVersionConstraint:  clonePtr(c.TerraformVersionConstraint),
 		TerragruntVersionConstraint: clonePtr(c.TerragruntVersionConstraint),
@@ -29,7 +29,7 @@ func (c *UnitConfig) queueFile(q *QueueBodies) *TerragruntConfigFile {
 		FeatureFlags:                convertAll(c.FeatureFlags, (*FeatureFlagHCL).convert),
 		Exclude:                     c.Exclude.convert(q.Exclude),
 		Engine:                      c.Engine.convert(q.Engine),
-		Errors:                      c.Errors.convert(q),
+		Errors:                      c.Errors.convert(q.Errors),
 		Outputs:                     c.Outputs.convert(q.MockValues),
 	}
 }
@@ -38,6 +38,10 @@ func (c *UnitConfig) queueFile(q *QueueBodies) *TerragruntConfigFile {
 func (r *RunBodies) fill(c *UnitConfig, file *TerragruntConfigFile) {
 	if r.Exclude != nil {
 		file.Exclude = c.Exclude.convert(r.Exclude)
+	}
+
+	if r.Errors != nil {
+		file.Errors = c.Errors.convert(r.Errors)
 	}
 
 	c.fillRunAttributes(r, file)
@@ -53,6 +57,10 @@ func (r *RunBodies) fill(c *UnitConfig, file *TerragruntConfigFile) {
 
 	if c.Terraform == nil {
 		return
+	}
+
+	if r.Terraform != nil {
+		r.Terraform.apply(file.Terraform)
 	}
 
 	file.Terraform.ExtraArgs = convertEach(c.Terraform.ExtraArgs, r.ExtraArgs, (*ExtraArgumentsHCL).convert)
@@ -87,22 +95,31 @@ func (e *EngineHCL) convert(body *EngineBody) *EngineConfig {
 	}
 }
 
-// v1 converts the tagged fields of t. The nested blocks are run parts that [RunBodies.fill] adds.
-func (t *TerraformHCL) convert() *TerraformConfig {
+// convert converts the tagged fields of t with its decoded body, which is nil when the body reads `dependency` and
+// [RunBodies.fill] adds it instead. The nested blocks are run parts that fill adds.
+func (t *TerraformHCL) convert(body *TerraformBody) *TerraformConfig {
 	if t == nil {
 		return nil
 	}
 
-	return &TerraformConfig{
-		Source:                clonePtr(t.Source),
-		Version:               clonePtr(t.Version),
-		UpdateSourceWithCAS:   clonePtr(t.UpdateSourceWithCAS),
-		Mutable:               clonePtr(t.Mutable),
-		IncludeInCopy:         cloneSlicePtr(t.IncludeInCopy),
-		ExcludeFromCopy:       cloneSlicePtr(t.ExcludeFromCopy),
-		CopyTerraformLockFile: clonePtr(t.CopyTerraformLockFile),
-		NoDotTerragruntCache:  clonePtr(t.NoDotTerragruntCache),
+	cfg := &TerraformConfig{Source: clonePtr(t.Source)}
+
+	if body != nil {
+		body.apply(cfg)
 	}
+
+	return cfg
+}
+
+// apply sets the attributes of b on cfg.
+func (b *TerraformBody) apply(cfg *TerraformConfig) {
+	cfg.Version = clonePtr(b.Version)
+	cfg.UpdateSourceWithCAS = clonePtr(b.UpdateSourceWithCAS)
+	cfg.Mutable = clonePtr(b.Mutable)
+	cfg.IncludeInCopy = cloneSlicePtr(b.IncludeInCopy)
+	cfg.ExcludeFromCopy = cloneSlicePtr(b.ExcludeFromCopy)
+	cfg.CopyTerraformLockFile = clonePtr(b.CopyTerraformLockFile)
+	cfg.NoDotTerragruntCache = clonePtr(b.NoDotTerragruntCache)
 }
 
 func (a *ExtraArgumentsHCL) convert(body *ExtraArgumentsBody) TerraformExtraArguments {
@@ -146,11 +163,11 @@ func (r *RemoteStateHCL) convert(body *RemoteStateBody) *remotestate.ConfigFile 
 
 	return &remotestate.ConfigFile{
 		BackendConfig:                 body.BackendConfig,
-		DisableInit:                   clonePtr(r.DisableInit),
-		DisableDependencyOptimization: clonePtr(r.DisableDependencyOptimization),
-		Generate:                      clonePtr(r.Generate),
+		DisableInit:                   clonePtr(body.DisableInit),
+		DisableDependencyOptimization: clonePtr(body.DisableDependencyOptimization),
+		Generate:                      clonePtr(body.Generate),
 		Encryption:                    body.Encryption,
-		BackendName:                   r.BackendName,
+		BackendName:                   body.BackendName,
 	}
 }
 
@@ -177,14 +194,16 @@ func (e *ExcludeHCL) convert(body *ExcludeBody) *ExcludeConfig {
 	}
 }
 
-func (e *ErrorsHCL) convert(q *QueueBodies) *ErrorsConfig {
-	if e == nil {
+// convert converts e with its decoded bodies, returning nil when the file has no errors block or bodies is nil
+// because the block reads `dependency` and [RunBodies.fill] converts it instead.
+func (e *ErrorsHCL) convert(bodies *ErrorsBodies) *ErrorsConfig {
+	if e == nil || bodies == nil {
 		return nil
 	}
 
 	return &ErrorsConfig{
-		Retry:  convertEach(e.Retry, q.Retry, (*RetryHCL).convert),
-		Ignore: convertEach(e.Ignore, q.Ignore, (*IgnoreHCL).convert),
+		Retry:  convertEach(e.Retry, bodies.Retry, (*RetryHCL).convert),
+		Ignore: convertEach(e.Ignore, bodies.Ignore, (*IgnoreHCL).convert),
 	}
 }
 

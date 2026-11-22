@@ -806,38 +806,15 @@ func (rnr *Runner) JSONUnitDeployOrder(isDestroy bool, showAbsPaths bool) (strin
 	return string(j), nil
 }
 
-// ListStackDependentUnits returns a map of units and their dependent units in the stack.
+// ListStackDependentUnits maps the path of every component that a unit in the stack depends on, directly or
+// transitively, to the paths of the units that depend on it. Excluded units count as dependents, and the walk
+// continues through components that discovery did not return.
 func (rnr *Runner) ListStackDependentUnits() map[string][]string {
 	dependentUnits := make(map[string][]string)
 
-	for _, unit := range rnr.queue.Entries {
-		for _, dep := range unit.Dependencies() {
-			dependentUnits[dep.Component.Path()] = util.RemoveDuplicates(
-				append(dependentUnits[dep.Component.Path()], unit.Component.Path()),
-			)
-		}
-	}
-
-	for {
-		noUpdates := true
-
-		for unit, dependents := range dependentUnits {
-			for _, dependent := range dependents {
-				initialSize := len(dependentUnits[unit])
-				list := util.RemoveDuplicates(
-					append(dependentUnits[unit], dependentUnits[dependent]...),
-				)
-				list = slices.DeleteFunc(list, func(path string) bool { return path == unit })
-				dependentUnits[unit] = list
-
-				if initialSize != len(dependentUnits[unit]) {
-					noUpdates = false
-				}
-			}
-		}
-
-		if noUpdates {
-			break
+	for _, unit := range rnr.Stack.Units {
+		for _, dep := range reachableDependencies(unit) {
+			dependentUnits[dep] = append(dependentUnits[dep], unit.Path())
 		}
 	}
 
@@ -975,6 +952,28 @@ func collectDependenciesBounded(unit *component.Unit, paths map[string]bool, dep
 			collectDependenciesBounded(depUnit, paths, depth+1)
 		}
 	}
+}
+
+// reachableDependencies returns the paths of the components unit depends on, directly or transitively, nearest
+// first. It never returns unit's own path.
+func reachableDependencies(unit *component.Unit) []string {
+	seen := map[string]struct{}{unit.Path(): {}}
+	reached := slices.Clone(unit.Dependencies())
+	paths := make([]string, 0, len(reached))
+
+	for i := 0; i < len(reached); i++ {
+		c := reached[i]
+
+		if _, ok := seen[c.Path()]; ok {
+			continue
+		}
+
+		seen[c.Path()] = struct{}{}
+		paths = append(paths, c.Path())
+		reached = append(reached, c.Dependencies()...)
+	}
+
+	return paths
 }
 
 // logTaskOutcome stamps the task outcome on the active span and emits a debug log,

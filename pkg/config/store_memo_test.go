@@ -513,6 +513,32 @@ func TestStoreParseUnitASTParsesAgainWhenTheFileChanges(t *testing.T) {
 	assert.Equal(t, config.Stats{Hits: 0, Misses: 2}, s.Stats())
 }
 
+func TestStoreParseUnitASTKeepsATreeWithoutAStatusChangeWhileTheSizeAndModTimeMatch(t *testing.T) {
+	t.Parallel()
+
+	fsys := vfs.NewMemMapFS()
+	path := filepath.Join(vfs.MemRoot, "root.hcl")
+	require.NoError(t, vfs.WriteFile(fsys, path, []byte(`locals { a = 1 }`), 0o644))
+
+	modTime := time.Now().Add(-time.Hour)
+	require.NoError(t, fsys.Chtimes(path, modTime, modTime))
+
+	s := &config.Store{}
+
+	first, err := s.ParseUnitAST(t.Context(), fsys, path, stat(t, fsys, path), hclparse.NewParser())
+	require.NoError(t, err)
+
+	require.NoError(t, vfs.WriteFile(fsys, path, []byte(`locals { a = 2 }`), 0o644))
+	require.NoError(t, fsys.Chtimes(path, modTime, modTime))
+
+	second, err := s.ParseUnitAST(t.Context(), fsys, path, stat(t, fsys, path), hclparse.NewParser())
+	require.NoError(t, err)
+
+	assert.Same(t, first.File, second.File)
+	assert.Equal(t, `locals { a = 1 }`, second.Content())
+	assert.Equal(t, config.Stats{Hits: 1, Misses: 1}, s.Stats())
+}
+
 func TestStoreParseUnitASTParsesAgainAfterJoiningAParseOfAnOlderVersionWithRacing(t *testing.T) {
 	t.Parallel()
 

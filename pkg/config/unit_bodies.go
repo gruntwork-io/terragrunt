@@ -2,19 +2,20 @@ package config
 
 import (
 	"maps"
+	"reflect"
 	"slices"
+	"sync"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
-	"github.com/hashicorp/hcl/v2/hcldec"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
 )
 
 // QueueBodies is the parts of a [UnitConfig] beyond its tagged fields that discovery reads, decoded. The parse
 // decodes them once, with no `dependency` variable in scope, and keeps them as [UnitConfig.Queue]. A nil pointer is
-// an absent part, or an exclude block that reads `dependency`, which [RunBodies] holds instead. Each slice aligns by
-// index with the HCL slice it decodes.
+// an absent part, or an exclude, terraform, or errors block whose body reads `dependency`, which [RunBodies] holds
+// instead. Each slice aligns by index with the HCL slice it decodes.
 //
 // Engine and MockValues are the exceptions to that scope: the parse decodes them with `dependency` unknown, and
 // [RunBodies] holds them again decoded with the outputs. MockValues aligns by index with the output blocks of the
@@ -22,16 +23,26 @@ import (
 type QueueBodies struct {
 	Exclude    *ExcludeBody
 	Engine     *EngineBody
-	Retry      []RetryBody
-	Ignore     []IgnoreBody
+	Terraform  *TerraformBody
+	Errors     *ErrorsBodies
 	MockValues []*cty.Value
+}
+
+// ErrorsBodies is the retry and ignore blocks of an errors block, decoded. Each slice aligns by index with the HCL
+// slice it decodes.
+type ErrorsBodies struct {
+	Retry  []RetryBody
+	Ignore []IgnoreBody
 }
 
 // RunBodies is the parts of a [UnitConfig] that only the run reads, decoded. [UnitConfig.ResolveRunConfig] decodes them
 // with the `dependency` outputs resolved, and the parse never does. A nil pointer is an absent part, and each slice
-// aligns by index with the HCL slice it decodes. Exclude is set only for an exclude block that reads `dependency`.
+// aligns by index with the HCL slice it decodes. Exclude, Terraform, and Errors are set only for a block whose body
+// reads `dependency`.
 type RunBodies struct {
 	Exclude                  *ExcludeBody
+	Terraform                *TerraformBody
+	Errors                   *ErrorsBodies
 	Inputs                   *cty.Value
 	GenerateAttrs            *cty.Value
 	RemoteStateAttr          *cty.Value
@@ -60,14 +71,28 @@ func (c *UnitConfig) decodeQueue(evalCtx *hcl.EvalContext) (QueueBodies, hcl.Dia
 		diags = append(diags, decodeInto(evalCtx, unmarkedBody{c.Exclude.Remain}, &q.Exclude)...)
 	}
 
-	if c.Errors != nil {
-		diags = append(diags, decodeEach(evalCtx, c.Errors.Retry, &q.Retry, (*RetryHCL).remain)...)
-		diags = append(diags, decodeEach(evalCtx, c.Errors.Ignore, &q.Ignore, (*IgnoreHCL).remain)...)
+	if c.Terraform != nil && !c.terraformRunPart {
+		diags = append(diags, decodeInto(evalCtx, c.Terraform.Remain, &q.Terraform)...)
+	}
+
+	if c.Errors != nil && !c.errorsRunPart {
+		diags = append(diags, c.Errors.decode(evalCtx, &q.Errors)...)
 	}
 
 	diags = append(diags, c.decodeMockValues(withUnknownDependency(evalCtx), &q.MockValues)...)
 
 	return q, diags
+}
+
+// decode decodes the retry and ignore blocks of e with evalCtx into a new [ErrorsBodies] at *target.
+func (e *ErrorsHCL) decode(evalCtx *hcl.EvalContext, target **ErrorsBodies) hcl.Diagnostics {
+	bodies := new(ErrorsBodies)
+
+	diags := decodeEach(evalCtx, e.Retry, &bodies.Retry, (*RetryHCL).remain)
+	diags = append(diags, decodeEach(evalCtx, e.Ignore, &bodies.Ignore, (*IgnoreHCL).remain)...)
+	*target = bodies
+
+	return diags
 }
 
 // decodeMockValues evaluates the mock value of each output block of c's outputs block with evalCtx into *target,
@@ -151,6 +176,14 @@ func (c *UnitConfig) decodeRun(evalCtx *hcl.EvalContext) (*RunBodies, hcl.Diagno
 
 	if c.Exclude != nil && c.Exclude.readsDependency() {
 		diags = append(diags, decodeInto(evalCtx, unmarkedBody{c.Exclude.Remain}, &r.Exclude)...)
+	}
+
+	if c.terraformRunPart {
+		diags = append(diags, decodeInto(evalCtx, c.Terraform.Remain, &r.Terraform)...)
+	}
+
+	if c.errorsRunPart {
+		diags = append(diags, c.Errors.decode(evalCtx, &r.Errors)...)
 	}
 
 	diags = append(diags, c.decodeRunAttributes(evalCtx, &r)...)
@@ -290,6 +323,17 @@ func (e *ExcludeHCL) readsDependency() bool {
 	return bodyReadsDependency[ExcludeBody](e.Remain)
 }
 
+// readsDependency reports whether an attribute of the body of t reads the `dependency` variable.
+func (t *TerraformHCL) readsDependency() bool {
+	return bodyReadsDependency[TerraformBody](t.Remain)
+}
+
+// readsDependency reports whether an attribute of a retry or ignore block of e reads the `dependency` variable.
+func (e *ErrorsHCL) readsDependency() bool {
+	return readsDependencyIn[RetryBody](e.Retry, (*RetryHCL).remain) ||
+		readsDependencyIn[IgnoreBody](e.Ignore, (*IgnoreHCL).remain)
+}
+
 // withRequestedRunParts returns a copy of c with only the run parts that a section of decodeList decodes and that
 // read no `dependency`. It keeps the engine block, which the queue
 // decodes with `dependency` unknown whatever the decode list.
@@ -300,6 +344,8 @@ func (c *UnitConfig) withRequestedRunParts(decodeList []PartialDecodeSectionType
 	requested.GenerateBlocks = nil
 	requested.VariablesBlocks = nil
 	requested.runAttrs = nil
+	requested.terraformRunPart = false
+	requested.errorsRunPart = false
 
 	if !slices.Contains(decodeList, RemoteStateBlock) || attrReadsDependency(c.RemoteStateAttr) {
 		requested.RemoteStateAttr = nil
@@ -353,6 +399,10 @@ func (c *UnitConfig) requestedDependencyReaders(decodeList []PartialDecodeSectio
 	}
 
 	wholeTerraform := slices.Contains(decodeList, TerraformBlock)
+
+	if wholeTerraform && c.terraformRunPart {
+		parts = append(parts, "terraform attributes")
+	}
 
 	if (wholeTerraform || slices.Contains(decodeList, TerraformExtraArgs)) &&
 		readsDependencyIn[ExtraArgumentsBody](c.Terraform.ExtraArgs, (*ExtraArgumentsHCL).remain) {
@@ -457,15 +507,43 @@ func dropDependencyReaders[B, T any](items []T, remain func(*T) hcl.Body) []T {
 }
 
 // bodyReadsDependency reports whether an attribute of remain, which decodes into B, reads the `dependency` variable.
+// A body whose attributes fail to list reads none, and its decode reports why.
 func bodyReadsDependency[B any](remain hcl.Body) bool {
-	schema, _ := gohcl.ImpliedBodySchema(new(B))
-
-	spec := make(hcldec.ObjectSpec, len(schema.Attributes))
-	for _, attr := range schema.Attributes {
-		spec[attr.Name] = &hcldec.AttrSpec{Name: attr.Name, Type: cty.DynamicPseudoType}
+	content, _, diags := remain.PartialContent(attributesSchema[B]())
+	if diags.HasErrors() {
+		return false
 	}
 
-	return slices.ContainsFunc(hcldec.Variables(remain, spec), isDependencyTraversal)
+	for _, attr := range content.Attributes {
+		if attrReadsDependency(attr) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// attributesSchemas holds the schema [attributesSchema] returns for each type.
+var attributesSchemas sync.Map
+
+// attributesSchema returns a schema of the attributes of the body B decodes, none of them required. The schema is
+// shared and must not be changed.
+func attributesSchema[B any]() *hcl.BodySchema {
+	ty := reflect.TypeFor[B]()
+	if schema, ok := attributesSchemas.Load(ty); ok {
+		return schema.(*hcl.BodySchema)
+	}
+
+	implied, _ := gohcl.ImpliedBodySchema(new(B))
+
+	schema := &hcl.BodySchema{Attributes: make([]hcl.AttributeSchema, 0, len(implied.Attributes))}
+	for _, attr := range implied.Attributes {
+		schema.Attributes = append(schema.Attributes, hcl.AttributeSchema{Name: attr.Name})
+	}
+
+	stored, _ := attributesSchemas.LoadOrStore(ty, schema)
+
+	return stored.(*hcl.BodySchema)
 }
 
 // attrReadsDependency reports whether attr, which is nil when absent, reads the `dependency` variable.

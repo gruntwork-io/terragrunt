@@ -638,7 +638,7 @@ func (b *includedBase) dependencyBlocks(
 		evalCtx = TerragruntEvalContext(ctx, l, v, s, pctx, b.file.ConfigPath, b.file.FunctionCalls(), vars)
 	}
 
-	return DecodeDependencyBlocks(ctx, l, v, pctx, b.file, evalCtx)
+	return DecodeDependencyBlocks(ctx, l, v, s, pctx, b.file, evalCtx)
 }
 
 // includedFeatureFlags returns the feature blocks of each file a parse with pc includes, read from the base of that
