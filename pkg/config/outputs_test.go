@@ -114,6 +114,19 @@ inputs = {
 }
 `
 
+const nullableWithoutMockConfig = `
+outputs {
+  %s
+  output "vpc_id" {
+    mock_value = "vpc-mock"
+  }
+
+  output "nat_id" {
+    nullable = true
+  }
+}
+`
+
 const nullableOnlyOutputsConfig = `
 outputs {
   output "nat_id" {
@@ -1167,6 +1180,55 @@ inputs = {
 			check:          requireMissingSubnets,
 		},
 		{
+			name:      "a nullable output without a mock value reads null beside the mock values",
+			vpcConfig: strings.Replace(nullableWithoutMockConfig, "%s", "", 1),
+			command:   "plan",
+			inputs:    nullableInputs,
+			check: func(t *testing.T, cfg *config.TerragruntConfig, err error) {
+				t.Helper()
+
+				require.NoError(t, err)
+				require.Equal(t, "vpc-mock", cfg.Inputs["vpc_id"])
+				require.Equal(t, true, cfg.Inputs["nat_is_null"])
+			},
+		},
+		{
+			name:       "a nullable output without a mock value stays unknown when outputs are skipped",
+			vpcConfig:  strings.Replace(nullableWithoutMockConfig, "%s", "", 1),
+			command:    "validate",
+			skipOutput: true,
+			inputs: `
+inputs = {
+  vpc_id = dependency.vpc.outputs.vpc_id
+  nat    = try(dependency.vpc.outputs.nat_id == null ? "null" : "set", "absent")
+}
+`,
+			check: func(t *testing.T, cfg *config.TerragruntConfig, err error) {
+				t.Helper()
+
+				require.NoError(t, err)
+				require.Equal(t, "vpc-mock", cfg.Inputs["vpc_id"])
+				require.Contains(t, cfg.Inputs, "nat")
+				require.Empty(t, cfg.Inputs["nat"])
+			},
+		},
+		{
+			name: "a deep_map_only merge keeps the state value of a nullable output without a mock value",
+			vpcConfig: strings.Replace(
+				nullableWithoutMockConfig, "%s", "mock_strategy {\n    merge_with_state = \"deep_map_only\"\n  }\n", 1,
+			),
+			command:  "plan",
+			vpcState: vpcStateWithNAT,
+			inputs:   nullableInputs,
+			check: func(t *testing.T, cfg *config.TerragruntConfig, err error) {
+				t.Helper()
+
+				require.NoError(t, err)
+				require.Equal(t, "nat-real", cfg.Inputs["nat_id"])
+				require.Equal(t, false, cfg.Inputs["nat_is_null"])
+			},
+		},
+		{
 			name:      "every output nullable reads null from a state with no outputs for apply",
 			vpcConfig: nullableOnlyOutputsConfig,
 			command:   "apply",
@@ -1202,16 +1264,12 @@ inputs = {
 			check:   requireNoOutputs,
 		},
 		{
-			name:           "a dependent that skips outputs reads no null for outputs that are all nullable",
+			name:           "a dependent that skips outputs reads null for a nullable output without a mock value",
 			vpcConfig:      nullableOnlyOutputsConfig,
 			dependencyBody: `skip_outputs = true`,
 			command:        "apply",
 			inputs:         natIsNullInput,
-			check: func(t *testing.T, _ *config.TerragruntConfig, err error) {
-				t.Helper()
-
-				requireDiagnostic(t, err, "Unsupported attribute")
-			},
+			check:          requireNullOnlyNAT,
 		},
 		{
 			name:      "render reads the mock value of a declared output missing from state",

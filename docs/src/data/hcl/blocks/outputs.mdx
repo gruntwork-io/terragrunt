@@ -73,7 +73,7 @@ blocks:
       - name: nullable
         type: bool
         default: "false"
-        description: Set it to `true` for an output whose value can be `null`. OpenTofu/Terraform leaves a `null` output out of the state. When the state has other outputs, dependents read `null` for the output, unless a state merge supplies its `mock_value`, and Terragrunt does not report the output as missing. When the state has no outputs, a command that may use the mock values reads them. Any other command reads `null` if every declared output is `nullable`, and fails otherwise. Terragrunt cannot tell a state with no outputs from a unit that is not applied.
+        description: Set it to `true` for an output whose value can be `null`. OpenTofu/Terraform leaves a `null` output out of the state. When the state has other outputs, dependents read `null` for the output, unless a state merge supplies its `mock_value`, and Terragrunt does not report the output as missing. When the state has no outputs, a command that may use the mock values reads them, and reads `null` for a `nullable` output without a `mock_value`. Any other command reads `null` if every declared output is `nullable`, and fails otherwise. Terragrunt cannot tell a state with no outputs from a unit that is not applied.
     example: |
       # vpc/terragrunt.hcl
 
@@ -147,7 +147,7 @@ When the unit has outputs in state, Terragrunt expects every declared output amo
 
 The `render` command does not raise this error.
 
-A declared output without a `mock_value` has no value before the unit is applied. `hcl validate` reads it as unknown, and so does a run with [`--no-dependency-outputs`](/reference/cli/commands/run#no-dependency-outputs). Any other run that reads it fails.
+A declared output without a `mock_value` has no value before the unit is applied. `hcl validate` reads it as unknown, and so does a run with [`--no-dependency-outputs`](/reference/cli/commands/run#no-dependency-outputs). In any other run, a `nullable` output reads as `null` under the rules of the `nullable` attribute, and a read of any other such output fails.
 
 `render` prints the `dependency` block as you wrote it. The declared mock values appear in the resolved `inputs`.
 

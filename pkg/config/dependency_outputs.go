@@ -59,7 +59,7 @@ func (dep *Dependency) withDeclaredOutputs(
 		}
 	}
 
-	effective.MockOutputs = mergeDeclaredMockValues(declaredMockValues(pctx, declared), dep.MockOutputs)
+	effective.MockOutputs = mergeDeclaredMockValues(declared.standInValues(pctx.SkipOutput), dep.MockOutputs)
 
 	return declaredDependency{dep: &effective, outputs: declared}, nil
 }
@@ -261,15 +261,6 @@ func readableMocks(pctx *ParsingContext, dep *Dependency) map[string]cty.Value {
 	}
 
 	return values
-}
-
-// declaredMockValues returns the mock values declared sets, with unknown for the rest when outputs are skipped.
-func declaredMockValues(pctx *ParsingContext, declared *OutputsConfig) *cty.Value {
-	if pctx.SkipOutput {
-		return declared.mockValuesOrUnknown()
-	}
-
-	return declared.MockValues()
 }
 
 // runsUnlistedMockCommand reports whether the command is an apply or destroy that the allowed commands of dep omit.

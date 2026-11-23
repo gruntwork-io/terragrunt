@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
@@ -96,7 +95,7 @@ func benchmarkWorktreeChangedStack(b *testing.B, n int, source worktreeStackSour
 
 	opts.Filters = filters
 
-	require.NoError(b, generate.NewGenerator().GenerateStacks(ctx, l, v, new(rewrite.Store), opts, w))
+	require.NoError(b, generate.NewGenerator().GenerateStacks(ctx, l, v, new(config.Store), opts, w))
 
 	toStackDir := filepath.Join(w.WorktreePairs[query].ToWorktree.Path, "live")
 	requireGeneratedUnits(b, toStackDir, n)
@@ -106,7 +105,7 @@ func benchmarkWorktreeChangedStack(b *testing.B, n int, source worktreeStackSour
 			WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: root, Cmd: "plan"}).
 			WithWorktrees(w).
 			WithFilters(filters).
-			Discover(ctx, l, v, new(rewrite.Store), opts)
+			Discover(ctx, l, v, new(config.Store), opts)
 		require.NoError(b, err)
 
 		for _, c := range components {

@@ -162,15 +162,18 @@ func (c *OutputsConfig) MockValues() *cty.Value {
 	return &object
 }
 
-// mockValuesOrUnknown returns an object of every declared output, unknown for each that sets no mock value.
-func (c *OutputsConfig) mockValuesOrUnknown() *cty.Value {
+// standInValues returns the mock value of each declared output, else unknown under skipOutput, else null if nullable.
+func (c *OutputsConfig) standInValues(skipOutput bool) *cty.Value {
 	values := make(map[string]cty.Value, len(c.Outputs))
 
 	for _, output := range c.Outputs {
-		values[output.Name] = cty.DynamicVal
-
-		if output.MockValue != nil {
+		switch {
+		case output.MockValue != nil:
 			values[output.Name] = *output.MockValue
+		case skipOutput:
+			values[output.Name] = cty.DynamicVal
+		case output.Nullable != nil && *output.Nullable:
+			values[output.Name] = cty.NullVal(cty.DynamicPseudoType)
 		}
 	}
 
