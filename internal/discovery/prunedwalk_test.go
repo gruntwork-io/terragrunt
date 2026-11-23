@@ -8,9 +8,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
@@ -40,7 +40,7 @@ func TestPrunedWalkListsLeavesConcurrentlyWithRacing(t *testing.T) {
 	_, err = discovery.NewDiscovery(corpusRepoRoot).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: corpusRepoRoot}).
 		WithFilters(filters).
-		Discover(t.Context(), l, v, new(rewrite.Store), opts)
+		Discover(t.Context(), l, v, new(config.Store), opts)
 	require.NoError(t, err)
 }
 
@@ -68,6 +68,6 @@ func TestPrunedWalkStopsOnCancellation(t *testing.T) {
 	_, err = discovery.NewDiscovery(corpusRepoRoot).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: corpusRepoRoot}).
 		WithFilters(filters).
-		Discover(ctx, l, v, new(rewrite.Store), opts)
+		Discover(ctx, l, v, new(config.Store), opts)
 	require.ErrorIs(t, err, context.Canceled)
 }

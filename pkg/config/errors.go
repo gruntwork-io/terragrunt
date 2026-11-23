@@ -135,21 +135,6 @@ func (err InvalidGenerateBlockError) Unwrap() error {
 	return err.Err
 }
 
-// InvalidExcludeBlockError reports an exclude block whose attributes do not
-// decode into [ExcludeConfig], such as a string where a list belongs.
-type InvalidExcludeBlockError struct {
-	Err        error
-	ConfigPath string
-}
-
-func (err InvalidExcludeBlockError) Error() string {
-	return fmt.Sprintf("exclude block in %s: %s", err.ConfigPath, err.Err)
-}
-
-func (err InvalidExcludeBlockError) Unwrap() error {
-	return err.Err
-}
-
 // TFVarFileNotFoundError reports a `read_tfvars_file` argument naming a file that does not exist.
 type TFVarFileNotFoundError struct {
 	File  string
@@ -1064,6 +1049,31 @@ func (err InvalidOutputsMergeStrategyError) Error() string {
 		err.ConfigPath,
 		strings.Join(valid, ", "),
 	)
+}
+
+// DeclaredMocksNotAllowedError reports a command that cannot read the mock values the unit at TargetConfig declares.
+type DeclaredMocksNotAllowedError struct {
+	Err          error
+	TargetConfig string
+	ConfigPath   string
+	Command      string
+}
+
+func (err DeclaredMocksNotAllowedError) Error() string {
+	return fmt.Sprintf(
+		"%s is a dependency of %s but detected no outputs. Its outputs block declares mock values, "+
+			"but the %q command cannot read them. To let the command read them, add %q to allowed_commands "+
+			"in the mock_strategy block of %s, or to mock_outputs_allowed_terraform_commands on the dependency block.",
+		err.TargetConfig,
+		err.ConfigPath,
+		err.Command,
+		err.Command,
+		err.TargetConfig,
+	)
+}
+
+func (err DeclaredMocksNotAllowedError) Unwrap() error {
+	return err.Err
 }
 
 // DeclaredOutputMissingError reports a declared output that the state of TargetConfig lacks.

@@ -370,29 +370,47 @@ export function addHyperfineExport(json: unknown, id: string, side: Side, into: 
   }
 }
 
+/** A flagged metric and the scenario it was measured in. */
+export type FlaggedMetric = { id: string; metric: MetricResult };
+
+/**
+ * The flagged metrics of one command that moved the same metric the same way.
+ * `first` is the one measured with the fewest units, and `largest` the one
+ * that moved most.
+ */
+export type FlaggedGroup = { first: FlaggedMetric; largest: FlaggedMetric };
+
+type FlaggedVerdict = "regression" | "improvement";
+
+const HEADLINE_KINDS: MetricKind[] = ["time", "memory", "alloc"];
+
+const HEADLINE_PHRASES: Record<MetricKind, Record<FlaggedVerdict, string>> = {
+  time: { regression: "is slower", improvement: "is faster" },
+  memory: { regression: "uses more peak memory", improvement: "uses less peak memory" },
+  alloc: { regression: "allocates more", improvement: "allocates less" },
+};
+
+const HEADLINE_NOUNS: Record<MetricKind, string> = {
+  time: "time",
+  memory: "peak memory",
+  alloc: "allocations",
+};
+
 export function renderSummary(
   report: Report,
   extras: { benchstat?: string; profileDiffs?: Map<string, ProfileDiffs> },
 ): string {
-  const lines: string[] = [];
-  const flagged = report.scenarios.flatMap((scenario) =>
-    scenario.metrics
-      .filter((metric) => metric.verdict === "regression" || metric.verdict === "improvement")
-      .map((metric) => ({ id: scenario.id, metric })),
-  );
-
-  lines.push(
+  const flagged = flaggedMetrics(report);
+  const lines = [
     `## Benchmark: ${report.comparison}`,
     "",
     `Base \`${report.baseSha.slice(0, 12)}\`, head \`${report.headSha.slice(0, 12)}\`. ` +
       `${report.regressions} regressed and ${report.improvements} improved metrics across ` +
       `${report.scenarios.length} scenarios.`,
     "",
-    `A metric is flagged when its median moves by at least ${report.thresholds.time}% (time), ` +
-      `${report.thresholds.memory}% (peak RSS), or ${report.thresholds.alloc}% (allocations), ` +
-      `with p < ${SIGNIFICANCE}. Timings from hyperfine must also repeat in a second pass.`,
+    flaggingRule(report),
     "",
-  );
+  ];
 
   if (flagged.length > 0) {
     lines.push("| Scenario | Metric | Base | Head | Change | p |", "|---|---|---:|---:|---:|---:|");
@@ -407,8 +425,168 @@ export function renderSummary(
     lines.push("");
   }
 
+  lines.push(...profileDiffLines(flagged, extras.profileDiffs), ...allScenarioLines(report));
+
+  if (extras.benchstat) {
+    lines.push(...collapsed("benchstat", extras.benchstat.trimEnd()));
+  }
+
+  return lines.join("\n");
+}
+
+/**
+ * Renders the summary that notify-pr.ts posts on a pull request. It opens with
+ * how the branch compares with `main`, which is the base of every comparison
+ * that posts one, and lists each flagged metric of a command once, at the
+ * fewest units that flag it.
+ */
+export function renderComment(report: Report, profileDiffs?: Map<string, ProfileDiffs>): string {
+  const flagged = flaggedMetrics(report);
+  const lines = ["## Benchmark", "", `**${headline(flagged)}**`, ""];
+
+  if (flagged.length > 0) {
+    lines.push("| Scenario | Metric | Base | Head | Change | Largest change |", "|---|---|---:|---:|---:|---|");
+
+    for (const { first, largest } of groupFlagged(flagged)) {
+      const { metric } = first;
+      const peak = largest === first ? "" : `${formatDelta(largest.metric.deltaPct)} in \`${largest.id}\``;
+
+      lines.push(
+        `| \`${first.id}\` | ${metric.source} ${metric.name} | ${formatValue(metric.base, metric.unit)} | ` +
+          `${formatValue(metric.head, metric.unit)} | ${formatDelta(metric.deltaPct)} | ${peak} |`,
+      );
+    }
+
+    lines.push("");
+  }
+
+  lines.push(
+    `The base is \`${report.baseSha.slice(0, 12)}\`, where this branch leaves \`main\`. Each row shows a metric at ` +
+      `the fewest units that flag it. ${flaggingRule(report)}`,
+    "",
+    ...profileDiffLines(flagged, profileDiffs),
+    ...allScenarioLines(report),
+  );
+
+  return lines.join("\n");
+}
+
+/**
+ * Says how the branch compares with `main`: what got worse, then what got
+ * better. A kind of metric flagged both ways in different scenarios is called
+ * mixed.
+ */
+export function headline(flagged: FlaggedMetric[]): string {
+  const worse: string[] = [];
+  const better: string[] = [];
+  const mixed: string[] = [];
+
+  for (const kind of HEADLINE_KINDS) {
+    const verdicts = new Set(flagged.filter(({ metric }) => metric.kind === kind).map(({ metric }) => metric.verdict));
+    const regressed = verdicts.has("regression");
+    const improved = verdicts.has("improvement");
+
+    if (regressed && improved) {
+      mixed.push(HEADLINE_NOUNS[kind]);
+      continue;
+    }
+
+    if (regressed) {
+      worse.push(HEADLINE_PHRASES[kind].regression);
+    }
+
+    if (improved) {
+      better.push(HEADLINE_PHRASES[kind].improvement);
+    }
+  }
+
+  const sentences: string[] = [];
+  const direction = directionSentence(worse, better);
+
+  if (direction) {
+    sentences.push(direction);
+  }
+
+  if (mixed.length > 0) {
+    const against = sentences.length > 0 ? "" : " against `main`";
+    sentences.push(`Results${against} are mixed for ${listPhrases(mixed)}.`);
+  }
+
+  if (sentences.length === 0) {
+    return "No metric moved against `main`.";
+  }
+
+  return sentences.join(" ");
+}
+
+/**
+ * Groups flagged metrics by command, metric, and verdict. Groups keep the
+ * order in which their first metric appears. An id that is not
+ * `<command>.<shape>.<units>` is a group of its own.
+ */
+export function groupFlagged(flagged: FlaggedMetric[]): FlaggedGroup[] {
+  const groups = new Map<string, FlaggedGroup>();
+
+  for (const entry of flagged) {
+    const parts = SCENARIO_ID.exec(entry.id);
+    const { source, name, verdict } = entry.metric;
+    const key = JSON.stringify([parts ? parts[1] : entry.id, source, name, verdict]);
+    const group = groups.get(key);
+
+    if (!group) {
+      groups.set(key, { first: entry, largest: entry });
+      continue;
+    }
+
+    if (unitCount(entry.id) < unitCount(group.first.id)) {
+      group.first = entry;
+    }
+
+    if (Math.abs(entry.metric.deltaPct) > Math.abs(group.largest.metric.deltaPct)) {
+      group.largest = entry;
+    }
+  }
+
+  return [...groups.values()];
+}
+
+/** Says what got worse and what got better, or undefined when neither did. */
+function directionSentence(worse: string[], better: string[]): string | undefined {
+  if (worse.length > 0 && better.length > 0) {
+    return `This branch ${listPhrases(worse)} than \`main\`, but ${listPhrases(better)}.`;
+  }
+
+  const moved = [...worse, ...better];
+  if (moved.length === 0) {
+    return undefined;
+  }
+
+  return `This branch ${listPhrases(moved)} than \`main\`.`;
+}
+
+/** The regressed and improved metrics of the report, in scenario order. */
+function flaggedMetrics(report: Report): FlaggedMetric[] {
+  return report.scenarios.flatMap((scenario) =>
+    scenario.metrics
+      .filter((metric) => metric.verdict === "regression" || metric.verdict === "improvement")
+      .map((metric) => ({ id: scenario.id, metric })),
+  );
+}
+
+function flaggingRule(report: Report): string {
+  return (
+    `A metric is flagged when its median moves by at least ${report.thresholds.time}% (time), ` +
+    `${report.thresholds.memory}% (peak RSS), or ${report.thresholds.alloc}% (allocations), ` +
+    `with p < ${SIGNIFICANCE}. Timings from hyperfine must also repeat in a second pass.`
+  );
+}
+
+/** The collapsed profile diffs of each flagged scenario that has them. */
+function profileDiffLines(flagged: FlaggedMetric[], profileDiffs?: Map<string, ProfileDiffs>): string[] {
+  const lines: string[] = [];
+
   for (const id of new Set(flagged.map((entry) => entry.id))) {
-    const diffs = extras.profileDiffs?.get(id);
+    const diffs = profileDiffs?.get(id);
 
     if (diffs?.cpu) {
       lines.push(...collapsed(`CPU profile diff for <code>${id}</code>`, diffs.cpu));
@@ -419,13 +597,18 @@ export function renderSummary(
     }
   }
 
-  lines.push(
+  return lines;
+}
+
+/** The collapsed table of every scenario's head value and change. */
+function allScenarioLines(report: Report): string[] {
+  const lines = [
     "<details>",
     "<summary>All scenarios</summary>",
     "",
     "| Scenario | Wall time | CPU time | Peak RSS | sec/op | B/op | allocs/op |",
     "|---|---:|---:|---:|---:|---:|---:|",
-  );
+  ];
 
   const columns = [...HYPERFINE_METRICS, ...GOBENCH_METRICS];
 
@@ -446,11 +629,23 @@ export function renderSummary(
 
   lines.push("", "</details>", "");
 
-  if (extras.benchstat) {
-    lines.push(...collapsed("benchstat", extras.benchstat.trimEnd()));
+  return lines;
+}
+
+/** Joins phrases as an English list: "a", "a and b", or "a, b, and c". */
+function listPhrases(phrases: string[]): string {
+  if (phrases.length <= 2) {
+    return phrases.join(" and ");
   }
 
-  return lines.join("\n");
+  return `${phrases.slice(0, -1).join(", ")}, and ${phrases[phrases.length - 1]}`;
+}
+
+/** The unit count of a `<command>.<shape>.<units>` id, and 0 for any other id. */
+function unitCount(id: string): number {
+  const parts = SCENARIO_ID.exec(id);
+
+  return parts ? Number(parts[3]) : 0;
 }
 
 /** The lines of a collapsed section holding preformatted text. */
@@ -651,7 +846,7 @@ function main(): void {
     const shown = new Set(largestPerCommand(profiled, COMMENT_PROFILE_SCENARIOS));
     const commentDiffs = new Map([...(profileDiffs ?? [])].filter(([id]) => shown.has(id)));
 
-    writeFileSync(values.comment, renderSummary(report, { profileDiffs: commentDiffs }));
+    writeFileSync(values.comment, renderComment(report, commentDiffs));
   }
 
   if (values.flagged) {

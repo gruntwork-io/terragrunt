@@ -43,11 +43,12 @@ func Run(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	opts *Options,
 	repoURL string,
 ) error {
 	if opts.Format == FormatTUI {
-		return runTUI(ctx, l, v, opts, repoURL)
+		return runTUI(ctx, l, v, s, opts, repoURL)
 	}
 
 	renderer, err := format.NewRenderer(opts.Format)
@@ -67,7 +68,7 @@ func Run(
 
 	return withSourceGuidance(Stream(
 		streamCtx, l, v.Writers.Writer, renderer,
-		NewLoadFunc(l, v, opts, tempDirs, repoURL),
+		NewLoadFunc(l, v, s, opts, tempDirs, repoURL),
 	))
 }
 
@@ -98,6 +99,7 @@ func runTUI(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	opts *Options,
 	repoURL string,
 ) error {
@@ -121,8 +123,8 @@ func runTUI(
 	loadLogger := l.WithOptions(log.WithOutput(io.Discard), log.WithHooks(viewtui.NewWarnHook(warnCh)))
 
 	return tui.Run(
-		ctx, l, v, opts.TerragruntOptions, warnCh,
-		NewLoadFunc(loadLogger, v, opts, tempDirs, repoURL),
+		ctx, l, v, s, opts.TerragruntOptions, warnCh,
+		NewLoadFunc(loadLogger, v, s, opts, tempDirs, repoURL),
 	)
 }
 
@@ -133,6 +135,7 @@ func runTUI(
 func NewLoadFunc(
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	opts *Options,
 	tempDirs *tui.TempDirTracker,
 	repoURL string,
@@ -148,14 +151,14 @@ func NewLoadFunc(
 			return tui.LoadURL(ctx, l, v, opts.TerragruntOptions, tempDirs, repoURL, componentCh)
 		}
 
-		return discoverAndLoad(ctx, l, v, opts, tempDirs, status, componentCh)
+		return discoverAndLoad(ctx, l, v, s, opts, tempDirs, status, componentCh)
 	}
 }
 
 // discoverAndLoad runs the concurrent URL discoverers and loads each distinct
 // repo URL they surface into componentCh, bounded by parallelism.
 func discoverAndLoad(
-	ctx context.Context, l log.Logger, v *venv.Venv, opts *Options,
+	ctx context.Context, l log.Logger, v *venv.Venv, s *config.Store, opts *Options,
 	tempDirs *tui.TempDirTracker,
 	status tui.StatusFunc, componentCh chan<- *tui.ComponentEntry,
 ) error {
@@ -166,7 +169,7 @@ func discoverAndLoad(
 	var configErr error
 
 	g.Go(func() error {
-		err := discoverCatalogConfigURLs(gctx, l, v, opts.TerragruntOptions, urlCh)
+		err := discoverCatalogConfigURLs(gctx, l, v, s, opts.TerragruntOptions, urlCh)
 		if gctx.Err() == nil {
 			configErr = err
 		}
@@ -175,7 +178,7 @@ func discoverAndLoad(
 	})
 
 	g.Go(func() error {
-		return discoverSourceFileURLs(gctx, l, v, opts.TerragruntOptions, urlCh)
+		return discoverSourceFileURLs(gctx, l, v, s, opts.TerragruntOptions, urlCh)
 	})
 
 	g.Go(func() error {
@@ -301,12 +304,13 @@ func discoverCatalogConfigURLs(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	urlCh chan<- string,
 ) error {
 	pctx := configbridge.NewParsingContext(opts)
 
-	catalogCfg, err := config.ReadCatalogConfig(ctx, l, v, pctx)
+	catalogCfg, err := config.ReadCatalogConfig(ctx, l, v, s, pctx)
 	if err != nil {
 		l.Debugf("No catalog config found: %v", err)
 		return err
@@ -329,12 +333,13 @@ func discoverSourceFileURLs(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	urlCh chan<- string,
 ) error {
 	pctx := configbridge.NewParsingContext(opts)
 
-	urls, err := tui.DiscoverSourceURLs(ctx, l, v, pctx)
+	urls, err := tui.DiscoverSourceURLs(ctx, l, v, s, pctx)
 	if err != nil {
 		l.Warnf("Failed to discover source URLs: %v", err)
 		return nil

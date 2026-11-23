@@ -11,7 +11,6 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/hashicorp/hcl/v2"
@@ -37,7 +36,7 @@ func RunGenerate(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 ) error {
 	opts.TerragruntStackConfigPath = filepath.Join(opts.WorkingDir, config.DefaultStackFile)
@@ -109,7 +108,7 @@ func RunGenerate(
 	}
 
 	// After generation, hint when a literal stack filter left nested stacks ungenerated.
-	funcsFor := configbridge.StackFuncFactory(ctx, l, v, opts)
+	funcsFor := configbridge.StackFuncFactory(ctx, l, v, s, opts)
 	tips.GiveStackNestedGenerateTip(
 		ctx,
 		l,
@@ -124,7 +123,7 @@ func RunGenerate(
 }
 
 // Run executes the stack command.
-func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *config.Store, opts *options.TerragruntOptions) error {
 	opts.StackAction = "run"
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "stack_run", map[string]any{
@@ -145,7 +144,7 @@ func RunOutput(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	index string,
 ) error {

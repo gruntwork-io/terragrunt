@@ -5,8 +5,8 @@ import (
 
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/gocty"
-	ctyjson "github.com/zclconf/go-cty/cty/json"
 
+	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 )
 
@@ -851,8 +851,8 @@ func outputsConfigAsCty(config *OutputsConfig) cty.Value {
 			values["mock_value"] = *declared.MockValue
 		}
 
-		if declared.Nullable {
-			values["nullable"] = cty.True
+		if declared.Nullable != nil {
+			values["nullable"] = goboolToCty(*declared.Nullable)
 		}
 
 		declarations[declared.Name] = cty.ObjectVal(values)
@@ -1049,12 +1049,7 @@ func convertToCtyWithJSON(val any) (cty.Value, error) {
 		return cty.NilVal, err
 	}
 
-	var ctyJSONVal ctyjson.SimpleJSONValue
-	if err := ctyJSONVal.UnmarshalJSON(jsonBytes); err != nil {
-		return cty.NilVal, err
-	}
-
-	return ctyJSONVal.Value, nil
+	return ctyhelper.DecodeJSON(jsonBytes)
 }
 
 // GoTypeToCty converts arbitrary go type (struct that has cty tags, slice, map with string keys, string, bool, int

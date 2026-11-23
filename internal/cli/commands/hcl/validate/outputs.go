@@ -13,10 +13,8 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 	hclparser "github.com/hashicorp/hcl/v2/hclparse"
-	"github.com/hashicorp/hcl/v2/hclsyntax"
 
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
@@ -41,6 +39,13 @@ const (
 	summaryDeclaredOutputNotInModule  = "Declared output not in module"
 	summaryUndeclaredDependencyOutput = "Undeclared dependency output"
 	summaryUnknownMockValue           = "Unknown mock value"
+)
+
+var (
+	includeBlockSchema = &hcl.BodySchema{
+		Blocks: []hcl.BlockHeaderSchema{{Type: config.MetadataInclude, LabelNames: []string{"name"}}},
+	}
+	outputsBlockSchema = &hcl.BodySchema{Blocks: []hcl.BlockHeaderSchema{{Type: config.MetadataOutputs}}}
 )
 
 type contractDiagnostics struct {
@@ -97,7 +102,7 @@ func validateOutputsContractsPrepared(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	cfg *config.TerragruntConfig,
 	moduleDir string,
@@ -125,7 +130,7 @@ func outputsContractChecks(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	pctx *config.ParsingContext,
 	cfg *config.TerragruntConfig,
@@ -157,12 +162,12 @@ func referenceChecks(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	pctx *config.ParsingContext,
 	cfg *config.TerragruntConfig,
 ) ([]contractDiagnostics, error) {
-	contracts := readDependencyContracts(ctx, l, v, pctx, cfg)
+	contracts := readDependencyContracts(ctx, l, v, s, pctx, cfg)
 	if !contracts.bind() {
 		return nil, nil
 	}
@@ -179,7 +184,7 @@ func referenceChecks(
 		return nil, OutputsContractError{ConfigPath: configPath, Err: err}
 	}
 
-	includedPaths, err := includedFiles(ctx, l, v, pctx, cfg, autoInclude)
+	includedPaths, err := includedFiles(ctx, l, v, s, pctx, cfg, autoInclude)
 	if err != nil {
 		return nil, OutputsContractError{ConfigPath: configPath, Err: err}
 	}
@@ -205,7 +210,7 @@ func fileReferenceCheck(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	pctx *config.ParsingContext,
 	cfg *config.TerragruntConfig,
 	contracts dependencyContracts,
@@ -242,7 +247,7 @@ func syntaxTree(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	pctx *config.ParsingContext,
 	path string,
 ) (*hclparse.File, error) {
@@ -259,7 +264,7 @@ func autoIncludeTree(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	pctx *config.ParsingContext,
 	configPath string,
 ) (*hclparse.File, error) {
@@ -282,6 +287,7 @@ func includedFiles(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	pctx *config.ParsingContext,
 	cfg *config.TerragruntConfig,
 	autoInclude *hclparse.File,
@@ -295,7 +301,7 @@ func includedFiles(
 		return paths, nil
 	}
 
-	autoIncludes, err := autoIncludeIncludes(ctx, l, v, pctx, autoInclude)
+	autoIncludes, err := autoIncludeIncludes(ctx, l, v, s, pctx, autoInclude)
 	if err != nil {
 		return nil, err
 	}
@@ -315,6 +321,7 @@ func autoIncludeIncludes(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	pctx *config.ParsingContext,
 	autoInclude *hclparse.File,
 ) (config.IncludeConfigsMap, error) {
@@ -325,13 +332,12 @@ func autoIncludeIncludes(
 
 	autoPctx.SkipAutoIncludeMerge = true
 
-	autoCfg, err := config.PartialParseConfigFile(
+	autoCfg, err := s.ResolvePartialConfig(
 		ctx,
 		l,
 		v,
 		autoPctx.WithDecodeList(config.TerragruntFlags),
 		autoInclude.ConfigPath,
-		nil,
 	)
 	if err != nil {
 		return nil, err
@@ -413,7 +419,7 @@ func declaredOutputsChecks(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	pctx *config.ParsingContext,
 	cfg *config.TerragruntConfig,
@@ -458,54 +464,64 @@ func declarationFiles(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	pctx *config.ParsingContext,
 	cfg *config.TerragruntConfig,
 	configPath string,
 ) ([]*hclparse.File, error) {
-	autoInclude, err := autoIncludeTree(ctx, l, v, s, pctx, configPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if autoInclude != nil {
-		autoIncludes, err := autoIncludeIncludes(ctx, l, v, pctx, autoInclude)
-		if err != nil {
-			return nil, err
-		}
-
-		files, err := mergedDeclarationFiles(ctx, l, v, s, pctx, autoInclude, autoIncludes)
-		if err != nil {
-			return nil, err
-		}
-
-		if slices.ContainsFunc(files, declaresOutputs) {
-			return files, nil
-		}
-	}
-
 	unit, err := syntaxTree(ctx, l, v, s, pctx, configPath)
 	if err != nil {
 		return nil, err
 	}
 
-	return mergedDeclarationFiles(ctx, l, v, s, pctx, unit, cfg.ProcessedIncludes)
+	files, err := autoIncludeDeclarationFiles(ctx, l, v, s, pctx, configPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if !slices.ContainsFunc(files, declaresOutputs) {
+		files = []*hclparse.File{unit}
+	}
+
+	return withMergedIncludes(ctx, l, v, s, pctx, files, unit, cfg.ProcessedIncludes)
 }
 
-// mergedDeclarationFiles returns file, then the includes whose output declarations merge into it, the last one first.
-func mergedDeclarationFiles(
+// autoIncludeDeclarationFiles returns the autoinclude file beside configPath, then its merged includes, or none.
+func autoIncludeDeclarationFiles(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	pctx *config.ParsingContext,
-	file *hclparse.File,
+	configPath string,
+) ([]*hclparse.File, error) {
+	autoInclude, err := autoIncludeTree(ctx, l, v, s, pctx, configPath)
+	if err != nil || autoInclude == nil {
+		return nil, err
+	}
+
+	includes, err := autoIncludeIncludes(ctx, l, v, s, pctx, autoInclude)
+	if err != nil {
+		return nil, err
+	}
+
+	return withMergedIncludes(ctx, l, v, s, pctx, []*hclparse.File{autoInclude}, autoInclude, includes)
+}
+
+// withMergedIncludes returns files, then the includes of owner whose output declarations merge in, the last one first.
+func withMergedIncludes(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	s *config.Store,
+	pctx *config.ParsingContext,
+	files []*hclparse.File,
+	owner *hclparse.File,
 	includes config.IncludeConfigsMap,
 ) ([]*hclparse.File, error) {
-	files := []*hclparse.File{file}
-	declared := declaresOutputs(file)
+	declared := slices.ContainsFunc(files, declaresOutputs)
 
-	for _, name := range slices.Backward(includeNames(file)) {
+	for _, name := range slices.Backward(includeNames(owner)) {
 		include, ok := includes[name]
 		if !ok {
 			continue
@@ -532,21 +548,16 @@ func mergedDeclarationFiles(
 	return files, nil
 }
 
-// includeNames returns the name of each include block of file in source order, empty for a bare include.
+// includeNames returns the name of each include block of file in source order, one empty name for a bare include.
 func includeNames(file *hclparse.File) []string {
-	body, ok := file.Body.(*hclsyntax.Body)
-	if !ok {
-		return nil
+	content, _, diags := file.Body.PartialContent(includeBlockSchema)
+	if diags.HasErrors() {
+		return []string{""}
 	}
 
-	var names []string
-
-	for _, block := range body.Blocks {
-		if block.Type != config.MetadataInclude {
-			continue
-		}
-
-		names = append(names, strings.Join(block.Labels, ""))
+	names := make([]string, 0, len(content.Blocks))
+	for _, block := range content.Blocks {
+		names = append(names, block.Labels[0])
 	}
 
 	return names
@@ -554,11 +565,9 @@ func includeNames(file *hclparse.File) []string {
 
 // declaresOutputs reports whether file has an outputs block.
 func declaresOutputs(file *hclparse.File) bool {
-	body, ok := file.Body.(*hclsyntax.Body)
+	content, _, diags := file.Body.PartialContent(outputsBlockSchema)
 
-	return ok && slices.ContainsFunc(body.Blocks, func(block *hclsyntax.Block) bool {
-		return block.Type == config.MetadataOutputs
-	})
+	return !diags.HasErrors() && len(content.Blocks) > 0
 }
 
 // missingOutputDiagnostics reports each output the module at dir lacks, at its first declaration in files.
@@ -955,6 +964,7 @@ func readDependencyContracts(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	pctx *config.ParsingContext,
 	cfg *config.TerragruntConfig,
 ) dependencyContracts {
@@ -968,7 +978,7 @@ func readDependencyContracts(
 			continue
 		}
 
-		declared, err := dep.DeclaredOutputs(ctx, l, v, pctx)
+		declared, err := dep.DeclaredOutputs(ctx, l, v, s, pctx)
 		contracts[address] = dependencyContract{declared: declared, err: err}
 	}
 

@@ -212,8 +212,6 @@ type TerragruntOptions struct {
 	ScaffoldNoIncludeRoot bool
 	// Enable check mode, by default it's disabled.
 	Check bool
-	// Enables caching of includes during partial parsing operations.
-	UsePartialParseConfigCache bool
 	// True if is required to show dependent units and confirm action
 	CheckDependentUnits bool
 	// True if is required to check for dependent modules during destroy operations
@@ -225,7 +223,7 @@ type TerragruntOptions struct {
 	// Whether we should automatically run terraform init if necessary when executing other commands
 	AutoInit bool
 	// When false (set via --no-discovery-auth-provider-cmd), skip running the
-	// auth provider command during the discovery parse phase. Requires the
+	// auth provider command during discovery parsing. Requires the
 	// opt-out-auth experiment. Default true preserves existing behavior.
 	DiscoveryAuthProviderCmd bool
 	// Allows to skip the output of all dependencies.

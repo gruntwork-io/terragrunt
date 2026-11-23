@@ -6,180 +6,232 @@ import (
 	"io/fs"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
+	"sync"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/sync/errgroup"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
-// EnvPipeline is a temporary, undocumented environment variable that switches discovery from its walk and parse
-// phases to the pipeline. Do NOT rely on it: it can be removed or have its name changed at any time without notice
-// and is not part of Terragrunt's user-facing configuration surface.
-const EnvPipeline = "TG_TMP_DISCOVERY_PIPELINE"
-
 // workQueuePerWorker is the number of components that can wait for each parse worker before the walk blocks.
 const workQueuePerWorker = 4
 
-// PipelineEnabled reports whether env asks for the pipeline through [EnvPipeline]. A value that is not a boolean
-// leaves it off.
-func PipelineEnabled(env map[string]string) bool {
-	venv.RequireEnvMap(env)
-
-	enabled, err := strconv.ParseBool(env[EnvPipeline])
-
-	return err == nil && enabled
-}
-
-// pipelineStage is the stage of the pipeline an event comes from.
+// pipelineStage is what a worker did with the component of an event.
 type pipelineStage int
 
 const (
-	// stageWalked is the walk finding a component and classifying it without a parse.
-	stageWalked pipelineStage = iota
-	// stageParsed is a worker finishing the parse of a component the walk sent it.
-	stageParsed
+	// stageParsed is a worker finishing the parse of a component a finder sent it.
+	stageParsed pipelineStage = iota
+	// stageRelated is a worker reading the dependencies of a component whose classification needed no parse.
+	stageRelated
 )
 
-// pipelineEvent is what a stage of the pipeline reports to the collector.
+// pipelineEvent is what a worker reports to the collector.
 type pipelineEvent struct {
-	// err is why the parse of result's component failed, nil when it parsed or the event is from the walk.
+	// err is why the parse of result's component failed, nil when it parsed or the event is not from stageParsed.
 	err error
+	// declared is the dependencies result's component declares, nil when the worker read none.
+	declared *dependencyPaths
 	// result is the component with its classification at stage.
 	result DiscoveryResult
-	// stage is the stage the event comes from.
+	// stage is what the worker did with result's component.
 	stage pipelineStage
 }
 
 // pipeline walks the working directory and parses the components that need it while the walk is still running.
 //
-// The walk classifies each component, reports it on events, and queues it on work when it needs a parse. Workers
-// parse what work holds, classify the component again, and report it on events. One collector receives every event,
-// so the results need no lock.
+// The walk classifies each component, keeps it, and queues it on work when it needs a parse. Workers parse what
+// work holds, classify the component again, and report it on events. The walk also queues the targets of graph
+// filters, and when a filter selects dependents, the components ready for filtering and the candidates its
+// traversals can reach. A worker reads the dependencies of such a component once it is done with it.
+// One collector receives every event, so the results need no lock.
+//
+// The walk keeps what it finds instead of reporting it on events. Each event wakes the collector, and the walk
+// finds components faster than a handoff to another goroutine costs.
+//
+// A discovery with Git filters has a second finder beside the walk. It runs a discovery in each of their
+// worktrees, then keeps and queues the components those find as the walk does its own.
 //
 // The pipeline ends because its channels form a chain with no way back:
 //
-//  1. The walk ends when the tree is exhausted, it fails, or ctx is done.
-//  2. The walk is the only sender on work, which closes when the walk ends.
-//  3. A worker ends when work is closed and empty, so the workers end once the walk has.
-//  4. The walk and the workers are the only senders on events, which closes when all of them have ended.
+//  1. The walk ends when the tree is exhausted, it fails, or ctx is done. The worktree finder ends when the
+//     discoveries it runs in its worktrees have ended.
+//  2. The finders are the only senders on work, which closes when every finder has ended.
+//  3. A worker ends when work is closed and empty, so the workers end once the finders have.
+//  4. The workers are the only senders on events, which closes when all of them have ended.
 //  5. The collector ends when events is closed and empty.
 //
 // A sender gives up when ctx is done, so a full channel never holds a stage past cancellation.
 type pipeline struct {
-	discovery      *Discovery
-	opts           *options.TerragruntOptions
-	store          *rewrite.Store
-	work           chan DiscoveryResult
-	events         chan pipelineEvent
+	// discovery is the discovery the pipeline runs for.
+	discovery *Discovery
+	// opts is the options every parse runs with.
+	opts *options.TerragruntOptions
+	// store memoizes the parses.
+	store *config.Store
+	// work carries the components the finders queue for the workers.
+	work chan DiscoveryResult
+	// events carries what the workers report to the collector.
+	events chan pipelineEvent
+	// dependentBoundaries is the boundary of each filter that selects dependents, nil when any is unbounded.
+	dependentBoundaries []string
+	// parseRequested reports whether an option or a filter asked for a parse.
 	parseRequested bool
+	// relates reports whether discovery relates the components it finds.
+	relates bool
+	// findsDependents reports whether a filter selects dependents.
+	findsDependents bool
 }
 
-// runPipeline walks the working directory and parses the components that need it, as the filesystem and parse
-// phases do one after the other.
+// runPipeline walks the working directory and parses the components that need it. It also reads the dependencies
+// of the targets of graph filters and, when a filter selects dependents, of the components that filter can reach,
+// and returns them unlinked. The relations are nil when discovery neither relates components nor has a graph
+// filter. A discovery with Git filters gets the components they select in their worktrees as well.
 //
-// Returns the error of the walk when it fails, and otherwise the parse errors joined. suppressParseErrors drops
-// both, as it does for the phases. A [CoexistenceError] or a [config.AmbiguousConfigError] is returned either way.
+// Returns the first of these that occurred: the error of the walk, the parse errors of what it found, the error of
+// the worktree finder, and the parse errors of what that finder found. Each set of parse errors comes back joined.
+// suppressParseErrors drops them all. A [CoexistenceError], a [config.AmbiguousConfigError], or the error of ctx
+// once it is done is returned either way.
 func (d *Discovery) runPipeline(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	parseRequested bool,
-) (*PhaseResults, error) {
+) (walked, error) {
 	workers := max(d.numWorkers, defaultDiscoveryWorkers)
 
 	p := &pipeline{
-		discovery:      d,
-		opts:           opts,
-		store:          s,
-		work:           make(chan DiscoveryResult, workers*workQueuePerWorker),
-		events:         make(chan pipelineEvent, workers*workQueuePerWorker),
-		parseRequested: parseRequested,
+		discovery:       d,
+		opts:            opts,
+		store:           s,
+		work:            make(chan DiscoveryResult, workers*workQueuePerWorker),
+		events:          make(chan pipelineEvent, workers*workQueuePerWorker),
+		parseRequested:  parseRequested,
+		relates:         d.discoverRelationships,
+		findsDependents: d.classifier.HasDependentFilters(),
 	}
 
-	var stages errgroup.Group
+	if p.findsDependents {
+		p.dependentBoundaries = d.dependentBoundaries(l, v.FS)
+	}
 
-	stages.Go(func() error {
-		defer close(p.work)
+	var (
+		finders, stages       sync.WaitGroup
+		inWalk, inWorktrees   foundResults
+		walkErr, worktreesErr error
+	)
 
-		return p.walk(ctx, l, v)
+	finders.Go(func() { inWalk, walkErr = p.walk(ctx, l, v) })
+
+	if d.findsInWorktrees() {
+		finders.Go(func() { inWorktrees, worktreesErr = p.findInWorktrees(ctx, l, v) })
+	}
+
+	stages.Go(func() {
+		finders.Wait()
+		close(p.work)
 	})
 
 	for range workers {
-		stages.Go(func() error {
-			p.parse(ctx, l, v)
-
-			return nil
-		})
+		stages.Go(func() { p.parse(ctx, l, v) })
 	}
 
 	drained := make(chan *collected, 1)
 
 	go func() { drained <- p.collect() }()
 
-	walkErr := stages.Wait()
+	stages.Wait()
 
 	close(p.events)
 
 	collected := <-drained
 
 	if found, ok := errors.AsType[conflictError](walkErr); ok {
-		return nil, found.error
+		return walked{}, found.error
+	}
+
+	if err := ctx.Err(); err != nil {
+		return walked{}, err
 	}
 
 	if span := trace.SpanFromContext(ctx); span.IsRecording() {
 		span.SetAttributes(
-			attribute.Int("walked", len(collected.walkedDiscovered)+len(collected.walkedCandidates)),
+			attribute.Int("walked", len(inWalk.discovered)+len(inWalk.candidates)),
+			attribute.Int("in_worktrees", len(inWorktrees.discovered)+len(inWorktrees.candidates)),
 			attribute.Int("parsed", len(collected.parsed)+len(collected.parseErrs)),
 		)
 	}
 
-	results, parseErrs, err := collected.results(d)
+	results, parseErrs, err := collected.results(d, inWalk)
 	if err != nil {
-		return nil, err
+		return walked{}, err
 	}
 
-	if d.suppressParseErrors {
-		return results, nil
+	found := walked{discovered: results.discovered, candidates: results.candidates}
+
+	if p.relates || d.classifier.HasGraphFilters() {
+		found.relations = &pipelineRelations{discovery: d, opts: opts, store: s, declared: collected.declared}
 	}
 
-	if walkErr != nil {
-		return nil, walkErr
+	if !d.suppressParseErrors {
+		if walkErr != nil {
+			return walked{}, walkErr
+		}
+
+		if len(parseErrs) > 0 {
+			return walked{}, errors.Join(parseErrs...)
+		}
 	}
 
-	if len(parseErrs) > 0 {
-		return nil, errors.Join(parseErrs...)
+	if worktreesErr != nil {
+		if d.returnsPhaseError(worktreesErr) {
+			return walked{}, worktreesErr
+		}
+
+		return found, nil
 	}
 
-	return results, nil
+	fromWorktrees, parseErrs, err := collected.results(d, inWorktrees)
+	if err != nil {
+		return walked{}, err
+	}
+
+	if len(parseErrs) > 0 && !d.suppressParseErrors {
+		return walked{}, errors.Join(parseErrs...)
+	}
+
+	found.discovered = deduplicateResults(append(found.discovered, fromWorktrees.discovered...))
+	found.candidates = deduplicateResults(append(found.candidates, fromWorktrees.candidates...))
+
+	return found, nil
 }
 
-// walk walks the working directory, reports each component it finds on events, and queues the ones that need a
-// parse on work.
+// walk walks the working directory, returns each component it finds, and queues the ones that need a parse on
+// work.
 //
-// Returns a [conflictError] when a component that needs a parse shares its directory with a config file that
-// validateNoCoexistence rejects beside it, before either is parsed.
-func (p *pipeline) walk(ctx context.Context, l log.Logger, v *venv.Venv) error {
+// Returns what the walk found before it failed along with the error. A conflictError means a component the walk
+// queues for a worker shares its directory with a config file that validateNoCoexistence rejects beside it, before
+// either is parsed.
+func (p *pipeline) walk(ctx context.Context, l log.Logger, v *venv.Venv) (foundResults, error) {
 	d := p.discovery
-	phase := NewFilesystemPhase(d.numWorkers)
-	input := &PhaseInput{Opts: p.opts, Classifier: d.classifier, Discovery: d}
 
 	filenames := d.configFilenames
 	if len(filenames) == 0 {
 		filenames = DefaultConfigFilenames
 	}
+
+	var found foundResults
 
 	visit := func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
@@ -191,25 +243,21 @@ func (p *pipeline) walk(ctx context.Context, l log.Logger, v *venv.Venv) error {
 		}
 
 		if entry.IsDir() {
-			return phase.skipDirIfIgnorable(d, entry.Name())
+			return d.skipDirIfIgnorable(entry.Name())
 		}
 
-		result := phase.processFile(input, path, filenames)
+		result := d.classifyFile(path, filenames)
 		if result == nil || result.Status == filter.StatusExcluded {
 			return nil
 		}
 
-		select {
-		case p.events <- pipelineEvent{result: *result, stage: stageWalked}:
-		case <-ctx.Done():
-			return ctx.Err()
-		}
+		found.add(*result)
 
-		if !p.needsParse(*result) {
+		if !p.needsParse(*result) && !p.readsDependencies(v.FS, *result) {
 			return nil
 		}
 
-		if err := conflict(v.FS, phase, input, *result, path, filenames); err != nil {
+		if err := conflict(v.FS, d, *result, path, filenames); err != nil {
 			return err
 		}
 
@@ -235,18 +283,18 @@ func (p *pipeline) walk(ctx context.Context, l log.Logger, v *venv.Venv) error {
 
 	walkRoot, err := walkRootUnder(v.FS, d.discoveryContext.WorkingDir, d.walkRoot)
 	if err != nil {
-		return err
+		return foundResults{}, err
 	}
 
 	walk := &prunedWalk{
 		visit:       visit,
 		workingDir:  d.discoveryContext.WorkingDir,
 		walkRoot:    walkRoot,
-		numWorkers:  phase.numWorkers,
+		numWorkers:  max(d.numWorkers, defaultDiscoveryWorkers),
 		followLinks: p.opts.Experiments.Evaluate(experiment.Symlinks),
 	}
 
-	return walk.run(ctx, v.FS, roots)
+	return found, walk.run(ctx, v.FS, roots)
 }
 
 // conflictError is what validateNoCoexistence reports for two config files the walk found in one directory.
@@ -254,16 +302,9 @@ type conflictError struct {
 	error
 }
 
-// conflict returns a [conflictError] when the directory of path, the config file of found, holds another config
+// conflict returns a conflictError when the directory of path, the config file of found, holds another config
 // file that validateNoCoexistence rejects beside it.
-func conflict(
-	fsys vfs.FS,
-	phase *FilesystemPhase,
-	input *PhaseInput,
-	found DiscoveryResult,
-	path string,
-	filenames []string,
-) error {
+func conflict(fsys vfs.FS, d *Discovery, found DiscoveryResult, path string, filenames []string) error {
 	dir, base := filepath.Split(path)
 
 	for _, filename := range filenames {
@@ -276,7 +317,7 @@ func conflict(
 			continue
 		}
 
-		other := phase.processFile(input, sibling, filenames)
+		other := d.classifyFile(sibling, filenames)
 		if other == nil || other.Status != found.Status {
 			continue
 		}
@@ -289,7 +330,32 @@ func conflict(
 	return nil
 }
 
-// needsParse reports whether the walk queues result for a parse: a candidate whose filters read its config, and
+// findInWorktrees runs the discoveries in worktrees, returns each component they find, and queues the ones a
+// worker has to parse or read the dependencies of on work.
+//
+// Returns the error of ctx when it is done before a send completes.
+func (p *pipeline) findInWorktrees(ctx context.Context, l log.Logger, v *venv.Venv) (foundResults, error) {
+	results, err := p.discovery.runWorktreeWalk(ctx, l, v, p.store, p.opts)
+	if err != nil {
+		return foundResults{}, err
+	}
+
+	for _, result := range slices.Concat(results.discovered, results.candidates) {
+		if !p.needsParse(result) && !p.readsDependencies(v.FS, result) {
+			continue
+		}
+
+		select {
+		case p.work <- result:
+		case <-ctx.Done():
+			return foundResults{}, ctx.Err()
+		}
+	}
+
+	return *results, nil
+}
+
+// needsParse reports whether a finder queues result for a parse: a candidate whose filters read its config, and
 // every component found when an option asks for what a parse fills in.
 func (p *pipeline) needsParse(result DiscoveryResult) bool {
 	if !p.parseRequested {
@@ -308,20 +374,60 @@ func (d *Discovery) parsesDiscovered() bool {
 	return d.readFiles || d.parseExclude || d.parseIncludes
 }
 
-// parse parses the components on work until it closes and reports each on events.
-func (p *pipeline) parse(ctx context.Context, l log.Logger, v *venv.Venv) {
-	phase := NewParsePhase(p.discovery.numWorkers)
-
-	for candidate := range p.work {
-		event := pipelineEvent{result: candidate, stage: stageParsed}
-
-		parsed, err := phase.parseAndReclassify(ctx, l, v, p.store, p.opts, p.discovery, candidate)
-		if err != nil {
-			event.err = err
+// readsDependencies reports whether a worker reads the dependencies of result's component. It reads those of the
+// target of a graph filter, and when a filter selects dependents, those of a component ready for filtering and of a
+// candidate one of that filter's traversals can reach.
+func (p *pipeline) readsDependencies(fsys vfs.FS, result DiscoveryResult) bool {
+	switch result.Status {
+	case filter.StatusReadyForFilter:
+		return p.findsDependents
+	case filter.StatusCandidate:
+		if result.Reason == filter.CandidacyReasonGraphTarget {
+			return true
 		}
 
-		if parsed != nil {
-			event.result = *parsed
+		return p.findsDependents && !outsideDependentBoundaries(fsys, p.dependentBoundaries, result)
+	case filter.StatusExcluded:
+	}
+
+	return false
+}
+
+// parse works through the components on work until it closes and reports each on events. It parses a component
+// that needs it, then reads the dependencies of one discovery needs them from. Once ctx is done, it drains work
+// without reading anything.
+func (p *pipeline) parse(ctx context.Context, l log.Logger, v *venv.Venv) {
+	for candidate := range p.work {
+		if ctx.Err() != nil {
+			continue
+		}
+
+		event := pipelineEvent{result: candidate, stage: stageRelated}
+
+		if p.needsParse(candidate) {
+			event.stage = stageParsed
+
+			parsed, err := p.discovery.parseAndReclassify(ctx, l, v, p.store, p.opts, candidate)
+			if err != nil {
+				event.err = err
+			}
+
+			if parsed != nil {
+				event.result = *parsed
+			}
+		}
+
+		if event.err == nil && p.readsDependencies(v.FS, event.result) {
+			declared := readDependencyPaths(
+				contextWithParsePhase(ctx, parsePhaseTagDependencyGraph),
+				l,
+				v,
+				p.store,
+				p.opts,
+				p.discovery,
+				event.result.Component,
+			)
+			event.declared = &declared
 		}
 
 		select {
@@ -336,14 +442,34 @@ func (p *pipeline) collect() *collected {
 	c := &collected{
 		parsed:         make(map[component.Component]DiscoveryResult),
 		parseErrs:      make(map[component.Component]error),
+		declared:       make(map[component.Component]dependencyPaths),
 		parseRequested: p.parseRequested,
 	}
 
 	for event := range p.events {
-		c.add(event)
+		c.add(&event)
 	}
 
 	return c
+}
+
+// foundResults is the components one finder classified without a parse, in the order it found them.
+type foundResults struct {
+	// discovered is the components ready for filtering.
+	discovered []DiscoveryResult
+	// candidates is the components left for a parse or the graph traversal.
+	candidates []DiscoveryResult
+}
+
+// add records result.
+func (f *foundResults) add(result DiscoveryResult) {
+	if result.Status == filter.StatusCandidate {
+		f.candidates = append(f.candidates, result)
+
+		return
+	}
+
+	f.discovered = append(f.discovered, result)
 }
 
 // collected is what the collector holds once the pipeline has drained.
@@ -352,50 +478,54 @@ type collected struct {
 	parsed map[component.Component]DiscoveryResult
 	// parseErrs maps each component that failed to parse to the failure.
 	parseErrs map[component.Component]error
-	// walkedDiscovered is the components the walk classified as ready for filtering, in walk order.
-	walkedDiscovered []DiscoveryResult
-	// walkedCandidates is the components the walk classified as candidates, in walk order.
-	walkedCandidates []DiscoveryResult
+	// declared maps each component a worker read the dependencies of to those dependencies.
+	declared map[component.Component]dependencyPaths
 	// parseRequested reports whether an option or a filter asked for a parse.
 	parseRequested bool
 }
 
 // add records event.
-func (c *collected) add(event pipelineEvent) {
-	switch {
-	case event.stage == stageParsed && event.err != nil:
-		c.parseErrs[event.result.Component] = event.err
-	case event.stage == stageParsed:
+func (c *collected) add(event *pipelineEvent) {
+	if event.declared != nil {
+		c.declared[event.result.Component] = *event.declared
+	}
+
+	switch event.stage {
+	case stageRelated:
+	case stageParsed:
+		if event.err != nil {
+			c.parseErrs[event.result.Component] = event.err
+
+			return
+		}
+
 		c.parsed[event.result.Component] = event.result
-	case event.result.Status == filter.StatusCandidate:
-		c.walkedCandidates = append(c.walkedCandidates, event.result)
-	default:
-		c.walkedDiscovered = append(c.walkedDiscovered, event.result)
 	}
 }
 
-// results returns the discovered components and candidates the filesystem and parse phases would hand the graph
-// phase, and the parse failures. The parse of a component that lost to another at its path is left out.
+// results returns the discovered components and the candidates left for the graph traversal among what one finder
+// found, each as it was classified after its parse when it had one, and the parse failures among them. The parse of
+// a component that lost to another at its path is left out.
 //
 // Returns a [CoexistenceError] when a directory holds both a unit and a stack, and a [config.AmbiguousConfigError]
 // when it holds both terragrunt.hcl and terragrunt.hcl.json.
-func (c *collected) results(d *Discovery) (*PhaseResults, []error, error) {
-	if err := validateNoCoexistence(c.walkedDiscovered); err != nil {
+func (c *collected) results(d *Discovery, found foundResults) (*foundResults, []error, error) {
+	if err := validateNoCoexistence(found.discovered); err != nil {
 		return nil, nil, err
 	}
 
-	if err := validateNoCoexistence(c.walkedCandidates); err != nil {
+	if err := validateNoCoexistence(found.candidates); err != nil {
 		return nil, nil, err
 	}
 
-	discovered := deduplicateResults(c.walkedDiscovered)
-	candidates := deduplicateResults(c.walkedCandidates)
+	discovered := deduplicateResults(found.discovered)
+	candidates := deduplicateResults(found.candidates)
 
 	if !c.parseRequested {
-		return &PhaseResults{Discovered: discovered, Candidates: candidates}, nil, nil
+		return &foundResults{discovered: discovered, candidates: candidates}, nil, nil
 	}
 
-	results := &PhaseResults{Discovered: slices.Clone(discovered)}
+	results := &foundResults{discovered: slices.Clone(discovered)}
 
 	var parseErrs []error
 
@@ -413,16 +543,16 @@ func (c *collected) results(d *Discovery) (*PhaseResults, []error, error) {
 
 		switch parsed.Status {
 		case filter.StatusReadyForFilter:
-			results.Discovered = append(results.Discovered, parsed)
+			results.discovered = append(results.discovered, parsed)
 		case filter.StatusCandidate:
-			results.Candidates = append(results.Candidates, parsed)
+			results.candidates = append(results.candidates, parsed)
 		case filter.StatusExcluded:
 		}
 	}
 
 	for _, candidate := range candidates {
 		if candidate.Reason != filter.CandidacyReasonRequiresParse {
-			results.Candidates = append(results.Candidates, candidate)
+			results.candidates = append(results.candidates, candidate)
 
 			continue
 		}
@@ -436,7 +566,7 @@ func (c *collected) results(d *Discovery) (*PhaseResults, []error, error) {
 		}
 	}
 
-	results.Discovered = deduplicateResults(results.Discovered)
+	results.discovered = deduplicateResults(results.discovered)
 
 	return results, parseErrs, nil
 }

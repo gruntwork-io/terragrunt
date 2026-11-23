@@ -103,13 +103,14 @@ func writeReadConfigFixture(t *testing.T, v *venv.Venv, rootDir, commonHCL strin
 	}
 }
 
-// parseUnitInput parses the unit at cfgPath under ctx and returns its value
+// parseUnitInput parses the unit at cfgPath under ctx through s and returns its value
 // input and the files the parse recorded. Each of opts adjusts the parsing
 // context before the parse.
 func parseUnitInput(
 	ctx context.Context,
 	t *testing.T,
 	v *venv.Venv,
+	s *config.Store,
 	cfgPath string,
 	opts ...func(*config.ParsingContext),
 ) (any, []string) {
@@ -123,7 +124,7 @@ func parseUnitInput(
 		opt(pctx)
 	}
 
-	cfg, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, cfgPath, nil)
+	cfg, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, cfgPath)
 	require.NoError(t, err)
 
 	return cfg.Inputs["value"], pctx.FilesRead.Paths()
@@ -141,9 +142,10 @@ func accountsOpens(t *testing.T, commonHCL string, extra map[string]string, coun
 	fsys := &countingFS{FS: v.FS, opens: map[string]int{}}
 	v = v.WithFS(fsys)
 	ctx := config.WithCaches(t.Context())
+	s := new(config.Store)
 
 	for _, unit := range units[:count] {
-		value, filesRead := parseUnitInput(ctx, t, v, unit)
+		value, filesRead := parseUnitInput(ctx, t, v, s, unit)
 
 		assert.Equal(t, "111111111111", value)
 		assert.Contains(t, filesRead, filepath.Join(rootDir, "accounts.yml"))
@@ -206,9 +208,10 @@ locals {
 			units := writeReadConfigFixture(t, v, rootDir, tc.commonHCL, tc.extra)
 
 			ctx := config.WithCaches(t.Context())
+			s := new(config.Store)
 
 			for _, unit := range units {
-				value, _ := parseUnitInput(ctx, t, v, unit)
+				value, _ := parseUnitInput(ctx, t, v, s, unit)
 
 				assert.Equal(t, filepath.Dir(unit), value)
 			}
@@ -227,12 +230,13 @@ locals {
 `, nil)
 
 	ctx := config.WithCaches(t.Context())
+	s := new(config.Store)
 
 	for i, unit := range units {
 		want := []string{"first", "second"}[i]
 		unitV := v.WithEnv(map[string]string{"TG_TEST_READ_CONFIG_VALUE": want})
 
-		value, _ := parseUnitInput(ctx, t, unitV, unit)
+		value, _ := parseUnitInput(ctx, t, unitV, s, unit)
 
 		assert.Equal(t, want, value)
 	}
@@ -286,9 +290,10 @@ func TestReadTerragruntConfigDoesNotSharePerCallResult(t *testing.T) {
 			units := writeReadConfigFixture(t, v, rootDir, tc.commonHCL, map[string]string{"id.tftpl": "${uuid()}"})
 
 			ctx := config.WithCaches(t.Context())
+			s := new(config.Store)
 
-			first, _ := parseUnitInput(ctx, t, v, units[0])
-			second, _ := parseUnitInput(ctx, t, v, units[1])
+			first, _ := parseUnitInput(ctx, t, v, s, units[0])
+			second, _ := parseUnitInput(ctx, t, v, s, units[1])
 
 			assert.NotEqual(t, first, second)
 		})
@@ -314,9 +319,10 @@ func TestReadTerragruntConfigDoesNotShareUncachedRunCmd(t *testing.T) {
 		units := writeReadConfigFixture(t, v, rootDir, `locals { value = run_cmd("--terragrunt-no-cache", "cmd") }`, nil)
 
 		ctx := config.WithCaches(t.Context())
+		s := new(config.Store)
 
 		for _, unit := range units[:count] {
-			value, _ := parseUnitInput(ctx, t, v, unit)
+			value, _ := parseUnitInput(ctx, t, v, s, unit)
 
 			assert.Equal(t, "fresh", value)
 		}
@@ -339,12 +345,13 @@ func TestReadTerragruntConfigReplaysRunCmdOutputAfterDiscardedRead(t *testing.T)
 	units := writeReadConfigFixture(t, v, rootDir, `locals { value = run_cmd("echoer") }`, nil)
 
 	ctx := config.WithCaches(t.Context())
+	s := new(config.Store)
 
-	parseUnitInput(ctx, t, v.WithWriter(io.Discard), units[0])
+	parseUnitInput(ctx, t, v.WithWriter(io.Discard), s, units[0])
 
 	var out bytes.Buffer
 
-	value, _ := parseUnitInput(ctx, t, v.WithWriter(&out), units[1])
+	value, _ := parseUnitInput(ctx, t, v.WithWriter(&out), s, units[1])
 
 	assert.Equal(t, "hello", value)
 	assert.Equal(t, "hello\n", out.String())
@@ -473,10 +480,11 @@ locals {
 			units := writeReadConfigFixture(t, v, rootDir, tc.commonHCL, tc.extra)
 
 			shared := config.WithCaches(t.Context())
+			s := new(config.Store)
 
 			for _, unit := range units {
-				isolated, _ := parseUnitInput(config.WithCaches(t.Context()), t, v, unit, tc.opts...)
-				value, _ := parseUnitInput(shared, t, v, unit, tc.opts...)
+				isolated, _ := parseUnitInput(config.WithCaches(t.Context()), t, v, new(config.Store), unit, tc.opts...)
+				value, _ := parseUnitInput(shared, t, v, s, unit, tc.opts...)
 
 				assert.Equal(t, isolated, value, unit)
 			}
@@ -539,9 +547,10 @@ locals {
 			units := writeReadConfigFixture(t, v, rootDir, tc.commonHCL, nil)
 
 			ctx := config.WithCaches(t.Context())
+			s := new(config.Store)
 
 			for i, setting := range []string{"plan", "apply"} {
-				value, _ := parseUnitInput(ctx, t, v, units[i], func(pctx *config.ParsingContext) {
+				value, _ := parseUnitInput(ctx, t, v, s, units[i], func(pctx *config.ParsingContext) {
 					tc.configure(pctx, setting)
 				})
 
@@ -598,8 +607,9 @@ func TestReadTerragruntConfigRereadsFileChangedDuringCommand(t *testing.T) {
 			units := writeReadConfigFixture(t, v, rootDir, tc.commonHCL, tc.extra)
 
 			ctx := config.WithCaches(t.Context())
+			s := new(config.Store)
 
-			before, _ := parseUnitInput(ctx, t, v, units[0])
+			before, _ := parseUnitInput(ctx, t, v, s, units[0])
 			assert.Equal(t, tc.wantBefore, before)
 
 			changedPath := filepath.Join(rootDir, tc.changedFile)
@@ -608,7 +618,7 @@ func TestReadTerragruntConfigRereadsFileChangedDuringCommand(t *testing.T) {
 			later := time.Now().Add(time.Hour)
 			require.NoError(t, v.FS.Chtimes(changedPath, later, later))
 
-			after, _ := parseUnitInput(ctx, t, v, units[1])
+			after, _ := parseUnitInput(ctx, t, v, s, units[1])
 			assert.Equal(t, tc.wantAfter, after)
 		})
 	}
@@ -625,14 +635,15 @@ func TestReadTerragruntConfigRereadsSameSizeRewriteOfRecentFile(t *testing.T) {
 	require.NoError(t, v.FS.Chtimes(commonPath, recent, recent))
 
 	ctx := config.WithCaches(t.Context())
+	s := new(config.Store)
 
-	before, _ := parseUnitInput(ctx, t, v, units[0])
+	before, _ := parseUnitInput(ctx, t, v, s, units[0])
 	assert.Equal(t, "first", before)
 
 	require.NoError(t, vfs.WriteFile(v.FS, commonPath, []byte(`locals { value = "third" }`), 0o644))
 	require.NoError(t, v.FS.Chtimes(commonPath, recent, recent))
 
-	after, _ := parseUnitInput(ctx, t, v, units[1])
+	after, _ := parseUnitInput(ctx, t, v, s, units[1])
 	assert.Equal(t, "third", after)
 }
 
@@ -643,6 +654,7 @@ func TestReadTerragruntConfigKeepsSimilarCliArgsApart(t *testing.T) {
 	units := writeReadConfigFixture(t, v, rootDir, `locals { value = join("|", get_terraform_cli_args()) }`, nil)
 
 	ctx := config.WithCaches(t.Context())
+	s := new(config.Store)
 
 	withFlags := func(flags ...string) func(*config.ParsingContext) {
 		return func(pctx *config.ParsingContext) {
@@ -650,10 +662,10 @@ func TestReadTerragruntConfigKeepsSimilarCliArgsApart(t *testing.T) {
 		}
 	}
 
-	split, _ := parseUnitInput(ctx, t, v, units[0], withFlags("-var", "a=1"))
+	split, _ := parseUnitInput(ctx, t, v, s, units[0], withFlags("-var", "a=1"))
 	assert.Equal(t, "plan|-var|a=1", split)
 
-	joined, _ := parseUnitInput(ctx, t, v, units[1], withFlags("-var a=1"))
+	joined, _ := parseUnitInput(ctx, t, v, s, units[1], withFlags("-var a=1"))
 	assert.Equal(t, "plan|-var a=1", joined)
 }
 
@@ -703,7 +715,9 @@ func TestReadTerragruntConfigConcurrentReadsWithRacing(t *testing.T) {
 				pctx.OriginalTerragruntConfigPath = cfgPath
 
 				g.Go(func() error {
-					cfg, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, cfgPath, nil)
+					s := new(config.Store)
+
+					cfg, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, cfgPath)
 					if err != nil {
 						return err
 					}
@@ -730,10 +744,11 @@ func TestReadTerragruntConfigRecordsFilesReadAfterUntrackedRead(t *testing.T) {
 	units := writeReadConfigFixture(t, v, rootDir, `locals { value = yamldecode(file("accounts.yml"))["dev"] }`, nil)
 
 	ctx := config.WithCaches(t.Context())
+	s := new(config.Store)
 
-	parseUnitInput(ctx, t, v, units[0], func(pctx *config.ParsingContext) { pctx.FilesRead = nil })
+	parseUnitInput(ctx, t, v, s, units[0], func(pctx *config.ParsingContext) { pctx.FilesRead = nil })
 
-	_, filesRead := parseUnitInput(ctx, t, v, units[1])
+	_, filesRead := parseUnitInput(ctx, t, v, s, units[1])
 
 	assert.Contains(t, filesRead, filepath.Join(rootDir, "accounts.yml"))
 }
@@ -779,7 +794,15 @@ locals {
 			ctx, pctx := newTestParsingContext(t, unitPath)
 			pctx.OriginalTerragruntConfigPath = unitPath
 
-			_, err := config.ParseConfigFile(config.WithCaches(ctx), logger.CreateLogger(), v, pctx, unitPath, nil)
+			s := new(config.Store)
+
+			_, err := s.ResolveRunConfig(
+				config.WithCaches(ctx),
+				logger.CreateLogger(),
+				v,
+				pctx,
+				unitPath,
+			)
 			require.Error(t, err)
 		})
 	}
@@ -803,11 +826,12 @@ locals {
 
 		commonPath := filepath.Join(rootDir, "common.hcl")
 		ctx := config.WithCaches(t.Context())
+		s := new(config.Store)
 
 		var calls atomic.Int32
 
 		for _, unit := range units[:count] {
-			parseUnitInput(ctx, t, v, unit, func(pctx *config.ParsingContext) {
+			parseUnitInput(ctx, t, v, s, unit, func(pctx *config.ParsingContext) {
 				pctx.Parser.DiagnosticsHandler = func(file *hcl.File, diags hcl.Diagnostics) (hcl.Diagnostics, error) {
 					for _, diag := range diags {
 						if diag.Subject != nil && diag.Subject.Filename == commonPath {

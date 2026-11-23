@@ -15,14 +15,14 @@ var dependentUnitCounts = []int{10, 100, 1000}
 
 // BenchmarkDependentsFilter benchmarks a dependents query against a target that
 // every other unit in the fixture depends on. The dependents sit at four
-// different directory depths, so the upstream dependent walk climbs through
+// different directory depths, so the walk to the dependent boundary passes
 // directories that hold no config of their own before reaching the units that
 // name the target.
 func BenchmarkDependentsFilter(b *testing.B) {
 	b.Run("from_repo_root", func(b *testing.B) {
 		for _, n := range dependentUnitCounts {
 			b.Run(fmt.Sprintf("units_%d", n), func(b *testing.B) {
-				benchmarkDependents(b, dependentsFromRepoRoot, fanInDependentsFixture(n), defaultParser)
+				benchmarkDependents(b, dependentsFromRepoRoot, fanInDependentsFixture(n))
 			})
 		}
 	})
@@ -30,7 +30,7 @@ func BenchmarkDependentsFilter(b *testing.B) {
 	b.Run("from_target_dir", func(b *testing.B) {
 		for _, n := range dependentUnitCounts {
 			b.Run(fmt.Sprintf("units_%d", n), func(b *testing.B) {
-				benchmarkDependents(b, dependentsFromTargetDir, fanInDependentsFixture(n), defaultParser)
+				benchmarkDependents(b, dependentsFromTargetDir, fanInDependentsFixture(n))
 			})
 		}
 	})

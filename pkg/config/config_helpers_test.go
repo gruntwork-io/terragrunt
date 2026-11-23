@@ -25,6 +25,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
@@ -779,7 +781,7 @@ unit "test" {
 	ctx, pctx := newTestParsingContext(t, stackHclPath)
 	pctx.WorkingDir = tempDir
 
-	stackConfig, err := config.ReadStackConfigFile(ctx, l, v, pctx, stackHclPath, nil)
+	stackConfig, err := config.ReadStackConfigFile(ctx, l, v, new(config.Store), pctx, stackHclPath, nil)
 	require.NoError(t, err)
 	require.NotNil(t, stackConfig)
 
@@ -884,8 +886,10 @@ func TestFindInParentFoldersSharedRunContextWithRacing(t *testing.T) {
 func TestResolveTerragruntInterpolation(t *testing.T) {
 	t.Parallel()
 
+	root := t.TempDir()
+
 	testCases := []struct {
-		include           *config.IncludeConfig
+		parent            string
 		str               string
 		configPath        string
 		expectedOut       string
@@ -895,19 +899,17 @@ func TestResolveTerragruntInterpolation(t *testing.T) {
 		{
 			str: "terraform { source = path_relative_to_include() }",
 			configPath: filepath.Join(
-				venvtest.Root("/root"),
+				root,
 				"child",
 				config.DefaultTerragruntConfigPath,
 			),
 			expectedOut: ".",
 		},
 		{
-			str: "terraform { source = path_relative_to_include() }",
-			include: &config.IncludeConfig{
-				Path: filepath.Join("..", config.DefaultTerragruntConfigPath),
-			},
+			str:    `include "root" { path = "../` + config.DefaultTerragruntConfigPath + `" }`,
+			parent: "terraform { source = path_relative_to_include() }",
 			configPath: filepath.Join(
-				venvtest.Root("/root"),
+				root,
 				"child",
 				config.DefaultTerragruntConfigPath,
 			),
@@ -985,15 +987,14 @@ func TestResolveTerragruntInterpolation(t *testing.T) {
 				pctx.MaxFoldersToCheck = tc.maxFoldersToCheck
 			}
 
-			actualOut, actualErr := config.ParseConfigString(
-				ctx,
-				l,
-				v,
-				pctx,
-				"mock-path-for-test.hcl",
-				tc.str,
-				tc.include,
-			)
+			if tc.parent != "" {
+				parentPath := filepath.Join(filepath.Dir(filepath.Dir(tc.configPath)), config.DefaultTerragruntConfigPath)
+				v = withConfigFile(t, v, parentPath, tc.parent)
+			}
+
+			s := new(config.Store)
+
+			actualOut, actualErr := resolveRunConfigString(t, ctx, l, v, s, pctx, tc.configPath, tc.str)
 			if tc.expectedErr != "" {
 				require.Error(t, actualErr)
 				assert.Contains(t, actualErr.Error(), tc.expectedErr)
@@ -1011,8 +1012,9 @@ func TestResolveTerragruntInterpolation(t *testing.T) {
 func TestResolveEnvInterpolationConfigString(t *testing.T) {
 	t.Parallel()
 
+	root := t.TempDir()
+
 	testCases := []struct {
-		include     *config.IncludeConfig
 		env         map[string]string
 		str         string
 		configPath  string
@@ -1021,50 +1023,50 @@ func TestResolveEnvInterpolationConfigString(t *testing.T) {
 	}{
 		{
 			str:         `iam_role = "foo/${get_env()}/bar"`,
-			configPath:  filepath.Join("/root", "child", config.DefaultTerragruntConfigPath),
+			configPath:  filepath.Join(root, "child", config.DefaultTerragruntConfigPath),
 			expectedErr: "InvalidGetEnvParamsError",
 		},
 		{
 			str:         `iam_role = "foo/${get_env("","")}/bar"`,
-			configPath:  filepath.Join("/root", "child", config.DefaultTerragruntConfigPath),
+			configPath:  filepath.Join(root, "child", config.DefaultTerragruntConfigPath),
 			expectedErr: "InvalidEnvParamNameError",
 		},
 		{
 			str:         `iam_role = get_env()`,
-			configPath:  filepath.Join("/root", "child", config.DefaultTerragruntConfigPath),
+			configPath:  filepath.Join(root, "child", config.DefaultTerragruntConfigPath),
 			expectedErr: "InvalidGetEnvParamsError",
 		},
 		{
 			str:         `iam_role = get_env("TEST_VAR_1", "TEST_VAR_2", "TEST_VAR_3")`,
-			configPath:  filepath.Join("/root", "child", config.DefaultTerragruntConfigPath),
+			configPath:  filepath.Join(root, "child", config.DefaultTerragruntConfigPath),
 			expectedErr: "InvalidGetEnvParamsError",
 		},
 		{
 			str:         `iam_role = get_env("TEST_ENV_TERRAGRUNT_VAR")`,
-			configPath:  filepath.Join("/root", "child", config.DefaultTerragruntConfigPath),
+			configPath:  filepath.Join(root, "child", config.DefaultTerragruntConfigPath),
 			expectedOut: "SOMETHING",
 			env:         map[string]string{"TEST_ENV_TERRAGRUNT_VAR": "SOMETHING"},
 		},
 		{
 			str:         `iam_role = get_env("SOME_VAR", "SOME_VALUE")`,
-			configPath:  filepath.Join("/root", "child", config.DefaultTerragruntConfigPath),
+			configPath:  filepath.Join(root, "child", config.DefaultTerragruntConfigPath),
 			expectedOut: "SOME_VALUE",
 		},
 		{
 			str:         `iam_role = "foo/${get_env("TEST_ENV_TERRAGRUNT_HIT","")}/bar"`,
-			configPath:  filepath.Join("/root", "child", config.DefaultTerragruntConfigPath),
+			configPath:  filepath.Join(root, "child", config.DefaultTerragruntConfigPath),
 			expectedOut: "foo//bar",
 			env:         map[string]string{"TEST_ENV_TERRAGRUNT_OTHER": "SOMETHING"},
 		},
 		{
 			str:         `iam_role = "foo/${get_env("TEST_ENV_TERRAGRUNT_HIT","DEFAULT")}/bar"`,
-			configPath:  filepath.Join("/root", "child", config.DefaultTerragruntConfigPath),
+			configPath:  filepath.Join(root, "child", config.DefaultTerragruntConfigPath),
 			expectedOut: "foo/DEFAULT/bar",
 			env:         map[string]string{"TEST_ENV_TERRAGRUNT_OTHER": "SOMETHING"},
 		},
 		{
 			str:         `iam_role = "foo/${get_env("TEST_ENV_TERRAGRUNT_VAR")}/bar"`,
-			configPath:  filepath.Join("/root", "child", config.DefaultTerragruntConfigPath),
+			configPath:  filepath.Join(root, "child", config.DefaultTerragruntConfigPath),
 			expectedOut: "foo/SOMETHING/bar",
 			env:         map[string]string{"TEST_ENV_TERRAGRUNT_VAR": "SOMETHING"},
 		},
@@ -1084,15 +1086,9 @@ func TestResolveEnvInterpolationConfigString(t *testing.T) {
 				v.Env = tc.env
 			}
 
-			actualOut, actualErr := config.ParseConfigString(
-				ctx,
-				l,
-				v,
-				pctx,
-				"mock-path-for-test.hcl",
-				tc.str,
-				tc.include,
-			)
+			s := new(config.Store)
+
+			actualOut, actualErr := resolveRunConfigString(t, ctx, l, v, s, pctx, tc.configPath, tc.str)
 			if tc.expectedErr != "" {
 				require.Error(t, actualErr)
 				assert.Contains(t, actualErr.Error(), tc.expectedErr)
@@ -1108,7 +1104,6 @@ func TestResolveCommandsInterpolationConfigString(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		include          *config.IncludeConfig
 		str              string
 		configPath       string
 		expectedFooInput []string
@@ -1139,24 +1134,10 @@ func TestResolveCommandsInterpolationConfigString(t *testing.T) {
 			l := logger.CreateLogger()
 			v := venvtest.NewWithOSFS()
 			ctx, pctx := newTestParsingContext(t, tc.configPath)
-			actualOut, actualErr := config.ParseConfigString(
-				ctx,
-				l,
-				v,
-				pctx,
-				"mock-path-for-test.hcl",
-				tc.str,
-				tc.include,
-			)
-			require.NoError(
-				t,
-				actualErr,
-				"For string '%s' include %v and configPath %v, unexpected error: %v",
-				tc.str,
-				tc.include,
-				tc.configPath,
-				actualErr,
-			)
+			s := new(config.Store)
+
+			actualOut, actualErr := resolveRunConfigString(t, ctx, l, v, s, pctx, tc.configPath, tc.str)
+			require.NoError(t, actualErr)
 
 			assert.NotNil(t, actualOut)
 
@@ -1168,15 +1149,7 @@ func TestResolveCommandsInterpolationConfigString(t *testing.T) {
 
 			fooSlice := toStringSlice(t, foo)
 
-			assert.Equal(
-				t,
-				tc.expectedFooInput,
-				fooSlice,
-				"For string '%s' include %v and configPath %v",
-				tc.str,
-				tc.include,
-				tc.configPath,
-			)
+			assert.Equal(t, tc.expectedFooInput, fooSlice)
 		})
 	}
 }
@@ -1202,15 +1175,7 @@ func TestResolveCliArgsInterpolationConfigString(t *testing.T) {
 
 			pctx.TerraformCliArgs = iacargs.New(cliArgs...)
 
-			actualOut, actualErr := config.ParseConfigString(
-				ctx,
-				l,
-				v,
-				pctx,
-				"mock-path-for-test.hcl",
-				str,
-				nil,
-			)
+			actualOut, actualErr := resolveRunConfigString(t, ctx, l, v, new(config.Store), pctx, "mock-path-for-test.hcl", str)
 			require.NoError(t, actualErr, "For string '%s', unexpected error: %v", str, actualErr)
 
 			assert.NotNil(t, actualOut)
@@ -1515,7 +1480,7 @@ func TestTerraformBuiltInFunctions(t *testing.T) {
 			l := logger.CreateLogger()
 			v := venvtest.NewWithOSFS()
 			ctx, pctx := newTestParsingContext(t, cfgPath)
-			actual, err := config.ParseConfigString(ctx, l, v, pctx, cfgPath, configString, nil)
+			actual, err := resolveRunConfigString(t, ctx, l, v, new(config.Store), pctx, cfgPath, configString)
 			require.NoError(t, err, "For hcl '%s', unexpected error: %v", tc.input, err)
 
 			assert.NotNil(t, actual)
@@ -1591,14 +1556,15 @@ func TestBase64GzipCompat(t *testing.T) {
 				require.NoError(t, pctx.Experiments.EnableExperiment(experiment.Base64GzipCompat))
 			}
 
-			actual, err := config.ParseConfigString(
+			actual, err := resolveRunConfigString(
+				t,
 				ctx,
 				logger.CreateLogger(),
 				venv,
+				new(config.Store),
 				pctx,
 				cfgPath,
 				fmt.Sprintf("inputs = { test = %s(%s) }", tc.funcName, strconv.Quote(input)),
-				nil,
 			)
 			require.NoError(t, err)
 			require.NotNil(t, actual)
@@ -1614,7 +1580,7 @@ func TestBase64GzipCompatRequiresExperiment(t *testing.T) {
 	venv, rootDir := newMemTestDir(t)
 	ctx, pctx := newTestParsingContext(t, filepath.Join(rootDir, config.DefaultTerragruntConfigPath))
 
-	funcs, err := config.EarlyStackParseFunctions(ctx, logger.CreateLogger(), venv, pctx, rootDir)
+	funcs, err := config.EarlyStackParseFunctions(ctx, logger.CreateLogger(), venv, new(config.Store), pctx, rootDir)
 	require.NoError(t, err)
 
 	_, err = funcs[config.FuncNameBase64GzipCompat].Call([]cty.Value{cty.StringVal("some text")})
@@ -1740,7 +1706,7 @@ func TestTerragruntDeepMergeFunction(t *testing.T) {
 			v := venvtest.NewWithOSFS()
 			ctx, pctx := newTestParsingContext(t, cfgPath)
 			require.NoError(t, pctx.Experiments.EnableExperiment(experiment.DeepMerge))
-			actual, err := config.ParseConfigString(ctx, l, v, pctx, cfgPath, configString, nil)
+			actual, err := resolveRunConfigString(t, ctx, l, v, new(config.Store), pctx, cfgPath, configString)
 			require.NoError(t, err)
 			require.NotNil(t, actual)
 
@@ -1760,7 +1726,7 @@ func TestTerragruntDeepMergeFunctionRequiresExperiment(t *testing.T) {
 	l := logger.CreateLogger()
 	v := venvtest.NewWithOSFS()
 	ctx, pctx := newTestParsingContext(t, cfgPath)
-	_, err := config.ParseConfigString(ctx, l, v, pctx, cfgPath, configString, nil)
+	_, err := resolveRunConfigString(t, ctx, l, v, new(config.Store), pctx, cfgPath, configString)
 
 	require.Error(t, err)
 	require.ErrorContains(t, err, "deep-merge")
@@ -1775,7 +1741,7 @@ func TestTerragruntDeepMergeFunctionInvalidType(t *testing.T) {
 	v := venvtest.NewWithOSFS()
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.DeepMerge))
-	_, err := config.ParseConfigString(ctx, l, v, pctx, cfgPath, configString, nil)
+	_, err := resolveRunConfigString(t, ctx, l, v, new(config.Store), pctx, cfgPath, configString)
 
 	require.Error(t, err)
 	require.ErrorContains(
@@ -1798,7 +1764,9 @@ func TestTerragruntDeepMergeFunctionFilesetJSONEndToEnd(t *testing.T) {
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.DeepMerge))
 
-	cfg, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+	s := new(config.Store)
+
+	cfg, err := s.ResolveRunConfig(ctx, l, v, pctx, cfgPath)
 	require.NoError(t, err)
 	require.NotNil(t, cfg)
 	require.NotNil(t, cfg.Inputs)
@@ -1937,7 +1905,7 @@ func TestParseTerragruntConfigDirectoryWithBothDefaultConfigs(t *testing.T) {
 			ctx, pctx := newTestParsingContext(t, filepath.Join(root, "app", config.DefaultTerragruntConfigPath))
 			pctx.AmbiguousConfigCheck = tc.check
 
-			got, err := config.ParseTerragruntConfig(ctx, logger.CreateLogger(), v, pctx, "../dual", nil)
+			got, err := config.ParseTerragruntConfig(ctx, logger.CreateLogger(), v, new(config.Store), pctx, "../dual", nil)
 			if tc.wantAmbiguous {
 				ambiguousErr, ok := errors.AsType[config.AmbiguousConfigError](err)
 				require.True(t, ok, "unexpected error %v", err)
@@ -1966,6 +1934,7 @@ func TestReadTerragruntConfigInputs(t *testing.T) {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		"../../test/fixtures/inputs/terragrunt.hcl",
 		nil,
@@ -2024,6 +1993,7 @@ func TestReadTerragruntConfigRemoteState(t *testing.T) {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		"../../test/fixtures/terragrunt/terragrunt.hcl",
 		nil,
@@ -2069,6 +2039,7 @@ func TestReadTerragruntConfigHooks(t *testing.T) {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		"../../test/fixtures/hooks/before-after-and-on-error/terragrunt.hcl",
 		nil,
@@ -2122,6 +2093,7 @@ func TestReadTerragruntConfigLocals(t *testing.T) {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		"../../test/fixtures/locals/canonical/terragrunt.hcl",
 		nil,
@@ -2160,7 +2132,9 @@ func TestReadTerragruntConfigResolvesRelativeToOriginalTerragruntDir(t *testing.
 	pctx.OriginalTerragruntConfigPath = unitFilename
 	pctx.SkipOutput = true
 
-	cfg, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, unitFilename, nil)
+	s := new(config.Store)
+
+	cfg, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, unitFilename)
 	require.NoError(t, err)
 	require.NotNil(t, cfg)
 	assert.Equal(t, "hello from original terragrunt dir", cfg.Inputs["input"])
@@ -2176,7 +2150,13 @@ func TestReadTerragruntConfigResolvesRelativeToOriginalTerragruntDir(t *testing.
 	pctxWrong.OriginalTerragruntConfigPath = parentFilename
 	pctxWrong.SkipOutput = true
 
-	_, err = config.ParseConfigFile(ctxWrong, logger.CreateLogger(), vWrong, pctxWrong, unitFilename, nil)
+	_, err = s.ResolveRunConfig(
+		ctxWrong,
+		logger.CreateLogger(),
+		vWrong,
+		pctxWrong,
+		unitFilename,
+	)
 	require.Error(t, err)
 }
 
@@ -2262,6 +2242,7 @@ func TestReadTFVarsFiles(t *testing.T) {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		"../../test/fixtures/read-tf-vars/terragrunt.hcl",
 		nil,
@@ -2284,8 +2265,7 @@ func TestReadTFVarsFiles(t *testing.T) {
 }
 
 func mockConfigWithSource(sourceURL string) *config.TerragruntConfig {
-	cfg := config.TerragruntConfig{IsPartial: true,
-		Terraform: &config.TerraformConfig{Source: &sourceURL}}
+	cfg := config.TerragruntConfig{Terraform: &config.TerraformConfig{Source: &sourceURL}}
 
 	return &cfg
 }
@@ -2316,6 +2296,8 @@ func getTrackIncludeFromTestData(
 	currentList := make([]config.IncludeConfig, 0, len(includeMap))
 
 	for name, val := range includeMap {
+		val.Name = name
+
 		if val.Path != "" && !filepath.IsAbs(val.Path) {
 			val.Path = filepath.Clean(filepath.Join(configDir, val.Path))
 		}
@@ -2373,10 +2355,7 @@ func TestConstraintCheck(t *testing.T) {
 			func(t *testing.T) {
 				t.Parallel()
 
-				v := venvtest.NewWithOSFS()
-				ctx, pctx := newTestParsingContext(t, "")
-
-				actual, err := config.ConstraintCheck(ctx, v, pctx, tc.args)
+				actual, err := config.ConstraintCheck(tc.args)
 				if tc.err != "" {
 					require.EqualError(t, err, tc.err)
 				} else {
@@ -2544,7 +2523,9 @@ dependency "net" {
 			ctx, pctx := newTestParsingContext(t, cfgPath)
 			pctx.OriginalTerragruntConfigPath = cfgPath
 
-			cfg, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, cfgPath, nil)
+			s := new(config.Store)
+
+			cfg, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, cfgPath)
 
 			if tc.chain != nil {
 				chain := make([]string, 0, len(tc.chain))
@@ -2626,7 +2607,9 @@ inputs = { region = local.v.locals.region }`,
 			cfgPath := filepath.Join(rootDir, config.DefaultTerragruntConfigPath)
 			ctx, pctx := newTestParsingContext(t, cfgPath)
 
-			cfg, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, cfgPath, nil)
+			s := new(config.Store)
+
+			cfg, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, cfgPath)
 			require.NoError(t, err)
 			assert.Equal(t, "eu-west-1", cfg.Inputs["region"])
 		})
@@ -2666,13 +2649,14 @@ dependency "vpc" {
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.SkipOutput = true
 
-	cfg, err := config.PartialParseConfigFile(
+	s := new(config.Store)
+
+	cfg, err := s.ResolvePartialConfig(
 		ctx,
 		logger.CreateLogger(),
 		v,
 		pctx.WithDecodeList(config.DependencyBlock),
 		cfgPath,
-		nil,
 	)
 	require.NoError(t, err)
 	require.Len(t, cfg.TerragruntDependencies, 1)
@@ -2732,4 +2716,66 @@ func assertRootTerragruntHCLLookup(
 	ctrl.OnceWarn.Do(func() { warned = false })
 
 	assert.Equal(t, want.outcome == rootWarned, warned, "the disabled control should warn only for a terragrunt.hcl root")
+}
+
+func TestJSONDecodeRejectsKeysThatNormalizeToTheSameString(t *testing.T) {
+	t.Parallel()
+
+	v, rootDir := newMemTestDir(t)
+	configPath := filepath.Join(rootDir, config.DefaultTerragruntConfigPath)
+
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(rootDir, "keys.json"), []byte(`{"\u00e9":1,"e\u0301":2}`), 0644))
+	require.NoError(t, vfs.WriteFile(v.FS, configPath, []byte(`
+locals {
+  keys = jsondecode(file("keys.json"))
+}
+`), 0644))
+
+	ctx, pctx := newTestParsingContext(t, configPath)
+
+	_, err := new(config.Store).ReadTerragruntConfig(ctx, logger.CreateLogger(), v, pctx)
+
+	var diags hcl.Diagnostics
+
+	require.ErrorAs(t, err, &diags)
+	require.Len(t, diags, 1)
+
+	call, ok := diags[0].Extra.(hclsyntax.FunctionCallDiagExtra)
+	require.True(t, ok)
+	require.ErrorAs(t, call.FunctionCallError(), new(ctyhelper.JSONKeyCollisionError))
+}
+
+func TestTerraformOutputJSONToCtyValueMapRejectsKeysThatNormalizeToTheSameString(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		output string
+	}{
+		{
+			name:   "output names",
+			output: `{"\u00e9":{"type":"number","value":1},"e\u0301":{"type":"number","value":2}}`,
+		},
+		{
+			name:   "object type attributes",
+			output: `{"out":{"type":["object",{"\u00e9":"number","e\u0301":"number"}],"value":{"\u00e9":1,"e\u0301":2}}}`,
+		},
+		{
+			name:   "map keys",
+			output: `{"out":{"type":["map","number"],"value":{"\u00e9":1,"e\u0301":2}}}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := config.TerraformOutputJSONToCtyValueMap(config.DefaultTerragruntConfigPath, []byte(tt.output))
+
+			var parsingErr config.TerragruntOutputParsingError
+
+			require.ErrorAs(t, err, &parsingErr)
+			require.ErrorAs(t, parsingErr.Err, new(ctyhelper.JSONKeyCollisionError))
+		})
+	}
 }

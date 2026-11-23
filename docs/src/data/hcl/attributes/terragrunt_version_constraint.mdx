@@ -10,4 +10,4 @@ examples:
       terragrunt_version_constraint = ">= 0.23"
 ---
 
-The `terragrunt_version_constraint` attribute specifies which versions of the Terragrunt CLI can be used with your configuration. If the running version of Terragrunt doesn't match the constraint, Terragrunt produces an error and exits without taking any further actions.
+The `terragrunt_version_constraint` attribute specifies which versions of the Terragrunt CLI can be used with your configuration. If the running version of Terragrunt doesn't match the constraint, Terragrunt produces an error and exits without taking any further actions. It can't reference `dependency` outputs, because Terragrunt checks the constraint before any dependency has run.

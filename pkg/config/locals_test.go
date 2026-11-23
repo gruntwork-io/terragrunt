@@ -1,18 +1,21 @@
 package config_test
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/gocty"
 
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
@@ -30,9 +33,10 @@ func TestEvaluateLocalsBlock(t *testing.T) {
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx,
 		file,
-		config.ParsedExposedInclude(v),
+		noExposedInclude(t),
 	)
 	require.NoError(t, err)
 
@@ -81,9 +85,10 @@ func TestEvaluateLocalsBlockMultiDeepReference(t *testing.T) {
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx,
 		file,
-		config.ParsedExposedInclude(v),
+		noExposedInclude(t),
 	)
 	require.NoError(t, err)
 
@@ -122,14 +127,22 @@ func TestEvaluateLocalsBlockImpossibleWillFail(t *testing.T) {
 
 	v := venvtest.NewWithOSFS()
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
-	_, err = config.EvaluateLocalsBlock(ctx, logger.CreateLogger(), v, pctx, file, config.ParsedExposedInclude(v))
+	_, err = config.EvaluateLocalsBlock(
+		ctx,
+		logger.CreateLogger(),
+		v,
+		new(config.Store),
+		pctx,
+		file,
+		noExposedInclude(t),
+	)
 	require.Error(t, err)
 
 	_, ok := errors.AsType[config.CouldNotEvaluateAllLocalsError](err)
 	require.True(t, ok, "Did not get expected error: %s", err)
 }
 
-func TestEvaluateLocalsBlockUnresolvableWillFail(t *testing.T) {
+func TestLocalsThatNeverEvaluateFailInUnitsAndStacks(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -182,7 +195,7 @@ locals {
 	}
 
 	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(tc.name+"/unit", func(t *testing.T) {
 			t.Parallel()
 
 			file, err := hclparse.NewParser().ParseFromString(tc.config, config.DefaultTerragruntConfigPath)
@@ -190,7 +203,24 @@ locals {
 
 			v := venvtest.NewWithOSFS()
 			ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
-			_, err = config.EvaluateLocalsBlock(ctx, logger.CreateLogger(), v, pctx, file, config.ParsedExposedInclude(v))
+			_, err = config.EvaluateLocalsBlock(
+				ctx,
+				logger.CreateLogger(),
+				v,
+				new(config.Store),
+				pctx,
+				file,
+				noExposedInclude(t),
+			)
+
+			_, ok := errors.AsType[config.CouldNotEvaluateAllLocalsError](err)
+			require.True(t, ok, "Did not get expected error: %v", err)
+		})
+
+		t.Run(tc.name+"/stack", func(t *testing.T) {
+			t.Parallel()
+
+			_, err := parseStackString(t, tc.config)
 
 			_, ok := errors.AsType[config.CouldNotEvaluateAllLocalsError](err)
 			require.True(t, ok, "Did not get expected error: %v", err)
@@ -218,9 +248,10 @@ locals {
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx,
 		file,
-		config.ParsedExposedInclude(v),
+		noExposedInclude(t),
 	)
 	require.NoError(t, err)
 
@@ -257,9 +288,10 @@ func TestEvaluateLocalsBlockLongChain(t *testing.T) {
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx,
 		file,
-		config.ParsedExposedInclude(v),
+		noExposedInclude(t),
 	)
 	require.NoError(t, err)
 
@@ -277,7 +309,15 @@ func TestEvaluateLocalsBlockMultipleLocalsBlocksWillFail(t *testing.T) {
 
 	v := venvtest.NewWithOSFS()
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
-	_, err = config.EvaluateLocalsBlock(ctx, logger.CreateLogger(), v, pctx, file, config.ParsedExposedInclude(v))
+	_, err = config.EvaluateLocalsBlock(
+		ctx,
+		logger.CreateLogger(),
+		v,
+		new(config.Store),
+		pctx,
+		file,
+		noExposedInclude(t),
+	)
 	require.Error(t, err)
 }
 
@@ -341,3 +381,15 @@ locals {
   b = "b"
 }
 `
+
+// noExposedInclude returns the [config.ExposedInclude] of a config with no include blocks, which fails tb when
+// called.
+func noExposedInclude(tb testing.TB) config.ExposedInclude {
+	tb.Helper()
+
+	return func(context.Context, log.Logger, *config.ParsingContext, *config.IncludeConfig) (cty.Value, error) {
+		require.FailNow(tb, "a config with no include blocks resolved an exposed include")
+
+		return cty.NilVal, nil
+	}
+}

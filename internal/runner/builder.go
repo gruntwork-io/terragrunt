@@ -3,8 +3,8 @@ package runner
 import (
 	"context"
 
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -15,7 +15,7 @@ func New(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	runnerOpts ...Option,
 ) (*Runner, error) {
@@ -29,7 +29,7 @@ func New(
 		return nil, err
 	}
 
-	if err := checkVersionConstraints(ctx, l, v, opts, rnr.GetStack().Units); err != nil {
+	if err := checkVersionConstraints(ctx, l, v, s, opts, rnr.GetStack().Units); err != nil {
 		return nil, err
 	}
 

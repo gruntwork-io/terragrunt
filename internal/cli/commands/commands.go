@@ -14,11 +14,11 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/panicreport"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -81,7 +81,7 @@ const (
 )
 
 // New returns the set of Terragrunt commands, grouped into categories.
-func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *rewrite.Store) clihelper.Commands {
+func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *config.Store) clihelper.Commands {
 	mainCommands := clihelper.Commands{
 		runcmd.NewCommand(l, opts, v, s),  // run
 		stack.NewCommand(l, opts, v, s),   // stack
@@ -95,8 +95,8 @@ func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *rewrite
 	)
 
 	catalogCommands := clihelper.Commands{
-		catalog.NewCommand(l, opts, v),  // catalog
-		scaffold.NewCommand(l, opts, v), // scaffold
+		catalog.NewCommand(l, opts, v, s),  // catalog
+		scaffold.NewCommand(l, opts, v, s), // scaffold
 	}.SetCategory(
 		&clihelper.Category{
 			Name:  CatalogCommandsCategoryName,
@@ -261,8 +261,10 @@ func RunAction(
 
 	// Install run-scoped caches on actionCtx so memoized helpers like
 	// [github.com/gruntwork-io/terragrunt/internal/git.GoRepoRoot] and
-	// the version probes share state across the whole action.
-	actionCtx := cache.ContextWithCache(ctx)
+	// the version probes share state across the whole action. The
+	// auth provider response cache is shared by discovery, dependency
+	// output fetches, and the run.
+	actionCtx := externalcmd.ContextWithResponseCache(cache.ContextWithCache(ctx))
 
 	if opts.Experiments.Evaluate(experiment.SlowTaskReporting) {
 		reporter := newProgressReporter(l, opts, v)

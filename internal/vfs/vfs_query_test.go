@@ -2,8 +2,10 @@ package vfs_test
 
 import (
 	"bytes"
+	"crypto/sha1"
 	"crypto/sha256"
 	"errors"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -139,7 +141,7 @@ func TestIsDirectoryEmpty(t *testing.T) {
 	})
 }
 
-func TestFileSHA256(t *testing.T) {
+func TestHashFile(t *testing.T) {
 	t.Parallel()
 
 	// Longer than one read block, so the hash spans several reads.
@@ -161,18 +163,48 @@ func TestFileSHA256(t *testing.T) {
 			fsys := vfs.NewMemMapFS()
 			require.NoError(t, vfs.WriteFile(fsys, "/file", tc.content, 0o644))
 
-			got, err := vfs.FileSHA256(fsys, "/file")
-			require.NoError(t, err)
+			h := sha256.New()
+			require.NoError(t, vfs.HashFile(fsys, h, "/file"))
 
 			want := sha256.Sum256(tc.content)
-			assert.Equal(t, want[:], got)
+			assert.Equal(t, want[:], h.Sum(nil))
 		})
 	}
+
+	t.Run("hashes with the given hash", func(t *testing.T) {
+		t.Parallel()
+
+		content := []byte("hello")
+
+		fsys := vfs.NewMemMapFS()
+		require.NoError(t, vfs.WriteFile(fsys, "/file", content, 0o644))
+
+		h := sha1.New()
+		require.NoError(t, vfs.HashFile(fsys, h, "/file"))
+
+		want := sha1.Sum(content)
+		assert.Equal(t, want[:], h.Sum(nil))
+	})
+
+	t.Run("file implementing io.WriterTo is read through Read", func(t *testing.T) {
+		t.Parallel()
+
+		content := []byte("hello")
+
+		base := vfs.NewMemMapFS()
+		require.NoError(t, vfs.WriteFile(base, "/file", content, 0o644))
+
+		h := sha256.New()
+		require.NoError(t, vfs.HashFile(writerToFS{FS: base}, h, "/file"))
+
+		want := sha256.Sum256(content)
+		assert.Equal(t, want[:], h.Sum(nil))
+	})
 
 	t.Run("missing file is an error", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := vfs.FileSHA256(vfs.NewMemMapFS(), "/missing")
+		err := vfs.HashFile(vfs.NewMemMapFS(), sha256.New(), "/missing")
 		require.ErrorIs(t, err, fs.ErrNotExist)
 	})
 
@@ -193,7 +225,7 @@ func TestFileSHA256(t *testing.T) {
 
 			fsys := &faultFS{FS: base, fileFaults: []string{tc.fault}}
 
-			_, err := vfs.FileSHA256(fsys, "/file")
+			err := vfs.HashFile(fsys, sha256.New(), "/file")
 			require.ErrorIs(t, err, errInjected)
 		})
 	}
@@ -334,4 +366,27 @@ type unresolvableFS struct {
 
 func (unresolvableFS) EvalSymlinksIfPossible(string) (string, bool, error) {
 	return "", true, errUnresolvable
+}
+
+// writerToFS opens files that implement [io.WriterTo] with a WriteTo that always fails.
+type writerToFS struct {
+	vfs.FS
+}
+
+func (fsys writerToFS) Open(name string) (vfs.File, error) {
+	file, err := fsys.FS.Open(name)
+	if err != nil {
+		return nil, err
+	}
+
+	return writerToFile{File: file}, nil
+}
+
+// writerToFile is a [vfs.File] whose WriteTo always fails.
+type writerToFile struct {
+	vfs.File
+}
+
+func (writerToFile) WriteTo(io.Writer) (int64, error) {
+	return 0, errInjected
 }

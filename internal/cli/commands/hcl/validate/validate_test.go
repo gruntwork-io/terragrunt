@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl/validate"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -326,7 +325,7 @@ func TestRunValidateInputsDoesNotLeakEnvBetweenUnits(t *testing.T) {
 
 	opts.AuthProviderCmd = "fake-auth-provider"
 
-	err = validate.RunValidateInputs(config.WithCaches(t.Context()), l, v, new(rewrite.Store), opts)
+	err = validate.RunValidateInputs(config.WithCaches(t.Context()), l, v, new(config.Store), opts)
 	require.Error(
 		t,
 		err,
@@ -352,7 +351,7 @@ func TestRunValidateInputsPassesWhenInputsDefined(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(tmpDir, "terragrunt.hcl"))
 	require.NoError(t, err)
 
-	err = validate.RunValidateInputs(config.WithCaches(t.Context()), l, v, new(rewrite.Store), opts)
+	err = validate.RunValidateInputs(config.WithCaches(t.Context()), l, v, new(config.Store), opts)
 	require.NoError(t, err)
 }
 
@@ -391,4 +390,29 @@ func TestRunValidateReportsValuesKeysThatAreNotIdentifiers(t *testing.T) {
 	assert.Equal(t, "Invalid values key", result.diags[0].Summary)
 	require.NotNil(t, result.diags[0].Range)
 	assert.Equal(t, 5, result.diags[0].Range.Start.Line)
+}
+
+// TestRunValidateReportsVersionAttributeReferencingDependency pins that a version attribute that references a
+// dependency output reports one diagnostic pointing at the reference.
+func TestRunValidateReportsVersionAttributeReferencingDependency(t *testing.T) {
+	t.Parallel()
+
+	result := runValidate(t, &validateRun{files: map[string]string{
+		"dep/terragrunt.hcl": "",
+		"app/terragrunt.hcl": `dependency "dep" {
+  config_path = "../dep"
+}
+
+terraform_binary = dependency.dep.outputs.binary
+`,
+	}})
+
+	require.Error(t, result.err)
+	require.Len(t, result.diags, 1)
+	assert.Equal(t, "Dependency reference not allowed", result.diags[0].Summary)
+	require.NotNil(t, result.diags[0].Range)
+	assert.Equal(t, filepath.Join(result.root, "app", "terragrunt.hcl"), result.diags[0].Range.Filename)
+	assert.Equal(t, 5, result.diags[0].Range.Start.Line)
+	assert.Equal(t, 20, result.diags[0].Range.Start.Column)
+	assert.Equal(t, 49, result.diags[0].Range.End.Column)
 }

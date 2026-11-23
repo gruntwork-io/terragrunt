@@ -152,6 +152,7 @@ func TestScaffoldChecksRootFileUnderOutputFolder(t *testing.T) {
 				config.WithCaches(t.Context()),
 				logger.CreateLogger(),
 				venvtest.NewOSWithEmptyEnv(),
+				new(config.Store),
 				opts,
 				source,
 				"",
@@ -227,6 +228,7 @@ func TestScaffoldRejectsRootTerragruntHCLInMemory(t *testing.T) {
 				config.WithCaches(t.Context()),
 				logger.CreateLogger(),
 				venv.MemVenv().WithFS(fsys),
+				new(config.Store),
 				opts,
 				getter.FileURL(module).String(),
 				"",
@@ -366,7 +368,7 @@ func runScaffoldWithOptions(t *testing.T, opts *options.TerragruntOptions, sourc
 
 	require.NoError(
 		t,
-		scaffold.Run(ctx, logger.CreateLogger(), venvtest.NewOSWithEmptyEnv(), opts, source, ""),
+		scaffold.Run(ctx, logger.CreateLogger(), venvtest.NewOSWithEmptyEnv(), new(config.Store), opts, source, ""),
 	)
 }
 

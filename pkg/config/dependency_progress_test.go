@@ -89,7 +89,9 @@ func TestDependencyOutputFetchProgress(t *testing.T) {
 				)
 			}
 
-			cfg, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, configPath, nil)
+			s := new(config.Store)
+
+			cfg, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, configPath)
 			require.NoError(t, err)
 
 			assert.Equal(t, tc.wantResult, cfg.Inputs["result"])
@@ -138,7 +140,9 @@ func TestDependencyOutputParseFailureProgress(t *testing.T) {
 	l := logger.CreateLogger()
 	l.SetOptions(log.WithOutput(util.NewSyncWriter(logs)), log.WithLevel(log.InfoLevel))
 
-	_, err := config.ParseConfigFile(ctx, l, v, pctx, configPath, nil)
+	s := new(config.Store)
+
+	_, err := s.ResolveRunConfig(ctx, l, v, pctx, configPath)
 	require.ErrorAs(t, err, new(config.TerragruntOutputParsingError))
 
 	assert.NotEmpty(t, term.String())

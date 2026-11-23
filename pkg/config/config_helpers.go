@@ -45,6 +45,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vendored/opentofu/patch"
 	"github.com/gruntwork-io/terragrunt/internal/vendored/opentofu/upstream/lang"
+	"github.com/gruntwork-io/terragrunt/internal/vendored/opentofu/upstream/lang/funcs"
 	"github.com/gruntwork-io/terragrunt/internal/vsops"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -201,9 +202,6 @@ type TrackInclude struct {
 	Original *IncludeConfig
 	// AutoIncludeOverride is the sibling terragrunt.autoinclude.hcl registered as a high-priority override that is merged on top and wins, kept off CurrentList/CurrentMap so include-identity readers never see it.
 	AutoIncludeOverride *IncludeConfig
-	// parsedForMerge holds, by include name, the included configs [DecodeBaseBlocks] parsed with
-	// [IncludeParseForMerge], so the partial merge uses them instead of parsing the includes again.
-	parsedForMerge map[string]*TerragruntConfig
 	// CurrentList is used to track the list of configs that should be imported and merged before the final
 	// TerragruntConfig is returned. This preserves the order of the blocks as they appear in the config, so that we can
 	// merge the included config in the right order.
@@ -213,23 +211,129 @@ type TrackInclude struct {
 // CreateTerragruntEvalContext creates an EvalContext for the HCL2 parser. We can define functions and variables in this
 // ctx that the HCL2 parser will make available to the Terragrunt configuration during parsing. The functions reach the
 // OS through v.
+//
+// The context may leave out the functions that calls does not name, so pass the calls of the HCL it evaluates. The
+// `include` variable holds what exposed gives for each exposed include block.
 func CreateTerragruntEvalContext(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 	cfgPath string,
+	calls hclparse.FunctionCalls,
+	exposed ExposedInclude,
 ) (*hcl.EvalContext, error) {
-	vars, err := TerragruntEvalVariables(ctx, l, pctx, cfgPath, ParsedExposedInclude(v))
+	vars, err := TerragruntEvalVariables(ctx, l, pctx, cfgPath, exposed)
 	if err != nil {
 		return nil, err
 	}
 
-	return &hcl.EvalContext{
-		Functions: TerragruntFunctions(ctx, l, v, pctx, cfgPath),
-		Variables: vars,
-	}, nil
+	return TerragruntEvalContext(ctx, l, v, s, pctx, cfgPath, calls, vars), nil
 }
+
+// evalContextWithoutIncludes returns the eval context [CreateTerragruntEvalContext] builds for a file that has no
+// include blocks, such as a stack or values file, so it defines no `include` variable whatever include blocks pctx
+// tracks.
+func evalContextWithoutIncludes(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	s *Store,
+	pctx *ParsingContext,
+	cfgPath string,
+	calls hclparse.FunctionCalls,
+) *hcl.EvalContext {
+	return TerragruntEvalContext(ctx, l, v, s, pctx, cfgPath, calls, evalVariablesWithoutIncludes(pctx))
+}
+
+// TerragruntEvalContext returns an eval context with vars and the functions of the config at cfgPath: the OpenTofu
+// functions with Terragrunt's patches, and the Terragrunt functions. The functions use ctx, l, v, s, and pctx
+// when called.
+//
+// The context may leave out the functions that calls does not name, so pass the calls of the HCL it evaluates.
+//
+// The context defines only the functions bound to the parse. Its parent, which every such context shares, defines
+// the rest. [EvalFunctions] returns the functions of both. When calls names a function no context defines, the context
+// also holds every function of its parent, so the error for that call can suggest any of them.
+func TerragruntEvalContext(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	s *Store,
+	pctx *ParsingContext,
+	cfgPath string,
+	calls hclparse.FunctionCalls,
+	vars map[string]cty.Value,
+) *hcl.EvalContext {
+	evalCtx := sharedFunctions().NewChild()
+	evalCtx.Functions = boundFunctions(ctx, l, v, s, pctx, cfgPath, calls)
+	evalCtx.Variables = vars
+
+	// hcl suggests a name for an unknown function only from the functions of the context it evaluates with, not of
+	// its parents.
+	if calls.Known() && callsUndefined(calls, evalCtx.Functions) {
+		evalCtx.Functions = EvalFunctions(evalCtx)
+	}
+
+	return evalCtx
+}
+
+// EvalFunctions returns every function evalCtx and its parents define. A function of a context hides one of the same
+// name in its parents.
+func EvalFunctions(evalCtx *hcl.EvalContext) map[string]function.Function {
+	functions := map[string]function.Function{}
+
+	for c := evalCtx; c != nil; c = c.Parent() {
+		for name, fn := range c.Functions {
+			if _, hidden := functions[name]; !hidden {
+				functions[name] = fn
+			}
+		}
+	}
+
+	return functions
+}
+
+const (
+	funcNameTemplateString = "templatestring"
+	funcNameJSONDecode     = "jsondecode"
+)
+
+// openTofuFunctions returns the context that defines the OpenTofu functions that read nothing from a parse. Nothing
+// may write to it, since parses read it concurrently.
+var openTofuFunctions = sync.OnceValue(func() *hcl.EvalContext {
+	functions := lang.MakeBaseFunctionTable("")
+	delete(functions, funcNameTemplateString)
+	functions[funcNameJSONDecode] = ctyhelper.JSONDecodeFunc()
+
+	return &hcl.EvalContext{Functions: functions}
+})
+
+// sharedFunctions returns the parent context of every context [TerragruntEvalContext] builds. It defines the
+// Terragrunt functions that read nothing from a parse, and its parent the OpenTofu ones. Nothing may write to it,
+// since parses read it concurrently.
+var sharedFunctions = sync.OnceValue(func() *hcl.EvalContext {
+	evalCtx := openTofuFunctions().NewChild()
+	evalCtx.Functions = map[string]function.Function{
+		FuncNameGetTerraformCommandsThatNeedVars: wrapStaticValueToStringSliceAsFuncImpl(
+			TerraformCommandsNeedVars,
+		),
+		FuncNameGetTerraformCommandsThatNeedLocking: wrapStaticValueToStringSliceAsFuncImpl(
+			TerraformCommandsNeedLocking,
+		),
+		FuncNameGetTerraformCommandsThatNeedInput: wrapStaticValueToStringSliceAsFuncImpl(
+			TerraformCommandsNeedInput,
+		),
+		FuncNameGetTerraformCommandsThatNeedParallelism: wrapStaticValueToStringSliceAsFuncImpl(
+			TerraformCommandsNeedParallelism,
+		),
+		FuncNameGetDefaultRetryableErrors: wrapStaticValueToStringSliceAsFuncImpl(retry.DefaultRetryableErrors),
+		FuncNameConstraintCheck:           wrapStringSliceToBoolAsFuncImpl(ConstraintCheck),
+	}
+
+	return evalCtx
+})
 
 // ExposedInclude returns the value the `include` variable holds for include, a block with expose set. pctx is the
 // context of the including file, without its include blocks.
@@ -249,25 +353,9 @@ func TerragruntEvalVariables(
 	cfgPath string,
 	exposed ExposedInclude,
 ) (map[string]cty.Value, error) {
-	vars := map[string]cty.Value{}
+	vars := evalVariablesWithoutIncludes(pctx)
 
-	if pctx.Locals != nil {
-		vars[MetadataLocal] = *pctx.Locals
-	}
-
-	if pctx.Features != nil {
-		vars[MetadataFeatureFlag] = *pctx.Features
-	}
-
-	if pctx.Values != nil {
-		vars[MetadataValues] = *pctx.Values
-	}
-
-	if pctx.DecodedDependencies != nil {
-		vars[MetadataDependency] = *pctx.DecodedDependencies
-	}
-
-	if pctx.TrackInclude != nil && len(pctx.TrackInclude.CurrentList) > 0 {
+	if pctx.includes != nil && len(pctx.includes.List) > 0 {
 		// For each include block, check if we want to expose the included config, and if so, add under the include
 		// variable.
 		exposedInclude, err := includeMapAsCtyVal(ctx, l, pctx, exposed)
@@ -299,10 +387,103 @@ func TerragruntEvalVariables(
 	return vars, nil
 }
 
-// TerragruntFunctions returns the functions of the eval context [CreateTerragruntEvalContext] builds for the config
-// at cfgPath: the OpenTofu functions with Terragrunt's patches, then the Terragrunt functions, which win on a name
-// clash. The functions use ctx, l, v, and pctx when called.
-func TerragruntFunctions(
+// evalVariablesWithoutIncludes returns the variables of [TerragruntEvalVariables] other than `include`.
+func evalVariablesWithoutIncludes(pctx *ParsingContext) map[string]cty.Value {
+	vars := map[string]cty.Value{}
+
+	if pctx.Locals != nil {
+		vars[MetadataLocal] = *pctx.Locals
+	}
+
+	if pctx.Features != nil {
+		vars[MetadataFeatureFlag] = *pctx.Features
+	}
+
+	if pctx.Values != nil {
+		vars[MetadataValues] = *pctx.Values
+	}
+
+	if pctx.DecodedDependencies != nil {
+		vars[MetadataDependency] = *pctx.DecodedDependencies
+	}
+
+	return vars
+}
+
+// boundFunctions returns the functions of the eval context [TerragruntEvalContext] builds that are bound to the parse
+// and that calls names: the OpenTofu functions Terragrunt patches or wraps, and the Terragrunt functions. It returns
+// all of them when calls may call any function, and when calls names a function that no context defines, since the
+// error for that call suggests a name from the functions the context defines.
+func boundFunctions(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	s *Store,
+	pctx *ParsingContext,
+	cfgPath string,
+	calls hclparse.FunctionCalls,
+) map[string]function.Function {
+	if !calls.Known() {
+		return allBoundFunctions(ctx, l, v, s, pctx, cfgPath)
+	}
+
+	functions := terragruntFunctions(ctx, l, v, s, pctx, calls)
+
+	if !callsUndefined(calls, functions) {
+		return functions
+	}
+
+	maps.Copy(functions, tofuFunctions(ctx, l, v, pctx, cfgPath))
+
+	if callsUndefined(calls, functions) {
+		return allBoundFunctions(ctx, l, v, s, pctx, cfgPath)
+	}
+
+	return functions
+}
+
+// allBoundFunctions returns every function of the eval context [TerragruntEvalContext] builds that is bound to the
+// parse.
+func allBoundFunctions(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	s *Store,
+	pctx *ParsingContext,
+	cfgPath string,
+) map[string]function.Function {
+	functions := terragruntFunctions(ctx, l, v, s, pctx, hclparse.AnyFunctionCalls())
+	maps.Copy(functions, tofuFunctions(ctx, l, v, pctx, cfgPath))
+
+	return functions
+}
+
+// callsUndefined reports whether calls has a function that neither functions nor a context every parse shares defines.
+func callsUndefined(calls hclparse.FunctionCalls, functions map[string]function.Function) bool {
+	for name := range calls.All {
+		if _, defined := functions[name]; !defined && !sharedFunction(name) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// sharedFunction reports whether a context every parse shares defines the function name, with no bound function
+// hiding it.
+func sharedFunction(name string) bool {
+	if _, ok := sharedFunctions().Functions[name]; ok {
+		return true
+	}
+
+	_, ok := openTofuFunctions().Functions[name]
+
+	return ok && !slices.Contains(perCallFunctionNames, name)
+}
+
+// tofuFunctions returns the OpenTofu functions Terragrunt patches or wraps for a parse of the config at cfgPath. The
+// templates of templatefile and templatestring call them, so they are built together.
+func tofuFunctions(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
@@ -310,242 +491,140 @@ func TerragruntFunctions(
 	cfgPath string,
 ) map[string]function.Function {
 	baseDir := filepath.Dir(cfgPath)
-	tfFunctions := lang.MakeBaseFunctionTable(baseDir)
+	shared := openTofuFunctions().Functions
+
+	var functions map[string]function.Function
+
+	templateFunctions := func() map[string]function.Function {
+		all := maps.Clone(shared)
+		maps.Copy(all, functions)
+
+		return all
+	}
 
 	// Patch with our version of these OpenTofu functions
 	// so we can thread venv and the logger through.
-	maps.Copy(tfFunctions, patch.Functions(
-		v,
-		l,
-		baseDir,
-		func() map[string]function.Function { return tfFunctions },
-		pctx.FilesRead.Add,
-	))
+	functions = patch.Functions(v, l, baseDir, templateFunctions, func(path string) { pctx.FilesRead.Add(path) })
+	functions[funcNameTemplateString] = funcs.MakeTemplateStringFunc(baseDir, templateFunctions)
 
 	for _, name := range perCallFunctionNames {
-		tfFunctions[name] = markingNotShareable(ctx, tfFunctions[name])
+		functions[name] = markingNotShareable(ctx, shared[name])
 	}
 
-	terragruntFunctions := map[string]function.Function{
-		FuncNameFindInParentFolders: wrapStringSliceToStringAsFuncImpl(
-			ctx,
-			l,
-			v,
-			pctx,
-			FindInParentFolders,
-		),
-		FuncNamePathRelativeToInclude: wrapStringSliceToStringAsFuncImpl(
-			ctx,
-			l,
-			v,
-			pctx,
-			PathRelativeToInclude,
-		),
-		FuncNamePathRelativeFromInclude: wrapStringSliceToStringAsFuncImpl(
-			ctx,
-			l,
-			v,
-			pctx,
-			PathRelativeFromInclude,
-		),
-		FuncNameGetEnv: wrapStringSliceToStringAsFuncImpl(
-			ctx,
-			l,
-			v,
-			pctx,
-			getEnvironmentVariable,
-		),
-		FuncNameRunCmd: wrapStringSliceToStringAsFuncImpl(
-			ctx,
-			l,
-			v,
-			pctx,
-			RunCommand,
-		),
-		FuncNameReadTerragruntConfig: readTerragruntConfigAsFuncImpl(
-			ctx,
-			l,
-			v,
-			pctx,
-		),
-		FuncNameGetPlatform: wrapVoidToStringAsFuncImpl(
-			ctx,
-			l,
-			v,
-			pctx,
-			getPlatform,
-		),
-		FuncNameGetRepoRoot: wrapVoidToStringAsFuncImpl(
-			ctx,
-			l,
-			v,
-			pctx,
-			getRepoRoot,
-		),
-		FuncNameGetPathFromRepoRoot: wrapVoidToStringAsFuncImpl(
-			ctx,
-			l,
-			v,
-			pctx,
-			getPathFromRepoRoot,
-		),
-		FuncNameGetPathToRepoRoot: wrapVoidToStringAsFuncImpl(
-			ctx,
-			l,
-			v,
-			pctx,
-			getPathToRepoRoot,
-		),
-		FuncNameGetTerragruntDir: wrapVoidToStringAsFuncImpl(
-			ctx,
-			l,
-			v,
-			pctx,
-			GetTerragruntDir,
-		),
-		FuncNameGetOriginalTerragruntDir: wrapVoidToStringAsFuncImpl(
-			ctx,
-			l,
-			v,
-			pctx,
-			getOriginalTerragruntDir,
-		),
-		FuncNameGetTerraformCommand: wrapVoidToStringAsFuncImpl(
-			ctx,
-			l,
-			v,
-			pctx,
-			getTerraformCommand,
-		),
-		FuncNameGetTerraformCLIArgs: wrapVoidToStringSliceAsFuncImpl(
-			ctx,
-			l,
-			v,
-			pctx,
-			getTerraformCliArgs,
-		),
-		FuncNameGetParentTerragruntDir: wrapStringSliceToStringAsFuncImpl(
-			ctx,
-			l,
-			v,
-			pctx,
-			GetParentTerragruntDir,
-		),
-		FuncNameGetAWSAccountAlias: wrapVoidToStringAsFuncImpl(
-			ctx,
-			l,
-			v,
-			pctx,
-			getAWSAccountAlias,
-		),
-		FuncNameGetAWSAccountID: wrapVoidToStringAsFuncImpl(
-			ctx,
-			l,
-			v,
-			pctx,
-			getAWSAccountID,
-		),
-		FuncNameGetAWSCallerIdentityArn: wrapVoidToStringAsFuncImpl(
-			ctx,
-			l,
-			v,
-			pctx,
-			getAWSCallerIdentityARN,
-		),
-		FuncNameGetAWSCallerIdentityUserID: wrapVoidToStringAsFuncImpl(
-			ctx,
-			l,
-			v,
-			pctx,
-			getAWSCallerIdentityUserID,
-		),
-		FuncNameGetTerraformCommandsThatNeedVars: wrapStaticValueToStringSliceAsFuncImpl(
-			TerraformCommandsNeedVars,
-		),
-		FuncNameGetTerraformCommandsThatNeedLocking: wrapStaticValueToStringSliceAsFuncImpl(
-			TerraformCommandsNeedLocking,
-		),
-		FuncNameGetTerraformCommandsThatNeedInput: wrapStaticValueToStringSliceAsFuncImpl(
-			TerraformCommandsNeedInput,
-		),
-		FuncNameGetTerraformCommandsThatNeedParallelism: wrapStaticValueToStringSliceAsFuncImpl(
-			TerraformCommandsNeedParallelism,
-		),
-		FuncNameSopsDecryptFile: wrapStringSliceToStringAsFuncImpl(
-			ctx,
-			l,
-			v,
-			pctx,
-			sopsDecryptFile,
-		),
-		FuncNameGetTerragruntSourceCLIFlag: wrapVoidToStringAsFuncImpl(
-			ctx,
-			l,
-			v,
-			pctx,
-			getTerragruntSourceCliFlag,
-		),
-		FuncNameGetDefaultRetryableErrors: wrapVoidToStringSliceAsFuncImpl(
-			ctx,
-			l,
-			v,
-			pctx,
-			getDefaultRetryableErrors,
-		),
-		FuncNameReadTfvarsFile: wrapStringSliceToStringAsFuncImpl(
-			ctx,
-			l,
-			v,
-			pctx,
-			readTFVarsFile,
-		),
-		FuncNameGetWorkingDir: wrapVoidToStringAsFuncImpl(
-			ctx,
-			l,
-			v,
-			pctx,
-			getWorkingDir,
-		),
-		FuncNameMarkAsRead: wrapStringSliceToStringAsFuncImpl(
-			ctx,
-			l,
-			v,
-			pctx,
-			markAsRead,
-		),
-		FuncNameMarkGlobAsRead: wrapStringSliceToStringSliceAsFuncImpl(
-			ctx,
-			l,
-			v,
-			pctx,
-			markGlobAsRead,
-		),
-		FuncNameConstraintCheck: wrapStringSliceToBoolAsFuncImpl(
-			ctx,
-			v,
-			pctx,
-			ConstraintCheck,
-		),
-		FuncNameDeepMerge: deepMergeMapValuesAsFuncImpl(pctx),
-		FuncNameBase64GzipCompat: gzipcompat.Func(func() error {
+	return functions
+}
+
+// terragruntFunctions returns the Terragrunt functions bound to a parse that calls may call, which use ctx, l, v, s,
+// and pctx when called.
+func terragruntFunctions(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	s *Store,
+	pctx *ParsingContext,
+	calls hclparse.FunctionCalls,
+) map[string]function.Function {
+	b := &functionBinder{ctx: ctx, l: l, v: v, pctx: pctx, calls: calls, functions: map[string]function.Function{}}
+
+	b.stringsToString(FuncNameFindInParentFolders, FindInParentFolders)
+	b.stringsToString(FuncNamePathRelativeToInclude, PathRelativeToInclude)
+	b.stringsToString(FuncNamePathRelativeFromInclude, PathRelativeFromInclude)
+	b.stringsToString(FuncNameGetEnv, getEnvironmentVariable)
+	b.stringsToString(FuncNameRunCmd, RunCommand)
+	b.stringsToString(FuncNameGetParentTerragruntDir, GetParentTerragruntDir)
+	b.stringsToString(FuncNameSopsDecryptFile, sopsDecryptFile)
+	b.stringsToString(FuncNameReadTfvarsFile, readTFVarsFile)
+	b.stringsToString(FuncNameMarkAsRead, markAsRead)
+	b.stringsToStrings(FuncNameMarkGlobAsRead, markGlobAsRead)
+	b.voidToString(FuncNameGetPlatform, getPlatform)
+	b.voidToString(FuncNameGetRepoRoot, getRepoRoot)
+	b.voidToString(FuncNameGetPathFromRepoRoot, getPathFromRepoRoot)
+	b.voidToString(FuncNameGetPathToRepoRoot, getPathToRepoRoot)
+	b.voidToString(FuncNameGetTerragruntDir, GetTerragruntDir)
+	b.voidToString(FuncNameGetOriginalTerragruntDir, getOriginalTerragruntDir)
+	b.voidToString(FuncNameGetTerraformCommand, getTerraformCommand)
+	b.voidToString(FuncNameGetAWSAccountAlias, getAWSAccountAlias)
+	b.voidToString(FuncNameGetAWSAccountID, getAWSAccountID)
+	b.voidToString(FuncNameGetAWSCallerIdentityArn, getAWSCallerIdentityARN)
+	b.voidToString(FuncNameGetAWSCallerIdentityUserID, getAWSCallerIdentityUserID)
+	b.voidToString(FuncNameGetTerragruntSourceCLIFlag, getTerragruntSourceCliFlag)
+	b.voidToString(
+		FuncNameGetWorkingDir,
+		func(ctx context.Context, l log.Logger, v *venv.Venv, pctx *ParsingContext) (string, error) {
+			return getWorkingDir(ctx, l, v, s, pctx)
+		},
+	)
+	b.voidToStrings(FuncNameGetTerraformCLIArgs, getTerraformCliArgs)
+
+	if calls.Calls(FuncNameReadTerragruntConfig) {
+		b.functions[FuncNameReadTerragruntConfig] = readTerragruntConfigAsFuncImpl(ctx, l, v, s, pctx)
+	}
+
+	if calls.Calls(FuncNameDeepMerge) {
+		b.functions[FuncNameDeepMerge] = deepMergeMapValuesAsFuncImpl(pctx)
+	}
+
+	if calls.Calls(FuncNameBase64GzipCompat) {
+		b.functions[FuncNameBase64GzipCompat] = gzipcompat.Func(func() error {
 			if pctx.Experiments.Evaluate(experiment.Base64GzipCompat) {
 				return nil
 			}
 
 			return Base64GzipCompatRequiresExperimentError{ConfigPath: pctx.TerragruntConfigPath}
-		}),
+		})
 	}
 
-	functions := make(map[string]function.Function, len(tfFunctions)+len(terragruntFunctions))
-
-	maps.Copy(functions, tfFunctions)
-	maps.Copy(functions, terragruntFunctions)
-
-	if pctx.stubWorkingDirFunc {
-		functions[FuncNameGetWorkingDir] = wrapVoidToEmptyStringAsFuncImpl()
+	if _, ok := b.functions[FuncNameGetWorkingDir]; ok && pctx.stubWorkingDirFunc {
+		b.functions[FuncNameGetWorkingDir] = wrapVoidToEmptyStringAsFuncImpl()
 	}
 
-	return functions
+	return b.functions
+}
+
+// functionBinder builds the Terragrunt functions bound to a parse that its caller wants.
+type functionBinder struct {
+	ctx       context.Context
+	l         log.Logger
+	v         *venv.Venv
+	pctx      *ParsingContext
+	calls     hclparse.FunctionCalls
+	functions map[string]function.Function
+}
+
+func (b *functionBinder) stringsToString(
+	name string,
+	toWrap func(ctx context.Context, l log.Logger, v *venv.Venv, pctx *ParsingContext, params []string) (string, error),
+) {
+	if b.calls.Calls(name) {
+		b.functions[name] = wrapStringSliceToStringAsFuncImpl(b.ctx, b.l, b.v, b.pctx, toWrap)
+	}
+}
+
+func (b *functionBinder) stringsToStrings(
+	name string,
+	toWrap func(ctx context.Context, l log.Logger, v *venv.Venv, pctx *ParsingContext, params []string) ([]string, error),
+) {
+	if b.calls.Calls(name) {
+		b.functions[name] = wrapStringSliceToStringSliceAsFuncImpl(b.ctx, b.l, b.v, b.pctx, toWrap)
+	}
+}
+
+func (b *functionBinder) voidToString(
+	name string,
+	toWrap func(ctx context.Context, l log.Logger, v *venv.Venv, pctx *ParsingContext) (string, error),
+) {
+	if b.calls.Calls(name) {
+		b.functions[name] = wrapVoidToStringAsFuncImpl(b.ctx, b.l, b.v, b.pctx, toWrap)
+	}
+}
+
+func (b *functionBinder) voidToStrings(
+	name string,
+	toWrap func(ctx context.Context, l log.Logger, v *venv.Venv, pctx *ParsingContext) ([]string, error),
+) {
+	if b.calls.Calls(name) {
+		b.functions[name] = wrapVoidToStringSliceAsFuncImpl(b.ctx, b.l, b.v, b.pctx, toWrap)
+	}
 }
 
 // Return the OS platform
@@ -694,8 +773,7 @@ func runCommandImpl(
 
 	currentPath := filepath.Dir(pctx.TerragruntConfigPath)
 
-	// The child config [ReadCatalogConfig] generates sits in a directory that doesn't exist.
-	if pctx.catalogOnly && !vfs.IsDir(v.FS, currentPath) {
+	if pctx.catalogStubDir != "" && currentPath == pctx.catalogStubDir {
 		currentPath = filepath.Dir(currentPath)
 	}
 
@@ -1146,18 +1224,18 @@ func PathRelativeToInclude(
 	pctx *ParsingContext,
 	params []string,
 ) (string, error) {
-	if pctx.TrackInclude == nil {
+	if pctx.includes == nil {
 		return ".", nil
 	}
 
 	var included IncludeConfig
 
 	switch {
-	case pctx.TrackInclude.Original != nil:
-		included = *pctx.TrackInclude.Original
-	case len(pctx.TrackInclude.CurrentList) > 0:
+	case pctx.includes.IncludedVia != nil:
+		included = *pctx.includes.IncludedVia
+	case len(pctx.includes.List) > 0:
 		// Called in child ctx, so we need to select the right include file.
-		selected, err := getSelectedIncludeBlock(*pctx.TrackInclude, params)
+		selected, err := getSelectedIncludeBlock(pctx.includes, params)
 		if err != nil {
 			return "", err
 		}
@@ -1191,11 +1269,11 @@ func PathRelativeFromInclude(
 	pctx *ParsingContext,
 	params []string,
 ) (string, error) {
-	if pctx.TrackInclude == nil {
+	if pctx.includes == nil {
 		return ".", nil
 	}
 
-	included, err := getSelectedIncludeBlock(*pctx.TrackInclude, params)
+	included, err := getSelectedIncludeBlock(pctx.includes, params)
 	if err != nil {
 		return "", err
 	}
@@ -1226,7 +1304,7 @@ func getTerraformCommand(ctx context.Context, l log.Logger, _ *venv.Venv, pctx *
 }
 
 // getWorkingDir returns the current working dir
-func getWorkingDir(ctx context.Context, l log.Logger, v *venv.Venv, pctx *ParsingContext) (string, error) {
+func getWorkingDir(ctx context.Context, l log.Logger, v *venv.Venv, s *Store, pctx *ParsingContext) (string, error) {
 	l.Debugf("Start processing get_working_dir built-in function")
 	defer l.Debugf("Complete processing get_working_dir built-in function")
 
@@ -1235,7 +1313,7 @@ func getWorkingDir(ctx context.Context, l log.Logger, v *venv.Venv, pctx *Parsin
 	sourcePctx := pctx.Clone()
 	sourcePctx.stubWorkingDirFunc = true
 
-	cfg, err := ParseConfigFile(ctx, l, v, sourcePctx, pctx.TerragruntConfigPath, nil)
+	cfg, err := s.ResolveRunConfig(ctx, l, v, sourcePctx, pctx.TerragruntConfigPath)
 	if err != nil {
 		return "", err
 	}
@@ -1284,16 +1362,6 @@ func getTerraformCliArgs(
 	}
 
 	return pctx.TerraformCliArgs.Slice(), nil
-}
-
-// getDefaultRetryableErrors returns default retryable errors for use in errors.retry blocks
-func getDefaultRetryableErrors(
-	ctx context.Context,
-	l log.Logger,
-	_ *venv.Venv,
-	pctx *ParsingContext,
-) ([]string, error) {
-	return retry.DefaultRetryableErrors, nil
 }
 
 // getAWSField is a common helper for fetching a single AWS field.
@@ -1362,6 +1430,7 @@ func ParseTerragruntConfig(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 	cfgPath string,
 	defaultVal *cty.Value,
@@ -1437,7 +1506,7 @@ func ParseTerragruntConfig(
 	if targetBase == DefaultStackFile || isStackAutoIncludeFile {
 		stackSourceDir := filepath.Dir(targetConfig)
 
-		values, readErr := ReadValues(ctx, l, v, pctx, stackSourceDir)
+		values, readErr := ReadValues(ctx, l, v, s, pctx, stackSourceDir)
 		if readErr != nil {
 			return cty.NilVal, fmt.Errorf(
 				"failed to read values from directory %s: %w",
@@ -1446,7 +1515,7 @@ func ParseTerragruntConfig(
 			)
 		}
 
-		stackFile, readErr := ReadStackConfigFile(ctx, l, v, pctx, targetConfig, values)
+		stackFile, readErr := ReadStackConfigFile(ctx, l, v, s, pctx, targetConfig, values)
 		if readErr != nil {
 			return cty.NilVal, readErr
 		}
@@ -1456,7 +1525,7 @@ func ParseTerragruntConfig(
 
 	// check if file is a values file, decode as values file
 	if targetBase == valuesFile {
-		unitValues, readErr := ReadValues(ctx, l, v, pctx, filepath.Dir(targetConfig))
+		unitValues, readErr := ReadValues(ctx, l, v, s, pctx, filepath.Dir(targetConfig))
 		if readErr != nil {
 			return cty.NilVal, readErr
 		}
@@ -1469,7 +1538,7 @@ func ParseTerragruntConfig(
 		return *unitValues, nil
 	}
 
-	return readTerragruntConfigCached(ctx, l, v, pctx)
+	return readTerragruntConfigCached(ctx, l, v, s, pctx)
 }
 
 // Create a cty Function that can be used to for calling read_terragrunt_config.
@@ -1477,6 +1546,7 @@ func readTerragruntConfigAsFuncImpl(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 ) function.Function {
 	return function.New(&function.Spec{
@@ -1509,7 +1579,7 @@ func readTerragruntConfigAsFuncImpl(
 
 			targetConfigPath := strArgs[0]
 
-			return ParseTerragruntConfig(ctx, l, v, pctx, targetConfigPath, defaultVal)
+			return ParseTerragruntConfig(ctx, l, v, s, pctx, targetConfigPath, defaultVal)
 		},
 	})
 }
@@ -1742,12 +1812,12 @@ func getTerragruntSourceCliFlag(
 //   - If there is only one include block, no param is required and that is automatically returned.
 //   - If there is more than one include block, 1 param is required to use as the label name to lookup the include block
 //     to use.
-func getSelectedIncludeBlock(trackInclude TrackInclude, params []string) (*IncludeConfig, error) {
-	importMap := trackInclude.CurrentMap
-
-	if trackInclude.Original != nil {
-		return trackInclude.Original, nil
+func getSelectedIncludeBlock(includes *Includes, params []string) (*IncludeConfig, error) {
+	if includes.IncludedVia != nil {
+		return includes.IncludedVia, nil
 	}
+
+	importMap := includes.ByName()
 
 	if len(importMap) == 0 {
 		return nil, nil
@@ -2065,7 +2135,7 @@ func ParseAndDecodeVarFile(l log.Logger, varFile string, fileContents []byte, ou
 }
 
 // ConstraintCheck Implementation of Terraform's StartsWith function
-func ConstraintCheck(ctx context.Context, _ *venv.Venv, pctx *ParsingContext, args []string) (bool, error) {
+func ConstraintCheck(args []string) (bool, error) {
 	if len(args) != matchedPats {
 		return false, WrongNumberOfParamsError{
 			Func:     FuncNameConstraintCheck,
@@ -2085,5 +2155,5 @@ func ConstraintCheck(ctx context.Context, _ *venv.Venv, pctx *ParsingContext, ar
 // element boundary survives: ("x y") and ("x", "y") get different keys. NUL separates the parts
 // because it cannot occur in a path, in hex, or unescaped inside a %q string.
 func runCmdCacheKey(scope string, env map[string]string, args []string) string {
-	return fmt.Sprintf("%s\x00%x\x00%q", scope, hashEnv(env), args)
+	return fmt.Sprintf("%s\x00%x\x00%q", scope, HashEnv(env), args)
 }

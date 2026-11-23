@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -162,17 +162,20 @@ type componentView struct {
 	Excluded     bool
 }
 
-// discoverCorpus runs discovery over rewriteCorpus, with the rewrite selected when useRewrite is set and parsing
-// through store, and returns what it found in path order.
-func discoverCorpus(t *testing.T, useRewrite bool, store *rewrite.Store) []componentView {
+// corpusVenv returns an in-memory venv holding rewriteCorpus.
+func corpusVenv(t *testing.T) *venv.Venv {
 	t.Helper()
 
 	v := memRepoRootVenv(t, corpusRepoRoot)
 	writeFixture(t, v, prefixPaths(rewriteCorpus))
 
-	if useRewrite {
-		v.Env[rewrite.EnvRewrite] = "true"
-	}
+	return v
+}
+
+// discoverCorpus runs discovery over the corpus v holds, parsing through store, and returns what it found in path
+// order.
+func discoverCorpus(t *testing.T, store *config.Store, v *venv.Venv) []componentView {
+	t.Helper()
 
 	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = corpusRepoRoot
@@ -239,33 +242,41 @@ func componentViews(components component.Components) []componentView {
 	return views
 }
 
-func TestDiscoveryConfigRewriteMatchesDefaultParser(t *testing.T) {
+func TestDiscoveryReusesTheTreesOfAnEarlierDiscovery(t *testing.T) {
 	t.Parallel()
 
-	want := discoverCorpus(t, false, new(rewrite.Store))
-	require.NotEmpty(t, want)
+	store := new(config.Store)
+	v := corpusVenv(t)
 
-	store := new(rewrite.Store)
+	want := discoverCorpus(t, store, v)
 
-	got := discoverCorpus(t, true, store)
-	assert.Equal(t, want, got)
+	dependencies := map[string][]string{}
+
+	for _, view := range want {
+		if view.Kind == component.UnitKind {
+			dependencies[view.Path] = view.Dependencies
+		}
+	}
+
+	assert.Equal(t, map[string][]string{
+		repoPath("apps/broken"):          nil,
+		repoPath("apps/db"):              {repoPath("infra/vpc")},
+		repoPath("apps/inherits-engine"): nil,
+		repoPath("apps/job"):             {repoPath("apps/db")},
+		repoPath("apps/web"):             {repoPath("apps/db")},
+		repoPath("apps/worker"):          {repoPath("apps/db")},
+		repoPath("infra/vpc"):            nil,
+	}, dependencies)
 
 	misses := store.Stats().Misses
-	require.Positive(t, misses, "the rewrite parsed through the store")
+	require.Positive(t, misses, "the discovery parsed through the store")
 
-	again := discoverCorpus(t, true, store)
+	hits := store.Stats().Hits
+
+	again := discoverCorpus(t, store, v)
 	assert.Equal(t, want, again)
-	assert.Equal(t, misses, store.Stats().Misses, "the second discovery parsed nothing")
-}
-
-func TestDiscoveryConfigRewriteOffByDefault(t *testing.T) {
-	t.Parallel()
-
-	store := new(rewrite.Store)
-
-	discoverCorpus(t, false, store)
-
-	assert.Equal(t, rewrite.Stats{}, store.Stats())
+	assert.Less(t, store.Stats().Misses-misses, misses, "the second discovery parsed no syntax tree again")
+	assert.Greater(t, store.Stats().Hits-hits, hits, "the second discovery was served every syntax tree")
 }
 
 // prefixPaths returns files with each path joined onto the corpus repo root.

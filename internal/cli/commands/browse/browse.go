@@ -7,12 +7,12 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/browse/tui"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/discoverysetup"
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -22,7 +22,7 @@ import (
 // Run runs the browse command. It opens the browser immediately over a tree the
 // TUI fills from the filesystem, and runs discovery in the background so unit and
 // stack metadata and counts stream in without blocking the initial render.
-func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, opts *Options) error {
+func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *config.Store, opts *Options) error {
 	v.RequireTerminal()
 
 	if err := viewtui.EnsureTTY(v.Terminal.StdinIsTTY); err != nil {
@@ -106,7 +106,7 @@ func runDiscovery(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *Options,
 	d *discovery.Discovery,
 ) tui.DiscoveryResult {

@@ -230,11 +230,12 @@ func Prepare(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	moduleURL, templateURL string,
 ) (*Plan, error) {
 	// Apply catalog configuration settings, with CLI flags taking precedence
-	applyCatalogConfigToScaffold(ctx, l, v, opts)
+	applyCatalogConfigToScaffold(ctx, l, v, s, opts)
 
 	outputDir := OutputDir(opts)
 
@@ -351,7 +352,7 @@ func Prepare(
 	)
 
 	// prepare boilerplate files to render Terragrunt files
-	boilerplateDir, err := prepareBoilerplateFiles(ctx, l, v, opts, templateURL, tempDir)
+	boilerplateDir, err := prepareBoilerplateFiles(ctx, l, v, s, opts, templateURL, tempDir)
 	if err != nil {
 		return nil, err
 	}
@@ -639,10 +640,11 @@ func Run(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	moduleURL, templateURL string,
 ) error {
-	plan, err := Prepare(ctx, l, v, opts, moduleURL, templateURL)
+	plan, err := Prepare(ctx, l, v, s, opts, moduleURL, templateURL)
 	if err != nil {
 		return err
 	}
@@ -711,11 +713,12 @@ func applyCatalogConfigToScaffold(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 ) {
 	pctx := configbridge.NewParsingContext(opts)
 
-	catalogCfg, err := config.ReadCatalogConfig(ctx, l, v, pctx)
+	catalogCfg, err := config.ReadCatalogConfig(ctx, l, v, s, pctx)
 	if err != nil {
 		// Don't fail if catalog config can't be read - it's optional
 		l.Debugf("Could not read catalog config for scaffold: %v", err)
@@ -885,6 +888,7 @@ func prepareBoilerplateFiles(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	templateURL,
 	tempDir string,
@@ -906,7 +910,7 @@ func prepareBoilerplateFiles(
 	if !vfs.IsDir(v.FS, boilerplateDir) {
 		pctx := configbridge.NewParsingContext(opts)
 
-		config, err := config.ReadCatalogConfig(ctx, l, v, pctx)
+		config, err := config.ReadCatalogConfig(ctx, l, v, s, pctx)
 		if err != nil {
 			return "", err
 		}

@@ -1137,7 +1137,9 @@ func parseDuplicateInputFixture(
 		return diags, nil
 	}
 
-	_, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, cfgPath, nil)
+	s := new(config.Store)
+
+	_, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, cfgPath)
 
 	return collected, err
 }
@@ -1179,5 +1181,7 @@ func parseVariablesFixture(
 		require.NoError(t, pctx.Experiments.EnableExperiment(experiment.VariablesBlock))
 	}
 
-	return config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, cfgPath, nil)
+	s := new(config.Store)
+
+	return s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, cfgPath)
 }

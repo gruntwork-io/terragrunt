@@ -69,25 +69,28 @@ const (
 	logTextOnly        = "it only changes how paths appear in logs and errors"
 	sameForCommand     = "it's the same for every unit in a command, and the cache lasts one command"
 	stacksAndDepsOnly  = "only stack generation and dependency runs read it"
+	resetByStore       = "the Store resets it when it resolves the read"
 	dependencyRunsOnly = "only dependency output fetches read it, and files with dependency blocks aren't shared"
 )
 
 // parsingContextFieldsOutsideKey gives, for each [config.ParsingContext] field left out of
 // [config.ReadTerragruntConfigKey], why a change to it can't change the value a read_terragrunt_config read returns.
 var parsingContextFieldsOutsideKey = map[string]string{
-	"TrackInclude":                 "ParseConfig clears it before decoding the file",
+	"includes":                     "the parse clears it before decoding the file",
 	"DependencyBlocks":             clearedByRead,
 	"DecodedDependencies":          clearedByRead,
 	"SkipOutputsResolution":        clearedByRead,
 	"Locals":                       clearedByRead,
 	"Features":                     clearedByRead,
 	"FilesRead":                    "the read records the files its parse reads whether or not the reading config does",
-	"Values":                       "ParseConfig replaces it with the file's own values before evaluating anything",
+	"Values":                       "the parse replaces it with the file's own values before evaluating anything",
 	"WorkingDir":                   "the read sets it from the file's path, which is in the key",
 	"OriginalTerragruntConfigPath": "every function that reads it stops the result being shared",
 	"SourceMap": "only get_working_dir, the remote state source URL, dependencies, and stack files read it, and " +
 		"none of those results are shared",
 	"readConfigChain": "it only detects cycles, which fail the read, and failed reads aren't cached",
+	"catalogStubDir": "only the generated catalog child reads it, and nothing else lives in that in-memory " +
+		"directory to be a read target",
 	"ParseDepth":      "it only limits nesting, and going past the limit fails the read",
 	"RootWorkingDir":  logTextOnly,
 	"LogShowAbsPaths": logTextOnly,
@@ -95,7 +98,6 @@ var parsingContextFieldsOutsideKey = map[string]string{
 	"StrictControls":  sameForCommand,
 	"AmbiguousConfigCheck": "it only decides whether a directory holding both default unit configs fails the " +
 		"read, and failed reads aren't cached",
-	"UsePartialParseConfigCache":       "it chooses whether partial parses are cached, not what they return",
 	"ScaffoldRootFileName":             "only catalog scaffolding reads it",
 	"ProviderCacheOptions":             "parsing doesn't read it",
 	"NoStackValidate":                  "only stack files read it, and they aren't cached",
@@ -121,6 +123,12 @@ var parsingContextFieldsOutsideKey = map[string]string{
 	"NoDependencyFetchOutputFromState": dependencyRunsOnly,
 	"dependencyOutputEnvKeys":          dependencyRunsOnly,
 	"Parser.DiagnosticsHandler":        "a read with a diagnostics handler skips the cache",
+	"include":                          resetByStore,
+	"inheritsDependencies":             resetByStore,
+	"merging":                          resetByStore,
+	"key":                              resetByStore,
+	"keyed":                            resetByStore,
+	"memoized":                         resetByStore,
 }
 
 // TestReadTerragruntConfigKeyCoversParsingContext pins that every ParsingContext field is either part of the
@@ -182,19 +190,23 @@ func TestReadTerragruntConfigKeyChangesWithEachKeyedField(t *testing.T) {
 	}
 }
 
-// parsingContextFieldNames returns the names of the fields of [config.ParsingContext], with the fields of its Parser
-// settings in place of Parser.
+// parsingContextFieldNames returns the names of the fields of [config.ParsingContext], with the fields of its run
+// settings in place of RunSettings and the fields of its Parser settings in place of Parser.
 func parsingContextFieldNames() []string {
 	var names []string
 
 	for field := range reflect.TypeFor[config.ParsingContext]().Fields() {
-		if field.Name != "Parser" {
+		switch field.Name {
+		case "RunSettings":
+			for settingsField := range reflect.TypeFor[config.RunSettings]().Fields() {
+				names = append(names, settingsField.Name)
+			}
+		case "Parser":
+			for parserField := range field.Type.Fields() {
+				names = append(names, "Parser."+parserField.Name)
+			}
+		default:
 			names = append(names, field.Name)
-			continue
-		}
-
-		for parserField := range field.Type.Fields() {
-			names = append(names, "Parser."+parserField.Name)
 		}
 	}
 

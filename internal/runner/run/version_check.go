@@ -2,6 +2,7 @@ package run
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -338,9 +339,9 @@ func computeVersionFilesCacheKey(
 			sanitizedPath = path
 		}
 
-		hash, err := vfs.FileSHA256(fsys, sanitizedPath)
-		if err == nil {
-			hashes = append(hashes, file+":"+hex.EncodeToString(hash))
+		h := sha256.New()
+		if err := vfs.HashFile(fsys, h, sanitizedPath); err == nil {
+			hashes = append(hashes, file+":"+hex.EncodeToString(h.Sum(nil)))
 		}
 	}
 

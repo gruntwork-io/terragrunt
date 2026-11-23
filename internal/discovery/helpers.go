@@ -63,7 +63,7 @@ func ConfigFilenames(opts *options.TerragruntOptions) []string {
 	return []string{name, config.DefaultStackFile}
 }
 
-// walkDirFunc returns the tree walk the discovery phases use, bound to the
+// walkDirFunc returns the tree walk discovery uses, bound to the
 // venv filesystem so discovery only sees what the venv exposes. The symlinks
 // experiment swaps in the walk that descends into symlinked directories.
 func walkDirFunc(
@@ -114,16 +114,6 @@ func (s *stringSet) LoadOrStore(key string) (loaded bool) {
 	s.m[key] = struct{}{}
 
 	return false
-}
-
-// Load returns whether the key exists in the set.
-func (s *stringSet) Load(key string) bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	_, ok := s.m[key]
-
-	return ok
 }
 
 // RelPathForComponent renders target through [RelPathOrAbs], relative to the
@@ -434,7 +424,7 @@ func extractDependencyPaths(
 }
 
 // storeStackConfigs parses each discovered stack's config file and stores the
-// result on the stack component. The parse phase only stores unit configs, so
+// result on the stack component. The pipeline only stores unit configs, so
 // this runs as a separate pass over the final component set. Parsing is
 // best-effort: a stack that fails to parse is left without config and
 // consumers simply omit those details.
@@ -442,6 +432,7 @@ func storeStackConfigs(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	components component.Components,
 ) {
@@ -463,14 +454,14 @@ func storeStackConfigs(
 		// values (and shows its definitions in consumers like browse).
 		pctx := configbridge.NewParsingContext(opts)
 
-		values, err := config.ReadValues(ctx, l, v, pctx, stackDir)
+		values, err := config.ReadValues(ctx, l, v, s, pctx, stackDir)
 		if err != nil {
 			l.Debugf("Skipping stack config %s: %v", stackFile, err)
 
 			continue
 		}
 
-		cfg, err := config.ReadStackConfigFile(ctx, l, v, pctx, stackFile, values)
+		cfg, err := config.ReadStackConfigFile(ctx, l, v, s, pctx, stackFile, values)
 		if err != nil {
 			l.Debugf("Skipping stack config %s: %v", stackFile, err)
 
@@ -491,6 +482,7 @@ func stackDependencyPaths(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	depPaths []string,
 ) ([]string, error) {
@@ -500,7 +492,7 @@ func stackDependencyPaths(
 	// Factory builds the dir-scoped function map for each stack dir visited during expansion.
 	funcsFor := inthclparse.StackFuncFactory(
 		func(stackDir string) (map[string]function.Function, error) {
-			return config.EarlyStackParseFunctions(ctx, l, v, pctx, stackDir)
+			return config.EarlyStackParseFunctions(ctx, l, v, s, pctx, stackDir)
 		},
 	)
 
@@ -623,32 +615,36 @@ func (d *Discovery) potentialDependentsOutsideBoundary(
 	outside := make(map[string]struct{})
 
 	for _, candidate := range candidates {
-		if candidate.Reason != filter.CandidacyReasonPotentialDependent {
-			continue
+		if outsideDependentBoundaries(fsys, boundaries, candidate) {
+			outside[candidate.Component.Path()] = struct{}{}
 		}
-
-		c := candidate.Component
-
-		// Worktree components live outside the working tree by construction.
-		if dctx := c.DiscoveryContext(); dctx != nil && dctx.Ref != "" {
-			continue
-		}
-
-		if slices.ContainsFunc(boundaries, func(boundary string) bool {
-			return !isExternal(fsys, boundary, c.Path())
-		}) {
-			continue
-		}
-
-		outside[c.Path()] = struct{}{}
 	}
 
 	return outside
 }
 
+// outsideDependentBoundaries reports whether candidate is a potential dependent outside every one of boundaries,
+// which no dependent traversal can reach. No boundaries means the traversals are unbounded, and nothing is outside.
+func outsideDependentBoundaries(fsys vfs.FS, boundaries []string, candidate DiscoveryResult) bool {
+	if len(boundaries) == 0 || candidate.Reason != filter.CandidacyReasonPotentialDependent {
+		return false
+	}
+
+	c := candidate.Component
+
+	// Worktree components live outside the working tree by construction.
+	if dctx := c.DiscoveryContext(); dctx != nil && dctx.Ref != "" {
+		return false
+	}
+
+	return !slices.ContainsFunc(boundaries, func(boundary string) bool {
+		return !isExternal(fsys, boundary, c.Path())
+	})
+}
+
 // evaluationContext hands filter evaluation the settings its graph traversal
 // has to honor. Discover resolves the boundary and the working directory before
-// any phase runs, so this carries absolute paths rather than raw user input.
+// the pipeline runs, so this carries absolute paths rather than raw user input.
 func (d *Discovery) evaluationContext() filter.EvaluationContext {
 	return filter.EvaluationContext{
 		WorkingDir:         d.workingDir,

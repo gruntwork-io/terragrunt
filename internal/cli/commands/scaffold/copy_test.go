@@ -311,6 +311,7 @@ dependencies:
 		config.WithCaches(t.Context()),
 		l,
 		v,
+		new(config.Store),
 		opts,
 		getter.FileURL(repoDir).String()+"//modules/vpc",
 		getter.FileURL(repoDir).String()+"//templates/root",
@@ -349,7 +350,7 @@ func TestGeneratedFilesEmptyAfterCopyingUnit(t *testing.T) {
 	v := venvtest.NewOSWithEmptyEnv()
 	l := logger.CreateLogger()
 
-	plan, err := scaffold.Prepare(config.WithCaches(t.Context()), l, v, opts, source, "")
+	plan, err := scaffold.Prepare(config.WithCaches(t.Context()), l, v, new(config.Store), opts, source, "")
 	require.NoError(t, err)
 
 	t.Cleanup(func() { plan.Cleanup(v.FS) })
@@ -381,7 +382,7 @@ func TestScaffoldRefusesToOverwriteWhenCopying(t *testing.T) {
 	opts.NonInteractive = true
 
 	ctx := config.WithCaches(t.Context())
-	err = scaffold.Run(ctx, logger.CreateLogger(), venvtest.NewOSWithEmptyEnv(), opts, source, "")
+	err = scaffold.Run(ctx, logger.CreateLogger(), venvtest.NewOSWithEmptyEnv(), new(config.Store), opts, source, "")
 	require.Error(t, err)
 
 	assert.NoFileExists(t, filepath.Join(outputDir, "terragrunt.hcl"))
@@ -427,7 +428,7 @@ func runScaffoldWithTemplate(t *testing.T, source, templateURL string) string {
 
 	require.NoError(
 		t,
-		scaffold.Run(ctx, logger.CreateLogger(), venvtest.NewOSWithEmptyEnv(), opts, source, templateURL),
+		scaffold.Run(ctx, logger.CreateLogger(), venvtest.NewOSWithEmptyEnv(), new(config.Store), opts, source, templateURL),
 	)
 
 	return outputDir

@@ -16,7 +16,13 @@ import (
 
 const maxBlockNesting = 32
 
-var guardFunctions = []string{"try", "can"}
+var (
+	guardFunctions     = []string{"try", "can"}
+	outputsBlockSchema = &hcl.BodySchema{Blocks: []hcl.BlockHeaderSchema{{Type: MetadataOutputs}}}
+	outputBlockSchema  = &hcl.BodySchema{
+		Blocks: []hcl.BlockHeaderSchema{{Type: MetadataOutput, LabelNames: []string{"name"}}},
+	}
+)
 
 // DependencyOutputReference is a reference to a dependency output in a unit, with the range of the expression.
 type DependencyOutputReference struct {
@@ -158,25 +164,22 @@ func replacedDependencyBlock(block *hclsyntax.Block, replaced map[string]struct{
 
 // OutputDeclarationRanges returns where each output block of the outputs block in file is declared, by name.
 func OutputDeclarationRanges(file *hclparse.File) map[string]hcl.Range {
-	body, ok := file.Body.(*hclsyntax.Body)
-	if !ok {
-		return nil
-	}
-
 	ranges := map[string]hcl.Range{}
 
-	for _, block := range body.Blocks {
-		if block.Type != MetadataOutputs {
+	outputs, _, diags := file.Body.PartialContent(outputsBlockSchema)
+	if diags.HasErrors() {
+		return ranges
+	}
+
+	for _, block := range outputs.Blocks {
+		declared, _, diags := block.Body.PartialContent(outputBlockSchema)
+		if diags.HasErrors() {
 			continue
 		}
 
-		for _, output := range block.Body.Blocks {
-			if output.Type != MetadataOutput || len(output.Labels) != 1 {
-				continue
-			}
-
+		for _, output := range declared.Blocks {
 			if _, seen := ranges[output.Labels[0]]; !seen {
-				ranges[output.Labels[0]] = output.DefRange()
+				ranges[output.Labels[0]] = output.DefRange
 			}
 		}
 	}

@@ -28,14 +28,15 @@ terraform {
 	v := venvtest.NewWithOSFS()
 	ctx, pctx := newTestParsingContext(t, "test-time-mock")
 
-	terragruntConfig, err := config.ParseConfigString(
+	terragruntConfig, err := resolveRunConfigString(
+		t,
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		cfg,
-		nil,
 	)
 	require.NoError(t, err)
 
@@ -147,7 +148,9 @@ include "root" {
 			v := venvtest.NewWithOSFS()
 			ctx, pctx := newTestParsingContext(t, childPath)
 
-			terragruntConfig, err := config.ParseConfigFile(ctx, l, v, pctx, childPath, nil)
+			s := new(config.Store)
+
+			terragruntConfig, err := s.ResolveRunConfig(ctx, l, v, pctx, childPath)
 
 			if tc.expectedErr != nil {
 				require.ErrorAs(t, err, tc.expectedErr)

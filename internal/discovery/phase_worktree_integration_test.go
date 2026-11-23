@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
@@ -230,7 +229,7 @@ func TestWorktreePhase_Integration_RemovedUnitDependencyIsNotDestroyed(t *testin
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir, Cmd: "apply"}).
 		WithWorktrees(w).
 		WithFilters(filters).
-		Discover(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
+		Discover(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv(), new(config.Store), opts)
 	require.NoError(t, err)
 
 	fromWorktree := w.WorktreePairs["[HEAD~1...HEAD]"].FromWorktree.Path
@@ -571,7 +570,7 @@ func TestWorktreePhase_Integration_CommandArgs(t *testing.T) {
 				config.WithCaches(t.Context()),
 				l,
 				venvtest.NewOSWithEmptyEnv(),
-				new(rewrite.Store),
+				new(config.Store),
 				opts,
 			)
 
@@ -849,7 +848,7 @@ unit "unit_to_be_untouched" {
 	require.NoError(t, err)
 
 	ctx := config.WithCaches(t.Context())
-	err = generate.NewGenerator().GenerateStacks(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts, w)
+	err = generate.NewGenerator().GenerateStacks(ctx, l, venvtest.NewOSWithEmptyEnv(), new(config.Store), opts, w)
 	require.NoError(t, err)
 
 	// Run discovery
@@ -875,7 +874,7 @@ unit "unit_to_be_untouched" {
 		config.WithCaches(t.Context()),
 		l,
 		venvtest.NewOSWithEmptyEnv(),
-		new(rewrite.Store),
+		new(config.Store),
 		opts,
 	)
 	require.NoError(t, err)
@@ -1014,7 +1013,7 @@ func TestWorktreePhase_Integration_StackSourceOnlyInOneRef(t *testing.T) {
 		config.WithCaches(t.Context()),
 		l,
 		venvtest.NewOSWithEmptyEnv(),
-		new(rewrite.Store),
+		new(config.Store),
 		opts,
 		w,
 	)
@@ -1124,7 +1123,7 @@ func TestWorktreePhase_Integration_AddedNestedStackGeneratesUnits(t *testing.T) 
 				config.WithCaches(t.Context()),
 				l,
 				venvtest.NewOSWithEmptyEnv(),
-				new(rewrite.Store),
+				new(config.Store),
 				opts,
 				w,
 			)
@@ -1151,7 +1150,7 @@ func TestWorktreePhase_Integration_AddedNestedStackGeneratesUnits(t *testing.T) 
 				config.WithCaches(t.Context()),
 				l,
 				venvtest.NewOSWithEmptyEnv(),
-				new(rewrite.Store),
+				new(config.Store),
 				opts,
 			)
 			require.NoError(t, err)
@@ -1233,7 +1232,7 @@ func TestWorktreePhase_Integration_RemovedNestedStackGeneratesUnits(t *testing.T
 		config.WithCaches(t.Context()),
 		l,
 		venvtest.NewOSWithEmptyEnv(),
-		new(rewrite.Store),
+		new(config.Store),
 		opts,
 		w,
 	)
@@ -1263,7 +1262,7 @@ func TestWorktreePhase_Integration_RemovedNestedStackGeneratesUnits(t *testing.T
 		config.WithCaches(t.Context()),
 		l,
 		venvtest.NewOSWithEmptyEnv(),
-		new(rewrite.Store),
+		new(config.Store),
 		opts,
 	)
 	require.NoError(t, err)
@@ -1361,7 +1360,7 @@ unit "app" {
 
 	require.NoError(
 		t,
-		generate.WorktreeStacks(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts, w),
+		generate.WorktreeStacks(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv(), new(config.Store), opts, w),
 	)
 
 	readingAffectedDirs := make([]string, 0, len(w.ReadingAffectedStacks))
@@ -1465,7 +1464,7 @@ unit "app" {
 
 	require.NoError(
 		t,
-		generate.WorktreeStacks(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts, w),
+		generate.WorktreeStacks(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv(), new(config.Store), opts, w),
 	)
 
 	readingAffectedDirs := make([]string, 0, len(w.ReadingAffectedStacks))
@@ -1571,7 +1570,7 @@ unit "app" {
 				config.WithCaches(t.Context()),
 				l,
 				venvtest.NewOSWithEmptyEnv(),
-				new(rewrite.Store),
+				new(config.Store),
 				opts,
 				w,
 			),
@@ -1887,7 +1886,7 @@ locals {
 				config.WithCaches(t.Context()),
 				l,
 				venvtest.NewOSWithEmptyEnv(),
-				new(rewrite.Store),
+				new(config.Store),
 				opts,
 			)
 			require.NoError(t, err)
@@ -1991,7 +1990,7 @@ locals {
 		config.WithCaches(t.Context()),
 		l,
 		venvtest.NewOSWithEmptyEnv(),
-		new(rewrite.Store),
+		new(config.Store),
 		opts,
 	)
 	require.NoError(t, err)
@@ -2274,7 +2273,7 @@ locals {
 				config.WithCaches(t.Context()),
 				l,
 				venvtest.NewOSWithEmptyEnv(),
-				new(rewrite.Store),
+				new(config.Store),
 				opts,
 			)
 			require.NoError(t, err)
@@ -2388,7 +2387,7 @@ func TestWorktreePhase_Integration_FromSubdirectory_MultipleCommits(t *testing.T
 				config.WithCaches(t.Context()),
 				l,
 				venvtest.NewOSWithEmptyEnv(),
-				new(rewrite.Store),
+				new(config.Store),
 				opts,
 			)
 			require.NoError(t, err)
@@ -2580,7 +2579,7 @@ unit "app" {
 	require.NoError(t, err)
 
 	ctx := config.WithCaches(t.Context())
-	err = generate.NewGenerator().GenerateStacks(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts, w)
+	err = generate.NewGenerator().GenerateStacks(ctx, l, venvtest.NewOSWithEmptyEnv(), new(config.Store), opts, w)
 	require.NoError(t, err)
 
 	// Run discovery
@@ -2606,7 +2605,7 @@ unit "app" {
 		config.WithCaches(t.Context()),
 		l,
 		venvtest.NewOSWithEmptyEnv(),
-		new(rewrite.Store),
+		new(config.Store),
 		opts,
 	)
 	require.NoError(t, err)
@@ -2780,7 +2779,7 @@ unit "app" {
 	require.NoError(t, err)
 
 	ctx := config.WithCaches(t.Context())
-	err = generate.NewGenerator().GenerateStacks(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts, w)
+	err = generate.NewGenerator().GenerateStacks(ctx, l, venvtest.NewOSWithEmptyEnv(), new(config.Store), opts, w)
 	require.NoError(t, err)
 
 	// Run discovery
@@ -2806,7 +2805,7 @@ unit "app" {
 		config.WithCaches(t.Context()),
 		l,
 		venvtest.NewOSWithEmptyEnv(),
-		new(rewrite.Store),
+		new(config.Store),
 		opts,
 	)
 	require.NoError(t, err)
@@ -2971,7 +2970,7 @@ unit "app" {
 	require.NoError(t, err)
 
 	ctx := config.WithCaches(t.Context())
-	err = generate.NewGenerator().GenerateStacks(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts, w)
+	err = generate.NewGenerator().GenerateStacks(ctx, l, venvtest.NewOSWithEmptyEnv(), new(config.Store), opts, w)
 	require.NoError(t, err)
 
 	// Run discovery
@@ -2997,7 +2996,7 @@ unit "app" {
 		config.WithCaches(t.Context()),
 		l,
 		venvtest.NewOSWithEmptyEnv(),
-		new(rewrite.Store),
+		new(config.Store),
 		opts,
 	)
 	require.NoError(t, err)
@@ -3148,7 +3147,7 @@ unit "myapp" {
 
 	// Generate stacks — using tmpDir as working directory so that only
 	// worktreeStacksToGenerate can cause generation inside worktrees.
-	err = generate.NewGenerator().GenerateStacks(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts, w)
+	err = generate.NewGenerator().GenerateStacks(ctx, l, venvtest.NewOSWithEmptyEnv(), new(config.Store), opts, w)
 	require.NoError(t, err)
 
 	// Verify: no .terragrunt-stack directories should exist in the worktrees,
@@ -3293,7 +3292,7 @@ unit "myapp" {
 	require.NoError(t, err)
 
 	// Generate stacks
-	err = generate.NewGenerator().GenerateStacks(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts, w)
+	err = generate.NewGenerator().GenerateStacks(ctx, l, venvtest.NewOSWithEmptyEnv(), new(config.Store), opts, w)
 	require.NoError(t, err)
 
 	// The marker file should NOT exist — the land-mine stack should not have been parsed.
@@ -3423,7 +3422,7 @@ unit "myapp" {
 	err = opts.Experiments.EnableExperiment(experiment.FilterFlag)
 	require.NoError(t, err)
 
-	err = generate.NewGenerator().GenerateStacks(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts, w)
+	err = generate.NewGenerator().GenerateStacks(ctx, l, venvtest.NewOSWithEmptyEnv(), new(config.Store), opts, w)
 	require.NoError(t, err)
 
 	// The marker file should NOT exist — negation should prevent parsing
@@ -3483,7 +3482,7 @@ func runWorktreeDiscovery(
 		config.WithCaches(t.Context()),
 		l,
 		venvtest.NewOSWithEmptyEnv(),
-		new(rewrite.Store),
+		new(config.Store),
 		opts,
 	)
 	require.NoError(t, err)
@@ -3598,13 +3597,13 @@ unit "myapp" {
 		fromOpts.WorkingDir = pair.FromWorktree.Path
 		fromOpts.RootWorkingDir = pair.FromWorktree.Path
 		ctx := config.WithCaches(t.Context())
-		err = generate.NewGenerator().GenerateStacks(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), fromOpts, w)
+		err = generate.NewGenerator().GenerateStacks(ctx, l, venvtest.NewOSWithEmptyEnv(), new(config.Store), fromOpts, w)
 		require.NoError(t, err)
 
 		toOpts := opts.Clone()
 		toOpts.WorkingDir = pair.ToWorktree.Path
 		toOpts.RootWorkingDir = pair.ToWorktree.Path
-		err = generate.NewGenerator().GenerateStacks(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), toOpts, w)
+		err = generate.NewGenerator().GenerateStacks(ctx, l, venvtest.NewOSWithEmptyEnv(), new(config.Store), toOpts, w)
 		require.NoError(t, err)
 	}
 
@@ -3630,7 +3629,7 @@ unit "myapp" {
 		config.WithCaches(t.Context()),
 		l,
 		venvtest.NewOSWithEmptyEnv(),
-		new(rewrite.Store),
+		new(config.Store),
 		opts,
 	)
 	require.NoError(t, err)
@@ -3754,7 +3753,7 @@ unit "app" {
 
 	require.NoError(
 		t,
-		generate.NewGenerator().GenerateStacks(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts, w),
+		generate.NewGenerator().GenerateStacks(ctx, l, venvtest.NewOSWithEmptyEnv(), new(config.Store), opts, w),
 	)
 
 	readingAffectedDirs := make([]string, 0, len(w.ReadingAffectedStacks))
@@ -3880,7 +3879,7 @@ unit "app" {
 
 	require.NoError(
 		t,
-		generate.NewGenerator().GenerateStacks(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts, w),
+		generate.NewGenerator().GenerateStacks(ctx, l, venvtest.NewOSWithEmptyEnv(), new(config.Store), opts, w),
 	)
 
 	readingAffectedDirs := make([]string, 0, len(w.ReadingAffectedStacks))
@@ -3986,7 +3985,7 @@ locals {
 		config.WithCaches(t.Context()),
 		l,
 		venvtest.NewOSWithEmptyEnv(),
-		new(rewrite.Store),
+		new(config.Store),
 		opts,
 	)
 	require.NoError(t, err)
@@ -4074,7 +4073,7 @@ locals {
 		config.WithCaches(t.Context()),
 		l,
 		venvtest.NewOSWithEmptyEnv(),
-		new(rewrite.Store),
+		new(config.Store),
 		opts,
 	)
 	require.NoError(t, err)
@@ -4186,7 +4185,7 @@ unit "myapp" {
 
 	// GenerateStacks internally calls discoverStacks with reading filters.
 	// If the land-mine unit is parsed, run_cmd("exit 1") causes a fatal error.
-	err = generate.NewGenerator().GenerateStacks(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts, w)
+	err = generate.NewGenerator().GenerateStacks(ctx, l, venvtest.NewOSWithEmptyEnv(), new(config.Store), opts, w)
 	require.NoError(t, err)
 }
 
@@ -4289,7 +4288,7 @@ unit "app" {
 	opts.Experiments = experiment.NewExperiments()
 	require.NoError(t, opts.Experiments.EnableExperiment(experiment.FilterFlag))
 
-	require.NoError(t, generate.WorktreeStacks(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts, w))
+	require.NoError(t, generate.WorktreeStacks(ctx, l, venvtest.NewOSWithEmptyEnv(), new(config.Store), opts, w))
 
 	// The working tree must stay untouched: no stack was generated under it.
 	_, statErr := os.Stat(filepath.Join(stackDir, ".terragrunt-stack"))
@@ -4315,7 +4314,7 @@ unit "app" {
 		config.WithCaches(t.Context()),
 		l,
 		venvtest.NewOSWithEmptyEnv(),
-		new(rewrite.Store),
+		new(config.Store),
 		opts,
 	)
 	require.NoError(t, err)

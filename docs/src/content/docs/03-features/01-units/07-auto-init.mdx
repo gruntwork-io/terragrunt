@@ -25,7 +25,7 @@ When Auto-Init is enabled (the default), terragrunt will automatically call [`to
 
 <Since version="v1.2.3">
 
-- A `.tf`, `.tofu`, `.tf.json`, or `.tofu.json` file of the unit, or of a local module it calls, has changed since the previous call to `init`.
+- The configuration of the unit, or of a local module it calls, has changed in a way that affects `init` since the previous call to `init`, e.g. a `.tf` file was added or removed, a `required_providers`, `backend`, or `module` block changed, or a resource uses a new provider.
 - The `.terraform.lock.hcl` file has changed since the previous call to `init`.
 - The `.terraform/providers` or `.terraform/modules` directory has been deleted.
 - The remote state used by a module has changed since the previous call to `init`.

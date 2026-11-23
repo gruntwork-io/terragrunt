@@ -83,14 +83,10 @@ func NewUnitFailedError(unitPath string) error {
 }
 
 // findFailedDependency finds the first failed dependency for a given entry.
-func findFailedDependency(entry *queue.Entry, q *queue.Queue) string {
-	for _, dep := range entry.Component.Dependencies() {
-		for _, e := range q.Entries {
-			if e.Component.Path() == dep.Path() {
-				if e.Status == queue.StatusFailed {
-					return dep.Path()
-				}
-			}
+func findFailedDependency(entry *queue.Entry) string {
+	for _, dep := range entry.Dependencies() {
+		if dep.Status == queue.StatusFailed {
+			return dep.Component.Path()
 		}
 	}
 

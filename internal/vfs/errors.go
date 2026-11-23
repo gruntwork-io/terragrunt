@@ -23,6 +23,10 @@ var ErrNoLock = errors.New("locking not supported")
 // cannot be followed at all.
 var ErrSymlinkEscapes = errors.New("symlink target escapes destination")
 
+// ErrNotRegularFile is returned by [DirsDiffer] when a file below a compared directory is neither a regular file nor
+// a symbolic link to one.
+var ErrNotRegularFile = errors.New("not a regular file")
+
 // PathIsNotDirectory is returned when the given path is unexpectedly not a directory.
 type PathIsNotDirectory struct {
 	path string

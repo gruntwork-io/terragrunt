@@ -327,6 +327,7 @@ func TestStackUnitCtyReading(t *testing.T) {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		"../../test/fixtures/stacks/basic/live/terragrunt.stack.hcl",
 		nil,
@@ -360,6 +361,7 @@ func TestStackLocalsCtyReading(t *testing.T) {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		"../../test/fixtures/stacks/locals/live/terragrunt.stack.hcl",
 		nil,
@@ -412,8 +414,6 @@ func terragruntConfigStructFieldToMapKey(t *testing.T, fieldName string) (string
 		return "dependency", true
 	case "GenerateConfigs":
 		return "generate", true
-	case "IsPartial":
-		return "", false
 	case "ProcessedIncludes":
 		return "", false
 	case "FieldsMetadata":

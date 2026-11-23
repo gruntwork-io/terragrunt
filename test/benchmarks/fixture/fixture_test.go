@@ -1,9 +1,11 @@
 package fixture_test
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/test/benchmarks/fixture"
 	"github.com/stretchr/testify/assert"
@@ -88,4 +90,35 @@ func TestWriteRejectsBadInput(t *testing.T) {
 			require.ErrorIs(t, err, tc.wantErr)
 		})
 	}
+}
+
+func TestWriteDatesEveryFileFileAgeBack(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+
+	require.NoError(t, fixture.Write(dir, fixture.ShapeDeps, 3))
+
+	latest := time.Now().Add(-fixture.FileAge)
+
+	var files int
+
+	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
+
+		files++
+
+		assert.False(t, info.ModTime().After(latest), path)
+
+		return nil
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 7, files)
 }

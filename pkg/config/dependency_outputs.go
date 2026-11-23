@@ -17,7 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-// unlistedMockCommands read the mock values an outputs block declares only when a list of allowed commands names them.
+// unlistedMockCommands read declared mock values only when the allowed commands name them.
 var unlistedMockCommands = []string{tf.CommandNameApply, tf.CommandNameDestroy}
 
 type declaredDependency struct {
@@ -30,13 +30,14 @@ func (dep *Dependency) withDeclaredOutputs(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 ) (declaredDependency, error) {
 	if !pctx.Experiments.Evaluate(experiment.OutputsBlock) {
 		return declaredDependency{dep: dep}, nil
 	}
 
-	declared, err := dep.DeclaredOutputs(ctx, l, v, pctx)
+	declared, err := dep.DeclaredOutputs(ctx, l, v, s, pctx)
 	if err != nil {
 		return declaredDependency{}, err
 	}
@@ -68,9 +69,10 @@ func (dep *Dependency) DeclaredOutputs(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 ) (*OutputsConfig, error) {
-	target, err := dep.readTarget(ctx, l, v, pctx)
+	target, err := dep.readTarget(ctx, l, v, s, pctx)
 	if err != nil {
 		return nil, DependencyBlockError{Name: dep.Name, ConfigPath: pctx.TerragruntConfigPath, Err: err}
 	}
@@ -88,6 +90,7 @@ func (dep *Dependency) readTarget(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 ) (dependencyTarget, error) {
 	target, err := dep.unitTarget(v.FS, pctx)
@@ -96,7 +99,7 @@ func (dep *Dependency) readTarget(
 	}
 
 	single := TerragruntDependency{Dependencies: Dependencies{*dep}}
-	if _, err := decodeDependencies(ctx, l, v, pctx, single); err != nil {
+	if _, err := decodeDependencies(ctx, l, v, s, pctx, single); err != nil {
 		return dependencyTarget{}, err
 	}
 
@@ -155,6 +158,7 @@ func UnitsWithoutOutputs(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 	cfg *TerragruntConfig,
 ) ([]string, error) {
@@ -166,7 +170,7 @@ func UnitsWithoutOutputs(
 	errs := make([]error, 0, len(cfg.TerragruntDependencies))
 
 	for i := range cfg.TerragruntDependencies {
-		target, err := cfg.TerragruntDependencies[i].readTarget(ctx, l, v, pctx)
+		target, err := cfg.TerragruntDependencies[i].readTarget(ctx, l, v, s, pctx)
 		if err != nil {
 			errs = append(errs, err)
 
@@ -187,7 +191,7 @@ func UnitsWithoutOutputs(
 	return slices.Compact(targets), nil
 }
 
-// fillDeclaredOutputs fills each declared output stateOutputs lacks, or returns [DeclaredOutputMissingError].
+// fillDeclaredOutputs fills each declared output stateOutputs lacks, or reports it outside render.
 func fillDeclaredOutputs(
 	pctx *ParsingContext,
 	dep *Dependency,
@@ -195,13 +199,16 @@ func fillDeclaredOutputs(
 	targetConfig string,
 	stateOutputs map[string]cty.Value,
 ) error {
-	if declared == nil || isRenderJSONCommand(pctx) || isRenderCommand(pctx) {
+	if declared == nil {
 		return nil
 	}
 
+	renders := isRenderJSONCommand(pctx) || isRenderCommand(pctx)
 	mocks := readableMocks(pctx, dep)
 	merges := dep.shouldMergeMockOutputsWithState(pctx)
 	mergeIsSet := dep.MockOutputsMergeStrategyWithState != nil || dep.MockOutputsMergeWithState != nil
+	fills := !mergeIsSet && !runsUnlistedMockCommand(pctx, dep)
+	rendersMerge := renders && dep.getMockOutputsMergeStrategy() != NoMerge
 	errs := make([]error, 0, len(declared.Outputs))
 
 	for _, output := range declared.Outputs {
@@ -214,15 +221,25 @@ func fillDeclaredOutputs(
 			continue
 		}
 
-		if output.Nullable {
+		if mocked && rendersMerge {
+			stateOutputs[output.Name] = mock
+
+			continue
+		}
+
+		if output.Nullable != nil && *output.Nullable {
 			stateOutputs[output.Name] = cty.NullVal(cty.DynamicPseudoType)
 
 			continue
 		}
 
-		if mocked && !mergeIsSet {
+		if mocked && fills {
 			stateOutputs[output.Name] = mock
 
+			continue
+		}
+
+		if renders {
 			continue
 		}
 
@@ -248,10 +265,7 @@ func readableMocks(pctx *ParsingContext, dep *Dependency) map[string]cty.Value {
 
 // declaredMockValues returns the mock values dep reads from declared, none for an apply or destroy its list omits.
 func declaredMockValues(pctx *ParsingContext, dep *Dependency, declared *OutputsConfig) *cty.Value {
-	command := pctx.OriginalTofuCommand
-	commands := dep.MockOutputsAllowedTerraformCommands
-
-	if slices.Contains(unlistedMockCommands, command) && (commands == nil || !slices.Contains(*commands, command)) {
+	if runsUnlistedMockCommand(pctx, dep) {
 		return nil
 	}
 
@@ -260,6 +274,19 @@ func declaredMockValues(pctx *ParsingContext, dep *Dependency, declared *Outputs
 	}
 
 	return declared.MockValues()
+}
+
+// readsDeclaredMocks reports whether the command reads a mock value that declared sets.
+func readsDeclaredMocks(pctx *ParsingContext, dep *Dependency, declared *OutputsConfig) bool {
+	return declared != nil && declaredMockValues(pctx, dep, declared) != nil
+}
+
+// runsUnlistedMockCommand reports whether the command is an apply or destroy that the allowed commands of dep omit.
+func runsUnlistedMockCommand(pctx *ParsingContext, dep *Dependency) bool {
+	command := pctx.OriginalTofuCommand
+	commands := dep.MockOutputsAllowedTerraformCommands
+
+	return slices.Contains(unlistedMockCommands, command) && (commands == nil || !slices.Contains(*commands, command))
 }
 
 // mergeDeclaredMockValues returns the mock values a dependent reads, each key of overrides winning over declared.

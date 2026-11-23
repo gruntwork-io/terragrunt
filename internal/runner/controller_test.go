@@ -559,3 +559,84 @@ func TestRunnerPool_RecordsOutcomeCountsOnSpan(t *testing.T) {
 		"tasks_early_exit": float64(1),
 	}, counts)
 }
+
+func TestRunnerPoolWaitsThroughUnitsOutsideTheQueueWithRacing(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		a, c := unitsJoinedOutsideTheQueue()
+
+		q, err := queue.NewQueue(component.Components{a, c})
+		require.NoError(t, err)
+
+		var (
+			mu       sync.Mutex
+			finished []string
+		)
+
+		rnr := func(_ context.Context, u *component.Unit) error {
+			if u.Path() == "C" {
+				time.Sleep(time.Second)
+			}
+
+			mu.Lock()
+			defer mu.Unlock()
+
+			finished = append(finished, u.Path())
+
+			return nil
+		}
+
+		err = runner.NewController(
+			q,
+			[]*component.Unit{a, c},
+			runner.WithRunner(rnr),
+			runner.WithMaxConcurrency(2),
+		).Run(config.WithCaches(t.Context()), logger.CreateLogger())
+		require.NoError(t, err)
+
+		assert.Equal(t, []string{"C", "A"}, finished)
+	})
+}
+
+func TestRunnerPoolNamesFailuresThroughUnitsOutsideTheQueueWithRacing(t *testing.T) {
+	t.Parallel()
+
+	a, c := unitsJoinedOutsideTheQueue()
+
+	q, err := queue.NewQueue(component.Components{a, c})
+	require.NoError(t, err)
+
+	rnr := func(_ context.Context, u *component.Unit) error {
+		if u.Path() == "C" {
+			return errors.New("unit C failed")
+		}
+
+		return nil
+	}
+
+	err = runner.NewController(
+		q,
+		[]*component.Unit{a, c},
+		runner.WithRunner(rnr),
+		runner.WithMaxConcurrency(2),
+	).Run(config.WithCaches(t.Context()), logger.CreateLogger())
+
+	var exitErr runner.UnitEarlyExitError
+
+	require.ErrorAs(t, err, &exitErr)
+	assert.Equal(t, runner.UnitEarlyExitError{UnitPath: "A", FailedDependency: "C"}, exitErr)
+}
+
+// unitsJoinedOutsideTheQueue returns units A and C, where A depends on C only through a unit B that is not queued.
+func unitsJoinedOutsideTheQueue() (*component.Unit, *component.Unit) {
+	c := component.NewUnit("C")
+
+	b := component.NewUnit("B")
+	b.AddDependency(c)
+
+	a := component.NewUnit("A")
+	a.AddDependency(b)
+
+	return a, c
+}

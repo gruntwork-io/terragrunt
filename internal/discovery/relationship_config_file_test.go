@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -46,7 +45,7 @@ dependency "shared" {
 		WithGitRoot(corpusRepoRoot).
 		WithFilters(filters).
 		WithRelationships().
-		Discover(config.WithCaches(t.Context()), l, v, new(rewrite.Store), opts)
+		Discover(config.WithCaches(t.Context()), l, v, new(config.Store), opts)
 	require.NoError(t, err)
 	require.Len(t, components, 2)
 

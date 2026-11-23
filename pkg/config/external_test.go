@@ -52,7 +52,6 @@ func TestExternalTerragruntConfigStruct(t *testing.T) {
 		IamWebIdentityToken:         "token-value",
 		Inputs:                      map[string]any{"key": "value"},
 		Locals:                      map[string]any{"local_key": "local_value"},
-		IsPartial:                   false,
 	}
 
 	assert.Equal(t, "tofu", cfg.TerraformBinary)
@@ -64,7 +63,6 @@ func TestExternalTerragruntConfigStruct(t *testing.T) {
 	assert.Equal(t, "token-value", cfg.IamWebIdentityToken)
 	assert.Equal(t, map[string]any{"key": "value"}, cfg.Inputs)
 	assert.Equal(t, map[string]any{"local_key": "local_value"}, cfg.Locals)
-	assert.False(t, cfg.IsPartial)
 	assert.Nil(t, cfg.Terraform)
 	assert.Nil(t, cfg.RemoteState)
 	assert.Nil(t, cfg.Dependencies)
@@ -437,14 +435,15 @@ inputs = {
 	ctx := config.WithCaches(t.Context())
 	v := venvtest.NewWithOSFS()
 	pctx := config.NewParsingContext()
-	cfg, err := config.ParseConfigString(
+	cfg, err := resolveRunConfigString(
+		t,
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		hclConfig,
-		nil,
 	)
 	require.NoError(t, err)
 	require.NotNil(t, cfg)
@@ -481,6 +480,7 @@ unit "db" {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultStackFile,
 		stackHCL,
@@ -523,6 +523,7 @@ unit "db" {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultStackFile,
 		stackHCL,
@@ -569,6 +570,7 @@ unit "db" {
 		ctx,
 		l,
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultStackFile,
 		stackHCL,
@@ -608,7 +610,7 @@ region   = "us-west-2"
 	pctx := config.NewParsingContext()
 
 	// Read values from the file on disk.
-	values, err := config.ReadValues(ctx, l, v, pctx, dir)
+	values, err := config.ReadValues(ctx, l, v, new(config.Store), pctx, dir)
 	require.NoError(t, err)
 	require.NotNil(t, values)
 
@@ -619,7 +621,7 @@ unit "app" {
   path   = values.app_path
 }
 `
-	sc, err := config.ReadStackConfigString(ctx, l, v, pctx, config.DefaultStackFile, stackHCL, values)
+	sc, err := config.ReadStackConfigString(ctx, l, v, new(config.Store), pctx, config.DefaultStackFile, stackHCL, values)
 	require.NoError(t, err)
 	require.NotNil(t, sc)
 	require.Len(t, sc.Units, 1)
@@ -654,7 +656,7 @@ region = "eu-west-1"
 	v := venvtest.NewWithOSFS()
 	pctx := config.NewParsingContext()
 
-	// Use a configPath inside the temp dir so ParseConfig discovers the
+	// Use a configPath inside the temp dir so the parse discovers the
 	// adjacent terragrunt.values.hcl automatically.
 	configPath := filepath.Join(dir, config.DefaultTerragruntConfigPath)
 
@@ -664,7 +666,7 @@ inputs = {
   region = values.region
 }
 `
-	cfg, err := config.ParseConfigString(ctx, l, v, pctx, configPath, hclConfig, nil)
+	cfg, err := resolveRunConfigString(t, ctx, l, v, new(config.Store), pctx, configPath, hclConfig)
 	require.NoError(t, err)
 	require.NotNil(t, cfg)
 	assert.Equal(t, "staging", cfg.Inputs["env"])

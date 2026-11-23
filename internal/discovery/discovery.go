@@ -4,13 +4,10 @@ import (
 	"context"
 	"path/filepath"
 	"slices"
-	"sync"
 
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
-	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
@@ -21,21 +18,18 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
-
-	"golang.org/x/sync/errgroup"
 )
 
 // Discover performs the full discovery process. The supplied [venv.Venv]
 // supplies the process executor for the git top-level probe and the
-// auth-provider-command credentials fetch during the parse phase.
+// auth-provider-command credentials fetch during the parses.
 //
-// The config rewrite memoizes its parses in s when [rewrite.EnvRewrite] selects it. Discoveries that share s share
-// those parses.
+// The parses of units are memoized in s. Discoveries that share s share those parses.
 func (d *Discovery) Discover(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 ) (component.Components, error) {
 	d.classifier = filter.NewClassifier(d.filters)
@@ -72,15 +66,13 @@ func (d *Discovery) Discover(
 
 		// Store the resolved enclosure. It caps the dependent walk in place of
 		// the git root (see dependentWalkBoundary) and prunes dependencies that
-		// resolve outside it (see the graph phase).
+		// resolve outside it (see the graph traversal).
 		d.discoveryBoundary = boundary
 
 		l.Debugf("Discovery: graph traversal bounded to %s", boundary)
 	}
 
-	withWorktree := len(d.gitExpressions) > 0 && d.worktrees != nil
-
-	if withWorktree {
+	if d.findsInWorktrees() {
 		if gitRoot, gitErr := git.GoRepoRoot(ctx, v, d.workingDir); gitErr == nil {
 			d.worktreeGitRoot = gitRoot
 		}
@@ -92,10 +84,12 @@ func (d *Discovery) Discover(
 		}
 	}
 
-	discovered, candidates, err := d.walkAndParse(ctx, l, v, s, opts, withWorktree)
+	found, err := d.walkAndParse(ctx, l, v, s, opts)
 	if err != nil {
 		return nil, err
 	}
+
+	discovered, candidates := found.discovered, found.candidates
 
 	if d.classifier.HasGraphFilters() {
 		if d.classifier.HasDependentFilters() && d.discoveryBoundary == "" && d.gitRoot == "" {
@@ -106,7 +100,7 @@ func (d *Discovery) Discover(
 		}
 
 		l.Debugf(
-			"Discovery: starting graph phase (discovered=%d, candidates=%d, max_depth=%d, has_dependent_filters=%t)",
+			"Discovery: starting graph traversal (discovered=%d, candidates=%d, max_depth=%d, has_dependent_filters=%t)",
 			len(
 				discovered,
 			),
@@ -115,7 +109,7 @@ func (d *Discovery) Discover(
 			d.classifier.HasDependentFilters(),
 		)
 
-		var results *PhaseResults
+		var results *foundResults
 
 		err = telemetry.TelemeterFromContext(ctx).
 			Collect(ctx, l, "discovery_phase_graph", map[string]any{
@@ -127,24 +121,24 @@ func (d *Discovery) Discover(
 			}, func(childCtx context.Context, l log.Logger) error {
 				var phaseErr error
 
-				results, phaseErr = d.runGraphPhase(childCtx, l, v, s, opts, discovered, candidates)
+				results, phaseErr = d.traverseGraph(childCtx, l, v, opts, found)
 
 				return phaseErr
 			})
 
-		logPhaseComplete(l, "graph", results, err)
+		logComplete(l, "graph traversal", results, err)
 
 		if d.returnsPhaseError(err) {
 			return nil, d.markDeletedDependency(v.FS, err, resultsToComponents(slices.Concat(discovered, candidates)))
 		}
 
-		discovered = results.Discovered
+		discovered = results.discovered
 	}
 
 	components := resultsToComponents(discovered)
 
 	if d.discoverRelationships {
-		l.Debugf("Discovery: starting relationship phase (components=%d, max_depth=%d)",
+		l.Debugf("Discovery: starting relationships (components=%d, max_depth=%d)",
 			len(components), d.maxDependencyDepth)
 
 		err = telemetry.TelemeterFromContext(ctx).
@@ -153,15 +147,11 @@ func (d *Discovery) Discover(
 				"max_dependency_depth": d.maxDependencyDepth,
 				"components_in":        len(components),
 			}, func(childCtx context.Context, l log.Logger) error {
-				var phaseErr error
-
-				components, phaseErr = d.runRelationshipPhase(childCtx, l, v, s, opts, components)
-
-				return phaseErr
+				return found.relations.link(childCtx, l, v, components)
 			})
 
 		l.Debugf(
-			"Discovery: relationship phase complete (components=%d, err=%v)",
+			"Discovery: relationships complete (components=%d, err=%v)",
 			len(components),
 			err,
 		)
@@ -230,7 +220,7 @@ func (d *Discovery) Discover(
 			Collect(ctx, l, "discovery_phase_stack_configs", map[string]any{
 				"components_in": len(components),
 			}, func(childCtx context.Context, childL log.Logger) error {
-				storeStackConfigs(childCtx, childL, v, opts, components)
+				storeStackConfigs(childCtx, childL, v, s, opts, components)
 
 				return nil
 			}); err != nil {
@@ -241,19 +231,25 @@ func (d *Discovery) Discover(
 	return components, nil
 }
 
-// walkAndParse finds the components below the working directory and parses the ones that need it, through the
-// pipeline when [EnvPipeline] selects it and no Git filter needs worktrees, and through the filesystem and parse
-// phases otherwise.
-//
-// Returns the components ready for filtering and the candidates left for the graph phase.
+// walked is what walkAndParse found.
+type walked struct {
+	// relations is the dependencies the pipeline read from the components, nil when discovery needs none.
+	relations *pipelineRelations
+	// discovered is the components ready for filtering.
+	discovered []DiscoveryResult
+	// candidates is the components left for the graph traversal.
+	candidates []DiscoveryResult
+}
+
+// walkAndParse runs the pipeline inside its telemetry span. The pipeline finds the components below the working
+// directory and the ones the Git filters select in their worktrees, and parses the ones that need it.
 func (d *Discovery) walkAndParse(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
-	withWorktree bool,
-) ([]DiscoveryResult, []DiscoveryResult, error) {
+) (walked, error) {
 	parseReasons := slices.Clone(d.parseReasons)
 	if d.classifier.HasParseRequiredFilters() {
 		if !slices.Contains(parseReasons, parseReasonClassifierRequiresParse) {
@@ -261,13 +257,9 @@ func (d *Discovery) walkAndParse(
 		}
 	}
 
-	if withWorktree || !PipelineEnabled(v.Env) {
-		return d.runWalkAndParsePhases(ctx, l, v, s, opts, withWorktree, parseReasons)
-	}
-
 	l.Debugf("Discovery: starting pipeline (workers=%d, parse_reasons=%s)", d.numWorkers, joinParseReasons(parseReasons))
 
-	var results *PhaseResults
+	var found walked
 
 	err := telemetry.TelemeterFromContext(ctx).
 		Collect(ctx, l, "discovery_pipeline", map[string]any{
@@ -280,107 +272,32 @@ func (d *Discovery) walkAndParse(
 		}, func(childCtx context.Context, l log.Logger) error {
 			var pipelineErr error
 
-			results, pipelineErr = d.runPipeline(childCtx, l, v, s, opts, len(parseReasons) > 0)
+			found, pipelineErr = d.runPipeline(childCtx, l, v, s, opts, len(parseReasons) > 0)
 
 			return pipelineErr
 		})
 
-	logPhaseComplete(l, "pipeline", results, err)
+	logComplete(l, "pipeline", &foundResults{discovered: found.discovered, candidates: found.candidates}, err)
 
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return results.Discovered, results.Candidates, nil
+	return found, err
 }
 
-// runWalkAndParsePhases runs the filesystem phase, then the parse phase when parseReasons names a reason for it.
-func (d *Discovery) runWalkAndParsePhases(
-	ctx context.Context,
-	l log.Logger,
-	v *venv.Venv,
-	s *rewrite.Store,
-	opts *options.TerragruntOptions,
-	withWorktree bool,
-	parseReasons []parseReason,
-) ([]DiscoveryResult, []DiscoveryResult, error) {
-	var (
-		results *PhaseResults
-		err     error
-	)
-
-	l.Debugf(
-		"Discovery: starting filesystem phase (workers=%d, with_worktree=%t)",
-		d.numWorkers,
-		withWorktree,
-	)
-
-	err = telemetry.TelemeterFromContext(ctx).
-		Collect(ctx, l, "discovery_phase_filesystem", map[string]any{
-			"num_workers":   d.numWorkers,
-			"with_worktree": withWorktree,
-		}, func(childCtx context.Context, l log.Logger) error {
-			var phaseErr error
-
-			results, phaseErr = d.runFilesystemPhase(childCtx, l, v, s, opts)
-
-			return phaseErr
-		})
-
-	logPhaseComplete(l, "filesystem", results, err)
-
-	if d.returnsPhaseError(err) {
-		return nil, nil, err
-	}
-
-	discovered, candidates := results.Discovered, results.Candidates
-
-	if len(parseReasons) == 0 {
-		return discovered, candidates, nil
-	}
-
-	reasonsStr := joinParseReasons(parseReasons)
-
-	l.Debugf("Discovery: starting parse phase (discovered=%d, candidates=%d, reasons=%s)",
-		len(discovered), len(candidates), reasonsStr)
-
-	err = telemetry.TelemeterFromContext(ctx).
-		Collect(ctx, l, "discovery_phase_parse", map[string]any{
-			"num_workers":       d.numWorkers,
-			"discovered_in":     len(discovered),
-			"candidates_in":     len(candidates),
-			"parse_includes":    d.parseIncludes,
-			"parse_exclude":     d.parseExclude,
-			"read_files":        d.readFiles,
-			"track_reads":       d.trackReads,
-			"activation_reason": reasonsStr,
-		}, func(childCtx context.Context, l log.Logger) error {
-			var phaseErr error
-
-			results, phaseErr = d.runParsePhase(childCtx, l, v, s, opts, discovered, candidates)
-
-			return phaseErr
-		})
-
-	logPhaseComplete(l, "parse", results, err)
-
-	if err != nil && !d.suppressParseErrors {
-		return nil, nil, err
-	}
-
-	return results.Discovered, results.Candidates, nil
+// findsInWorktrees reports whether discovery also finds the components its Git filters select in their worktrees.
+func (d *Discovery) findsInWorktrees() bool {
+	return len(d.gitExpressions) > 0 && d.worktrees != nil
 }
 
-// logPhaseComplete emits a debug log summarizing a discovery phase's outcome.
-func logPhaseComplete(l log.Logger, name string, results *PhaseResults, err error) {
+// logComplete emits a debug log summarizing the outcome of the step of discovery called name. results is nil when
+// the step failed before it had any.
+func logComplete(l log.Logger, name string, results *foundResults, err error) {
 	var discovered, candidates int
 	if results != nil {
-		discovered = len(results.Discovered)
-		candidates = len(results.Candidates)
+		discovered = len(results.discovered)
+		candidates = len(results.candidates)
 	}
 
 	l.Debugf(
-		"Discovery: %s phase complete (discovered=%d, candidates=%d, err=%v)",
+		"Discovery: %s complete (discovered=%d, candidates=%d, err=%v)",
 		name,
 		discovered,
 		candidates,
@@ -388,183 +305,49 @@ func logPhaseComplete(l log.Logger, name string, results *PhaseResults, err erro
 	)
 }
 
-// runFilesystemPhase runs the filesystem and worktree phases concurrently.
-func (d *Discovery) runFilesystemPhase(
+// runWorktreeWalk discovers the components the Git filters select in their worktrees.
+func (d *Discovery) runWorktreeWalk(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
-) (*PhaseResults, error) {
-	var (
-		allDiscovered []DiscoveryResult
-		allCandidates []DiscoveryResult
-		allErrors     []error
-		mu            sync.Mutex
+) (*foundResults, error) {
+	var result *foundResults
+
+	l.Debugf(
+		"Discovery: starting worktree walk (git_expressions=%d)",
+		len(d.gitExpressions),
 	)
 
-	// maxPhases is the maximum number of phases to run concurrently
-	// for filesystem and worktree phases.
-	const maxPhases = 2
+	err := telemetry.TelemeterFromContext(ctx).
+		Collect(ctx, l, "discovery_worktree_walk", map[string]any{
+			"num_workers":          d.numWorkers,
+			"git_expression_count": len(d.gitExpressions),
+		}, func(childCtx context.Context, l log.Logger) error {
+			var walkErr error
 
-	g, ctx := errgroup.WithContext(ctx)
-	g.SetLimit(maxPhases)
+			result, walkErr = d.discoverInWorktrees(childCtx, l, v, s, opts)
 
-	g.Go(func() error {
-		var result *PhaseResults
-
-		l.Debugf("Discovery: starting filesystem walk at %s", d.workingDir)
-
-		err := telemetry.TelemeterFromContext(ctx).
-			Collect(ctx, l, "discovery_filesystem_walk", map[string]any{
-				"num_workers": d.numWorkers,
-				"working_dir": d.workingDir,
-			}, func(childCtx context.Context, l log.Logger) error {
-				phase := NewFilesystemPhase(d.numWorkers)
-
-				var phaseErr error
-
-				result, phaseErr = phase.Run(childCtx, l, v, s, &PhaseInput{
-					Opts:       opts,
-					Classifier: d.classifier,
-					Discovery:  d,
-				})
-
-				return phaseErr
-			})
-
-		logPhaseComplete(l, "filesystem walk", result, err)
-
-		mu.Lock()
-
-		if result != nil {
-			allDiscovered = append(allDiscovered, result.Discovered...)
-			allCandidates = append(allCandidates, result.Candidates...)
-		}
-
-		if err != nil {
-			allErrors = append(allErrors, err)
-		}
-
-		mu.Unlock()
-
-		return nil
-	})
-
-	if len(d.gitExpressions) > 0 && d.worktrees != nil {
-		g.Go(func() error {
-			var result *PhaseResults
-
-			l.Debugf(
-				"Discovery: starting worktree walk (git_expressions=%d)",
-				len(d.gitExpressions),
-			)
-
-			err := telemetry.TelemeterFromContext(ctx).
-				Collect(ctx, l, "discovery_worktree_walk", map[string]any{
-					"num_workers":          d.numWorkers,
-					"git_expression_count": len(d.gitExpressions),
-				}, func(childCtx context.Context, l log.Logger) error {
-					phase := NewWorktreePhase(d.gitExpressions, d.numWorkers)
-
-					var phaseErr error
-
-					result, phaseErr = phase.Run(childCtx, l, v, s, &PhaseInput{
-						Opts:       opts,
-						Classifier: d.classifier,
-						Discovery:  d,
-					})
-
-					return phaseErr
-				})
-
-			logPhaseComplete(l, "worktree walk", result, err)
-
-			mu.Lock()
-
-			if result != nil {
-				allDiscovered = append(allDiscovered, result.Discovered...)
-				allCandidates = append(allCandidates, result.Candidates...)
-			}
-
-			if err != nil {
-				allErrors = append(allErrors, err)
-			}
-
-			mu.Unlock()
-
-			return nil
+			return walkErr
 		})
-	}
 
-	if err := g.Wait(); err != nil {
-		allErrors = append(allErrors, err)
-	}
+	logComplete(l, "worktree walk", result, err)
 
-	if err := validateNoCoexistence(allDiscovered); err != nil {
-		return nil, err
-	}
-
-	if err := validateNoCoexistence(allCandidates); err != nil {
-		return nil, err
-	}
-
-	allDiscovered = deduplicateResults(allDiscovered)
-	allCandidates = deduplicateResults(allCandidates)
-
-	return &PhaseResults{
-		Discovered: allDiscovered,
-		Candidates: allCandidates,
-	}, errors.Join(allErrors...)
+	return result, err
 }
 
-// runParsePhase runs the parse phase for candidates that require parsing.
-func (d *Discovery) runParsePhase(
+// traverseGraph runs the graph traversal over what found holds. When a filter selects dependents, it first links
+// every component to its dependencies. Both steps take dependencies from the ones the pipeline read.
+func (d *Discovery) traverseGraph(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
 	opts *options.TerragruntOptions,
-	discovered []DiscoveryResult,
-	candidates []DiscoveryResult,
-) (*PhaseResults, error) {
-	phase := NewParsePhase(d.numWorkers)
-	result, err := phase.Run(ctx, l, v, s, &PhaseInput{
-		Opts:       opts,
-		Components: resultsToComponents(discovered),
-		Candidates: candidates,
-		Classifier: d.classifier,
-		Discovery:  d,
-	})
+	found walked,
+) (*foundResults, error) {
+	discovered, candidates := found.discovered, found.candidates
 
-	allDiscovered := discovered
-	if result != nil {
-		allDiscovered = append(allDiscovered, result.Discovered...)
-	}
-
-	allDiscovered = deduplicateResults(allDiscovered)
-
-	var resultCandidates []DiscoveryResult
-	if result != nil {
-		resultCandidates = result.Candidates
-	}
-
-	return &PhaseResults{
-		Discovered: allDiscovered,
-		Candidates: resultCandidates,
-	}, err
-}
-
-// runGraphPhase runs the graph traversal phase.
-func (d *Discovery) runGraphPhase(
-	ctx context.Context,
-	l log.Logger,
-	v *venv.Venv,
-	s *rewrite.Store,
-	opts *options.TerragruntOptions,
-	discovered []DiscoveryResult,
-	candidates []DiscoveryResult,
-) (*PhaseResults, error) {
 	if d.classifier.HasDependentFilters() {
 		allComponents := resultsToComponents(discovered)
 		allComponents = append(allComponents, resultsToComponents(candidates)...)
@@ -574,123 +357,32 @@ func (d *Discovery) runGraphPhase(
 		buildErr := telemetry.TelemeterFromContext(ctx).Collect(
 			ctx, l, "discover_dependents", map[string]any{},
 			func(childCtx context.Context, l log.Logger) error {
-				return errors.Join(d.buildDependencyGraph(childCtx, l, v, s, opts, allComponents, unparsed)...)
+				return errors.Join(found.relations.linkForDependents(childCtx, l, v, allComponents, unparsed)...)
 			})
 
 		if d.returnsPhaseError(buildErr) {
-			return &PhaseResults{
-				Discovered: discovered,
-				Candidates: candidates,
-			}, buildErr
+			return &foundResults{discovered: discovered, candidates: candidates}, buildErr
 		}
 	}
 
-	phase := NewGraphPhase(d.numWorkers, d.maxDependencyDepth)
+	graph := newGraphTraversal(found.relations, d.maxDependencyDepth)
 
-	var result *PhaseResults
+	var result *foundResults
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(
 		ctx, l, "discover_dependencies", map[string]any{},
 		func(childCtx context.Context, l log.Logger) error {
 			var runErr error
 
-			result, runErr = phase.Run(childCtx, l, v, s, &PhaseInput{
-				Opts:       opts,
-				Components: resultsToComponents(discovered),
-				Candidates: candidates,
-				Classifier: d.classifier,
-				Discovery:  d,
-			})
+			result, runErr = graph.run(childCtx, l, v, opts, d, resultsToComponents(discovered), candidates)
 
 			return runErr
 		})
 
-	allDiscovered := discovered
-	if result != nil {
-		allDiscovered = append(allDiscovered, result.Discovered...)
-	}
-
-	allDiscovered = deduplicateResults(allDiscovered)
-
-	var resultCandidates []DiscoveryResult
-	if result != nil {
-		resultCandidates = result.Candidates
-	}
-
-	return &PhaseResults{
-		Discovered: allDiscovered,
-		Candidates: resultCandidates,
+	return &foundResults{
+		discovered: deduplicateResults(append(discovered, result.discovered...)),
+		candidates: result.candidates,
 	}, err
-}
-
-// runRelationshipPhase runs the relationship discovery phase.
-func (d *Discovery) runRelationshipPhase(
-	ctx context.Context,
-	l log.Logger,
-	v *venv.Venv,
-	s *rewrite.Store,
-	opts *options.TerragruntOptions,
-	components component.Components,
-) (component.Components, error) {
-	phase := NewRelationshipPhase(d.numWorkers, d.maxDependencyDepth)
-	_, err := phase.Run(ctx, l, v, s, &PhaseInput{
-		Opts:       opts,
-		Components: components,
-		Discovery:  d,
-	})
-
-	return components, err
-}
-
-// buildDependencyGraph parses all components and builds bidirectional dependency links.
-// This is called before the graph phase when dependent filters exist, to populate
-// the reverse links (dependents) that the graph phase needs for dependent traversal.
-// Components whose paths are in unparsed stay in the graph but are not parsed.
-func (d *Discovery) buildDependencyGraph(
-	ctx context.Context,
-	l log.Logger,
-	v *venv.Venv,
-	s *rewrite.Store,
-	opts *options.TerragruntOptions,
-	allComponents component.Components,
-	unparsed map[string]struct{},
-) []error {
-	threadSafeComponents := component.NewThreadSafeComponents(d.paths, allComponents)
-
-	var (
-		errs []error
-		mu   sync.Mutex
-	)
-
-	g, ctx := errgroup.WithContext(ctx)
-	g.SetLimit(d.numWorkers)
-
-	for _, c := range allComponents {
-		if _, skip := unparsed[c.Path()]; skip {
-			l.Debugf("Discovery: %s is outside every dependent boundary; not parsing it", c.Path())
-			continue
-		}
-
-		g.Go(func() error {
-			err := d.buildComponentDependencies(ctx, l, v, s, opts, c, threadSafeComponents)
-			if err != nil {
-				mu.Lock()
-
-				errs = append(errs, err)
-
-				mu.Unlock()
-			}
-
-			return nil
-		})
-	}
-
-	err := g.Wait()
-	if err != nil {
-		l.Debugf("Error building dependency graph: %v", err)
-	}
-
-	return errs
 }
 
 // returnsPhaseError reports whether Discover returns err from a phase: any error unless parse errors are suppressed,
@@ -703,84 +395,6 @@ func (d *Discovery) returnsPhaseError(err error) bool {
 	return !d.suppressParseErrors ||
 		errors.As(err, new(CoexistenceError)) ||
 		errors.As(err, new(config.AmbiguousConfigError))
-}
-
-// buildComponentDependencies parses a single component and builds its dependency links.
-func (d *Discovery) buildComponentDependencies(
-	ctx context.Context,
-	l log.Logger,
-	v *venv.Venv,
-	s *rewrite.Store,
-	opts *options.TerragruntOptions,
-	c component.Component,
-	threadSafeComponents *component.ThreadSafeComponents,
-) error {
-	unit, ok := c.(*component.Unit)
-	if !ok {
-		return nil
-	}
-
-	ctx = contextWithParsePhase(ctx, parsePhaseTagDependencyGraph)
-
-	if err := ensureParsed(ctx, l, v, s, c, opts, d); err != nil {
-		if d.suppressParseErrors {
-			l.Debugf("Suppressed parse error for %s: %v", c.Path(), err)
-			return nil
-		}
-
-		return err
-	}
-
-	cfg := unit.Config()
-
-	depPaths, err := extractDependencyPaths(d.paths, cfg, c)
-	if err != nil {
-		return err
-	}
-
-	depPaths, err = stackDependencyPaths(ctx, l, v, opts, depPaths)
-	if err != nil {
-		return err
-	}
-
-	if len(depPaths) == 0 {
-		return nil
-	}
-
-	parentCtx := c.DiscoveryContext()
-	if parentCtx == nil {
-		return nil
-	}
-
-	for _, depPath := range depPaths {
-		depComponent, err := componentFromDependencyPath(
-			v.FS,
-			depPath,
-			configbridge.AmbiguousConfigCheck(opts),
-			threadSafeComponents,
-		)
-		if err != nil {
-			return err
-		}
-
-		if dctx := depComponent.DiscoveryContext(); dctx == nil || dctx.WorkingDir == "" {
-			depComponent.SetDiscoveryContext(
-				parentCtx.CopyWithNewOrigin(component.OriginGraphDiscovery),
-			)
-
-			if isExternal(v.FS, parentCtx.WorkingDir, depPath) {
-				if ext, ok := depComponent.(*component.Unit); ok {
-					ext.SetExternal()
-				}
-			}
-		}
-
-		addedComponent, _ := threadSafeComponents.EnsureComponent(depComponent)
-
-		c.AddDependency(addedComponent)
-	}
-
-	return nil
 }
 
 // removeCycles removes cycles from the dependency graph.
@@ -947,7 +561,7 @@ func (d *Discovery) dropOutsideBoundary(
 	kept := make(component.Components, 0, len(components))
 
 	for _, c := range components {
-		if !reachedByTraversal(c) {
+		if !component.ReachedByTraversal(c) {
 			kept = append(kept, c)
 			continue
 		}
@@ -972,20 +586,6 @@ func (d *Discovery) dropOutsideBoundary(
 	}
 
 	return kept
-}
-
-// reachedByTraversal reports whether a component entered discovery by following
-// the dependency graph rather than by being walked to.
-func reachedByTraversal(c component.Component) bool {
-	dctx := c.DiscoveryContext()
-	if dctx == nil {
-		return false
-	}
-
-	origin := dctx.Origin()
-
-	return origin == component.OriginGraphDiscovery ||
-		origin == component.OriginRelationshipDiscovery
 }
 
 // applyExcludeModules marks units (and optionally their dependencies) excluded via terragrunt exclude blocks.

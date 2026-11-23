@@ -13,8 +13,6 @@ import (
 type configKey byte
 
 const (
-	// HclCacheContextKey is the context key of the cache of parsed HCL files.
-	HclCacheContextKey configKey = iota
 	// TerragruntConfigCacheContextKey is the context key of the cache of partially parsed configs.
 	TerragruntConfigCacheContextKey configKey = iota
 	// RunCmdCacheContextKey is the context key of the cache of `run_cmd` results.
@@ -43,7 +41,6 @@ const (
 	// calls wait for the first.
 	RunCmdLocksContextKey configKey = iota
 
-	hclCacheName               = "hclCache"
 	configCacheName            = "configCache"
 	runCmdCacheName            = "runCmdCache"
 	dependencyOutputCacheName  = "dependencyOutputCache"
@@ -61,7 +58,6 @@ func WithCaches(ctx context.Context) context.Context {
 
 // withConfigValues adds to context default values for configuration.
 func withConfigValues(ctx context.Context) context.Context {
-	ctx = context.WithValue(ctx, HclCacheContextKey, cache.NewCache[*CachedHCLFile](hclCacheName))
 	ctx = context.WithValue(
 		ctx,
 		TerragruntConfigCacheContextKey,

@@ -1,0 +1,10 @@
+---
+version: "v1.2.3"
+category: "bug-fixes"
+---
+
+#### The depth of a dependent filter counts dependencies only
+
+`--filter '1...vpc'` selects `vpc` and the units that depend on it directly. Run from a directory below the repository root, it could leave out a direct dependent in another part of the repository, because each directory Terragrunt climbed to find that dependent also used up one level of the depth.
+
+The depth now counts only the dependencies between a unit and the target, wherever the unit is. A filter with a depth can select more units than before when dependents are outside the working directory.

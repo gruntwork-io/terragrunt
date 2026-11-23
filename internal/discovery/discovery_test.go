@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
@@ -273,7 +272,7 @@ func TestDiscovery_SimpleFilesystem(t *testing.T) {
 		WorkingDir: tmpDir,
 	})
 
-	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
+	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(config.Store), opts)
 	require.NoError(t, err)
 	assert.Len(t, components, 3, "should discover 3 components")
 }
@@ -313,7 +312,7 @@ func TestDiscovery_WithPathFilter(t *testing.T) {
 		}).
 		WithFilters(filters)
 
-	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
+	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(config.Store), opts)
 	require.NoError(t, err)
 	assert.Len(t, components, 2, "should discover 2 components in apps/")
 }
@@ -353,7 +352,7 @@ func TestDiscovery_WithNegatedFilter(t *testing.T) {
 		}).
 		WithFilters(filters)
 
-	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
+	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(config.Store), opts)
 	require.NoError(t, err)
 	assert.Len(t, components, 2, "should discover 2 components (excluding bar)")
 
@@ -398,37 +397,13 @@ func TestDiscovery_CombinedFilters(t *testing.T) {
 		}).
 		WithFilters(filters)
 
-	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
+	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(config.Store), opts)
 	require.NoError(t, err)
 	assert.Len(t, components, 2, "should discover 2 components (apps/* minus baz)")
 
 	// Verify baz is not in results
 	for _, c := range components {
 		assert.NotContains(t, c.Path(), "baz", "baz should be excluded")
-	}
-}
-
-func TestPhaseKind_String(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		expected string
-		kind     discovery.PhaseKind
-	}{
-		{expected: "filesystem", kind: discovery.PhaseFilesystem},
-		{expected: "worktree", kind: discovery.PhaseWorktree},
-		{expected: "parse", kind: discovery.PhaseParse},
-		{expected: "graph", kind: discovery.PhaseGraph},
-		{expected: "relationship", kind: discovery.PhaseRelationship},
-		{expected: "final", kind: discovery.PhaseFinal},
-		{expected: "unknown", kind: discovery.PhaseKind(999)},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.expected, func(t *testing.T) {
-			t.Parallel()
-			assert.Equal(t, tt.expected, tt.kind.String())
-		})
 	}
 }
 
@@ -519,7 +494,7 @@ func TestDiscovery_PopulatesReadingField(t *testing.T) {
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithReadFiles()
 
-	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
+	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(config.Store), opts)
 	require.NoError(t, err)
 
 	// Find the app component
@@ -570,7 +545,7 @@ func TestDiscovery_BothHclAndStackFileInSameDir(t *testing.T) {
 	d := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir})
 
-	_, err := d.Discover(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
+	_, err := d.Discover(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv(), new(config.Store), opts)
 	require.Error(t, err)
 
 	var coexistErr discovery.CoexistenceError
@@ -598,7 +573,7 @@ func TestDiscovery_BothHclAndJSONInSameDir(t *testing.T) {
 		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
 		venv.MemVenv().WithFS(fsys),
-		new(rewrite.Store),
+		new(config.Store),
 		opts,
 	)
 
@@ -732,7 +707,7 @@ func TestDiscovery_SuppressedParseErrorsKeepAmbiguousConfigError(t *testing.T) {
 				config.WithCaches(t.Context()),
 				l,
 				venv.MemVenv().WithFS(venvtest.NewFS(t, root, tt.files)),
-				new(rewrite.Store),
+				new(config.Store),
 				opts,
 			)
 
@@ -768,7 +743,7 @@ func TestDiscovery_RelationshipsAcceptDependencyNamingConfigFile(t *testing.T) {
 		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
 		venvtest.NewOSWithEmptyEnv(),
-		new(rewrite.Store),
+		new(config.Store),
 		&options.TerragruntOptions{WorkingDir: tmpDir, StrictControls: controls.New()},
 	)
 	require.NoError(t, err)
@@ -805,7 +780,7 @@ func TestDiscovery_SingleUnitNoDuplicateError(t *testing.T) {
 		config.WithCaches(t.Context()),
 		l,
 		venvtest.NewOSWithEmptyEnv(),
-		new(rewrite.Store),
+		new(config.Store),
 		opts,
 	)
 	require.NoError(t, err)
@@ -856,7 +831,7 @@ unit "app" {
 		config.WithCaches(t.Context()),
 		l,
 		venvtest.NewOSWithEmptyEnv(),
-		new(rewrite.Store),
+		new(config.Store),
 		opts,
 	)
 	require.NoError(t, err)
@@ -950,7 +925,7 @@ func TestDiscovery_TracksReadsOnlyWhenRequested(t *testing.T) {
 			components, err := d.Discover(
 				config.WithCaches(t.Context()),
 				logger.CreateLogger(),
-				venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts,
+				venvtest.NewOSWithEmptyEnv(), new(config.Store), opts,
 			)
 			require.NoError(t, err)
 
@@ -1213,7 +1188,7 @@ unit "echo" {
 				Discover(
 					config.WithCaches(t.Context()),
 					logger.CreateLogger(),
-					venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts,
+					venvtest.NewOSWithEmptyEnv(), new(config.Store), opts,
 				)
 			require.NoError(t, err)
 
@@ -1366,7 +1341,7 @@ unit "api" {
 			_, err := d.Discover(
 				config.WithCaches(t.Context()),
 				logger.CreateLogger(),
-				venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts,
+				venvtest.NewOSWithEmptyEnv(), new(config.Store), opts,
 			)
 			require.NoError(t, err)
 

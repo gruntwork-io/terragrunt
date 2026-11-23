@@ -69,6 +69,17 @@ const (
 	OriginRelationshipDiscovery Origin = "relationship-discovery"
 )
 
+// ReachedByTraversal reports whether c entered discovery by following the dependency graph rather than by being
+// walked to.
+//
+// Panics when c has no discovery context. Every component discovery returns has one, and the filter evaluation of
+// files, whose components have none, rejects the graph expressions that call this.
+func ReachedByTraversal(c Component) bool {
+	origin := c.DiscoveryContext().Origin()
+
+	return origin == OriginGraphDiscovery || origin == OriginRelationshipDiscovery
+}
+
 // DiscoveryContext is the context in which
 // a Component was discovered.
 //

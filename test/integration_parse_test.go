@@ -90,7 +90,9 @@ func TestParseAllFixtureFiles(t *testing.T) {
 			v := venv.OSVenv()
 			pctx := configbridge.NewParsingContext(opts)
 
-			cfg, _ := config.ParseConfigFile(ctx, l, v, pctx, file, nil)
+			s := new(config.Store)
+
+			cfg, _ := s.ResolveRunConfig(ctx, l, v, pctx, file)
 
 			assert.NotNil(t, cfg)
 

@@ -35,8 +35,8 @@ type OutputsMockStrategy struct {
 // OutputDeclaration is an output block of an outputs block.
 type OutputDeclaration struct {
 	MockValue *cty.Value `hcl:"mock_value,optional"`
+	Nullable  *bool      `hcl:"nullable,optional"`
 	Name      string     `hcl:"name,label"`
-	Nullable  bool       `hcl:"nullable,optional"`
 }
 
 // Clone returns a deep copy of c.
@@ -238,10 +238,14 @@ func (d *OutputDeclaration) Clone() *OutputDeclaration {
 		return nil
 	}
 
-	clone := &OutputDeclaration{Name: d.Name, Nullable: d.Nullable}
+	clone := &OutputDeclaration{Name: d.Name}
 
 	if d.MockValue != nil {
 		clone.MockValue = new(*d.MockValue)
+	}
+
+	if d.Nullable != nil {
+		clone.Nullable = new(*d.Nullable)
 	}
 
 	return clone

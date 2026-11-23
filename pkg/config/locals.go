@@ -19,30 +19,50 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-// EvaluateLocalsBlock is a routine to evaluate the locals block in a way to allow references to other locals. This
-// will:
-//   - Extract a reference to the locals block from the parsed file
-//   - Evaluate each local once, after every local it references has been evaluated
-//
-// This returns a map of the local names to the evaluated expressions (represented as `cty.Value` objects). This will
-// error if there are remaining unevaluated locals after all references that can be evaluated has been evaluated.
+// EvaluateLocalsBlock evaluates the locals block of the unit config file, each local once after every local it
+// references. It returns the locals by name, and nil when the file has no locals block.
 //
 // The `include` variable the locals read holds what exposed gives for each exposed include block.
+//
+// Returns [CouldNotEvaluateAllLocalsError] when a local can never be evaluated.
 func EvaluateLocalsBlock(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 	file *hclparse.File,
 	exposed ExposedInclude,
 ) (map[string]cty.Value, error) {
+	attrs, err := localsAttributes(l, file)
+	if attrs == nil {
+		return nil, err
+	}
+
+	vars := func() (map[string]cty.Value, error) {
+		varsPctx := pctx
+		if exposesInclude(pctx) && !readsVariable(attrs, MetadataInclude) {
+			withoutIncludes := *pctx
+			withoutIncludes.includes = nil
+			varsPctx = &withoutIncludes
+		}
+
+		return TerragruntEvalVariables(ctx, l, varsPctx, file.ConfigPath, exposed)
+	}
+
+	return evaluateLocals(ctx, l, v, s, pctx, file, attrs, vars)
+}
+
+// localsAttributes returns the attributes of the locals block of file, and nil when file has no locals block.
+//
+// Returns an error when file has more than one locals block or the block holds a nested block.
+func localsAttributes(l log.Logger, file *hclparse.File) (hclparse.Attributes, error) {
 	localsBlock, err := file.Blocks(MetadataLocals, false)
 	if err != nil {
 		return nil, err
 	}
 
 	if len(localsBlock) == 0 {
-		// No locals block referenced in the file
 		l.Debugf("Did not find any locals block: skipping evaluation.")
 		return nil, nil
 	}
@@ -55,22 +75,33 @@ func EvaluateLocalsBlock(
 		return nil, err
 	}
 
-	evaluatedLocals, err := evaluateLocalsInOrder(ctx, l, v, pctx, file, attrs, exposed)
+	return attrs, nil
+}
+
+// evaluateLocals evaluates attrs as [evaluateLocalsInOrder] does.
+//
+// Returns [CouldNotEvaluateAllLocalsError] when an attribute can never be evaluated.
+func evaluateLocals(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	s *Store,
+	pctx *ParsingContext,
+	file *hclparse.File,
+	attrs hclparse.Attributes,
+	evalVars func() (map[string]cty.Value, error),
+) (map[string]cty.Value, error) {
+	evaluatedLocals, err := evaluateLocalsInOrder(ctx, l, v, s, pctx, file, attrs, evalVars)
 	if err != nil {
 		l.Debugf(
 			"Encountered error while evaluating locals in file %s",
-			util.RelPathForLog(
-				pctx.RootWorkingDir,
-				pctx.TerragruntConfigPath,
-				pctx.LogShowAbsPaths,
-			),
+			util.RelPathForLog(pctx.RootWorkingDir, file.ConfigPath, pctx.LogShowAbsPaths),
 		)
 
 		return evaluatedLocals, err
 	}
 
 	if len(evaluatedLocals) < len(attrs) {
-		// This is an error because we couldn't evaluate all locals
 		l.Debugf("Not all locals could be evaluated:")
 
 		var errs []error
@@ -96,7 +127,8 @@ func EvaluateLocalsBlock(
 
 // evaluateLocalsInOrder evaluates attrs in layers of a topological sort over their references to one another. A layer
 // holds every attribute whose referenced locals were all evaluated in earlier layers, and each layer evaluates against
-// the locals of the layers before it.
+// the locals of the layers before it, and with the variables evalVars returns, which it calls once some attribute
+// is ready to evaluate.
 //
 // An attribute that can never be evaluated is left out of the result, along with every attribute that references it.
 // That covers cycles, references to locals the block does not define, and references to variables other than
@@ -108,10 +140,11 @@ func evaluateLocalsInOrder(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 	file *hclparse.File,
 	attrs hclparse.Attributes,
-	exposed ExposedInclude,
+	evalVars func() (map[string]cty.Value, error),
 ) (map[string]cty.Value, error) {
 	graph, byName := localsGraph(attrs)
 	ready := graph.Roots()
@@ -121,7 +154,7 @@ func evaluateLocalsInOrder(
 		return evaluatedLocals, nil
 	}
 
-	vars, err := TerragruntEvalVariables(ctx, l, pctx, file.ConfigPath, exposed)
+	vars, err := evalVars()
 	if err != nil {
 		l.Errorf(
 			"Could not convert include to the execution ctx to evaluate additional locals in file %s",
@@ -131,10 +164,8 @@ func evaluateLocalsInOrder(
 		return evaluatedLocals, err
 	}
 
-	evalCtx := &hcl.EvalContext{
-		Functions: TerragruntFunctions(ctx, l, v, pctx, file.ConfigPath),
-		Variables: vars,
-	}
+	pctx = pctx.derive()
+	evalCtx := TerragruntEvalContext(ctx, l, v, s, pctx, file.ConfigPath, file.FunctionCalls(), vars)
 
 	for len(ready) > 0 {
 		localsAsCtyVal, err := ConvertValuesMapToCtyVal(evaluatedLocals)
@@ -183,6 +214,26 @@ func evaluateLocalsInOrder(
 	}
 
 	return evaluatedLocals, nil
+}
+
+// exposesInclude reports whether an include block of the config pctx parses exposes the file it includes.
+func exposesInclude(pctx *ParsingContext) bool {
+	if pctx.includes == nil {
+		return false
+	}
+
+	return slices.ContainsFunc(pctx.includes.List, func(include IncludeConfig) bool {
+		return include.GetExpose()
+	})
+}
+
+// readsVariable reports whether an expression of attrs references the variable name.
+func readsVariable(attrs hclparse.Attributes, name string) bool {
+	return slices.ContainsFunc(attrs, func(attr *hclparse.Attribute) bool {
+		return slices.ContainsFunc(attr.Expr.Variables(), func(traversal hcl.Traversal) bool {
+			return traversal.RootName() == name
+		})
+	})
 }
 
 // localsGraph returns a graph over the names of attrs, in which each local waits on the locals it references, along

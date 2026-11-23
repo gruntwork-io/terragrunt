@@ -6,7 +6,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/list"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -37,7 +36,7 @@ func TestNewCommandExposesTheListFlags(t *testing.T) {
 	t.Parallel()
 
 	cmd := list.NewCommand(
-		logger.CreateLogger(), options.NewTerragruntOptions(), venv.MemVenv(), new(rewrite.Store),
+		logger.CreateLogger(), options.NewTerragruntOptions(), venv.MemVenv(), new(config.Store),
 	)
 
 	assert.Equal(t, list.CommandName, cmd.Name)
@@ -292,5 +291,5 @@ func newListCommand(t *testing.T, w *strings.Builder) *clihelper.Command {
 	tgOpts.WorkingDir = root
 	tgOpts.RootWorkingDir = root
 
-	return list.NewCommand(newTestLogger(t), tgOpts, v, new(rewrite.Store))
+	return list.NewCommand(newTestLogger(t), tgOpts, v, new(config.Store))
 }

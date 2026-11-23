@@ -59,6 +59,7 @@ func TestTFScaffoldGitModuleHttps(t *testing.T) {
 		ctx,
 		createLogger(),
 		venv.OSVenv(),
+		new(config.Store),
 		opts,
 		auroraModule.TerraformSourcePath(),
 		"",

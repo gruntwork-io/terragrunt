@@ -20,7 +20,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/errfmt"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -320,7 +319,7 @@ func (rnr *Runner) Run(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	stackOpts *options.TerragruntOptions,
 	r *report.Report,
 ) error {
@@ -525,7 +524,7 @@ func (rnr *Runner) Run(
 							return readErr
 						}
 
-						return tips.GiveOutputsBlockTips(readCtx, unitLogger, unitV, pctx, cfg, unitOpts.Tips)
+						return tips.GiveOutputsBlockTips(readCtx, unitLogger, unitV, s, pctx, cfg, unitOpts.Tips)
 					})
 				if err != nil {
 					logTaskOutcome(childCtx, l, unitPath, unitOpts.TofuCommand, err)
@@ -623,12 +622,6 @@ func (rnr *Runner) Run(
 
 	// Emit report entries for early exit and failed units after controller completes
 	if r != nil {
-		// Build a quick lookup of queue entry status by path to avoid nested scans
-		statusByPath := make(map[string]queue.Status, len(rnr.queue.Entries))
-		for _, qe := range rnr.queue.Entries {
-			statusByPath[qe.Component.Path()] = qe.Status
-		}
-
 		for _, entry := range rnr.queue.Entries {
 			if entry.Status == queue.StatusEarlyExit || entry.Status == queue.StatusFailed {
 				unit := rnr.Stack.FindUnitByPath(entry.Component.Path())
@@ -662,15 +655,14 @@ func (rnr *Runner) Run(
 				// If a dependency failed, use it; otherwise if a dependency exited early, use it
 				var failedAncestor string
 
-				for _, dep := range entry.Component.Dependencies() {
-					status := statusByPath[dep.Path()]
-					if status == queue.StatusFailed {
-						failedAncestor = filepath.Base(dep.Path())
+				for _, dep := range entry.Dependencies() {
+					if dep.Status == queue.StatusFailed {
+						failedAncestor = filepath.Base(dep.Component.Path())
 						break
 					}
 
-					if status == queue.StatusEarlyExit && failedAncestor == "" {
-						failedAncestor = filepath.Base(dep.Path())
+					if dep.Status == queue.StatusEarlyExit && failedAncestor == "" {
+						failedAncestor = filepath.Base(dep.Component.Path())
 					}
 				}
 
@@ -814,40 +806,15 @@ func (rnr *Runner) JSONUnitDeployOrder(isDestroy bool, showAbsPaths bool) (strin
 	return string(j), nil
 }
 
-// ListStackDependentUnits returns a map of units and their dependent units in the stack.
+// ListStackDependentUnits maps the path of every component that a unit in the stack depends on, directly or
+// transitively, to the paths of the units that depend on it. Excluded units count as dependents, and the walk
+// continues through components that discovery did not return.
 func (rnr *Runner) ListStackDependentUnits() map[string][]string {
 	dependentUnits := make(map[string][]string)
 
-	for _, unit := range rnr.queue.Entries {
-		if len(unit.Component.Dependencies()) != 0 {
-			for _, dep := range unit.Component.Dependencies() {
-				dependentUnits[dep.Path()] = util.RemoveDuplicates(
-					append(dependentUnits[dep.Path()], unit.Component.Path()),
-				)
-			}
-		}
-	}
-
-	for {
-		noUpdates := true
-
-		for unit, dependents := range dependentUnits {
-			for _, dependent := range dependents {
-				initialSize := len(dependentUnits[unit])
-				list := util.RemoveDuplicates(
-					append(dependentUnits[unit], dependentUnits[dependent]...),
-				)
-				list = slices.DeleteFunc(list, func(path string) bool { return path == unit })
-				dependentUnits[unit] = list
-
-				if initialSize != len(dependentUnits[unit]) {
-					noUpdates = false
-				}
-			}
-		}
-
-		if noUpdates {
-			break
+	for _, unit := range rnr.Stack.Units {
+		for _, dep := range reachableDependencies(unit) {
+			dependentUnits[dep] = append(dependentUnits[dep], unit.Path())
 		}
 	}
 
@@ -985,6 +952,28 @@ func collectDependenciesBounded(unit *component.Unit, paths map[string]bool, dep
 			collectDependenciesBounded(depUnit, paths, depth+1)
 		}
 	}
+}
+
+// reachableDependencies returns the paths of the components unit depends on, directly or transitively, nearest
+// first. It never returns unit's own path.
+func reachableDependencies(unit *component.Unit) []string {
+	seen := map[string]struct{}{unit.Path(): {}}
+	reached := slices.Clone(unit.Dependencies())
+	paths := make([]string, 0, len(reached))
+
+	for i := 0; i < len(reached); i++ {
+		c := reached[i]
+
+		if _, ok := seen[c.Path()]; ok {
+			continue
+		}
+
+		seen[c.Path()] = struct{}{}
+		paths = append(paths, c.Path())
+		reached = append(reached, c.Dependencies()...)
+	}
+
+	return paths
 }
 
 // logTaskOutcome stamps the task outcome on the active span and emits a debug log,

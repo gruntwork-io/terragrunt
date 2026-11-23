@@ -9,6 +9,7 @@ import (
 	"github.com/zclconf/go-cty/cty/function"
 
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -25,18 +26,16 @@ func StackParseFunctionsFrom(
 
 // EarlyStackParseFunctions returns the HCL function map used to evaluate
 // expressions inside a terragrunt.stack.hcl. The keyset matches
-// CreateTerragruntEvalContext and each function is bound to a parsing context
-// rescoped to baseDir.
+// CreateTerragruntEvalContext given [hclparse.AnyFunctionCalls], and each
+// function is bound to a parsing context rescoped to baseDir.
 //
 // get_working_dir is overridden to return baseDir: the production impl
 // re-parses the current config to compute a Terraform source URL, which a
 // terragrunt.stack.hcl does not have.
 //
-// The returned map is freshly allocated on every call (via
-// [CreateTerragruntEvalContext], which builds a new `map[string]function.Function{}`
-// per invocation). Callers own the result outright: concurrent discovery
-// goroutines each get their own map, and the override write on
-// [FuncNameGetWorkingDir] is not visible to any other caller.
+// The returned map is freshly allocated on every call. Callers own the result
+// outright: concurrent discovery goroutines each get their own map, and a write
+// to it is not visible to any other caller.
 //
 // Callers building a ParsingContext from *options.TerragruntOptions should use
 // configbridge.NewParsingContext.
@@ -44,6 +43,7 @@ func EarlyStackParseFunctions(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 	baseDir string,
 ) (map[string]function.Function, error) {
@@ -54,19 +54,9 @@ func EarlyStackParseFunctions(
 		return nil, err
 	}
 
-	evalCtx, err := CreateTerragruntEvalContext(ctx, l, v, scoped, stackFilePath)
-	if err != nil {
-		return nil, err
-	}
+	evalCtx := evalContextWithoutIncludes(ctx, l, v, s, scoped, stackFilePath, hclparse.AnyFunctionCalls())
 
-	if evalCtx.Functions == nil {
-		panic("config.EarlyStackParseFunctions: evalCtx.Functions is nil")
-	}
-
-	funcs := evalCtx.Functions
-	funcs[FuncNameGetWorkingDir] = stackDirGetWorkingDir(baseDir)
-
-	return funcs, nil
+	return StackParseFunctionsFrom(EvalFunctions(evalCtx), baseDir), nil
 }
 
 func stackDirGetWorkingDir(baseDir string) function.Function {

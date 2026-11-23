@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"path/filepath"
 
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errfmt"
@@ -53,7 +52,7 @@ func Run(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 ) (err error) {
 	defer func() {
@@ -187,7 +186,7 @@ func Run(
 		}
 
 		// After generation, hint when a literal stack filter left nested stacks ungenerated.
-		funcsFor := configbridge.StackFuncFactory(ctx, l, v, opts)
+		funcsFor := configbridge.StackFuncFactory(ctx, l, v, s, opts)
 		tips.GiveStackNestedGenerateTip(
 			ctx,
 			l,
@@ -219,7 +218,7 @@ func RunAllOnStack(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	rnr *runner.Runner,
 	r *report.Report,

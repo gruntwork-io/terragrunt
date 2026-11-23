@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"slices"
 
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -201,7 +200,7 @@ const (
 // each reports into Collector.
 type ComponentParser struct {
 	Collector *DiagnosticsCollector
-	Store     *rewrite.Store
+	Store     *config.Store
 	Options   ParserOptions
 }
 
@@ -210,7 +209,7 @@ func (p ComponentParser) Unit(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	unitDir string,
 	configFile string,
@@ -260,6 +259,7 @@ func (p ComponentParser) Stack(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	stackDir string,
 ) []error {
@@ -276,7 +276,7 @@ func (p ComponentParser) Stack(
 
 	var parseErrs []error
 
-	values, err := config.ReadValues(ctx, l, v, parser, stackDir)
+	values, err := config.ReadValues(ctx, l, v, s, parser, stackDir)
 	if err != nil {
 		parseErrs = append(parseErrs, err)
 	}
@@ -291,7 +291,7 @@ func (p ComponentParser) Stack(
 		return append(parseErrs, err)
 	}
 
-	stackCfg, err := config.ParseStackConfig(ctx, l, v, parser, file, values)
+	stackCfg, err := config.ParseStackConfig(ctx, l, v, s, parser, file, values)
 	if err != nil {
 		return append(parseErrs, err)
 	}
@@ -301,7 +301,7 @@ func (p ComponentParser) Stack(
 	// the stack-dependencies experiment is enabled and the config declares
 	// autoinclude.
 	_, autoIncludeErr := config.StackAutoIncludes(
-		ctx, l, v, parser, stackFilePath, stackCfg, values,
+		ctx, l, v, s, parser, stackFilePath, stackCfg, values,
 	)
 	if autoIncludeErr != nil {
 		parseErrs = append(parseErrs, autoIncludeErr)

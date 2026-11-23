@@ -3945,9 +3945,9 @@ func TestTFReadTerragruntAuthProviderCmd(t *testing.T) {
 
 // TestTFReadTerragruntAuthProviderCmdEnvInLocalsRunAll verifies that
 // auth-provider-cmd credentials are available during discovery queue
-// construction (run --all). Without the fix in phase_parse.go, get_env()
+// construction (run --all). Without the fix in internal/discovery/parse.go, get_env()
 // in locals cannot see env vars injected by --auth-provider-cmd because
-// ObtainCredsForParsing is never called during the discovery parse phase.
+// ObtainCredsForParsing is never called during discovery parsing.
 func TestTFReadTerragruntAuthProviderCmdEnvInLocalsRunAll(t *testing.T) {
 	t.Parallel()
 
@@ -4175,6 +4175,29 @@ func TestTFTerragruntVersionConstraintsPartialParse(t *testing.T) {
 
 	ok := errors.As(err, &invalidVersionError)
 	assert.True(t, ok)
+}
+
+func TestTFTerragruntVersionConstraintsPartialParseRunAll(t *testing.T) {
+	t.Parallel()
+
+	fixturePath := "fixtures/partial-parse/terragrunt-version-constraint"
+	tmpEnvPath := helpers.CopyEnvironment(t, fixturePath)
+	rootPath := filepath.Join(tmpEnvPath, fixturePath)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := helpers.RunTerragruntVersionCommand(
+		t,
+		"0.21.23",
+		"terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply -auto-approve",
+		&stdout,
+		&stderr,
+	)
+	helpers.LogBufferContentsLineByLine(t, stdout, "stdout")
+	helpers.LogBufferContentsLineByLine(t, stderr, "stderr")
+
+	require.ErrorAs(t, err, new(run.InvalidTerragruntVersion))
 }
 
 func TestTFLogFailingDependencies(t *testing.T) {

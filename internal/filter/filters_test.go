@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -462,6 +463,106 @@ func TestFilters_EvaluateNegationsAreOrderIndependent(t *testing.T) {
 			assert.Empty(t, paths(result), "excluding db and its dependents leaves nothing")
 		})
 	}
+}
+
+func TestFilters_EvaluateGraphTargetsSkipComponentsReachedByTraversal(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		queries []string
+		want    []string
+	}{
+		{
+			name:    "depth-limited dependents",
+			queries: []string{"1...vpc"},
+			want:    []string{"./east/vpc", "./east/app", "./west/vpc"},
+		},
+		{
+			name:    "every dependent",
+			queries: []string{"...vpc"},
+			want:    []string{"./east/vpc", "./east/app", "./west/vpc", "./west/app"},
+		},
+		{
+			name:    "dependencies",
+			queries: []string{"vpc..."},
+			want:    []string{"./east/vpc"},
+		},
+		{
+			name:    "intersection with a reached target",
+			queries: []string{"...vpc | vpc..."},
+			want:    []string{"./east/vpc", "./west/vpc"},
+		},
+		{
+			name:    "intersection excluding the dependencies of a reached target",
+			queries: []string{"...vpc | !^vpc..."},
+			want:    []string{"./east/app", "./west/vpc", "./west/app"},
+		},
+		{
+			name:    "negation",
+			queries: []string{"!1...vpc"},
+			want:    []string{},
+		},
+		{
+			name:    "negation inside a selecting filter",
+			queries: []string{"!1...vpc | type=unit"},
+			want:    []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			l := logger.CreateLogger()
+
+			found := &component.DiscoveryContext{WorkingDir: "./east"}
+			found.SuggestOrigin(component.OriginPathDiscovery)
+
+			reached := &component.DiscoveryContext{WorkingDir: "./east"}
+			reached.SuggestOrigin(component.OriginGraphDiscovery)
+
+			eastVPC := component.NewUnit("./east/vpc").WithDiscoveryContext(found.Copy())
+			eastApp := component.NewUnit("./east/app").WithDiscoveryContext(found.Copy())
+			westVPC := component.NewUnit("./west/vpc").WithDiscoveryContext(reached.Copy())
+			westApp := component.NewUnit("./west/app").WithDiscoveryContext(reached.Copy())
+
+			eastApp.AddDependency(eastVPC)
+			westVPC.AddDependency(eastVPC)
+			westApp.AddDependency(westVPC)
+
+			filters, err := filter.ParseFilterQueries(l, tt.queries)
+			require.NoError(t, err)
+
+			components := component.Components{eastVPC, eastApp, westVPC, westApp}
+
+			result, err := filters.Evaluate(l, filter.EvaluationContext{}, components)
+			require.NoError(t, err)
+
+			assert.ElementsMatch(t, tt.want, paths(result))
+		})
+	}
+}
+
+func TestFilters_EvaluateNegatedGraphReachingPastItsInput(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+
+	vpc := component.NewUnit("./east/vpc")
+	app := component.NewUnit("./east/app")
+	peer := component.NewUnit("./west/vpc")
+
+	app.AddDependency(vpc)
+	peer.AddDependency(vpc)
+
+	filters, err := filter.ParseFilterQueries(l, []string{"!1...vpc"})
+	require.NoError(t, err)
+
+	result, err := filters.Evaluate(l, filter.EvaluationContext{}, component.Components{vpc, app})
+	require.NoError(t, err)
+
+	assert.Empty(t, paths(result))
 }
 
 func paths(components component.Components) []string {

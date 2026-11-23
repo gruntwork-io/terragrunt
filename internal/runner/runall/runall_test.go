@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
 	"github.com/gruntwork-io/terragrunt/internal/tips"
@@ -31,7 +30,7 @@ func TestMissingRunAllArguments(t *testing.T) {
 
 	tgOptions.TofuCommand = ""
 
-	err = runall.Run(t.Context(), logger.CreateLogger(), venv.MemVenv(), new(rewrite.Store), tgOptions)
+	err = runall.Run(t.Context(), logger.CreateLogger(), venv.MemVenv(), new(config.Store), tgOptions)
 	require.Error(t, err)
 
 	var missingCommand runall.MissingCommand
@@ -68,7 +67,7 @@ func TestRunGivesStackTargetTipOnEarlyReturn(t *testing.T) {
 		log.WithFormatter(format.NewFormatter(placeholders.Placeholders{placeholders.Message()})),
 	)
 
-	err = runall.Run(t.Context(), l, v, new(rewrite.Store), opts)
+	err = runall.Run(t.Context(), l, v, new(config.Store), opts)
 
 	_, missingCommand := errors.AsType[runall.MissingCommand](err)
 	require.True(t, missingCommand, "unexpected error %v", err)

@@ -198,7 +198,7 @@ func TestTFOutputsBlockDeclaredMocksStayOutOfApplyByDefault(t *testing.T) {
 		"terragrunt plan --experiment outputs-block --non-interactive --working-dir "+appPath,
 	)
 	require.NoError(t, err)
-	assert.Contains(t, stdout, "vpc-mock")
+	require.Contains(t, stdout, "vpc-mock")
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(
 		t,
@@ -232,6 +232,6 @@ func TestTFOutputsBlockNullableOutputReadsNull(t *testing.T) {
 	}
 
 	require.NoError(t, json.Unmarshal([]byte(stdout), &outputs))
-	assert.Equal(t, "vpc-real", outputs["vpc_id"].Value)
-	assert.Equal(t, true, outputs["nat_is_null"].Value)
+	require.Equal(t, "vpc-real", outputs["vpc_id"].Value)
+	require.Equal(t, true, outputs["nat_is_null"].Value)
 }

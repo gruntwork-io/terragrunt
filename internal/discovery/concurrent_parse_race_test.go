@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -82,6 +81,6 @@ func TestDiscovery_GraphConcurrentConfigAccessWithRacing(t *testing.T) {
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: repoRoot}).
 		WithFilters(filters)
 
-	_, err = d.Discover(config.WithCaches(t.Context()), l, v, new(rewrite.Store), opts)
+	_, err = d.Discover(config.WithCaches(t.Context()), l, v, new(config.Store), opts)
 	require.NoError(t, err)
 }

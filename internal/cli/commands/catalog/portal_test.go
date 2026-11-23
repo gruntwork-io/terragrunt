@@ -101,6 +101,7 @@ func TestRunLoadsARepoNamedByThePortalAndTheConfigOnceWithRacing(t *testing.T) {
 
 			err := catalog.Run(
 				config.WithCaches(t.Context()), logger.CreateLogger(), v,
+				new(config.Store),
 				newPortalOptions(t, rootDir, catalog.FormatJSONL), "",
 			)
 
@@ -136,7 +137,7 @@ func TestRunWithoutTheExperimentLeavesThePortalAlone(t *testing.T) {
 	opts := newOptions(t, t.TempDir(), catalog.FormatJSONL)
 	opts.PortalBaseURL = portalBaseURL
 
-	require.NoError(t, catalog.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, opts, ""))
+	require.NoError(t, catalog.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(config.Store), opts, ""))
 	assert.Empty(t, buf.String())
 }
 
@@ -165,6 +166,7 @@ func TestRunFetchesEveryOrganizationsCatalogWithRacing(t *testing.T) {
 
 	require.NoError(t, catalog.Run(
 		config.WithCaches(t.Context()), logger.CreateLogger(), v,
+		new(config.Store),
 		newPortalOptions(t, rootDir, catalog.FormatJSONL), "",
 	))
 
@@ -191,6 +193,7 @@ func TestRunWithoutACredentialLeavesThePortalAlone(t *testing.T) {
 
 	err := catalog.Run(
 		config.WithCaches(t.Context()), logger.CreateLogger(), v,
+		new(config.Store),
 		newPortalOptions(t, t.TempDir(), catalog.FormatJSONL), "",
 	)
 
@@ -252,6 +255,7 @@ func TestRunSurvivesAPortalThatServesNoCatalog(t *testing.T) {
 
 			err := catalog.Run(
 				config.WithCaches(t.Context()), logger.CreateLogger(), v,
+				new(config.Store),
 				newPortalOptions(t, rootDir, catalog.FormatJSONL), "",
 			)
 
@@ -286,6 +290,7 @@ func TestRunEndsWhenTheRunIsAbandonedMidFetchWithRacing(t *testing.T) {
 
 	err := catalog.Run(
 		ctx, logger.CreateLogger(), v,
+		new(config.Store),
 		newPortalOptions(t, t.TempDir(), catalog.FormatJSONL), "",
 	)
 
@@ -308,6 +313,7 @@ func TestRunNamesTheRepositoriesItCouldNotClone(t *testing.T) {
 
 	err := catalog.Run(
 		config.WithCaches(t.Context()), logger.CreateLogger(), v,
+		new(config.Store),
 		newPortalOptions(t, rootDir, catalog.FormatJSONL), "",
 	)
 
@@ -333,6 +339,7 @@ func renderCatalog(
 
 	require.NoError(t, catalog.Run(
 		config.WithCaches(t.Context()), logger.CreateLogger(), v,
+		new(config.Store),
 		newPortalOptions(t, rootDir, catalog.FormatJSONL), "",
 	))
 

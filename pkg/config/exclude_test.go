@@ -4,7 +4,6 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
-	"strconv"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -33,8 +32,14 @@ exclude {
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx = pctx.WithDecodeList(config.ExcludeBlock)
 
-	_, err := config.PartialParseConfigFile(ctx, logger.CreateLogger(), v, pctx, cfgPath, nil)
-	require.ErrorAs(t, err, new(config.InvalidExcludeBlockError))
+	s := new(config.Store)
+
+	_, err := s.ResolvePartialConfig(ctx, logger.CreateLogger(), v, pctx, cfgPath)
+
+	var diags hcl.Diagnostics
+
+	require.ErrorAs(t, err, &diags)
+	assert.Equal(t, "Unsuitable value type", diags[0].Summary)
 }
 
 // TestParseConfigFileExcludeReferencingDependencyErrors pins that a full parse
@@ -126,7 +131,9 @@ include "root" {
 			v := venv.MemVenv().WithFS(venvtest.NewFS(t, root, files))
 			ctx, pctx := newTestParsingContext(t, cfgPath)
 
-			_, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, cfgPath, nil)
+			s := new(config.Store)
+
+			_, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, cfgPath)
 
 			var excludeErr config.ExcludeReferencesDependencyError
 			require.ErrorAs(t, err, &excludeErr)
@@ -135,7 +142,11 @@ include "root" {
 	}
 }
 
-// TestPartialParseExcludeWithNullSensitiveOrDependencyString pins that discovery parses null and sensitive string flags like bools, and rejects dependency outputs, instead of panicking.
+// sensitiveValueNotAllowed is the summary of the diagnostic a sensitive value in an exclude block reports.
+const sensitiveValueNotAllowed = "Sensitive value not allowed"
+
+// TestPartialParseExcludeWithNullSensitiveOrDependencyString pins that discovery parses null and known string flags
+// like bools, and rejects sensitive values and dependency outputs, instead of panicking.
 func TestPartialParseExcludeWithNullSensitiveOrDependencyString(t *testing.T) {
 	t.Parallel()
 
@@ -144,6 +155,7 @@ func TestPartialParseExcludeWithNullSensitiveOrDependencyString(t *testing.T) {
 		wantErrAs any
 		name      string
 		exclude   string
+		wantDiag  string
 	}{
 		{
 			name:    "null string no_run",
@@ -181,19 +193,19 @@ func TestPartialParseExcludeWithNullSensitiveOrDependencyString(t *testing.T) {
 			wantErrAs: new(config.ExcludeReferencesDependencyError),
 		},
 		{
-			name:      "sensitive bool if",
-			exclude:   `if = sensitive(true)`,
-			wantErrAs: new(config.InvalidExcludeBlockError),
+			name:     "sensitive bool if",
+			exclude:  `if = sensitive(true)`,
+			wantDiag: sensitiveValueNotAllowed,
 		},
 		{
-			name:      "sensitive string if",
-			exclude:   `if = sensitive("true")`,
-			wantErrAs: new(config.InvalidExcludeBlockError),
+			name:     "sensitive string if",
+			exclude:  `if = sensitive("true")`,
+			wantDiag: sensitiveValueNotAllowed,
 		},
 		{
-			name:      "sensitive null string if",
-			exclude:   `if = sensitive(tostring(null))`,
-			wantErrAs: new(config.InvalidExcludeBlockError),
+			name:     "sensitive null string if",
+			exclude:  `if = sensitive(tostring(null))`,
+			wantDiag: sensitiveValueNotAllowed,
 		},
 		{
 			name:      "sensitive dependency output string if",
@@ -211,9 +223,9 @@ func TestPartialParseExcludeWithNullSensitiveOrDependencyString(t *testing.T) {
 			},
 		},
 		{
-			name:      "invalid string if",
-			exclude:   `if = "maybe"`,
-			wantErrAs: new(*strconv.NumError),
+			name:     "invalid string if",
+			exclude:  `if = "maybe"`,
+			wantDiag: "Unsuitable value type",
 		},
 	}
 
@@ -242,9 +254,20 @@ exclude {
 			ctx, pctx := newTestParsingContext(t, cfgPath)
 			pctx = pctx.WithDecodeList(config.DependencyBlock, config.ExcludeBlock).WithSkipOutputsResolution()
 
-			parsed, err := config.PartialParseConfigFile(ctx, logger.CreateLogger(), v, pctx, cfgPath, nil)
+			s := new(config.Store)
+
+			parsed, err := s.ResolvePartialConfig(ctx, logger.CreateLogger(), v, pctx, cfgPath)
 			if tt.wantErrAs != nil {
 				require.ErrorAs(t, err, tt.wantErrAs)
+				return
+			}
+
+			if tt.wantDiag != "" {
+				var diags hcl.Diagnostics
+
+				require.ErrorAs(t, err, &diags)
+				assert.Equal(t, tt.wantDiag, diags[0].Summary)
+
 				return
 			}
 
@@ -289,7 +312,9 @@ exclude {
 			ctx, pctx := newTestParsingContext(t, cfgPath)
 			pctx = pctx.WithDecodeList(config.ExcludeBlock).WithSkipOutputsResolution()
 
-			_, partialErr := config.PartialParseConfigFile(ctx, logger.CreateLogger(), v, pctx, cfgPath, nil)
+			s := new(config.Store)
+
+			_, partialErr := s.ResolvePartialConfig(ctx, logger.CreateLogger(), v, pctx, cfgPath)
 
 			var partialDiags hcl.Diagnostics
 
@@ -298,7 +323,7 @@ exclude {
 			assert.Equal(t, tt.wantSummary, partialDiags[0].Summary)
 
 			fullCtx, fullPctx := newTestParsingContext(t, cfgPath)
-			_, fullErr := config.ParseConfigFile(fullCtx, logger.CreateLogger(), v, fullPctx, cfgPath, nil)
+			_, fullErr := s.ResolveRunConfig(fullCtx, logger.CreateLogger(), v, fullPctx, cfgPath)
 
 			var fullDiags hcl.Diagnostics
 
@@ -334,7 +359,9 @@ include "root" {
 	v := venv.MemVenv().WithFS(fsys)
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 
-	_, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, cfgPath, nil)
+	s := new(config.Store)
+
+	_, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, cfgPath)
 	require.ErrorContains(t, err, "null value is not allowed")
 	assert.ErrorContains(t, err, filepath.Join(root, "root.hcl"))
 }

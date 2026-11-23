@@ -23,14 +23,14 @@ type dependencyAddress struct {
 	expanded    bool
 }
 
-// withNoOutputsError joins a [TerragruntOutputTargetNoOutputs] error to err when err has a diagnostic for a
-// reference to a missing output of a dependency whose outputs resolved to an empty object. It returns err
-// unchanged otherwise, and always when the empty-dependency-outputs experiment is disabled.
+// WithNoOutputsError joins a [TerragruntOutputTargetNoOutputs] error to err when err has a diagnostic for a
+// reference to a missing output of a dependency whose outputs resolved to an empty object, and returns err unchanged
+// otherwise. Such a reference fails at evaluation with a diagnostic that says nothing about the dependency being
+// unapplied.
 //
-// With the experiment enabled, a dependency that has no outputs resolves to an empty object, so a reference to
-// one of its outputs reaches evaluation and fails there with a diagnostic that says nothing about the
-// dependency being unapplied.
-func withNoOutputsError(v *venv.Venv, pctx *ParsingContext, err error) error {
+// It reads the outputs from [ParsingContext.DecodedDependencies] and the dependency from
+// [ParsingContext.DependencyBlocks].
+func WithNoOutputsError(v *venv.Venv, pctx *ParsingContext, err error) error {
 	if !pctx.Experiments.Evaluate(experiment.EmptyDependencyOutputs) {
 		return err
 	}
