@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"sync"
 	"testing"
 
@@ -362,6 +363,58 @@ catalog {
 	defer mu.Unlock()
 
 	assert.Empty(t, commands)
+}
+
+func TestReadCatalogConfigFetchesTheOutputsOfADependency(t *testing.T) {
+	t.Parallel()
+
+	v := venvtest.NewWithOSFS()
+
+	printOutputs := func(_ context.Context, inv vexec.Invocation) vexec.Result {
+		if inv.Dir != "" && !vfs.Exists(v.FS, inv.Dir) {
+			return vexec.Result{ExitCode: 1, Stderr: []byte("no such directory: " + inv.Dir)}
+		}
+
+		if slices.Contains(inv.Args, "output") {
+			return vexec.Result{
+				Stdout: []byte(`{"urls": {"type": ["list", "string"], "value": ["https://example.com/networking"]}}`),
+			}
+		}
+
+		return vexec.Result{}
+	}
+
+	v = v.WithExec(vexec.NewMemExec(printOutputs))
+
+	rootDir, err := vfs.EvalSymlinks(v.FS, t.TempDir())
+	require.NoError(t, err)
+
+	files := map[string]string{
+		"registry/terragrunt.hcl": "",
+		"registry/main.tf":        `output "urls" { value = ["https://example.com/networking"] }`,
+		"root.hcl": `
+dependency "registry" {
+  config_path = "${get_parent_terragrunt_dir()}/registry"
+}
+
+catalog {
+  urls = dependency.registry.outputs.urls
+}
+`,
+	}
+
+	for path, content := range files {
+		file := filepath.Join(rootDir, filepath.FromSlash(path))
+		require.NoError(t, v.FS.MkdirAll(filepath.Dir(file), 0o755))
+		require.NoError(t, vfs.WriteFile(v.FS, file, []byte(content), 0o644))
+	}
+
+	ctx, pctx := newTestParsingContext(t, filepath.Join(rootDir, "terragrunt.hcl"))
+	pctx.ScaffoldRootFileName = "root.hcl"
+
+	cfg, err := config.ReadCatalogConfig(ctx, logger.CreateLogger(), v, new(config.Store), pctx)
+	require.NoError(t, err)
+	assert.Equal(t, &config.CatalogConfig{URLs: []string{"https://example.com/networking"}}, cfg)
 }
 
 // TestParseConfigStringKeepsCommandsInAMissingConfigDir pins that only a catalog

@@ -12,13 +12,12 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/zclconf/go-cty/cty"
 )
 
 const (
-	catalogStubPerms = 0o644
-
 	rootConfigFmt = `
 include "root" {
   path = find_in_parent_folders("%s")
@@ -107,27 +106,18 @@ func ReadCatalogConfig(
 	pctx.Parser.HaltOnErrorOnlyInBlocks = append(pctx.Parser.HaltOnErrorOnlyInBlocks, MetadataCatalog)
 	pctx.catalogOnly = true
 
-	catalogV := v
-
 	if !vfs.Exists(v.FS, cfgPath) {
 		pctx.catalogStubDir = filepath.Dir(cfgPath)
-
-		fsys := vfs.NewOverlayFS(v.FS, vfs.NewMemMapFS())
-		if err := vfs.WriteFile(fsys, cfgPath, []byte(configString), catalogStubPerms); err != nil {
-			return nil, err
-		}
-
-		catalogV = v.WithFS(fsys)
 	}
 
-	pctx = pctx.forStore(catalogV)
+	pctx = pctx.forStore(v)
 
 	ctx, release := s.withReleaseScope(parentCtx)
 	defer release()
 
-	c, config, err := s.resolveFile(ctx, l, catalogV, pctx, cfgPath)
+	c, config, err := s.resolveCatalogFile(ctx, l, v, pctx, cfgPath, configString)
 	if c != nil && c.catalogReadsDependency() {
-		config, err = c.ResolveRunConfig(ctx, l, catalogV, s, pctx)
+		config, err = c.ResolveRunConfig(ctx, l, v, s, pctx)
 	}
 
 	if err != nil {
@@ -135,6 +125,31 @@ func ReadCatalogConfig(
 	}
 
 	return config.Catalog, nil
+}
+
+// resolveCatalogFile resolves the config at cfgPath that [ReadCatalogConfig] found, parsing content as the child it
+// generated when there is one.
+func (s *Store) resolveCatalogFile(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pc *ParsingContext,
+	cfgPath, content string,
+) (*UnitConfig, *TerragruntConfig, error) {
+	if pc.catalogStubDir == "" {
+		return s.resolveFile(ctx, l, v, pc, cfgPath)
+	}
+
+	pc, err := pc.incrementDepth()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	parse := func(_ context.Context, parser *hclparse.Parser) (*hclparse.File, error) {
+		return parser.ParseFromString(content, cfgPath)
+	}
+
+	return s.resolveParsed(ctx, l, v, pc, cfgPath, parse)
 }
 
 func findCatalogConfig(

@@ -302,12 +302,28 @@ func (s *Store) resolveFileOnce(
 		return nil, nil, err
 	}
 
+	parse := func(ctx context.Context, parser *hclparse.Parser) (*hclparse.File, error) {
+		return s.ParseUnitAST(ctx, v.FS, cfgPath, info, parser)
+	}
+
+	return s.resolveParsed(ctx, l, v, pc, cfgPath, parse)
+}
+
+// resolveParsed resolves the file at cfgPath with pc from the syntax tree that parse returns.
+func (s *Store) resolveParsed(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pc *ParsingContext,
+	cfgPath string,
+	parse func(ctx context.Context, parser *hclparse.Parser) (*hclparse.File, error),
+) (*UnitConfig, *TerragruntConfig, error) {
 	var (
 		c   *UnitConfig
 		cfg *TerragruntConfig
 	)
 
-	err = TraceParseConfigFile(
+	err := TraceParseConfigFile(
 		ctx,
 		l,
 		cfgPath,
@@ -319,7 +335,7 @@ func (s *Store) resolveFileOnce(
 		func(childCtx context.Context, l log.Logger) error {
 			parser := hclparse.NewParser(pc.ParserOptions(l, v)...)
 
-			file, parseErr := s.ParseUnitAST(childCtx, v.FS, cfgPath, info, parser)
+			file, parseErr := parse(childCtx, parser)
 			if parseErr != nil {
 				return parseErr
 			}
