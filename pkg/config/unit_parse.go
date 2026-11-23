@@ -595,6 +595,7 @@ func validateDependencyReferences(pc *ParsingContext, file *hclparse.File) error
 // withFileIAMRole returns pc with the IAM role options a full parse of file evaluates with: the iam_role and
 // iam_web_identity_token of its config, merged with those of the files it merges, under the options passed on the
 // CLI. A role ARN passed on the CLI wins outright. A partial parse keeps the role of pc.
+// A partial parse that decodes [moduleDirAttributes] takes the IAM role options of file instead.
 //
 // The options come from a partial resolution of file through s, whose errors the full parse reports again.
 //
@@ -606,7 +607,7 @@ func (s *Store) withFileIAMRole(
 	pc *ParsingContext,
 	file *hclparse.File,
 ) (*ParsingContext, error) {
-	if len(pc.PartialParseDecodeList) > 0 {
+	if !pc.decodes(moduleDirAttributes) {
 		return pc, nil
 	}
 

@@ -16,6 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
+	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -318,6 +319,85 @@ inputs = {
 	require.NoError(t, result.runConfigErr)
 	require.NotNil(t, result.cfg)
 	assert.Equal(t, appDir, result.cfg.Inputs["module"])
+}
+
+func TestPathVariableModuleEvaluatesTheSourceWithTheIAMRoleOfTheUnit(t *testing.T) {
+	t.Parallel()
+
+	const (
+		role = `
+iam_role               = "arn:aws:iam::222222222222:role/unit"
+iam_web_identity_token = "unit-token"
+`
+		unit = `
+terraform {
+  source = "../modules/${get_aws_account_id()}"
+}
+
+inputs = {
+  module = path.module
+}
+`
+		include = `
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+`
+	)
+
+	testCases := []struct {
+		files map[string]string
+		name  string
+	}{
+		{
+			name: "role in the unit",
+			files: map[string]string{
+				"modules/111111111111/main.tf": "",
+				"modules/222222222222/main.tf": "",
+				"unit/terragrunt.hcl":          role + unit,
+			},
+		},
+		{
+			name: "role in an included file",
+			files: map[string]string{
+				"modules/111111111111/main.tf": "",
+				"modules/222222222222/main.tf": "",
+				"root.hcl":                     role,
+				"unit/terragrunt.hcl":          include + unit,
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := vfs.MemRoot
+			unitDir := filepath.Join(root, "unit")
+			cfgPath := filepath.Join(unitDir, config.DefaultTerragruntConfigPath)
+			l := logger.CreateLogger()
+
+			sts, _ := memSTS()
+			v := venv.MemVenv().
+				WithFS(memFS(root, tc.files)(t)).
+				WithHTTP(sts).
+				WithEnv(map[string]string{"AWS_REGION": "us-east-1"})
+
+			ctx, pctx := newPathParsingContext(t, cfgPath)
+			pctx.IAMRoleOptions = iam.RoleOptions{
+				RoleARN:          "arn:aws:iam::111111111111:role/run",
+				WebIdentityToken: "run-token",
+			}
+
+			cfg, err := new(config.Store).ResolveRunConfig(ctx, l, v, pctx, cfgPath)
+			require.NoError(t, err)
+
+			want, err := tf.NewSource(l, v.FS, "../modules/222222222222", pctx.DownloadDir, unitDir, false)
+			require.NoError(t, err)
+
+			assert.Equal(t, want.WorkingDir, cfg.Inputs["module"])
+		})
+	}
 }
 
 func TestPathVariableModuleOfRejectedInPlaceUnit(t *testing.T) {
