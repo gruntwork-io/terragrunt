@@ -36,10 +36,12 @@ type Component struct {
 // Resolve returns the values of the component c given s: an object with one attribute per declared value.
 //
 // Reports a diagnostic for a key that d does not declare, a value that does not convert to its type, a required value
-// that s does not set, and a supply that is not an object or map. Each value that fails becomes an unknown value of
-// its type. One diagnostic names every required value that s does not set.
+// that s does not set, a null for a required value that is not nullable, and a supply that is not an object or map.
+// Each value that fails becomes an unknown value of its type. One diagnostic names every required value that s does
+// not set.
 //
-// A supplied null stays null. Only a value that s does not set takes its default.
+// A value that s does not set takes its default. A null that s sets stays null for a nullable value, and takes the
+// default otherwise.
 func (d *Declarations) Resolve(s *Supplied, c Component) (cty.Value, hcl.Diagnostics) {
 	supplied, marks := s.value.Unmark()
 
@@ -73,17 +75,23 @@ func (d *Declarations) Resolve(s *Supplied, c Component) (cty.Value, hcl.Diagnos
 
 	for i := range d.Values {
 		decl := &d.Values[i]
+		val, set := given[decl.Name]
+		dropped := set && val.IsNull() && !decl.Nullable
 
-		if _, ok := given[decl.Name]; !ok && decl.Default == nil {
+		switch {
+		case dropped && decl.Default == nil:
+			diags = append(diags, decl.nullDiagnostic(s, c))
+			out[decl.Name] = decl.placeholder()
+		case set && !dropped:
+			converted, declDiags := decl.resolve(val, s, c)
+			diags = append(diags, declDiags...)
+			out[decl.Name] = converted
+		case decl.Default != nil:
+			out[decl.Name] = *decl.Default
+		default:
 			missing = append(missing, decl)
 			out[decl.Name] = decl.placeholder()
-
-			continue
 		}
-
-		val, declDiags := decl.resolve(given, s, c)
-		diags = append(diags, declDiags...)
-		out[decl.Name] = val
 	}
 
 	if len(missing) > 0 {
@@ -124,14 +132,8 @@ func (d *Declarations) resolvedType() cty.Type {
 	return cty.Object(attrs)
 }
 
-// resolve returns the value given sets for d, converted to the type of d, or the default of d when given does not set
-// it.
-func (d *Declaration) resolve(given map[string]cty.Value, s *Supplied, c Component) (cty.Value, hcl.Diagnostics) {
-	val, ok := given[d.Name]
-	if !ok {
-		return *d.Default, nil
-	}
-
+// resolve returns val, the value s sets for d, converted to the type of d.
+func (d *Declaration) resolve(val cty.Value, s *Supplied, c Component) (cty.Value, hcl.Diagnostics) {
 	converted, err := d.convert(val)
 	if err != nil {
 		return d.placeholder(), hcl.Diagnostics{{
@@ -152,6 +154,23 @@ func (d *Declaration) resolve(given map[string]cty.Value, s *Supplied, c Compone
 // placeholder is the value of d when it fails to resolve.
 func (d *Declaration) placeholder() cty.Value {
 	return cty.UnknownVal(d.Type.WithoutOptionalAttributesDeep())
+}
+
+// nullDiagnostic reports the null that s sets for d, a required value that is not nullable.
+func (d *Declaration) nullDiagnostic(s *Supplied, c Component) *hcl.Diagnostic {
+	return &hcl.Diagnostic{
+		Severity: hcl.DiagError,
+		Summary:  fmt.Sprintf("Null value %q%s", d.Name, c.suffix()),
+		Detail: fmt.Sprintf(
+			"The %s at %s requires the value %q, declared at %s, and does not accept null for it. Set a value, or set "+
+				"nullable = true in its declaration.",
+			c.Kind,
+			c.Location,
+			d.Name,
+			d.DefRange,
+		),
+		Subject: s.valueRange(d.Name).Ptr(),
+	}
 }
 
 // missingDiagnostic reports missing, the required values that s does not set, in declaration order.

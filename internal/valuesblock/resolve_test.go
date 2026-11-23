@@ -254,14 +254,16 @@ func TestResolve(t *testing.T) {
 			}),
 		},
 		{
-			name: "explicit null stays a typed null",
+			name: "supplied null for a nullable value stays a typed null",
 			decls: `values {
   value "s" {
-    type    = string
-    default = "d"
+    type     = string
+    default  = "d"
+    nullable = true
   }
   value "any" {
-    default = "d"
+    default  = "d"
+    nullable = true
   }
 }`,
 			component: reading,
@@ -270,6 +272,43 @@ func TestResolve(t *testing.T) {
 				"s":   cty.NullVal(cty.String),
 				"any": cty.NullVal(cty.DynamicPseudoType),
 			}),
+		},
+		{
+			name: "supplied null takes the default",
+			decls: `values {
+  value "s" {
+    type    = string
+    default = "d"
+  }
+  value "none" {
+    default = null
+  }
+}`,
+			component: reading,
+			supply:    `{ s = null, none = null }`,
+			want: cty.ObjectVal(map[string]cty.Value{
+				"s":    cty.StringVal("d"),
+				"none": cty.NullVal(cty.DynamicPseudoType),
+			}),
+		},
+		{
+			name: "supplied null for a required value",
+			decls: `values {
+  value "n" {
+    type = number
+  }
+}`,
+			component: generating,
+			supply: `{
+  n = null
+}`,
+			diags: []wantDiag{{
+				summary: `Null value "n" for unit "app"`,
+				detail: `The unit at catalog/units/app requires the value "n", declared at test.hcl:2,3-12, and does ` +
+					`not accept null for it. Set a value, or set nullable = true in its declaration.`,
+				line: 2,
+			}},
+			want: cty.ObjectVal(map[string]cty.Value{"n": cty.UnknownVal(cty.Number)}),
 		},
 		{
 			name:      "supply that is not an object",

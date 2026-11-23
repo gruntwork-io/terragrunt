@@ -100,10 +100,39 @@ values {
 			name: "unexpected attribute in value",
 			src: `values {
   value "a" {
-    nullable = true
+    sensitive = true
   }
 }`,
 			want: []wantDiag{{summary: "Unsupported argument", line: 3}},
+		},
+		{
+			name: "nullable",
+			src: `values {
+  value "set" {
+    nullable = true
+  }
+  value "unset" {}
+}`,
+			check: func(t *testing.T, decls *valuesblock.Declarations) {
+				t.Helper()
+				assert.True(t, lookup(t, decls, "set").Nullable)
+				assert.False(t, lookup(t, decls, "unset").Nullable)
+			},
+		},
+		{
+			name: "invalid nullable",
+			src: `values {
+  value "a" {
+    nullable = "maybe"
+  }
+  value "b" {
+    nullable = null
+  }
+}`,
+			want: []wantDiag{
+				{summary: "Invalid nullable", detail: `The nullable attribute of value "a" must be true or false.`, line: 3},
+				{summary: "Invalid nullable", detail: `The nullable attribute of value "b" must be true or false.`, line: 6},
+			},
 		},
 		{
 			name: "unexpected block in value",

@@ -20,6 +20,7 @@ const (
 	typeAttr        = "type"
 	defaultAttr     = "default"
 	descriptionAttr = "description"
+	nullableAttr    = "nullable"
 )
 
 var (
@@ -30,7 +31,12 @@ var (
 		Blocks: []hcl.BlockHeaderSchema{{Type: valueBlockName, LabelNames: []string{"name"}}},
 	}
 	valueBlockSchema = &hcl.BodySchema{
-		Attributes: []hcl.AttributeSchema{{Name: typeAttr}, {Name: defaultAttr}, {Name: descriptionAttr}},
+		Attributes: []hcl.AttributeSchema{
+			{Name: typeAttr},
+			{Name: defaultAttr},
+			{Name: descriptionAttr},
+			{Name: nullableAttr},
+		},
 	}
 )
 
@@ -57,14 +63,17 @@ type Declaration struct {
 	Description string
 	// DefRange is the header of the value block.
 	DefRange hcl.Range
+	// Nullable reports whether a supplied null stays null. When it is false, a supplied null takes the default.
+	Nullable bool
 }
 
 // Decode reads the values block of body, ignoring everything else in body. It returns nil when body has no values
 // block.
 //
 // Reports a diagnostic for a second values block, a value name that is not a valid identifier, a name declared twice,
-// an unexpected attribute or block, an invalid type constraint, a default or description that is not a constant, a
-// default that does not conform to the type, and a description that is not a string.
+// an unexpected attribute or block, an invalid type constraint, a default, description, or nullable that is not a
+// constant, a default that does not conform to the type, a description that is not a string, and a nullable that is not
+// a bool.
 //
 // A value block whose type or default fails to decode accepts any value and resolves to an unknown value when nothing
 // sets it.
@@ -183,6 +192,12 @@ func decodeValue(block *hcl.Block) (Declaration, hcl.Diagnostics) {
 		decl.Description = description
 	}
 
+	if attr, ok := content.Attributes[nullableAttr]; ok {
+		nullable, nullableDiags := decodeNullable(decl.Name, attr)
+		diags = append(diags, nullableDiags...)
+		decl.Nullable = nullable
+	}
+
 	typeDiags := decl.decodeType(content.Attributes[typeAttr])
 	diags = append(diags, typeDiags...)
 
@@ -274,4 +289,24 @@ func decodeDescription(name string, attr *hcl.Attribute) (string, hcl.Diagnostic
 	}
 
 	return description.AsString(), diags
+}
+
+// decodeNullable evaluates the nullable attribute of the value name.
+func decodeNullable(name string, attr *hcl.Attribute) (bool, hcl.Diagnostics) {
+	val, diags := attr.Expr.Value(nil)
+	if diags.HasErrors() {
+		return false, diags
+	}
+
+	nullable, err := convert.Convert(val, cty.Bool)
+	if err != nil || nullable.IsNull() {
+		return false, append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  "Invalid nullable",
+			Detail:   fmt.Sprintf("The nullable attribute of value %q must be true or false.", name),
+			Subject:  attr.Expr.Range().Ptr(),
+		})
+	}
+
+	return nullable.True(), diags
 }

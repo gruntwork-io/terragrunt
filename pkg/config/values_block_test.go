@@ -778,7 +778,7 @@ settings       = { name = "api", size = 5 }
 			},
 		},
 		{
-			name: "supplied null",
+			name: "supplied null takes the default",
 			files: map[string]string{
 				"unit/terragrunt.hcl": unitConfig,
 				"unit/terragrunt.values.hcl": `
@@ -788,7 +788,7 @@ tags           = null
 			},
 			inputs: map[string]any{
 				"instance_count": json.Number("1"),
-				"tags":           nil,
+				"tags":           map[string]any{},
 				"size":           json.Number("3"),
 				"name":           "app",
 			},
