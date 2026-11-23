@@ -254,7 +254,7 @@ func TestTFAutoInitRunsWhenAVariableAModuleSourceReadsChanges(t *testing.T) {
 	t.Parallel()
 
 	if helpers.IsTerraform(t.Context()) {
-		t.Skip("Terraform does not evaluate variables in module sources")
+		t.Skip("Terraform evaluates only const variables in module sources")
 		return
 	}
 

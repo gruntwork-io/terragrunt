@@ -148,6 +148,7 @@ func TestSchemaMatchesPkgConfig(t *testing.T) {
 			block:  config.MetadataCatalog,
 			v1:     reflect.TypeFor[config.CatalogConfig](),
 			header: reflect.TypeFor[config.CatalogHCL](),
+			bodies: []reflect.Type{reflect.TypeFor[config.CatalogBody]()},
 		},
 		{
 			block:  config.MetadataExclude,

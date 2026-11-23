@@ -711,6 +711,115 @@ func TestInitFingerprintCountsInputsWhenInitEvaluatesVariables(t *testing.T) {
 	}
 }
 
+func TestInitFingerprintCountsStaticReferencesInDownloadedModules(t *testing.T) {
+	t.Parallel()
+
+	const (
+		versionReadsVariable = `variable "release" {}
+
+module "pinned" {
+  source  = "registry.opentofu.org/example/pinned/null"
+  version = var.release
+}
+`
+		jsonSourceReadsVariable = `{"module": {"pinned": {"source": "${var.origin}"}}}`
+	)
+
+	changeDefault := func(t *testing.T, fsys vfs.FS, unit string, _ *tf.InitInputs) {
+		t.Helper()
+		writeTestFile(t, fsys, filepath.Join(unit, "release.tf"), `variable "release" { default = "2.0.0" }`)
+	}
+
+	testCases := []struct {
+		mutate      func(t *testing.T, fsys vfs.FS, unit string, inputs *tf.InitInputs)
+		module      map[string]string
+		name        string
+		wantChanged bool
+	}{
+		{
+			name:        "variable default changed when a module version reads a variable",
+			module:      map[string]string{"main.tf": versionReadsVariable},
+			mutate:      changeDefault,
+			wantChanged: true,
+		},
+		{
+			name:   "TF_VAR_ variable changed when a module version reads a variable",
+			module: map[string]string{"main.tf": versionReadsVariable},
+			mutate: func(_ *testing.T, _ vfs.FS, _ string, inputs *tf.InitInputs) {
+				inputs.Env["TF_VAR_release"] = "2.0.0"
+			},
+			wantChanged: true,
+		},
+		{
+			name:        "variable default changed when a JSON module source reads a variable",
+			module:      map[string]string{"main.tf.json": jsonSourceReadsVariable},
+			mutate:      changeDefault,
+			wantChanged: true,
+		},
+		{
+			name:        "variable default changed when the module has no static references",
+			module:      map[string]string{"main.tf": fingerprintChildTF},
+			mutate:      changeDefault,
+			wantChanged: false,
+		},
+		{
+			name:   "TF_VAR_ variable changed when the module has no static references",
+			module: map[string]string{"main.tf": fingerprintChildTF},
+			mutate: func(_ *testing.T, _ vfs.FS, _ string, inputs *tf.InitInputs) {
+				inputs.Env["TF_VAR_release"] = "2.0.0"
+			},
+			wantChanged: false,
+		},
+		{
+			name:        "variable default changed when a module file fails to parse",
+			module:      map[string]string{"main.tf": fingerprintBrokenTF},
+			mutate:      changeDefault,
+			wantChanged: true,
+		},
+		{
+			name:        "variable default changed when a module file is too large to parse",
+			module:      map[string]string{"main.tf": strings.Repeat("# padding\n", 1<<17)},
+			mutate:      changeDefault,
+			wantChanged: true,
+		},
+		{
+			name:        "variable default changed when the module directory is gone",
+			mutate:      changeDefault,
+			wantChanged: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			fsys := vfs.NewMemMapFS()
+			unit := writeInitializedUnit(t, fsys, "/work")
+			dataDir := filepath.Join(unit, ".terraform")
+			downloaded := filepath.Join(dataDir, "modules", "remote")
+
+			require.NoError(t, fsys.RemoveAll(downloaded))
+
+			for name, content := range tc.module {
+				writeTestFile(t, fsys, filepath.Join(downloaded, name), content)
+			}
+
+			writeTestFile(t, fsys, filepath.Join(unit, "release.tf"), `variable "release" { default = "1.0.0" }`)
+
+			inputs := tf.InitInputs{Env: map[string]string{"TF_VAR_release": "1.0.0"}}
+
+			before, err := tf.ComputeInitFingerprint(fsys, unit, dataDir, returnInitInputs(&inputs))
+			require.NoError(t, err)
+
+			tc.mutate(t, fsys, unit, &inputs)
+
+			got, err := tf.InitFingerprintCurrent(fsys, unit, dataDir, before, returnInitInputs(&inputs))
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantChanged, !got)
+		})
+	}
+}
+
 func TestInitFingerprintCountsTheVariablesStaticReferencesRead(t *testing.T) {
 	t.Parallel()
 

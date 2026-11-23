@@ -237,6 +237,133 @@ catalog { urls = [local.shared.locals.url] }
 	}
 }
 
+func TestReadCatalogConfigReadsDependencyOutputs(t *testing.T) {
+	t.Parallel()
+
+	for name, tc := range map[string]struct {
+		want    *config.CatalogConfig
+		catalog string
+	}{
+		"in urls": {
+			catalog: `urls = concat(dependency.registry.outputs.urls, ["https://example.com/shared"])`,
+			want: &config.CatalogConfig{
+				URLs: []string{"https://example.com/networking", "https://example.com/shared"},
+			},
+		},
+		"in default_template": {
+			catalog: `
+urls             = ["https://example.com/shared"]
+default_template = dependency.registry.outputs.template
+no_shell         = true
+`,
+			want: &config.CatalogConfig{
+				URLs:            []string{"https://example.com/shared"},
+				DefaultTemplate: "https://example.com/template",
+				NoShell:         new(true),
+			},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			v := venvtest.NewWithOSFS()
+
+			rootDir, err := vfs.EvalSymlinks(v.FS, t.TempDir())
+			require.NoError(t, err)
+
+			files := map[string]string{
+				"registry/terragrunt.hcl": "",
+				"root.hcl": `
+dependency "registry" {
+  config_path  = "${get_parent_terragrunt_dir()}/registry"
+  skip_outputs = true
+
+  mock_outputs = {
+    urls     = ["https://example.com/networking"]
+    template = "https://example.com/template"
+  }
+}
+
+catalog {
+` + tc.catalog + `
+}
+`,
+			}
+
+			for path, content := range files {
+				file := filepath.Join(rootDir, filepath.FromSlash(path))
+				require.NoError(t, v.FS.MkdirAll(filepath.Dir(file), 0o755))
+				require.NoError(t, vfs.WriteFile(v.FS, file, []byte(content), 0o644))
+			}
+
+			ctx, pctx := newTestParsingContext(t, filepath.Join(rootDir, "terragrunt.hcl"))
+			pctx.ScaffoldRootFileName = "root.hcl"
+
+			cfg, err := config.ReadCatalogConfig(ctx, logger.CreateLogger(), v, new(config.Store), pctx)
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, cfg)
+		})
+	}
+}
+
+func TestReadCatalogConfigFetchesNoOutputsForACatalogThatReadsNoDependency(t *testing.T) {
+	t.Parallel()
+
+	var (
+		mu       sync.Mutex
+		commands []string
+	)
+
+	failEverything := func(_ context.Context, inv vexec.Invocation) vexec.Result {
+		mu.Lock()
+		defer mu.Unlock()
+
+		commands = append(commands, inv.Name)
+
+		return vexec.Result{ExitCode: 1, Stderr: []byte("no state")}
+	}
+
+	v := venvtest.NewWithOSFS().WithExec(vexec.NewMemExec(failEverything))
+
+	rootDir, err := vfs.EvalSymlinks(v.FS, t.TempDir())
+	require.NoError(t, err)
+
+	files := map[string]string{
+		"network/terragrunt.hcl": "",
+		"root.hcl": `
+dependency "network" {
+  config_path = "${get_parent_terragrunt_dir()}/network"
+}
+
+inputs = {
+  subnet_id = dependency.network.outputs.subnet_id
+}
+
+catalog {
+  urls = ["https://example.com/modules"]
+}
+`,
+	}
+
+	for path, content := range files {
+		file := filepath.Join(rootDir, filepath.FromSlash(path))
+		require.NoError(t, v.FS.MkdirAll(filepath.Dir(file), 0o755))
+		require.NoError(t, vfs.WriteFile(v.FS, file, []byte(content), 0o644))
+	}
+
+	ctx, pctx := newTestParsingContext(t, filepath.Join(rootDir, "app", "terragrunt.hcl"))
+	pctx.ScaffoldRootFileName = "root.hcl"
+
+	cfg, err := config.ReadCatalogConfig(ctx, logger.CreateLogger(), v, new(config.Store), pctx)
+	require.NoError(t, err)
+	assert.Equal(t, &config.CatalogConfig{URLs: []string{"https://example.com/modules"}}, cfg)
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	assert.Empty(t, commands)
+}
+
 // TestParseConfigStringKeepsCommandsInAMissingConfigDir pins that only a catalog
 // read moves run_cmd out of a directory that doesn't exist. Any other parse
 // fails there, so a config never runs a program somewhere it did not name.

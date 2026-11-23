@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"slices"
 
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -87,7 +88,8 @@ func (cfg *CatalogConfig) normalize(fsys vfs.FS, cfgPath string) {
 // config contains `include{...find_in_parent_folders()...}` block to determine if it is the root configuration.
 // If it finds `terragrunt.hcl` that already has `include`, then read that configuration as is,
 // otherwise generate a stub child `terragrunt.hcl` in memory with an `include` to pull in the one we found.
-// Unlike [Store.ReadTerragruntConfig], it ignores any configuration errors not related to the "catalog" block.
+// Unlike [Store.ReadTerragruntConfig], it ignores any configuration errors not related to the "catalog" block, and it
+// fetches dependency outputs only when a catalog block reads `dependency`.
 func ReadCatalogConfig(
 	parentCtx context.Context,
 	l log.Logger,
@@ -118,7 +120,16 @@ func ReadCatalogConfig(
 		catalogV = v.WithFS(fsys)
 	}
 
-	config, err := s.ResolveUnitQueueConfig(parentCtx, l, catalogV, pctx, cfgPath)
+	pctx = pctx.forStore(catalogV)
+
+	ctx, release := s.withReleaseScope(parentCtx)
+	defer release()
+
+	c, config, err := s.resolveFile(ctx, l, catalogV, pctx, cfgPath)
+	if c != nil && c.catalogReadsDependency() {
+		config, err = c.ResolveRunConfig(ctx, l, catalogV, s, pctx)
+	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -239,4 +250,17 @@ func convertToTerragruntCatalogConfig(
 	}
 
 	return cfg, nil
+}
+
+// catalogReadsDependency reports whether the catalog block of c, or of a file c merges, reads `dependency`.
+func (c *UnitConfig) catalogReadsDependency() bool {
+	if c.Catalog != nil && c.Catalog.readsDependency() {
+		return true
+	}
+
+	merged := append([]*includedFile{c.kept.autoInclude}, c.kept.included...)
+
+	return slices.ContainsFunc(merged, func(file *includedFile) bool {
+		return file != nil && file.cfg != nil && file.cfg.catalogReadsDependency()
+	})
 }

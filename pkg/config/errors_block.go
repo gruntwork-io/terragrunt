@@ -234,12 +234,8 @@ func mergeIgnoreBlocks(existing, other []*IgnoreBlock) []*IgnoreBlock {
 }
 
 // lastBlockPerLabel returns one block for each label in blocks: the last block declared with the label, at the
-// position of the first. It returns nil when blocks is empty.
+// position of the first.
 func lastBlockPerLabel[B interface{ label() string }](blocks []B) []B {
-	if len(blocks) == 0 {
-		return nil
-	}
-
 	result := make([]B, 0, len(blocks))
 	indexByLabel := make(map[string]int, len(blocks))
 

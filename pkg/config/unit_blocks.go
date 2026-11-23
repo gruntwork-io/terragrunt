@@ -9,6 +9,11 @@ import (
 
 // CatalogHCL is a catalog block.
 type CatalogHCL struct {
+	Remain hcl.Body `hcl:",remain"`
+}
+
+// CatalogBody is decoded from [CatalogHCL.Remain].
+type CatalogBody struct {
 	NoShell         *bool    `hcl:"no_shell,optional"`
 	NoHooks         *bool    `hcl:"no_hooks,optional"`
 	DefaultTemplate string   `hcl:"default_template,optional"`

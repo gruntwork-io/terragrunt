@@ -15,9 +15,9 @@ import (
 // which discovery never reads: each of those is a run part. The Remain of each block, and each [hcl.Attribute] field,
 // is a queue part or a run part. The parse decodes the queue parts, which [QueueBodies] names, into Queue, with no
 // `dependency` variable in scope, or an unknown one for the engine block. ResolveRunConfig decodes the run parts, which
-// [RunBodies] names, with the outputs resolved. An exclude or errors block that reads `dependency` is a run part, and
-// so are the attributes of a terraform block when one of them reads it. A nil block field means the file has no such
-// block.
+// [RunBodies] names, with the outputs resolved. A catalog, exclude, or errors block that reads `dependency` is a run
+// part, and so are the attributes of a terraform block when one of them reads it. A nil block field means the file has
+// no such block.
 //
 // A UnitConfig is shared between the callers of a memoized parse. It holds none of a caller's settings or sinks, and
 // nothing changes it once its parse returns.

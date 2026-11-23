@@ -73,3 +73,59 @@ locals {
 		})
 	}
 }
+
+func TestPartialParseOfAnExposedIncludeLeavesOutACatalogThatReadsDependency(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name       string
+		decodeList []config.PartialDecodeSectionType
+	}{
+		{name: "dependency blocks", decodeList: []config.PartialDecodeSectionType{config.DependencyBlock}},
+		{name: "terraform block", decodeList: []config.PartialDecodeSectionType{config.TerraformBlock}},
+		{name: "remote_state block", decodeList: []config.PartialDecodeSectionType{config.RemoteStateBlock}},
+	}
+
+	for i, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := venvtest.Root(fmt.Sprintf("/exposed-include-catalog-%d", i))
+			cfgPath := filepath.Join(root, "unit", config.DefaultTerragruntConfigPath)
+
+			v := venv.MemVenv().WithFS(venvtest.NewFS(t, root, map[string]string{
+				"registry/" + config.DefaultTerragruntConfigPath: "",
+				"root.hcl": `
+dependency "registry" {
+  config_path  = "${get_parent_terragrunt_dir()}/registry"
+  skip_outputs = true
+
+  mock_outputs = {
+    urls = ["https://example.com/modules"]
+  }
+}
+
+catalog {
+  urls = dependency.registry.outputs.urls
+}
+`,
+				filepath.Join("unit", config.DefaultTerragruntConfigPath): `
+include "root" {
+  path   = find_in_parent_folders("root.hcl")
+  expose = true
+}
+
+locals {
+  included = include.root
+}
+`,
+			}))
+
+			ctx, pctx := newTestParsingContext(t, cfgPath)
+			pctx = pctx.WithDecodeList(tc.decodeList...)
+
+			_, err := new(config.Store).ResolvePartialConfig(ctx, logger.CreateLogger(), v, pctx, cfgPath)
+			require.NoError(t, err)
+		})
+	}
+}

@@ -25,6 +25,9 @@ const (
 
 	modulesManifestFile = "modules.json"
 	envNameTFVarPrefix  = "TF_VAR_"
+
+	// maxParsedFileSize is the size of the largest configuration file that is parsed.
+	maxParsedFileSize = 1 << 20
 )
 
 // InitFingerprint identifies what init reads and what it leaves behind for a root module: the
@@ -33,7 +36,8 @@ const (
 // when the configuration needs them during init, the variable values init sees.
 //
 // Modules that init downloaded into the modules directory are left out, as nothing but init changes
-// them. A recorded local module whose directory is gone hashes differently from one that is present.
+// them, except that their static references count. A recorded local module whose directory is gone
+// hashes differently from one that is present.
 type InitFingerprint struct {
 	// Files hashes the bytes of every configuration file.
 	Files string
@@ -46,7 +50,9 @@ type InitFingerprint struct {
 	//
 	// The bytes of every file count instead when the configuration has static references: one of
 	// those parts refers to a variable or a local, which OpenTofu evaluates during init, or a file
-	// is not parsed and might. Files larger than 1 MiB and files that fail to parse are not parsed.
+	// is not parsed and might. A static reference in a downloaded module counts as well, since it
+	// reads the values its callers pass in, though the bytes of a downloaded module never count.
+	// Files larger than 1 MiB and files that fail to parse are not parsed.
 	Config string
 
 	// Inputs hashes the [InitInputs] when the configuration has static references, and is empty
@@ -55,7 +61,7 @@ type InitFingerprint struct {
 
 	// InputVars names, comma-separated and sorted, the variables that the static references read,
 	// directly or through locals of the root module. It is "*" when they may read any variable: a
-	// static reference sits in a local module, or a file is not parsed.
+	// static reference sits in a local or downloaded module, or a file is not parsed.
 	InputVars string
 }
 
@@ -422,8 +428,8 @@ type fingerprinter struct {
 	// mode selects the hashes to compute.
 	mode fingerprintMode
 
-	// staticRefs records whether a part of a file that configHash covers refers to a variable or a
-	// local, or a file is not parsed.
+	// staticRefs records whether a part of a file that OpenTofu evaluates during init refers to a
+	// variable or a local, or a file is not parsed.
 	staticRefs bool
 
 	// allInputs records that the static references may read any variable.
@@ -471,12 +477,12 @@ func (fp *fingerprinter) hashModule(dataDir string) error {
 		return err
 	}
 
-	moduleDirs, err := localModuleDirs(fp.fsys, fp.rootDir, dataDir)
+	localDirs, downloadedDirs, err := manifestModuleDirs(fp.fsys, fp.rootDir, dataDir)
 	if err != nil {
 		return err
 	}
 
-	for _, dir := range moduleDirs {
+	for _, dir := range localDirs {
 		if !vfs.Exists(fp.fsys, dir) {
 			fp.hashEntry("missing", relSlash(fp.rootDir, dir))
 
@@ -484,6 +490,12 @@ func (fp *fingerprinter) hashModule(dataDir string) error {
 		}
 
 		if err := fp.hashConfigDir(dir); err != nil {
+			return err
+		}
+	}
+
+	if fp.mode == hashFilesAndConfig {
+		if err := fp.noteDownloadedRefs(downloadedDirs); err != nil {
 			return err
 		}
 	}
@@ -578,8 +590,6 @@ func (fp *fingerprinter) hashConfigFile(path string) error {
 		return fp.hashFileBytes(path)
 	}
 
-	const maxParsedFileSize = 1 << 20
-
 	info, err := fp.fsys.Stat(path)
 	if err != nil {
 		return err
@@ -609,8 +619,8 @@ func (fp *fingerprinter) hashConfigFile(path string) error {
 		return nil
 	}
 
-	file, diags := hclsyntax.ParseConfig(src, path, hcl.InitialPos)
-	if diags.HasErrors() {
+	body, ok := parseHCLBody(src, path)
+	if !ok {
 		fp.staticRefs = true
 		fp.allInputs = true
 		fp.hashConfigEntry("sha256", sum)
@@ -618,14 +628,93 @@ func (fp *fingerprinter) hashConfigFile(path string) error {
 		return nil
 	}
 
+	fp.hashInitParts(src, body)
+	fp.noteInitRefs(body)
+
+	return nil
+}
+
+// noteDownloadedRefs records the static references of the modules in dirs, which init downloaded.
+// It hashes none of their files, as nothing but init changes them.
+func (fp *fingerprinter) noteDownloadedRefs(dirs []string) error {
+	fp.inRoot = false
+
+	for _, dir := range dirs {
+		if fp.allInputs {
+			return nil
+		}
+
+		if !vfs.Exists(fp.fsys, dir) {
+			continue
+		}
+
+		files, err := util.ListTfFiles(fp.fsys, dir)
+		if err != nil {
+			return err
+		}
+
+		for _, path := range files {
+			if err := fp.noteFileRefs(path); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// noteFileRefs records the static references of the configuration file at path without hashing it.
+func (fp *fingerprinter) noteFileRefs(path string) error {
+	info, err := fp.fsys.Stat(path)
+	if err != nil {
+		return err
+	}
+
+	if info.Size() > maxParsedFileSize {
+		fp.staticRefs = true
+		fp.allInputs = true
+
+		return nil
+	}
+
+	src, err := vfs.ReadFile(fp.fsys, path)
+	if err != nil {
+		return err
+	}
+
+	if strings.HasSuffix(path, ".json") {
+		fp.noteJSONStaticRefs(path, src)
+
+		return nil
+	}
+
+	body, ok := parseHCLBody(src, path)
+	if !ok {
+		fp.staticRefs = true
+		fp.allInputs = true
+
+		return nil
+	}
+
+	fp.noteInitRefs(body)
+
+	return nil
+}
+
+// parseHCLBody parses the native syntax configuration src at path, reporting false when it fails to
+// parse.
+func parseHCLBody(src []byte, path string) (*hclsyntax.Body, bool) {
+	file, diags := hclsyntax.ParseConfig(src, path, hcl.InitialPos)
+	if diags.HasErrors() {
+		return nil, false
+	}
+
 	body, ok := file.Body.(*hclsyntax.Body)
 	if !ok {
 		panic(fmt.Sprintf("hclsyntax.ParseConfig returned a %T body", file.Body))
 	}
 
-	fp.hashInitParts(src, body)
-
-	return nil
+	return body, true
 }
 
 // hashFileBytes folds the bytes of the file at path into both hashes.
@@ -648,26 +737,34 @@ func (fp *fingerprinter) hashInitParts(src []byte, body *hclsyntax.Body) {
 
 	for _, block := range body.Blocks {
 		switch block.Type {
-		case "locals":
-			for name, attr := range block.Body.Attributes {
-				fp.noteLocal(name, collectStaticRefs(attr.Expr))
-			}
-		case "variable", "output":
+		case "locals", "variable", "output":
 		case "provider":
 			fp.hashProviderBlock(src, block)
 		case "resource", "data", "ephemeral":
 			fp.hashBlockHeader(block)
 			fp.hashArg(src, block, "provider")
-		case "terraform":
-			fp.noteRefs(collectStaticRefs(block.Body))
-
-			fp.hashConfigEntry("block", string(rangeBytes(src, block.Range())))
-		case "module":
-			fp.noteStaticRefs(block, "source", "version")
-
-			fp.hashConfigEntry("block", string(rangeBytes(src, block.Range())))
 		default:
 			fp.hashConfigEntry("block", string(rangeBytes(src, block.Range())))
+		}
+	}
+}
+
+// noteInitRefs records the variables and locals that the parts of the top-level body that OpenTofu
+// evaluates during init read: the terraform blocks, the source and version of module blocks, and
+// the for_each of provider blocks. It records the locals that body defines too.
+func (fp *fingerprinter) noteInitRefs(body *hclsyntax.Body) {
+	for _, block := range body.Blocks {
+		switch block.Type {
+		case "locals":
+			for name, attr := range block.Body.Attributes {
+				fp.noteLocal(name, collectStaticRefs(attr.Expr))
+			}
+		case "provider":
+			fp.noteStaticRefs(block, "for_each")
+		case "terraform":
+			fp.noteRefs(collectStaticRefs(block.Body))
+		case "module":
+			fp.noteStaticRefs(block, "source", "version")
 		}
 	}
 }
@@ -682,8 +779,6 @@ func (fp *fingerprinter) hashProviderBlock(src []byte, block *hclsyntax.Block) {
 	for _, name := range []string{"alias", "version", "for_each", "count", "depends_on", "source"} {
 		fp.hashArg(src, block, name)
 	}
-
-	fp.noteStaticRefs(block, "for_each")
 
 	for _, nested := range block.Body.Blocks {
 		switch nested.Type {
@@ -1016,28 +1111,26 @@ type modulesManifest struct {
 	} `json:"Modules"`
 }
 
-// localModuleDirs returns, sorted and without duplicates, the absolute directory of every module
-// the manifest under dataDir records outside the modules directory, root module excluded. A missing
-// manifest yields no directories.
-func localModuleDirs(fsys vfs.FS, rootDir, dataDir string) ([]string, error) {
+// manifestModuleDirs returns, each sorted and without duplicates, the absolute directory of every
+// module the manifest under dataDir records outside the modules directory, and of every one inside
+// it, which init downloaded. The root module is left out. A missing manifest yields no directories.
+func manifestModuleDirs(fsys vfs.FS, rootDir, dataDir string) (local, downloaded []string, err error) {
 	modulesDir := filepath.Join(dataDir, "modules")
 
 	manifestPath := filepath.Join(modulesDir, modulesManifestFile)
 	if !vfs.Exists(fsys, manifestPath) {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	content, err := vfs.ReadFile(fsys, manifestPath)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	var manifest modulesManifest
 	if err := json.Unmarshal(content, &manifest); err != nil {
-		return nil, fmt.Errorf("parsing modules manifest %s: %w", manifestPath, err)
+		return nil, nil, fmt.Errorf("parsing modules manifest %s: %w", manifestPath, err)
 	}
-
-	dirs := make([]string, 0, len(manifest.Modules))
 
 	for _, module := range manifest.Modules {
 		if module.Key == "" {
@@ -1050,15 +1143,18 @@ func localModuleDirs(fsys vfs.FS, rootDir, dataDir string) ([]string, error) {
 		}
 
 		if isWithin(modulesDir, dir) {
+			downloaded = append(downloaded, dir)
+
 			continue
 		}
 
-		dirs = append(dirs, dir)
+		local = append(local, dir)
 	}
 
-	slices.Sort(dirs)
+	slices.Sort(local)
+	slices.Sort(downloaded)
 
-	return slices.Compact(dirs), nil
+	return slices.Compact(local), slices.Compact(downloaded), nil
 }
 
 // isWithin reports whether path is dir or lies under it.

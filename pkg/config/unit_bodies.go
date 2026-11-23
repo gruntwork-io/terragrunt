@@ -14,13 +14,14 @@ import (
 
 // QueueBodies is the parts of a [UnitConfig] beyond its tagged fields that discovery reads, decoded. The parse
 // decodes them once, with no `dependency` variable in scope, and keeps them as [UnitConfig.Queue]. A nil pointer is
-// an absent part, or an exclude, terraform, or errors block whose body reads `dependency`, which [RunBodies] holds
-// instead. Each slice aligns by index with the HCL slice it decodes.
+// an absent part, or a catalog, exclude, terraform, or errors block whose body reads `dependency`, which [RunBodies]
+// holds instead. Each slice aligns by index with the HCL slice it decodes.
 //
 // Engine and MockValues are the exceptions to that scope: the parse decodes them with `dependency` unknown, and
 // [RunBodies] holds them again decoded with the outputs. MockValues aligns by index with the output blocks of the
 // outputs block, and holds nil for an output with no mock value.
 type QueueBodies struct {
+	Catalog    *CatalogBody
 	Exclude    *ExcludeBody
 	Engine     *EngineBody
 	Terraform  *TerraformBody
@@ -37,9 +38,10 @@ type ErrorsBodies struct {
 
 // RunBodies is the parts of a [UnitConfig] that only the run reads, decoded. [UnitConfig.ResolveRunConfig] decodes them
 // with the `dependency` outputs resolved, and the parse never does. A nil pointer is an absent part, and each slice
-// aligns by index with the HCL slice it decodes. Exclude, Terraform, and Errors are set only for a block whose body
-// reads `dependency`.
+// aligns by index with the HCL slice it decodes. Catalog, Exclude, Terraform, and Errors are set only for a block
+// whose body reads `dependency`.
 type RunBodies struct {
+	Catalog                  *CatalogBody
 	Exclude                  *ExcludeBody
 	Terraform                *TerraformBody
 	Errors                   *ErrorsBodies
@@ -66,6 +68,10 @@ func (c *UnitConfig) decodeQueue(evalCtx *hcl.EvalContext) (QueueBodies, hcl.Dia
 		q     QueueBodies
 		diags hcl.Diagnostics
 	)
+
+	if c.Catalog != nil && !c.Catalog.readsDependency() {
+		diags = append(diags, decodeInto(evalCtx, unmarkedBody{c.Catalog.Remain}, &q.Catalog)...)
+	}
 
 	if c.Exclude != nil && !c.Exclude.readsDependency() {
 		diags = append(diags, decodeInto(evalCtx, unmarkedBody{c.Exclude.Remain}, &q.Exclude)...)
@@ -173,6 +179,10 @@ func (c *UnitConfig) decodeRun(evalCtx *hcl.EvalContext) (*RunBodies, hcl.Diagno
 		r     RunBodies
 		diags hcl.Diagnostics
 	)
+
+	if c.Catalog != nil && c.Catalog.readsDependency() {
+		diags = append(diags, decodeInto(evalCtx, unmarkedBody{c.Catalog.Remain}, &r.Catalog)...)
+	}
 
 	if c.Exclude != nil && c.Exclude.readsDependency() {
 		diags = append(diags, decodeInto(evalCtx, unmarkedBody{c.Exclude.Remain}, &r.Exclude)...)
@@ -318,6 +328,11 @@ func decodeEach[T, B any](
 	return diags
 }
 
+// readsDependency reports whether an attribute of c reads the `dependency` variable.
+func (c *CatalogHCL) readsDependency() bool {
+	return bodyReadsDependency[CatalogBody](c.Remain)
+}
+
 // readsDependency reports whether an attribute of e reads the `dependency` variable.
 func (e *ExcludeHCL) readsDependency() bool {
 	return bodyReadsDependency[ExcludeBody](e.Remain)
@@ -346,6 +361,10 @@ func (c *UnitConfig) withRequestedRunParts(decodeList []PartialDecodeSectionType
 	requested.runAttrs = nil
 	requested.terraformRunPart = false
 	requested.errorsRunPart = false
+
+	if c.Catalog != nil && c.Catalog.readsDependency() {
+		requested.Catalog = nil
+	}
 
 	if !slices.Contains(decodeList, RemoteStateBlock) || attrReadsDependency(c.RemoteStateAttr) {
 		requested.RemoteStateAttr = nil

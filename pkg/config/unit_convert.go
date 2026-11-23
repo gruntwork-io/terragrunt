@@ -14,7 +14,7 @@ import (
 // file points to.
 func (c *UnitConfig) queueFile(q *QueueBodies) *TerragruntConfigFile {
 	return &TerragruntConfigFile{
-		Catalog:                     c.Catalog.convert(),
+		Catalog:                     c.Catalog.convert(q.Catalog),
 		Terraform:                   c.Terraform.convert(q.Terraform),
 		TerraformBinary:             clonePtr(c.TerraformBinary),
 		TerraformVersionConstraint:  clonePtr(c.TerraformVersionConstraint),
@@ -36,6 +36,10 @@ func (c *UnitConfig) queueFile(q *QueueBodies) *TerragruntConfigFile {
 
 // fill adds the run parts r of c to file, which queueFile built from c.
 func (r *RunBodies) fill(c *UnitConfig, file *TerragruntConfigFile) {
+	if r.Catalog != nil {
+		file.Catalog = c.Catalog.convert(r.Catalog)
+	}
+
 	if r.Exclude != nil {
 		file.Exclude = c.Exclude.convert(r.Exclude)
 	}
@@ -69,16 +73,18 @@ func (r *RunBodies) fill(c *UnitConfig, file *TerragruntConfigFile) {
 	file.Terraform.ErrorHooks = convertEach(c.Terraform.ErrorHooks, r.ErrorHooks, (*ErrorHookHCL).convert)
 }
 
-func (c *CatalogHCL) convert() *CatalogConfig {
-	if c == nil {
+// convert converts c with its decoded body, returning nil when the file has no catalog block or body is nil because
+// the block reads `dependency` and [RunBodies.fill] converts it instead.
+func (c *CatalogHCL) convert(body *CatalogBody) *CatalogConfig {
+	if c == nil || body == nil {
 		return nil
 	}
 
 	return &CatalogConfig{
-		NoShell:         clonePtr(c.NoShell),
-		NoHooks:         clonePtr(c.NoHooks),
-		DefaultTemplate: c.DefaultTemplate,
-		URLs:            slices.Clone(c.URLs),
+		NoShell:         clonePtr(body.NoShell),
+		NoHooks:         clonePtr(body.NoHooks),
+		DefaultTemplate: body.DefaultTemplate,
+		URLs:            slices.Clone(body.URLs),
 	}
 }
 

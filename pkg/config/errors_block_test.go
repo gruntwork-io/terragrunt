@@ -250,7 +250,7 @@ func errorsBlockHCL(rules []errorRule) string {
 	return b.String()
 }
 
-func TestReadTerragruntConfigLeavesRetryNullWithoutRetryBlocks(t *testing.T) {
+func TestReadTerragruntConfigGivesAnEmptyRetryListWithoutRetryBlocks(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -288,7 +288,7 @@ errors {
 			require.NoError(t, os.MkdirAll(filepath.Dir(readerPath), 0755))
 			require.NoError(t, os.WriteFile(readerPath, []byte(`
 inputs = {
-  retry_is_null = read_terragrunt_config("../read/terragrunt.hcl").errors.retry == null
+  retry_is_empty = length(read_terragrunt_config("../read/terragrunt.hcl").errors.retry) == 0
 }
 `), 0644))
 
@@ -302,12 +302,15 @@ inputs = {
 
 			readCty, err := config.TerragruntConfigAsCty(read)
 			require.NoError(t, err)
-			assert.True(t, readCty.GetAttr("errors").GetAttr("retry").IsNull())
+
+			retry := readCty.GetAttr("errors").GetAttr("retry")
+			require.False(t, retry.IsNull())
+			assert.Equal(t, 0, retry.LengthInt())
 
 			ctx, pctx = newTestParsingContext(t, readerPath)
 			reader, err := s.ReadTerragruntConfig(ctx, l, v, pctx)
 			require.NoError(t, err)
-			assert.Equal(t, true, reader.Inputs["retry_is_null"])
+			assert.Equal(t, true, reader.Inputs["retry_is_empty"])
 		})
 	}
 }
