@@ -7,7 +7,6 @@ sidebar:
 ---
 
 import HclItemTable from '@components/HclItemTable.astro';
-import Since from '@components/Since.astro';
 
 A [unit](/getting-started/terminology#unit) is configured in a `terragrunt.hcl` file in the unit's directory, e.g.:
 
@@ -33,12 +32,6 @@ Terragrunt uses the first of these as a unit's configuration file:
 4. A `terragrunt.hcl.json` file in the current working directory.
 
 If none of them exists, Terragrunt exits with an error.
-
-<Since version="v1.2.3">
-
-A directory that holds both `terragrunt.hcl` and `terragrunt.hcl.json` is also an error, unless you pass one of them with `--config` or `TG_CONFIG`.
-
-</Since>
 
 ## Blocks
 

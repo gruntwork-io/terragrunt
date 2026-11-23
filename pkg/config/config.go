@@ -142,11 +142,10 @@ const (
 )
 
 var (
-	// DefaultTerragruntConfigPaths lists the default config file names in lookup order. Order matters: if none of
-	// the files are found, `GetDefaultConfigPath` returns the last element.
+	// DefaultTerragruntConfigPaths lists the default config file names in lookup order.
 	DefaultTerragruntConfigPaths = []string{
-		DefaultTerragruntJSONConfigPath,
 		DefaultTerragruntConfigPath,
+		DefaultTerragruntJSONConfigPath,
 	}
 
 	// DefaultGenerateBlockIfDisabledValueStr is the `if_disabled` value of a `generate` block that sets none.
@@ -1528,7 +1527,7 @@ func adjustSourceWithMap(
 }
 
 // GetDefaultConfigPath returns the path of the Terragrunt configuration file in workingDir, preferring
-// terragrunt.hcl.json over terragrunt.hcl. It returns workingDir itself when that names a file, and the
+// terragrunt.hcl over terragrunt.hcl.json. It returns workingDir itself when that names a file, and the
 // terragrunt.hcl path when workingDir holds neither.
 func GetDefaultConfigPath(fsys vfs.FS, workingDir string) string {
 	// check if a configuration file was passed as `workingDir`.
@@ -1536,76 +1535,14 @@ func GetDefaultConfigPath(fsys vfs.FS, workingDir string) string {
 		return workingDir
 	}
 
-	var cfgPath string
-
-	for _, cfgPath = range DefaultTerragruntConfigPaths {
-		if !filepath.IsAbs(cfgPath) {
-			cfgPath = filepath.Join(workingDir, cfgPath)
-		}
-
-		if vfs.Exists(fsys, cfgPath) {
-			break
-		}
-	}
-
-	return cfgPath
-}
-
-// AmbiguousConfigCheck says whether resolving a unit directory fails when the directory holds both default unit
-// configuration files.
-type AmbiguousConfigCheck int
-
-const (
-	// RejectAmbiguousConfig fails with an [AmbiguousConfigError] on a directory holding both files.
-	RejectAmbiguousConfig AmbiguousConfigCheck = iota
-
-	// AllowAmbiguousConfig resolves a directory holding both files as [GetDefaultConfigPath] does, to
-	// terragrunt.hcl.json. It applies when `--config` names the config file.
-	AllowAmbiguousConfig
-)
-
-// RejectAmbiguousUnitConfig returns an [AmbiguousConfigError] when pctx rejects ambiguous configs and the directory
-// of its config file holds both default unit configuration files.
-func RejectAmbiguousUnitConfig(fsys vfs.FS, pctx *ParsingContext) error {
-	return RejectAmbiguousDefaultConfig(fsys, filepath.Dir(pctx.TerragruntConfigPath), pctx.AmbiguousConfigCheck)
-}
-
-// RejectAmbiguousDefaultConfig returns an [AmbiguousConfigError] when check is [RejectAmbiguousConfig] and dir is a
-// directory holding both default unit configuration files.
-func RejectAmbiguousDefaultConfig(fsys vfs.FS, dir string, check AmbiguousConfigCheck) error {
-	if check == AllowAmbiguousConfig {
-		return nil
-	}
-
-	info, err := fsys.Stat(dir)
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil
-	}
-
-	if err != nil {
-		return err
-	}
-
-	if !info.IsDir() {
-		return nil
-	}
-
 	for _, name := range DefaultTerragruntConfigPaths {
-		exists, err := vfs.FileExists(fsys, filepath.Join(dir, name))
-		if err != nil {
-			return err
-		}
-
-		if !exists {
-			return nil
+		cfgPath := filepath.Join(workingDir, name)
+		if vfs.Exists(fsys, cfgPath) {
+			return cfgPath
 		}
 	}
 
-	return AmbiguousConfigError{
-		ComponentPath: dir,
-		ConfigFileA:   DefaultTerragruntConfigPath,
-		ConfigFileB:   DefaultTerragruntJSONConfigPath,
-	}
+	return filepath.Join(workingDir, DefaultTerragruntConfigPath)
 }
 
 // FindConfigFilesInPath returns a list of all Terragrunt config files in the given path or any subfolder of the path.

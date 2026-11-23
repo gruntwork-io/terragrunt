@@ -211,18 +211,12 @@ func (s *Store) ResolveRunConfigFromBytes(
 const configContentPerm = 0o644
 
 // ReadTerragruntConfig reads the config file of run, resolving it as [Store.ResolveRunConfig] does.
-//
-// Returns the error of [RejectAmbiguousUnitConfig] when the directory of the file holds more than one unit config.
 func (s *Store) ReadTerragruntConfig(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	run *ParsingContext,
 ) (*TerragruntConfig, error) {
-	if err := RejectAmbiguousUnitConfig(v.FS, run); err != nil {
-		return nil, err
-	}
-
 	l.Debugf(
 		"Reading Terragrunt config file at %s",
 		util.RelPathForLog(run.RootWorkingDir, run.TerragruntConfigPath, run.LogShowAbsPaths),

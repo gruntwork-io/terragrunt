@@ -99,8 +99,7 @@ type pipeline struct {
 //
 // Returns the first of these that occurred: the error of the walk, the parse errors of what it found, the error of
 // the worktree finder, and the parse errors of what that finder found. Each set of parse errors comes back joined.
-// suppressParseErrors drops them all. A [CoexistenceError], a [config.AmbiguousConfigError], or the error of ctx
-// once it is done is returned either way.
+// suppressParseErrors drops them all. A [CoexistenceError] or the error of ctx once it is done is returned either way.
 func (d *Discovery) runPipeline(
 	ctx context.Context,
 	l log.Logger,
@@ -247,7 +246,7 @@ func (p *pipeline) walk(ctx context.Context, l log.Logger, v *venv.Venv) (foundR
 		}
 
 		result := d.classifyFile(path, filenames)
-		if result == nil || result.Status == filter.StatusExcluded {
+		if result == nil || result.Status == filter.StatusExcluded || shadowedUnitConfig(v.FS, path, filenames) {
 			return nil
 		}
 
@@ -507,8 +506,7 @@ func (c *collected) add(event *pipelineEvent) {
 // found, each as it was classified after its parse when it had one, and the parse failures among them. The parse of
 // a component that lost to another at its path is left out.
 //
-// Returns a [CoexistenceError] when a directory holds both a unit and a stack, and a [config.AmbiguousConfigError]
-// when it holds both terragrunt.hcl and terragrunt.hcl.json.
+// Returns a [CoexistenceError] when a directory holds both a unit and a stack.
 func (c *collected) results(d *Discovery, found foundResults) (*foundResults, []error, error) {
 	if err := validateNoCoexistence(found.discovered); err != nil {
 		return nil, nil, err
