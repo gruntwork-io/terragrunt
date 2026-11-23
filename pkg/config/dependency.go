@@ -1096,6 +1096,10 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(
 		return dependencyConfig.MockOutputs, nil
 	}
 
+	if nulls := declared.nullOutputs(); nulls != nil && dependencyConfig.shouldGetOutputs(pctx) {
+		return nulls, nil
+	}
+
 	if pctx.Experiments.Evaluate(experiment.EmptyDependencyOutputs) {
 		l.Debugf(
 			"Config %s is a dependency of %s that has no outputs, resolving its outputs to an empty object.",
@@ -1687,7 +1691,7 @@ func isRenderJSONCommand(pctx *ParsingContext) bool {
 		return false
 	}
 
-	return pctx.TerraformCliArgs.Contains(renderJSONCommand)
+	return pctx.TerraformCliArgs.Command == renderJSONCommand
 }
 
 // isRenderCommand will return true if terragrunt was invoked with render
@@ -1696,7 +1700,7 @@ func isRenderCommand(pctx *ParsingContext) bool {
 		return false
 	}
 
-	return pctx.TerraformCliArgs.Contains(renderCommand)
+	return pctx.TerraformCliArgs.Command == renderCommand
 }
 
 type dependencyNameKey struct{}

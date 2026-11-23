@@ -2180,6 +2180,21 @@ include {
 `,
 		},
 		{
+			name:     "HCL unit with a bare include and a named include",
+			unitFile: "vpc/terragrunt.hcl",
+			unit: `
+include {
+  path           = find_in_parent_folders("a.hcl")
+  merge_strategy = "deep"
+}
+
+include "z" {
+  path           = find_in_parent_folders("z.hcl")
+  merge_strategy = "deep"
+}
+`,
+		},
+		{
 			name:     "JSON unit",
 			unitFile: "vpc/terragrunt.hcl.json",
 			unit: `
@@ -2197,7 +2212,10 @@ include {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			files := withFiles(outputsContractFiles, map[string]string{"z.hcl": includedOutputs})
+			files := withFiles(outputsContractFiles, map[string]string{
+				"a.hcl": "outputs {\n  output \"vpc_id\" {\n    mock_value = \"vpc-mock\"\n  }\n}\n",
+				"z.hcl": includedOutputs,
+			})
 			delete(files, "vpc/terragrunt.hcl")
 			files[tc.unitFile] = tc.unit
 

@@ -73,7 +73,7 @@ blocks:
       - name: nullable
         type: bool
         default: "false"
-        description: Set it to `true` for an output whose value can be `null`. OpenTofu/Terraform leaves a `null` output out of the state. When the state has other outputs, dependents read `null` for the output, unless a state merge supplies its `mock_value`, and Terragrunt does not report the output as missing. A state with no outputs reads as a unit that is not applied.
+        description: Set it to `true` for an output whose value can be `null`. OpenTofu/Terraform leaves a `null` output out of the state. When the state has other outputs, dependents read `null` for the output, unless a state merge supplies its `mock_value`, and Terragrunt does not report the output as missing. When the state has no outputs, a command that may use the mock values reads them. Any other command reads `null` if every declared output is `nullable`, and fails otherwise. Terragrunt cannot tell a state with no outputs from a unit that is not applied.
     example: |
       # vpc/terragrunt.hcl
 
@@ -99,7 +99,7 @@ The `outputs` block lists the outputs of a unit. Each output can have a mock val
 
 You declare the mock values once, in the unit that produces the outputs. Its dependents need no `mock_outputs` in their [`dependency`](/reference/hcl/blocks/dependency) blocks.
 
-Dependents read the mock values while the unit has no state yet or its state has no outputs. They also read the mock value of a declared output that the state lacks. Any other error while reading the state fails the run.
+Dependents read the mock values while the unit has no state yet or its state has no outputs. They also read the mock value of a declared output that the state lacks. Any other error while reading the state fails the run, except for `render`, which falls back to the mock values.
 
 ### With a dependency block
 
@@ -158,6 +158,8 @@ A declared output without a `mock_value` has no value before the unit is applied
 ### Through include
 
 An included file can declare the `outputs` block. With a `shallow` merge, the unit's `output` blocks replace the included ones, and the unit keeps each `mock_strategy` attribute of the included block that it does not set. With a `deep` merge, Terragrunt combines the two blocks by output name. When both declare the same output, the unit's declaration wins.
+
+A `terragrunt.autoinclude.hcl` file beside the unit can declare the `outputs` block too. Its `output` blocks replace those of the unit, and it keeps each `mock_strategy` attribute of the unit that it does not set.
 
 ### Checking outputs with hcl validate
 

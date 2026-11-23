@@ -13,6 +13,7 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 	hclparser "github.com/hashicorp/hcl/v2/hclparse"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
@@ -548,8 +549,26 @@ func withMergedIncludes(
 	return files, nil
 }
 
-// includeNames returns the name of each include block of file in source order, one empty name for a bare include.
+// includeNames returns the name of each include block of file in source order, empty for a bare include.
 func includeNames(file *hclparse.File) []string {
+	body, ok := file.Body.(*hclsyntax.Body)
+	if !ok {
+		return jsonIncludeNames(file)
+	}
+
+	var names []string
+
+	for _, block := range body.Blocks {
+		if block.Type == config.MetadataInclude {
+			names = append(names, strings.Join(block.Labels, ""))
+		}
+	}
+
+	return names
+}
+
+// jsonIncludeNames returns the include names of a JSON file in source order, one empty name for a bare include.
+func jsonIncludeNames(file *hclparse.File) []string {
 	content, _, diags := file.Body.PartialContent(includeBlockSchema)
 	if diags.HasErrors() {
 		return []string{""}

@@ -183,6 +183,27 @@ func (c *OutputsConfig) mockValuesOrUnknown() *cty.Value {
 	return &object
 }
 
+// nullOutputs returns an object with a null for each declared output when every one is nullable, nil otherwise.
+func (c *OutputsConfig) nullOutputs() *cty.Value {
+	if c == nil || len(c.Outputs) == 0 {
+		return nil
+	}
+
+	values := make(map[string]cty.Value, len(c.Outputs))
+
+	for _, output := range c.Outputs {
+		if output.Nullable == nil || !*output.Nullable {
+			return nil
+		}
+
+		values[output.Name] = cty.NullVal(cty.DynamicPseudoType)
+	}
+
+	object := cty.ObjectVal(values)
+
+	return &object
+}
+
 // withMockStrategyOf returns a copy of c whose mock_strategy takes each attribute it leaves unset from parent.
 func (c *OutputsConfig) withMockStrategyOf(parent *OutputsConfig) *OutputsConfig {
 	clone := c.Clone()

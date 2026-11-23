@@ -114,6 +114,29 @@ inputs = {
 }
 `
 
+const nullableOnlyOutputsConfig = `
+outputs {
+  output "nat_id" {
+    nullable = true
+  }
+}
+`
+
+const nullableOnlyOutputsWithMock = `
+outputs {
+  output "nat_id" {
+    nullable   = true
+    mock_value = "nat-mock"
+  }
+}
+`
+
+const natIsNullInput = `
+inputs = {
+  nat_is_null = dependency.vpc.outputs.nat_id == null
+}
+`
+
 const dependentConfig = `
 dependency "vpc" {
   config_path = "../vpc"
@@ -805,6 +828,7 @@ func TestDependencyReadsDeclaredOutputs(t *testing.T) {
 		command           string
 		vpcState          string
 		inputs            string
+		cliArgs           []string
 		experimentOff     bool
 		ignoreDiagnostics bool
 		skipOutput        bool
@@ -1149,6 +1173,69 @@ inputs = {
 			},
 		},
 		{
+			name:           "apply with a var file named render in a separate value reads no mock a merge supplies",
+			vpcConfig:      outputsBlockConfig,
+			dependencyBody: `mock_outputs = { subnet_ids = ["app-subnet"] }`,
+			command:        "apply",
+			cliArgs:        []string{"apply", "-var-file", "render"},
+			vpcState:       vpcStateWithoutSubnets,
+			check:          requireMissingSubnets,
+		},
+		{
+			name:           "apply with a var file named render in an inline value reads no mock a merge supplies",
+			vpcConfig:      outputsBlockConfig,
+			dependencyBody: `mock_outputs = { subnet_ids = ["app-subnet"] }`,
+			command:        "apply",
+			cliArgs:        []string{"apply", "-var-file=render"},
+			vpcState:       vpcStateWithoutSubnets,
+			check:          requireMissingSubnets,
+		},
+		{
+			name:      "every output nullable reads null from a state with no outputs for apply",
+			vpcConfig: nullableOnlyOutputsConfig,
+			command:   "apply",
+			inputs:    natIsNullInput,
+			check:     requireNullOnlyNAT,
+		},
+		{
+			name:      "every output nullable reads null from a state with no outputs for plan without mock values",
+			vpcConfig: nullableOnlyOutputsConfig,
+			command:   "plan",
+			inputs:    natIsNullInput,
+			check:     requireNullOnlyNAT,
+		},
+		{
+			name:      "every output nullable reads the mock values from a state with no outputs for plan",
+			vpcConfig: nullableOnlyOutputsWithMock,
+			command:   "plan",
+			inputs:    natIsNullInput,
+			check: func(t *testing.T, cfg *config.TerragruntConfig, err error) {
+				t.Helper()
+
+				require.NoError(t, err)
+				require.Equal(t, false, cfg.Inputs["nat_is_null"])
+			},
+		},
+		{
+			name:      "an output that is not nullable keeps a state with no outputs an error for apply",
+			vpcConfig: strings.Replace(nullableOutputsConfig, "%s", "", 1),
+			command:   "apply",
+			inputs:    nullableInputs,
+			check:     requireNoOutputs,
+		},
+		{
+			name:           "a dependent that skips outputs reads no null for outputs that are all nullable",
+			vpcConfig:      nullableOnlyOutputsConfig,
+			dependencyBody: `skip_outputs = true`,
+			command:        "apply",
+			inputs:         natIsNullInput,
+			check: func(t *testing.T, _ *config.TerragruntConfig, err error) {
+				t.Helper()
+
+				requireDiagnostic(t, err, "Unsupported attribute")
+			},
+		},
+		{
 			name:      "render reads the mock value of a declared output missing from state",
 			vpcConfig: outputsBlockWithoutStrategy,
 			command:   "render",
@@ -1301,7 +1388,7 @@ inputs = {
 			inputs: `
 inputs = {
   vpc_id       = dependency.vpc.outputs.vpc_id
-  undocumented = dependency.vpc.outputs.undocumented == null ? "null" : "set"
+  undocumented = try(dependency.vpc.outputs.undocumented == null ? "null" : "set", "absent")
 }
 `,
 			check: requireUnknownUndocumented,
@@ -1314,7 +1401,7 @@ inputs = {
 			inputs: `
 inputs = {
   vpc_id       = dependency.vpc.outputs.vpc_id
-  undocumented = dependency.vpc.outputs.undocumented == null ? "null" : "set"
+  undocumented = try(dependency.vpc.outputs.undocumented == null ? "null" : "set", "absent")
 }
 `,
 			check: requireUnknownUndocumented,
@@ -1742,6 +1829,20 @@ outputs {
 			},
 		},
 		{
+			name:           "an outputs block in the autoinclude file keeps the mock_strategy of the unit block",
+			vpcConfig:      withMockStrategy(`allowed_commands = ["validate"]`),
+			vpcAutoInclude: outputsBlockWithoutStrategy,
+			command:        "plan",
+			check:          requireNoOutputs,
+		},
+		{
+			name:           "an outputs block in the autoinclude file reads its mocks for a command of the unit block",
+			vpcConfig:      withMockStrategy(`allowed_commands = ["validate"]`),
+			vpcAutoInclude: outputsBlockWithoutStrategy,
+			command:        "validate",
+			check:          requireDeclaredMocks,
+		},
+		{
 			name:           "an outputs block in the autoinclude file of the unit is read",
 			vpcAutoInclude: outputsBlockConfig,
 			command:        "plan",
@@ -1834,6 +1935,10 @@ inputs = {
 
 			pctx.Parser.IgnoreDiagnostics = tc.ignoreDiagnostics
 			pctx.SkipOutput = tc.skipOutput
+
+			if tc.cliArgs != nil {
+				pctx.TerraformCliArgs = iacargs.New(tc.cliArgs...)
+			}
 
 			s := new(config.Store)
 
@@ -2597,13 +2702,32 @@ func requireFilledSubnets(t *testing.T, cfg *config.TerragruntConfig, err error)
 	require.Equal(t, []any{"app-subnet"}, cfg.Inputs["subnet_ids"])
 }
 
-// requireUnknownUndocumented requires the mock value of vpc_id and an undocumented output that is neither null nor set.
+// requireUnknownUndocumented requires the mock value of vpc_id and an undocumented output that reads as unknown.
 func requireUnknownUndocumented(t *testing.T, cfg *config.TerragruntConfig, err error) {
 	t.Helper()
 
 	require.NoError(t, err)
 	require.Equal(t, "vpc-mock", cfg.Inputs["vpc_id"])
-	require.NotContains(t, []any{"null", "set"}, cfg.Inputs["undocumented"])
+	require.Contains(t, cfg.Inputs, "undocumented")
+	require.Empty(t, cfg.Inputs["undocumented"])
+}
+
+// requireMissingSubnets requires a [config.DeclaredOutputMissingError] for subnet_ids.
+func requireMissingSubnets(t *testing.T, _ *config.TerragruntConfig, err error) {
+	t.Helper()
+
+	var missingErr config.DeclaredOutputMissingError
+
+	require.ErrorAs(t, err, &missingErr)
+	require.Equal(t, "subnet_ids", missingErr.Output)
+}
+
+// requireNullOnlyNAT requires that the dependent read null for nat_id.
+func requireNullOnlyNAT(t *testing.T, cfg *config.TerragruntConfig, err error) {
+	t.Helper()
+
+	require.NoError(t, err)
+	require.Equal(t, true, cfg.Inputs["nat_is_null"])
 }
 
 // requireNoOutputs requires that the dependency resolved to no outputs and no mock values.
