@@ -91,7 +91,7 @@ stack "app" {
 
 			ctx, pctx := newTestParsingContext(t, valuesPath)
 
-			values, err := config.ReadValues(ctx, logger.CreateLogger(), v, pctx, filepath.Dir(valuesPath))
+			values, err := config.ReadValues(ctx, logger.CreateLogger(), v, new(config.Store), pctx, filepath.Dir(valuesPath))
 			require.NoError(t, err, name)
 			require.NotNil(t, values, name)
 			assert.Equal(t, map[string]cty.Value{normalized: cty.StringVal("v")}, values.AsValueMap(), name)
@@ -126,7 +126,7 @@ func generateValuesFuzzStack(t *testing.T, v *venv.Venv, stackHCL string) error 
 
 	defer pool.Stop()
 
-	genErr := config.GenerateStackFile(ctx, logger.CreateLogger(), v, pctx, pool, stackPath)
+	genErr := config.GenerateStackFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, pool, stackPath)
 
 	return errors.Join(genErr, pool.Wait())
 }

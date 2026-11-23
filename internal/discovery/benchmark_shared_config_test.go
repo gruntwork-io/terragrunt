@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -49,7 +48,7 @@ func BenchmarkDiscoverySharedConfig(b *testing.B) {
 					WithRequiresParse().
 					WithRelationships()
 
-				components, err := d.Discover(config.WithCaches(b.Context()), l, v, new(rewrite.Store), opts)
+				components, err := d.Discover(config.WithCaches(b.Context()), l, v, new(config.Store), opts)
 				require.NoError(b, err)
 				require.Len(b, components, n)
 

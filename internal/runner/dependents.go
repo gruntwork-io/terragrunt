@@ -7,7 +7,6 @@ import (
 	"slices"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -15,12 +14,12 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
-// FindDependentUnits returns the units that depend on the unit in the working directory.
+// FindDependentUnits returns the units that depend on the unit in the working directory, sorted by path.
 func FindDependentUnits(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	cfg *config.TerragruntConfig,
 ) []*component.Unit {
@@ -42,8 +41,8 @@ func FindDependentUnits(
 	}
 
 	matchedUnits := make([]*component.Unit, 0, len(matchedUnitsMap))
-	for _, unit := range matchedUnitsMap {
-		matchedUnits = append(matchedUnits, unit)
+	for _, path := range slices.Sorted(maps.Keys(matchedUnitsMap)) {
+		matchedUnits = append(matchedUnits, matchedUnitsMap[path])
 	}
 
 	return matchedUnits
@@ -83,7 +82,7 @@ func findMatchingUnitsInPath(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	dir string,
 	opts *options.TerragruntOptions,
 ) map[string]*component.Unit {

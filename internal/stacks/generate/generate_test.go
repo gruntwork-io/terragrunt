@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
@@ -61,7 +60,7 @@ func TestGenerateStacksCyclicSource_FailsAtMaxLevel(t *testing.T) {
 
 	err := generate.NewGenerator().
 		WithMaxLevel(maxLevel).
-		GenerateStacks(t.Context(), l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts, nil)
+		GenerateStacks(t.Context(), l, venvtest.NewOSWithEmptyEnv(), new(config.Store), opts, nil)
 
 	require.ErrorContains(
 		t,
@@ -130,7 +129,7 @@ func TestGenerateStacksNestedNoDotStack(t *testing.T) {
 
 	require.NoError(
 		t,
-		generate.NewGenerator().GenerateStacks(t.Context(), l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts, nil),
+		generate.NewGenerator().GenerateStacks(t.Context(), l, venvtest.NewOSWithEmptyEnv(), new(config.Store), opts, nil),
 	)
 
 	assert.FileExists(
@@ -202,7 +201,7 @@ func TestGenerateStacksSkipsExcludedStackUnderGeneratedStack(t *testing.T) {
 
 			require.NoError(
 				t,
-				generate.NewGenerator().GenerateStacks(t.Context(), l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts, nil),
+				generate.NewGenerator().GenerateStacks(t.Context(), l, venvtest.NewOSWithEmptyEnv(), new(config.Store), opts, nil),
 			)
 
 			assert.FileExists(
@@ -322,7 +321,7 @@ func TestGenerateStacksDropsRegeneratedUnitsFromTheParseStore(t *testing.T) {
 	l := logger.CreateLogger()
 	v := venvtest.NewOSWithEmptyEnv()
 	ctx := config.WithCaches(t.Context())
-	s := new(rewrite.Store)
+	s := new(config.Store)
 
 	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = liveDir
@@ -339,7 +338,7 @@ func TestGenerateStacksDropsRegeneratedUnitsFromTheParseStore(t *testing.T) {
 		_, pctx, err := configbridge.NewParsingContext(opts).WithConfigPath(l, generated)
 		require.NoError(t, err)
 
-		cfg, err := s.ResolveUnitQueueConfig(ctx, l, v, rewrite.NewParseContext(v, pctx), generated)
+		cfg, err := s.ResolveUnitQueueConfig(ctx, l, v, pctx, generated)
 		require.NoError(t, err)
 
 		return cfg.Locals["name"]

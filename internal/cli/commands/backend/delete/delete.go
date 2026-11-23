@@ -9,7 +9,6 @@ import (
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/discoverysetup"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -24,23 +23,24 @@ import (
 //
 // Returns an error when the bucket has versioning disabled and
 // opts.ForceBackendDelete is unset, or when opts.DeleteBucket is set.
-func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *config.Store, opts *options.TerragruntOptions) error {
 	if opts.RunAll {
 		return runAll(ctx, l, v, s, opts)
 	}
 
-	return runDelete(ctx, l, v, opts)
+	return runDelete(ctx, l, v, s, opts)
 }
 
 func runDelete(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 ) error {
 	pctx := configbridge.NewParsingContext(opts)
 
-	remoteState, err := config.ParseRemoteState(ctx, l, v, pctx)
+	remoteState, err := config.ParseRemoteState(ctx, l, v, s, pctx)
 	if err != nil || remoteState == nil {
 		return err
 	}
@@ -76,7 +76,7 @@ func runAll(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 ) error {
 	units, cleanupWorktrees, err := discoverysetup.Units(ctx, l, v, s, opts)
@@ -98,7 +98,7 @@ func runAll(
 		// Parsing can write obtained credentials into the env, so each
 		// unit gets its own clone to keep them from leaking to siblings.
 		unitV := v.WithEnvCloned()
-		if err := runDelete(ctx, l, unitV, unitOpts); err != nil {
+		if err := runDelete(ctx, l, unitV, s, unitOpts); err != nil {
 			if opts.FailFast {
 				return err
 			}

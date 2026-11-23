@@ -23,6 +23,12 @@ type dependentWalk struct {
 	boundary string
 }
 
+// walkedTarget is a target one dependent walk searches from.
+type walkedTarget struct {
+	target component.Component
+	walk   dependentWalk
+}
+
 // boundaryUnit is a unit found below a dependent boundary.
 type boundaryUnit struct {
 	// found is the unit as the walk found it.
@@ -61,8 +67,8 @@ type dependentsFrom struct {
 	left int
 }
 
-// discoverDependentsFromLinks adds to the results of state the dependents that the graph expression of each of
-// targets traverses to.
+// discoverDependentsFromLinks adds to the results of state the dependents that the graph expressions of the filter
+// of each of targets traverse to.
 //
 // A component that several traversals reach is traversed from again only by one with more depth left than any
 // before it, so the results do not depend on the order of the traversals.
@@ -71,38 +77,47 @@ func (p *graphTraversal) discoverDependentsFromLinks(
 	graphExprs []*filter.GraphExpressionInfo,
 	targets []DiscoveryResult,
 ) {
-	exprs := make(map[int]*filter.GraphExpressionInfo, len(graphExprs))
-	for _, graphExpr := range graphExprs {
-		exprs[graphExpr.Index] = graphExpr
-	}
-
+	exprs := dependentExprsByFilter(graphExprs)
 	depthLeft := map[component.Component]int{}
 
 	for _, target := range targets {
-		graphExpr, ok := exprs[target.GraphExpressionIndex]
-		if !ok || !graphExpr.Dependents.Include {
-			continue
-		}
+		for _, graphExpr := range exprs[target.GraphExpressionIndex] {
+			pending := []dependentsFrom{{c: target.Component, left: p.dependentDepth(graphExpr)}}
 
-		pending := []dependentsFrom{{c: target.Component, left: p.dependentDepth(graphExpr)}}
+			for len(pending) > 0 {
+				from := pending[0]
+				pending = pending[1:]
 
-		for len(pending) > 0 {
-			from := pending[0]
-			pending = pending[1:]
+				if depthLeft[from.c] >= from.left {
+					continue
+				}
 
-			if depthLeft[from.c] >= from.left {
-				continue
-			}
+				depthLeft[from.c] = from.left
 
-			depthLeft[from.c] = from.left
+				for _, dependent := range from.c.Dependents() {
+					state.addReached(dependent)
 
-			for _, dependent := range from.c.Dependents() {
-				state.addReached(dependent)
-
-				pending = append(pending, dependentsFrom{c: dependent, left: from.left - 1})
+					pending = append(pending, dependentsFrom{c: dependent, left: from.left - 1})
+				}
 			}
 		}
 	}
+}
+
+// dependentExprsByFilter returns the graph expressions of graphExprs that traverse dependents, by the index of the
+// filter holding them. One filter can hold several, as both operands of "...vpc | !^vpc..." do.
+func dependentExprsByFilter(
+	graphExprs []*filter.GraphExpressionInfo,
+) map[int][]*filter.GraphExpressionInfo {
+	exprs := make(map[int][]*filter.GraphExpressionInfo, len(graphExprs))
+
+	for _, graphExpr := range graphExprs {
+		if graphExpr.Dependents.Include {
+			exprs[graphExpr.Index] = append(exprs[graphExpr.Index], graphExpr)
+		}
+	}
+
+	return exprs
 }
 
 // linkDependentsToBoundaries links every unit up to the dependent boundary of each of targets to its dependencies,
@@ -120,10 +135,7 @@ func (p *graphTraversal) linkDependentsToBoundaries(
 ) []error {
 	ctx = contextWithParsePhase(ctx, parsePhaseTagGraphDependents)
 
-	exprs := make(map[int]*filter.GraphExpressionInfo, len(graphExprs))
-	for _, graphExpr := range graphExprs {
-		exprs[graphExpr.Index] = graphExpr
-	}
+	exprs := dependentExprsByFilter(graphExprs)
 
 	var (
 		errs  []error
@@ -131,29 +143,34 @@ func (p *graphTraversal) linkDependentsToBoundaries(
 	)
 
 	targetsOf := map[dependentWalk][]component.Component{}
+	walked := map[walkedTarget]struct{}{}
 
 	for _, target := range targets {
-		graphExpr, ok := exprs[target.GraphExpressionIndex]
-		if !ok || !graphExpr.Dependents.Include {
-			continue
+		for _, graphExpr := range exprs[target.GraphExpressionIndex] {
+			walk, err := dependentWalkOf(l, v.FS, state.discovery, target.Component, graphExpr)
+			if err != nil {
+				errs = append(errs, err)
+
+				continue
+			}
+
+			if walk.boundary == "" {
+				continue
+			}
+
+			key := walkedTarget{target: target.Component, walk: walk}
+			if _, seen := walked[key]; seen {
+				continue
+			}
+
+			walked[key] = struct{}{}
+
+			if _, seen := targetsOf[walk]; !seen {
+				walks = append(walks, walk)
+			}
+
+			targetsOf[walk] = append(targetsOf[walk], target.Component)
 		}
-
-		walk, err := dependentWalkOf(l, v.FS, state.discovery, target.Component, graphExpr)
-		if err != nil {
-			errs = append(errs, err)
-
-			continue
-		}
-
-		if walk.boundary == "" {
-			continue
-		}
-
-		if _, seen := targetsOf[walk]; !seen {
-			walks = append(walks, walk)
-		}
-
-		targetsOf[walk] = append(targetsOf[walk], target.Component)
 	}
 
 	for _, walk := range walks {

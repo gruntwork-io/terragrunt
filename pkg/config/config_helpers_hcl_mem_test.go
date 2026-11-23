@@ -35,7 +35,7 @@ terraform {
   source = local.repo
 }`
 
-	out, err := config.ParseConfigString(ctx, l, v, pctx, "test.hcl", hcl, nil)
+	out, err := resolveRunConfigString(t, ctx, l, v, new(config.Store), pctx, "test.hcl", hcl)
 	require.NoError(t, err)
 	require.NotNil(t, out)
 	require.NotNil(t, out.Locals)
@@ -60,7 +60,7 @@ func TestHCLGetPathFromRepoRoot(t *testing.T) {
   rel = get_path_from_repo_root()
 }`
 
-	out, err := config.ParseConfigString(ctx, l, v, pctx, "test.hcl", hcl, nil)
+	out, err := resolveRunConfigString(t, ctx, l, v, new(config.Store), pctx, "test.hcl", hcl)
 	require.NoError(t, err)
 	assert.Equal(t, filepath.FromSlash("services/api"), out.Locals["rel"])
 }
@@ -82,14 +82,14 @@ func TestHCLGetPathToRepoRoot(t *testing.T) {
   up = get_path_to_repo_root()
 }`
 
-	out, err := config.ParseConfigString(ctx, l, v, pctx, "test.hcl", hcl, nil)
+	out, err := resolveRunConfigString(t, ctx, l, v, new(config.Store), pctx, "test.hcl", hcl)
 	require.NoError(t, err)
 	assert.Equal(t, filepath.FromSlash("../.."), out.Locals["up"])
 }
 
 // TestHCLGetRepoRootPropagatesLookupFailure pins the contract that a working
 // directory outside any repository surfaces as an error from
-// ParseConfigString rather than silently producing an empty string.
+// the parse rather than silently producing an empty string.
 func TestHCLGetRepoRootPropagatesLookupFailure(t *testing.T) {
 	t.Parallel()
 
@@ -103,7 +103,7 @@ func TestHCLGetRepoRootPropagatesLookupFailure(t *testing.T) {
   repo = get_repo_root()
 }`
 
-	_, err := config.ParseConfigString(ctx, l, v, pctx, "test.hcl", hcl, nil)
+	_, err := resolveRunConfigString(t, ctx, l, v, new(config.Store), pctx, "test.hcl", hcl)
 	require.Error(t, err)
 }
 
@@ -130,7 +130,7 @@ func TestHCLRunCmd(t *testing.T) {
   account = run_cmd("--terragrunt-quiet", "describe", "--account", "prod")
 }`
 
-	out, err := config.ParseConfigString(ctx, l, v, pctx, "test.hcl", hcl, nil)
+	out, err := resolveRunConfigString(t, ctx, l, v, new(config.Store), pctx, "test.hcl", hcl)
 	require.NoError(t, err)
 	assert.Equal(t, "account-1234", out.Locals["account"])
 }

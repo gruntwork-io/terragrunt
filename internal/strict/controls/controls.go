@@ -92,6 +92,10 @@ const (
 	// DisableDependentModules is the control that prevents the use of the deprecated `--disable-dependent-modules` flag.
 	DisableDependentModules = "disable-dependent-modules"
 
+	// UsePartialParseConfigCache is the control that prevents the use of the deprecated
+	// `--use-partial-parse-config-cache` flag.
+	UsePartialParseConfigCache = "use-partial-parse-config-cache"
+
 	// FastCopy is the control that switches `include_in_copy` and
 	// `exclude_from_copy` pattern matching from zglob to gobwas.
 	FastCopy = "fast-copy"
@@ -395,6 +399,14 @@ func New() strict.Controls {
 				"The `--disable-dependent-modules` flag is no longer supported. Dependent modules discovery has been removed from `terragrunt render`.",
 			),
 			Warning: "The `--disable-dependent-modules` flag is deprecated and will be removed in a future version of Terragrunt. Dependent modules discovery has been removed from `terragrunt render`, so this flag has no effect.",
+		},
+		&Control{
+			Name:        UsePartialParseConfigCache,
+			Description: "Prevents the use of the deprecated `--use-partial-parse-config-cache` flag.",
+			Error: errors.New(
+				"The `--use-partial-parse-config-cache` flag is no longer supported. Terragrunt no longer has a partial parse cache for it to enable.",
+			),
+			Warning: "The `--use-partial-parse-config-cache` flag is deprecated and will be removed in a future version of Terragrunt. Terragrunt no longer has a partial parse cache for it to enable, so this flag has no effect.",
 		},
 		&Control{
 			Name:        FastCopy,

@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -92,7 +91,7 @@ func (f *graphBoundaryFixture) discover(
 
 	configs, err := discovery.NewDiscovery(f.stagingDir).
 		WithFilters(filters).
-		Discover(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(rewrite.Store), opts)
+		Discover(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(config.Store), opts)
 	require.NoError(t, err)
 
 	return configs
@@ -179,7 +178,7 @@ func TestDiscoveryGraphBoundary_ValidatesBoundary(t *testing.T) {
 
 			_, err = discovery.NewDiscovery(f.stagingDir).
 				WithFilters(filters).
-				Discover(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(rewrite.Store), opts)
+				Discover(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(config.Store), opts)
 			require.ErrorAs(t, err, tc.errAs)
 		})
 	}
@@ -221,7 +220,7 @@ dependency "vpc" {
 
 		configs, err := discovery.NewDiscovery(repoRoot).
 			WithFilters(filters).
-			Discover(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(rewrite.Store), opts)
+			Discover(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(config.Store), opts)
 		require.NoError(t, err)
 
 		return configs
@@ -367,7 +366,7 @@ locals {
 				d = d.WithDiscoveryBoundary(tc.boundary)
 			}
 
-			configs, err := d.Discover(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(rewrite.Store), opts)
+			configs, err := d.Discover(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(config.Store), opts)
 
 			switch {
 			case tc.errAs != nil:

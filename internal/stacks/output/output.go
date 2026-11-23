@@ -13,7 +13,6 @@ import (
 
 	"errors"
 
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
@@ -89,7 +88,7 @@ func StackOutput(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 ) (cty.Value, error) {
 	l.Debugf("Generating output from %s", opts.WorkingDir)
@@ -150,14 +149,14 @@ func StackOutput(
 
 		pctx := configbridge.NewParsingContext(opts)
 
-		values, valuesErr := config.ReadValues(ctx, l, v, pctx, dir)
+		values, valuesErr := config.ReadValues(ctx, l, v, s, pctx, dir)
 		if valuesErr != nil {
 			return cty.NilVal, waitWorkerErrors(
 				fmt.Errorf("failed to read values from %s: %w", dir, valuesErr),
 			)
 		}
 
-		stackFile, stackErr := config.ReadStackConfigFile(ctx, l, v, pctx, path, values)
+		stackFile, stackErr := config.ReadStackConfigFile(ctx, l, v, s, pctx, path, values)
 		if stackErr != nil {
 			return cty.NilVal, waitWorkerErrors(
 				fmt.Errorf("failed to read stack file %s: %w", path, stackErr),
@@ -197,7 +196,7 @@ func StackOutput(
 			declaredUnits[key] = unit
 
 			wp.Submit(func() error {
-				out, err := readUnitOutput(ctx, l, v, pctx, unit, unitDir)
+				out, err := readUnitOutput(ctx, l, v, s, pctx, unit, unitDir)
 				if err != nil {
 					return err
 				}
@@ -383,6 +382,7 @@ func readUnitOutput(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	pctx *config.ParsingContext,
 	unit *config.Unit,
 	unitDir string,
@@ -396,7 +396,7 @@ func readUnitOutput(
 	}, func(ctx context.Context, l log.Logger) error {
 		var outputErr error
 
-		output, outputErr = unit.ReadOutputs(ctx, l, v, pctx, unitDir)
+		output, outputErr = unit.ReadOutputs(ctx, l, v, s, pctx, unitDir)
 
 		return outputErr
 	})

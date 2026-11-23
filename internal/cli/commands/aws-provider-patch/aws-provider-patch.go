@@ -14,13 +14,14 @@ import (
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/discoverysetup"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
+	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/hclhelper"
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -31,7 +32,7 @@ const defaultKeyParts = 2
 // attributes in opts.AwsProviderPatchOverrides in every provider "aws" block of
 // the modules that init downloaded. With opts.RunAll set, it patches every
 // discovered unit instead.
-func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *config.Store, opts *options.TerragruntOptions) error {
 	if opts.RunAll {
 		return runAll(ctx, l, v, s, opts)
 	}
@@ -43,7 +44,7 @@ func runSingle(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 ) error {
 	prepared, err := prepare.PrepareConfig(ctx, l, v, s, opts)
@@ -75,7 +76,7 @@ func runAll(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 ) error {
 	units, cleanupWorktrees, err := discoverysetup.Units(ctx, l, v, s, opts)
@@ -346,7 +347,7 @@ func overrideAttributeInBlock(block *hclwrite.Block, key string, value string) (
 	// assume the user provided input is json, and convert to cty that way.
 	valueBytes := []byte(value)
 
-	ctyType, err := ctyjson.ImpliedType(valueBytes)
+	ctyType, err := ctyhelper.ImpliedJSONType(valueBytes)
 	if err != nil {
 		// Wrap error in a custom error type that has better error messaging to the user.
 		returnErr := TypeInferenceError{value: value, underlyingErr: err}

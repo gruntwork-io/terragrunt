@@ -11,7 +11,6 @@ import (
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
@@ -99,7 +98,7 @@ func ensureParsed(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	c component.Component,
 	opts *options.TerragruntOptions,
 	discovery *Discovery,
@@ -127,29 +126,12 @@ func ensureParsed(
 	})
 }
 
-// parseConfig parses the config of c at cfgPath: through s when c is a unit, and with pkg/config otherwise.
-func parseConfig(
-	ctx context.Context,
-	l log.Logger,
-	v *venv.Venv,
-	pctx *config.ParsingContext,
-	s *rewrite.Store,
-	c component.Component,
-	cfgPath string,
-) (*config.TerragruntConfig, error) {
-	if _, isUnit := c.(*component.Unit); !isUnit {
-		return config.PartialParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
-	}
-
-	return s.ResolveUnitQueueConfig(ctx, l, v, rewrite.NewParseContext(v, pctx), cfgPath)
-}
-
 // parseAndReclassify parses a component and reclassifies it based on filter evaluation.
 func (d *Discovery) parseAndReclassify(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	candidate DiscoveryResult,
 ) (*DiscoveryResult, error) {
@@ -210,7 +192,7 @@ func parseComponent(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	c component.Component,
 	opts *options.TerragruntOptions,
 	discovery *Discovery,
@@ -308,13 +290,11 @@ func parseComponent(
 				parsingCtx.Parser.IgnoreDiagnostics = true
 			}
 
-			cfg, err := parseConfig(
+			cfg, err := s.ResolveUnitQueueConfig(
 				ctx,
 				l,
 				parseV,
 				parsingCtx,
-				s,
-				c,
 				parseOpts.TerragruntConfigPath,
 			)
 			if err != nil {
@@ -345,7 +325,7 @@ func parseComponent(
 			}
 
 			if _, ok := c.(*component.Stack); ok {
-				autoIncludes := trackStackComponentReads(ctx, l, parseV, parsingCtx, parseOpts.TerragruntConfigPath)
+				autoIncludes := trackStackComponentReads(ctx, l, parseV, s, parsingCtx, parseOpts.TerragruntConfigPath)
 				discovery.recordAutoIncludeInputsReads(l, parseOpts.TerragruntConfigPath, autoIncludes)
 			} else {
 				discovery.recordUnitInputsReads(l, v.FS, parseOpts.TerragruntConfigPath, cfg)
@@ -371,27 +351,28 @@ func trackStackComponentReads(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	pctx *config.ParsingContext,
 	stackFilePath string,
 ) map[string]*inthclparse.AutoIncludeResolved {
 	pctx = pctx.Clone()
 	pctx.Parser.IgnoreDiagnostics = true
 
-	values, err := config.ReadValues(ctx, l, v, pctx, filepath.Dir(stackFilePath))
+	values, err := config.ReadValues(ctx, l, v, s, pctx, filepath.Dir(stackFilePath))
 	if err != nil {
 		l.Debugf("Discovery: skipping read tracking for %s: %v", stackFilePath, err)
 
 		return nil
 	}
 
-	stackCfg, err := config.ReadStackConfigFile(ctx, l, v, pctx, stackFilePath, values)
+	stackCfg, err := config.ReadStackConfigFile(ctx, l, v, s, pctx, stackFilePath, values)
 	if err != nil {
 		l.Debugf("Discovery: read tracking for %s stopped early: %v", stackFilePath, err)
 
 		return nil
 	}
 
-	autoIncludes, err := config.StackAutoIncludes(ctx, l, v, pctx, stackFilePath, stackCfg, values)
+	autoIncludes, err := config.StackAutoIncludes(ctx, l, v, s, pctx, stackFilePath, stackCfg, values)
 	if err != nil {
 		l.Debugf("Discovery: read tracking for %s stopped early: %v", stackFilePath, err)
 	}

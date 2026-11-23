@@ -26,13 +26,14 @@ func (dep *Dependency) withDeclaredOutputs(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 ) (declaredDependency, error) {
 	if !pctx.Experiments.Evaluate(experiment.OutputsBlock) {
 		return declaredDependency{dep: dep}, nil
 	}
 
-	declared, err := dep.DeclaredOutputs(ctx, l, v, pctx)
+	declared, err := dep.DeclaredOutputs(ctx, l, v, s, pctx)
 	if err != nil {
 		return declaredDependency{}, err
 	}
@@ -66,9 +67,10 @@ func (dep *Dependency) DeclaredOutputs(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 ) (*OutputsConfig, error) {
-	target, err := dep.readTarget(ctx, l, v, pctx)
+	target, err := dep.readTarget(ctx, l, v, s, pctx)
 	if err != nil {
 		return nil, DependencyBlockError{Name: dep.Name, ConfigPath: pctx.TerragruntConfigPath, Err: err}
 	}
@@ -86,6 +88,7 @@ func (dep *Dependency) readTarget(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 ) (dependencyTarget, error) {
 	target, err := dep.unitTarget(v.FS, pctx)
@@ -94,7 +97,7 @@ func (dep *Dependency) readTarget(
 	}
 
 	single := TerragruntDependency{Dependencies: Dependencies{*dep}}
-	if _, err := decodeDependencies(ctx, l, v, pctx, single); err != nil {
+	if _, err := decodeDependencies(ctx, l, v, s, pctx, single); err != nil {
 		return dependencyTarget{}, err
 	}
 
@@ -153,6 +156,7 @@ func UnitsWithoutOutputs(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 	cfg *TerragruntConfig,
 ) ([]string, error) {
@@ -164,7 +168,7 @@ func UnitsWithoutOutputs(
 	errs := make([]error, 0, len(cfg.TerragruntDependencies))
 
 	for i := range cfg.TerragruntDependencies {
-		target, err := cfg.TerragruntDependencies[i].readTarget(ctx, l, v, pctx)
+		target, err := cfg.TerragruntDependencies[i].readTarget(ctx, l, v, s, pctx)
 		if err != nil {
 			errs = append(errs, err)
 

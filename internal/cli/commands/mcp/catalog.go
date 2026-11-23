@@ -111,6 +111,7 @@ func runCatalog(
 	cv := d.callVenv(rootVenv, env, io.Discard)
 
 	ctx = freshCallContext(ctx)
+	s := new(config.Store)
 
 	// The catalog block is read from the first file named ScaffoldRootFileName
 	// in the directories above TerragruntConfigPath.
@@ -131,7 +132,7 @@ func runCatalog(
 
 	streamErr := catalog.Stream(
 		ctx, l, io.Discard, collected,
-		catalog.NewLoadFunc(l, cv, catalogOpts, tempDirs, ""),
+		catalog.NewLoadFunc(l, cv, s, catalogOpts, tempDirs, ""),
 	)
 
 	failures, err := catalogFailures(streamErr)

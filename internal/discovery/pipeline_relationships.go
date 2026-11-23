@@ -8,7 +8,6 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -34,7 +33,7 @@ type pipelineRelations struct {
 	// opts is the options every parse runs with.
 	opts *options.TerragruntOptions
 	// store memoizes the parses.
-	store *rewrite.Store
+	store *config.Store
 	// declared maps each component whose dependencies have been read to the dependencies it declares.
 	declared map[component.Component]dependencyPaths
 }
@@ -48,7 +47,7 @@ func readDependencyPaths(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	d *Discovery,
 	c component.Component,
@@ -67,7 +66,7 @@ func readDependencyPaths(
 		return dependencyPaths{err: err}
 	}
 
-	paths, err = stackDependencyPaths(ctx, l, v, opts, paths)
+	paths, err = stackDependencyPaths(ctx, l, v, s, opts, paths)
 	if err != nil {
 		return dependencyPaths{err: err}
 	}

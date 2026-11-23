@@ -15,11 +15,11 @@ import (
 	"github.com/hashicorp/hcl/v2/hclsimple"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/zclconf/go-cty/cty"
-	ctyjson "github.com/zclconf/go-cty/cty/json"
 
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/hclhelper"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -521,7 +521,7 @@ func RemoteStateConfigToTerraformCode(
 				return nil, err
 			}
 
-			backendBlockBody.SetAttributeRaw(key, hclhelper.TokensForValue(ctyVal.Value))
+			backendBlockBody.SetAttributeRaw(key, hclhelper.TokensForValue(ctyVal))
 
 			continue
 		}
@@ -597,7 +597,7 @@ func RemoteStateConfigToTerraformCode(
 				return nil, err
 			}
 
-			backendBlockBody.SetAttributeValue(key, ctyVal.Value)
+			backendBlockBody.SetAttributeValue(key, ctyVal)
 
 			continue
 		}
@@ -607,7 +607,7 @@ func RemoteStateConfigToTerraformCode(
 			return nil, err
 		}
 
-		backendBlockBody.SetAttributeRaw(key, hclhelper.TokensForValue(ctyVal.Value))
+		backendBlockBody.SetAttributeRaw(key, hclhelper.TokensForValue(ctyVal))
 	}
 
 	// encryption can be empty
@@ -699,7 +699,7 @@ func RemoteStateConfigToTerraformCode(
 		}
 
 		if keyProviderBlockBody != nil {
-			keyProviderBlockBody.SetAttributeRaw(key, hclhelper.TokensForValue(ctyVal.Value))
+			keyProviderBlockBody.SetAttributeRaw(key, hclhelper.TokensForValue(ctyVal))
 		}
 	}
 
@@ -771,18 +771,13 @@ func appendEncryptionTarget(body *hclwrite.Body, name string, target encryptionT
 	}
 }
 
-func convertValue(v any) (ctyjson.SimpleJSONValue, error) {
+func convertValue(v any) (cty.Value, error) {
 	jsonBytes, err := json.Marshal(v)
 	if err != nil {
-		return ctyjson.SimpleJSONValue{}, err
+		return cty.NilVal, err
 	}
 
-	var ctyVal ctyjson.SimpleJSONValue
-	if err := ctyVal.UnmarshalJSON(jsonBytes); err != nil {
-		return ctyjson.SimpleJSONValue{}, err
-	}
-
-	return ctyVal, nil
+	return ctyhelper.DecodeJSON(jsonBytes)
 }
 
 // ReplaceAllCommasOutsideQuotesWithNewLines replaces top-level argument-separating commas with new

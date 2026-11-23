@@ -7,11 +7,9 @@ package cas
 
 import (
 	"context"
-	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -1082,7 +1080,7 @@ func (c *CAS) storeIncludedGitFiles(
 			return &WrappedError{Op: "store_git_file", Path: srcPath, Err: ErrIncludedGitFileIsDir}
 		}
 
-		blobHash, err := hashFile(v.FS, srcPath)
+		blobHash, err := hashFileAlg(v.FS, srcPath, HashSHA1)
 		if err != nil {
 			return err
 		}
@@ -1331,31 +1329,4 @@ func submoduleURLs(
 	}
 
 	return nil, nil
-}
-
-func hashFile(fsys vfs.FS, path string) (string, error) {
-	file, err := fsys.Open(path)
-	if err != nil {
-		return "", err
-	}
-
-	h := sha1.New()
-
-	if _, err := io.Copy(h, file); err != nil {
-		return "", errors.Join(err, file.Close())
-	}
-
-	hash := hex.EncodeToString(h.Sum(nil))
-
-	if err := file.Close(); err != nil {
-		return hash, fmt.Errorf(
-			"hash of %s successfully computed as "+
-				"%s, but closing the file failed: %w",
-			path,
-			hash,
-			err,
-		)
-	}
-
-	return hash, nil
 }

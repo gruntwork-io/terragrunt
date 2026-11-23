@@ -10,7 +10,6 @@ import (
 	"slices"
 	"strings"
 
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
@@ -119,7 +118,7 @@ func runRenderConfig(
 	// Parse through PrepareConfig and nothing else. It builds the parsing
 	// context around the venv it is handed, which puts run_cmd() and the
 	// other HCL functions on the per-call exec handler instead of the OS.
-	prepared, err := prepare.PrepareConfig(ctx, l, cv, new(rewrite.Store), opts)
+	prepared, err := prepare.PrepareConfig(ctx, l, cv, new(config.Store), opts)
 	if err != nil {
 		return renderConfigOutput{}, renderExplainDenials(err, d.rec)
 	}

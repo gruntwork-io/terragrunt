@@ -7,7 +7,6 @@ import (
 	"os"
 	"strings"
 
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
@@ -53,10 +52,10 @@ type App struct {
 // the App, so virtualized handlers stay function parameters. Its environment
 // map is what env-var-backed flags resolve against.
 //
-// Every command of the App shares one [rewrite.Store], so a file parsed for one discovery is not parsed again for
+// Every command of the App shares one [config.Store], so a file parsed for one discovery is not parsed again for
 // the next.
 func NewApp(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *App {
-	terragruntCommands := commands.New(l, opts, v, new(rewrite.Store))
+	terragruntCommands := commands.New(l, opts, v, new(config.Store))
 
 	app := clihelper.NewApp(v.Env)
 	app.Name = AppName

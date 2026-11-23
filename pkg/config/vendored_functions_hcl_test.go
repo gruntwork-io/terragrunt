@@ -52,7 +52,7 @@ func TestHCLResolvesAVendoredOnlyFunction(t *testing.T) {
   encoded = urlencode("foo/bar")
 }`
 
-	out, err := config.ParseConfigString(ctx, l, v, pctx, memConfigPath, hcl, nil)
+	out, err := resolveRunConfigString(t, ctx, l, v, new(config.Store), pctx, memConfigPath, hcl)
 	require.NoError(t, err)
 	require.NotNil(t, out.Locals)
 	assert.Equal(t, "foo%2Fbar", out.Locals["encoded"])
@@ -72,7 +72,7 @@ func TestHCLFileReadsThroughTheVenv(t *testing.T) {
   data = file("data.txt")
 }`
 
-	out, err := config.ParseConfigString(ctx, l, v, pctx, memConfigPath, hcl, nil)
+	out, err := resolveRunConfigString(t, ctx, l, v, new(config.Store), pctx, memConfigPath, hcl)
 	require.NoError(t, err)
 	require.NotNil(t, out.Locals)
 	assert.Equal(t, "from the in-memory filesystem\n", out.Locals["data"])
@@ -92,7 +92,7 @@ func TestHCLTemplateFileReadsThroughTheVenv(t *testing.T) {
   greeting = templatefile("greeting.tmpl", { name = "world" })
 }`
 
-	out, err := config.ParseConfigString(ctx, l, v, pctx, memConfigPath, hcl, nil)
+	out, err := resolveRunConfigString(t, ctx, l, v, new(config.Store), pctx, memConfigPath, hcl)
 	require.NoError(t, err)
 	require.NotNil(t, out.Locals)
 	assert.Equal(t, "Hello, world! a%2Fb", out.Locals["greeting"])
@@ -110,7 +110,7 @@ func TestHCLTemplateStringRendersWithOpenTofuFunctions(t *testing.T) {
   greeting = templatestring("Hello, $${upper(name)}!", { name = "world" })
 }`
 
-	out, err := config.ParseConfigString(ctx, l, v, pctx, memConfigPath, hcl, nil)
+	out, err := resolveRunConfigString(t, ctx, l, v, new(config.Store), pctx, memConfigPath, hcl)
 	require.NoError(t, err)
 	require.NotNil(t, out.Locals)
 	assert.Equal(t, "Hello, WORLD!", out.Locals["greeting"])
@@ -130,7 +130,7 @@ func TestHCLTemplateFileCannotCallTerragruntFunctions(t *testing.T) {
   dir = templatefile("dir.tmpl", {})
 }`
 
-	_, err := config.ParseConfigString(ctx, l, v, pctx, memConfigPath, hcl, nil)
+	_, err := resolveRunConfigString(t, ctx, l, v, new(config.Store), pctx, memConfigPath, hcl)
 	require.Error(t, err)
 }
 
@@ -161,7 +161,7 @@ func TestHCLTemplatesCallFunctionsTheConfigDoesNotCall(t *testing.T) {
 			ctx, pctx := newTestParsingContext(t, memConfigPath)
 			ctx = config.WithCaches(ctx)
 
-			out, err := config.ParseConfigString(ctx, l, v, pctx, memConfigPath, tc.hcl, nil)
+			out, err := resolveRunConfigString(t, ctx, l, v, new(config.Store), pctx, memConfigPath, tc.hcl)
 			require.NoError(t, err)
 			require.NotNil(t, out.Locals)
 			assert.Equal(t, "ZnJvbSBhIGZpbGUgdGhlIGNvbmZpZyBuZXZlciBuYW1lcw==", out.Locals["data"])
@@ -169,25 +169,41 @@ func TestHCLTemplatesCallFunctionsTheConfigDoesNotCall(t *testing.T) {
 	}
 }
 
-func TestHCLUnknownFunctionSuggestsATerragruntFunction(t *testing.T) {
+// TestHCLUnknownFunctionSuggestsAFunctionOfAnyContext pins that a call to an unknown function suggests the closest
+// function whether a parse binds it, every parse shares it, or OpenTofu defines it.
+func TestHCLUnknownFunctionSuggestsAFunctionOfAnyContext(t *testing.T) {
 	t.Parallel()
 
-	l := logger.CreateLogger()
-	v := venv.MemVenv().WithFS(memUnitFS(t, nil))
-	ctx, pctx := newTestParsingContext(t, memConfigPath)
-	ctx = config.WithCaches(ctx)
+	testCases := []struct {
+		name string
+		call string
+		want string
+	}{
+		{name: "bound to the parse", call: "get_terragrunt_dri()", want: "get_terragrunt_dir"},
+		{name: "shared Terragrunt function", call: "get_default_retryable_error()", want: "get_default_retryable_errors"},
+		{name: "OpenTofu function", call: `uppr("a")`, want: "upper"},
+	}
 
-	const content = `locals {
-  dir = get_terragrunt_dri()
-}`
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	_, err := config.ParseConfigString(ctx, l, v, pctx, memConfigPath, content, nil)
+			l := logger.CreateLogger()
+			v := venv.MemVenv().WithFS(memUnitFS(t, nil))
+			ctx, pctx := newTestParsingContext(t, memConfigPath)
+			ctx = config.WithCaches(ctx)
 
-	var diags hcl.Diagnostics
-	require.ErrorAs(t, err, &diags)
-	require.NotEmpty(t, diags)
-	assert.Equal(t, "Call to unknown function", diags[0].Summary)
-	assert.Contains(t, diags[0].Detail, `Did you mean "get_terragrunt_dir"?`)
+			content := "locals {\n  value = " + tc.call + "\n}"
+
+			_, err := resolveRunConfigString(t, ctx, l, v, new(config.Store), pctx, memConfigPath, content)
+
+			var diags hcl.Diagnostics
+			require.ErrorAs(t, err, &diags)
+			require.NotEmpty(t, diags)
+			assert.Equal(t, "Call to unknown function", diags[0].Summary)
+			assert.Contains(t, diags[0].Detail, `Did you mean "`+tc.want+`"?`)
+		})
+	}
 }
 
 func TestHCLConcurrentParsesCallSharedAndBoundFunctionsWithRacing(t *testing.T) {
@@ -216,7 +232,7 @@ func TestHCLConcurrentParsesCallSharedAndBoundFunctionsWithRacing(t *testing.T) 
 				return err
 			}
 
-			out, err := config.ParseConfigString(ctx, l, v, pctx, memConfigPath, hcl, nil)
+			out, err := resolveRunConfigString(t, ctx, l, v, new(config.Store), pctx, memConfigPath, hcl)
 			if err != nil {
 				return err
 			}
@@ -248,7 +264,7 @@ func TestHCLBase64GzipUsesTheCurrentEncoder(t *testing.T) {
 	expected, err := funcs.Base64Gzip(cty.StringVal("test"))
 	require.NoError(t, err)
 
-	out, err := config.ParseConfigString(ctx, l, v, pctx, memConfigPath, hcl, nil)
+	out, err := resolveRunConfigString(t, ctx, l, v, new(config.Store), pctx, memConfigPath, hcl)
 	require.NoError(t, err)
 	require.NotNil(t, out.Locals)
 	assert.Equal(t, expected.AsString(), out.Locals["encoded"])

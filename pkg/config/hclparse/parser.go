@@ -125,24 +125,40 @@ func (parser *Parser) GetDiagnosticsWriter(
 }
 
 func (parser *Parser) handleDiagnostics(file *File, diags hcl.Diagnostics) error {
+	kept, err := parser.filterDiagnostics(file, diags)
+	if err != nil || kept == nil {
+		return err
+	}
+
+	if err := parser.writeDiagnostics(kept); err != nil {
+		return err
+	}
+
+	return kept
+}
+
+// filterDiagnostics passes diags through the parser's diagnostics handlers and returns what they keep, or the error
+// a handler returns. It returns nil when diags is empty or the handlers drop them.
+func (parser *Parser) filterDiagnostics(file *File, diags hcl.Diagnostics) (hcl.Diagnostics, error) {
 	if len(diags) == 0 {
-		return nil
+		return nil, nil
 	}
 
-	if fn := parser.handleDiagnosticsFunc; fn != nil {
-		var err error
-		if diags, err = fn(file, diags); err != nil || diags == nil {
-			return err
-		}
+	fn := parser.handleDiagnosticsFunc
+	if fn == nil {
+		return diags, nil
 	}
 
-	if fn := parser.diagsWriterFunc; fn != nil {
-		if err := fn(diags); err != nil {
-			return err
-		}
+	return fn(file, diags)
+}
+
+// writeDiagnostics writes diags through the parser's diagnostics writer, if it has one.
+func (parser *Parser) writeDiagnostics(diags hcl.Diagnostics) error {
+	if fn := parser.diagsWriterFunc; fn != nil && len(diags) > 0 {
+		return fn(diags)
 	}
 
-	return diags
+	return nil
 }
 
 // inspectSyntax returns the functions file calls and the diagnostics of rejecting its out-of-range numbers.

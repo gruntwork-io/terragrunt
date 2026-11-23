@@ -457,7 +457,7 @@ func TestTFStackDepsAutoIncludeReplacesUnitDependency(t *testing.T) {
 	// Backend key is "absent-autoinclude-common": the autoinclude's block fully replaced the unit's, so
 	// from_unit no longer exists (try() falls back to "absent") and the conflicting "common" key resolves
 	// to the autoinclude value. A deep merge would keep from_unit and yield "unitval-autoinclude-common",
-	// so this assertion fails if foldSiblingAutoIncludeDeps reverts to a deep merge (both still plan).
+	// so this assertion fails if the autoinclude dependency fold reverts to a deep merge (both still plan).
 	backendPath := helpers.FindCachedFile(
 		t,
 		filepath.Join(rootPath, inthclparse.StackDir, "y"),

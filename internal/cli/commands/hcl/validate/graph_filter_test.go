@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl/validate"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -102,7 +101,7 @@ func runValidateIn(t *testing.T, v *venv.Venv, root string, run *validateRun) va
 		entry = validate.Run
 	}
 
-	result.err = entry(ctx, l, v, new(rewrite.Store), opts)
+	result.err = entry(ctx, l, v, new(config.Store), opts)
 
 	if stdout.Len() > 0 && !run.inputs {
 		require.NoError(t, json.Unmarshal(stdout.Bytes(), &result.diags))
@@ -382,7 +381,7 @@ func TestRunValidateShowsPathsRelativeToWorkingDir(t *testing.T) {
 
 	require.Error(
 		t,
-		validate.RunValidate(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(rewrite.Store), opts),
+		validate.RunValidate(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(config.Store), opts),
 	)
 
 	assert.Contains(t, stdout.String(), " --> "+filepath.Join("app", "terragrunt.hcl")+":2:17\n")

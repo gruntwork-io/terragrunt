@@ -12,7 +12,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/global"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -180,7 +179,7 @@ func runWithTelemetry(t *testing.T, testV *venv.Venv, args []string, wantErr err
 	opts := options.NewTerragruntOptions()
 	opts.NoAutoProviderCacheDir = true
 
-	terragruntCommands := commands.New(l, opts, testV, new(rewrite.Store))
+	terragruntCommands := commands.New(l, opts, testV, new(config.Store))
 	setCommandAction(
 		func(context.Context, *clihelper.Context) error { return nil },
 		terragruntCommands...)

@@ -11,7 +11,6 @@ import (
 
 	hclvalidate "github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl/validate"
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
@@ -247,7 +246,7 @@ func validateDiscoveredTree(
 		disc = disc.WithWorktrees(w)
 	}
 
-	s := new(rewrite.Store)
+	s := new(config.Store)
 
 	components, discErr := disc.Discover(ctx, l, v, s, opts)
 	if discErr != nil && len(components) == 0 {
@@ -269,7 +268,7 @@ func validateDiscoveredTree(
 
 	for _, c := range components {
 		if _, ok := c.(*component.Stack); ok {
-			parseErrs = append(parseErrs, parser.Stack(ctx, l, v, opts, c.Path())...)
+			parseErrs = append(parseErrs, parser.Stack(ctx, l, v, s, opts, c.Path())...)
 
 			continue
 		}
@@ -333,11 +332,13 @@ func validateSingleTarget(
 		)
 	}
 
+	s := new(config.Store)
+
 	var parseErrs []error
 
 	if hasUnit {
 		unitErr := parser.Unit(
-			ctx, l, v, new(rewrite.Store), opts, targetDir, config.DefaultTerragruntConfigPath,
+			ctx, l, v, s, opts, targetDir, config.DefaultTerragruntConfigPath,
 		)
 		if unitErr != nil {
 			parseErrs = append(parseErrs, unitErr)
@@ -345,7 +346,7 @@ func validateSingleTarget(
 	}
 
 	if hasStack {
-		parseErrs = append(parseErrs, parser.Stack(ctx, l, v, opts, targetDir)...)
+		parseErrs = append(parseErrs, parser.Stack(ctx, l, v, s, opts, targetDir)...)
 	}
 
 	return parseErrs, nil

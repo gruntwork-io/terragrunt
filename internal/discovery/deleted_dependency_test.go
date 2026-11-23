@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
@@ -188,5 +187,5 @@ func discoverForRunAll(t *testing.T, workingDir string, filterQueries ...string)
 		d = d.WithWorktrees(w)
 	}
 
-	return d.Discover(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
+	return d.Discover(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv(), new(config.Store), opts)
 }

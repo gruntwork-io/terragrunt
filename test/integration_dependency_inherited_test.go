@@ -20,10 +20,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestRunReportsTheErrorOfADependencyThatReadsTheLocalsOfItsDependent pins the error a run of a unit reports for a
-// dependency whose feature block reads a local only the unit defines: the error of the dependency output fetch, since
-// the dependency cycle check reads the dependency with the unit's locals, as the fetch does.
-func TestRunReportsTheErrorOfADependencyThatReadsTheLocalsOfItsDependent(t *testing.T) {
+// TestRunRejectsADependencyThatReadsALocalOfItsDependent pins that a dependency's feature block can't read a local
+// that only the unit reading the dependency defines: a dependency evaluates its own locals, never its dependent's.
+func TestRunRejectsADependencyThatReadsALocalOfItsDependent(t *testing.T) {
 	t.Parallel()
 
 	root := venvtest.Root("/inherited-locals")
@@ -77,7 +76,7 @@ dependency "net" {
 	var diags hcl.Diagnostics
 	require.ErrorAs(t, err, &diags)
 	require.Len(t, diags, 1)
-	assert.Equal(t, "Unsupported attribute", diags[0].Summary)
+	assert.Equal(t, "Unknown variable", diags[0].Summary)
 	assert.Empty(t, stub.unexpectedCommands())
 }
 

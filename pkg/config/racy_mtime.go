@@ -1,9 +1,7 @@
 package config
 
 import (
-	"errors"
 	"hash/maphash"
-	"io"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -22,25 +20,21 @@ func isRacyModTime(modTime, readAt time.Time) bool {
 	return !modTime.Before(readAt.Add(-racyModTimeWindow))
 }
 
-// digestFile returns a digest of the contents of the file at path, hashing the file as it reads it.
+// digestBytes returns the digest [digestFile] returns for a file holding content.
+func digestBytes(content []byte) uint64 {
+	return maphash.Bytes(fileDigestSeed, content)
+}
+
+// digestFile returns a digest of the contents of the file at path.
 //
 // Digests of the same contents differ between processes, so a digest is only comparable within the process that
 // computed it and must never be persisted.
-func digestFile(fsys vfs.FS, path string) (digest uint64, err error) {
-	f, err := fsys.Open(path)
-	if err != nil {
-		return 0, err
-	}
-
-	defer func() {
-		err = errors.Join(err, f.Close())
-	}()
-
+func digestFile(fsys vfs.FS, path string) (uint64, error) {
 	var h maphash.Hash
 
 	h.SetSeed(fileDigestSeed)
 
-	if _, err := io.Copy(&h, f); err != nil {
+	if err := vfs.HashFile(fsys, &h, path); err != nil {
 		return 0, err
 	}
 

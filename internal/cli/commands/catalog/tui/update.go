@@ -697,7 +697,7 @@ func enterFormState(m Model, c *Component, priorState sessionState) (tea.Model, 
 	m.valuesRefs = nil
 	m.selectedComponent = c
 
-	return m, discoverFormCmd(m.ctx, m.logger, m.venv, m.terragruntOptions, c)
+	return m, discoverFormCmd(m.ctx, m.logger, m.venv, m.store, m.terragruntOptions, c)
 }
 
 // discoverFormCmd runs the kind-appropriate variable discovery off the UI
@@ -710,6 +710,7 @@ func discoverFormCmd(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	c *Component,
 ) tea.Cmd {
@@ -718,7 +719,7 @@ func discoverFormCmd(
 			return discoverValuesFields(v, c)
 		}
 
-		return discoverModuleFields(ctx, l, v, opts, c)
+		return discoverModuleFields(ctx, l, v, s, opts, c)
 	}
 }
 
@@ -736,12 +737,13 @@ func discoverModuleFields(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	c *Component,
 ) tea.Msg {
 	quiet := l.WithOptions(log.WithOutput(io.Discard))
 
-	plan, err := scaffold.Prepare(ctx, quiet, v, opts, c.TerraformSourcePath(), "")
+	plan, err := scaffold.Prepare(ctx, quiet, v, s, opts, c.TerraformSourcePath(), "")
 	if err != nil {
 		return formDiscoveryErrMsg{err: err}
 	}
@@ -844,7 +846,7 @@ func startPlaceholderScaffold(m Model, c *Component) (tea.Model, tea.Cmd) {
 // scaffoldComponentPlaceholderCmd schedules a planless scaffold run, which
 // downloads the source itself and emits TODO placeholders for every input.
 func scaffoldComponentPlaceholderCmd(l log.Logger, m Model, c *Component) tea.Cmd {
-	cmd := newScaffoldCmd(m.ctx, l, m.venv, m.terragruntOptions, c)
+	cmd := newScaffoldCmd(m.ctx, l, m.venv, m.store, m.terragruntOptions, c)
 
 	return tea.Exec(cmd, func(err error) tea.Msg {
 		return ScaffoldFinishedMsg{Err: err, Interactive: false, Files: cmd.Files()}
@@ -872,7 +874,7 @@ func scaffoldComponentWithPlanCmd(
 	plan *scaffold.Plan,
 	values map[string]string,
 ) tea.Cmd {
-	cmd := newScaffoldCmd(m.ctx, l, m.venv, m.terragruntOptions, c).WithPlan(plan, values)
+	cmd := newScaffoldCmd(m.ctx, l, m.venv, m.store, m.terragruntOptions, c).WithPlan(plan, values)
 
 	return tea.Exec(cmd, func(err error) tea.Msg {
 		return ScaffoldFinishedMsg{Err: err, Interactive: true, Files: cmd.Files()}

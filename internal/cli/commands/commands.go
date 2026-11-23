@@ -14,7 +14,6 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
@@ -82,7 +81,7 @@ const (
 )
 
 // New returns the set of Terragrunt commands, grouped into categories.
-func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *rewrite.Store) clihelper.Commands {
+func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *config.Store) clihelper.Commands {
 	mainCommands := clihelper.Commands{
 		runcmd.NewCommand(l, opts, v, s),  // run
 		stack.NewCommand(l, opts, v, s),   // stack
@@ -96,8 +95,8 @@ func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *rewrite
 	)
 
 	catalogCommands := clihelper.Commands{
-		catalog.NewCommand(l, opts, v),  // catalog
-		scaffold.NewCommand(l, opts, v), // scaffold
+		catalog.NewCommand(l, opts, v, s),  // catalog
+		scaffold.NewCommand(l, opts, v, s), // scaffold
 	}.SetCategory(
 		&clihelper.Category{
 			Name:  CatalogCommandsCategoryName,

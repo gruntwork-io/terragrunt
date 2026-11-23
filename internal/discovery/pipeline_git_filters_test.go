@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
@@ -62,7 +61,7 @@ func TestDiscoveryReportsAmbiguousConfigsInGitFilterWorktreesWithRacing(t *testi
 		WithWorktrees(w).
 		WithFilters(filter.Filters{filter.NewFilter(gitExpr, gitExpr.String())}).
 		WithSuppressParseErrors().
-		Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
+		Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(config.Store), opts)
 	require.ErrorAs(t, err, new(config.AmbiguousConfigError))
 }
 
@@ -121,7 +120,7 @@ func TestDiscoveryPipelineFindsWorktreeDependentsOfAnAbsolutePath(t *testing.T) 
 				WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: workingDir}).
 				WithWorktrees(w).
 				WithFilters(filters).
-				Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
+				Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(config.Store), opts)
 			require.NoError(t, err)
 
 			require.Len(t, w.WorktreePairs, 1)
@@ -181,7 +180,7 @@ func TestDiscoveryPipelineParsesComponentsFoundInWorktreesWithRacing(t *testing.
 		WithWorktrees(w).
 		WithFilters(filter.Filters{filter.NewFilter(gitExpr, gitExpr.String())}).
 		WithReadFiles().
-		Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
+		Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(config.Store), opts)
 	require.NoError(t, err)
 	require.Len(t, components, 1)
 
@@ -314,7 +313,7 @@ func TestDiscoveryPipelineReportsConfigConflictsInWorktreesWithRacing(t *testing
 						WithWorktrees(w).
 						WithFilters(filter.Filters{filter.NewFilter(gitExpr, gitExpr.String())}))
 
-					_, err = d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts)
+					_, err = d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(config.Store), opts)
 					conflict.requireErr(t, err)
 				})
 			}

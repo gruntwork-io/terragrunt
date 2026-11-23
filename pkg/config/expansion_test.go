@@ -83,7 +83,7 @@ include "extra" {
 	ctx, pctx := newTestParsingContext(t, stackPath)
 	v.FS = fsys
 
-	stackCfg, err := config.ReadStackConfigFile(ctx, l, v, pctx, stackPath, nil)
+	stackCfg, err := config.ReadStackConfigFile(ctx, l, v, new(config.Store), pctx, stackPath, nil)
 	require.NoError(t, err)
 
 	unitPaths := map[string]string{}
@@ -191,10 +191,12 @@ func TestDisabledExpandedDependencySkipsOutputRetrieval(t *testing.T) {
 	v := venv.MemVenv()
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 
-	cfg, err := config.ParseConfigString(
+	cfg, err := resolveRunConfigString(
+		t,
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		`
@@ -207,7 +209,6 @@ dependency "shard" {
   config_path = "../no-such-unit-${count.index}"
 }
 `,
-		nil,
 	)
 	require.NoError(t, err)
 	require.Len(t, cfg.TerragruntDependencies, 2)
@@ -274,7 +275,9 @@ dependency "shard" {
 
 			ctx, pctx := newTestParsingContext(t, configPath)
 
-			cfg, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, configPath, nil)
+			s := new(config.Store)
+
+			cfg, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, configPath)
 			require.NoError(t, err)
 
 			keys := make([]string, 0, len(cfg.TerragruntDependencies))
@@ -298,10 +301,12 @@ func TestExpandedDependencyCarriesItsOwnOutputConfig(t *testing.T) {
 	v := venv.MemVenv()
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 
-	cfg, err := config.ParseConfigString(
+	cfg, err := resolveRunConfigString(
+		t,
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		`
@@ -318,7 +323,6 @@ dependency "shard" {
   }
 }
 `,
-		nil,
 	)
 	require.NoError(t, err)
 	require.Len(t, cfg.TerragruntDependencies, 2)
@@ -368,10 +372,12 @@ func TestUnknownBlockRemainsRejected(t *testing.T) {
 	v := venv.MemVenv()
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 
-	_, err := config.ParseConfigString(
+	_, err := resolveRunConfigString(
+		t,
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		`
@@ -379,7 +385,6 @@ bogus "x" {
   foo = 1
 }
 `,
-		nil,
 	)
 	require.Error(t, err)
 }
@@ -567,10 +572,12 @@ func TestDependencyOutputsAddressedByInstanceKey(t *testing.T) {
 	v := venv.MemVenv()
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 
-	cfg, err := config.ParseConfigString(
+	cfg, err := resolveRunConfigString(
+		t,
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		`
@@ -619,7 +626,6 @@ inputs = {
   unquoted    = dependency.shard[0].outputs.id
 }
 `,
-		nil,
 	)
 	require.NoError(t, err)
 
@@ -643,10 +649,12 @@ func TestDependencyOutputsRejectExpandedBlockWithoutKey(t *testing.T) {
 	v := venv.MemVenv()
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 
-	_, err := config.ParseConfigString(
+	_, err := resolveRunConfigString(
+		t,
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		`
@@ -667,7 +675,6 @@ inputs = {
   id = dependency.aurora.outputs.id
 }
 `,
-		nil,
 	)
 
 	var diags hcl.Diagnostics
@@ -686,10 +693,12 @@ func TestDependencyOutputsEncodeDivergentSchemasPerKey(t *testing.T) {
 	v := venv.MemVenv()
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 
-	cfg, err := config.ParseConfigString(
+	cfg, err := resolveRunConfigString(
+		t,
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		`
@@ -713,7 +722,6 @@ inputs = {
   b_size = dependency.mixed["b"].outputs.size
 }
 `,
-		nil,
 	)
 	require.NoError(t, err)
 
@@ -732,10 +740,12 @@ func TestDependencyInstanceKeysMatchAddressableKeys(t *testing.T) {
 	v := venv.MemVenv()
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 
-	cfg, err := config.ParseConfigString(
+	cfg, err := resolveRunConfigString(
+		t,
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		`
@@ -777,7 +787,6 @@ inputs = {
   }
 }
 `,
-		nil,
 	)
 	require.NoError(t, err)
 
@@ -817,10 +826,12 @@ func TestDependencyOutputsAddressEmptyEachKey(t *testing.T) {
 	v := venv.MemVenv()
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 
-	cfg, err := config.ParseConfigString(
+	cfg, err := resolveRunConfigString(
+		t,
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		`
@@ -842,7 +853,6 @@ inputs = {
   web   = dependency.mixed["web"].outputs.id
 }
 `,
-		nil,
 	)
 	require.NoError(t, err)
 
@@ -860,10 +870,12 @@ func TestDependencyLabelClaimedByBlockAndInstances(t *testing.T) {
 	v := venv.MemVenv()
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 
-	_, err := config.ParseConfigString(
+	_, err := resolveRunConfigString(
+		t,
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		`
@@ -893,7 +905,6 @@ inputs = {
   id = dependency.aurora["web"].outputs.id
 }
 `,
-		nil,
 	)
 
 	var collision config.DependencyLabelCollisionError
@@ -911,10 +922,12 @@ func TestDependencyOutputsResolveUnknownWhenOutputsSkipped(t *testing.T) {
 	pctx.SkipOutput = true
 	pctx.SkipOutputsResolution = true
 
-	_, err := config.ParseConfigString(
+	_, err := resolveRunConfigString(
+		t,
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		`
@@ -931,7 +944,6 @@ inputs = {
   api = dependency.aurora["api"].outputs.id
 }
 `,
-		nil,
 	)
 	require.NoError(t, err)
 }
@@ -944,10 +956,12 @@ func TestDependencyInstancesAccumulateWithRacing(t *testing.T) {
 	v := venv.MemVenv()
 	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 
-	cfg, err := config.ParseConfigString(
+	cfg, err := resolveRunConfigString(
+		t,
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		`
@@ -994,7 +1008,6 @@ inputs = {
   last_region  = dependency.region["r39"].outputs.id
 }
 `,
-		nil,
 	)
 	require.NoError(t, err)
 
@@ -1190,10 +1203,12 @@ func TestPartialParseKeepsParsingPastABrokenExpansion(t *testing.T) {
 		WithDecodeList(config.DependencyBlock).
 		WithParserSettings(forgiving)
 
-	cfg, err := config.PartialParseConfigString(
+	cfg, err := resolvePartialConfigString(
+		t,
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx,
 		config.DefaultTerragruntConfigPath,
 		`
@@ -1210,7 +1225,6 @@ dependency "vpc" {
   config_path = "../vpc"
 }
 `,
-		nil,
 	)
 	require.NoError(t, err)
 	require.Len(t, cfg.TerragruntDependencies, 1)
@@ -1224,14 +1238,15 @@ func parseDependencyString(tb testing.TB, cfg string) (*config.TerragruntConfig,
 	v := venv.MemVenv()
 	ctx, pctx := newTestParsingContext(tb, config.DefaultTerragruntConfigPath)
 
-	return config.PartialParseConfigString(
+	return resolvePartialConfigString(
+		tb,
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx.WithDecodeList(config.DependencyBlock),
 		config.DefaultTerragruntConfigPath,
 		cfg,
-		nil,
 	)
 }
 
@@ -1252,14 +1267,15 @@ func parseDependencyJSONString(
 	v := venv.MemVenv()
 	ctx, pctx := newTestParsingContext(tb, jsonConfigPath)
 
-	return config.PartialParseConfigString(
+	return resolvePartialConfigString(
+		tb,
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx.WithDecodeList(config.DependencyBlock),
 		jsonConfigPath,
 		cfg,
-		nil,
 	)
 }
 
@@ -1285,6 +1301,7 @@ func parseStackStringAt(tb testing.TB, path, cfg string) (*config.StackConfig, e
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx,
 		path,
 		cfg,

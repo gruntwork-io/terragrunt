@@ -8,7 +8,6 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
@@ -110,7 +109,7 @@ func discoverWithRetry(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	runnerOpts ...Option,
 ) (component.Components, error) {
@@ -176,6 +175,7 @@ func checkVersionConstraints(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	units []*component.Unit,
 ) error {
@@ -195,6 +195,7 @@ func checkVersionConstraints(
 				checkCtx,
 				l,
 				v,
+				s,
 				unitOpts,
 				unitLogger,
 				unit,
@@ -212,6 +213,7 @@ func CheckUnitVersionConstraints(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	unitOpts *options.TerragruntOptions,
 	unitLogger log.Logger,
 	unit *component.Unit,
@@ -228,13 +230,12 @@ func CheckUnitVersionConstraints(
 
 		var err error
 
-		unitConfig, err = config.PartialParseConfigFile(
+		unitConfig, err = s.ResolvePartialConfig(
 			ctx,
 			l,
 			v,
 			pctx,
 			unitOpts.TerragruntConfigPath,
-			nil,
 		)
 		if err != nil {
 			return fmt.Errorf("failed to parse config for unit %s: %w", unit.DisplayPath(), err)

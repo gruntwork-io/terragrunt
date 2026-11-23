@@ -13,12 +13,12 @@ import (
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"golang.org/x/sync/errgroup"
@@ -40,7 +40,7 @@ func (d *Discovery) discoverInWorktrees(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 ) (*foundResults, error) {
 	results := new(foundResults)
@@ -169,7 +169,7 @@ func (d *Discovery) discoverInWorktree(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	wt worktrees.Worktree,
 	filters filter.Filters,
@@ -246,7 +246,7 @@ func (d *Discovery) deletedReadingComponentsToFilters(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	fromWorktree worktrees.Worktree,
 	readingFilters filter.Filters,
@@ -303,7 +303,7 @@ func (d *Discovery) discoverChangesInWorktreeStacks(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	w *worktrees.Worktrees,
 	boundary string,
@@ -388,7 +388,7 @@ func (d *Discovery) walkChangedStack(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	fromStack *component.Stack,
 	toStack *component.Stack,

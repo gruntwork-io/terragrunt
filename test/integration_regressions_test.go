@@ -37,6 +37,8 @@ const (
 	testFixtureAutoInitModuleBlockInSubdir       = "fixtures/regressions/auto-init-module-block-in-subdir"
 	testFixtureAutoInitNoProviders               = "fixtures/regressions/auto-init-no-providers"
 	testFixtureAutoInitInPlaceModuleOutsideUnit  = "fixtures/regressions/auto-init-in-place-module-outside-unit"
+	testFixtureAutoInitGeneratedContent          = "fixtures/regressions/auto-init-generated-content"
+	testFixtureAutoInitStaticVariables           = "fixtures/regressions/auto-init-static-variables"
 	testFixtureDependencyExtraArgsEnv            = "fixtures/regressions/dependency-extra-args-env"
 	testFixtureDependencyHookOutput              = "fixtures/regressions/dependency-hook-output"
 	testFixtureDependencyExtraArgsOutput         = "fixtures/regressions/dependency-extra-args-output"

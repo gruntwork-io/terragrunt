@@ -84,6 +84,7 @@ func TestEarlyStackParseFunctions_CoversAllTerragruntFunctions(t *testing.T) {
 		t.Context(),
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		newStackParsePctx(t, baseDir),
 		baseDir,
 	)
@@ -105,6 +106,7 @@ func TestEarlyStackParseFunctions_PureEvaluatesNormally(t *testing.T) {
 		t.Context(),
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		newStackParsePctx(t, baseDir),
 		baseDir,
 	)
@@ -126,7 +128,14 @@ func TestEarlyStackParseFunctions_GetEnvReadsVenvEnv(t *testing.T) {
 	pctx := newStackParsePctx(t, baseDir)
 	v.Env = map[string]string{"PLAN_KEY": "plan_value"}
 
-	funcs, err := config.EarlyStackParseFunctions(config.WithCaches(t.Context()), logger.CreateLogger(), v, pctx, baseDir)
+	funcs, err := config.EarlyStackParseFunctions(
+		config.WithCaches(t.Context()),
+		logger.CreateLogger(),
+		v,
+		new(config.Store),
+		pctx,
+		baseDir,
+	)
 	require.NoError(t, err)
 
 	got, err := funcs[config.FuncNameGetEnv].Call([]cty.Value{cty.StringVal("PLAN_KEY")})
@@ -144,6 +153,7 @@ func TestEarlyStackParseFunctions_GetTerragruntDirReturnsBaseDir(t *testing.T) {
 		t.Context(),
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		newStackParsePctx(t, baseDir),
 		baseDir,
 	)
@@ -168,6 +178,7 @@ func TestEarlyStackParseFunctions_GetWorkingDirOverride(t *testing.T) {
 		t.Context(),
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		newStackParsePctx(t, baseDir),
 		baseDir,
 	)
@@ -219,7 +230,14 @@ func TestEarlyStackParseFunctions_GetTerraformCommandReadsPctx(t *testing.T) {
 	pctx := newStackParsePctx(t, baseDir)
 	pctx.TerraformCommand = "plan"
 
-	funcs, err := config.EarlyStackParseFunctions(config.WithCaches(t.Context()), logger.CreateLogger(), v, pctx, baseDir)
+	funcs, err := config.EarlyStackParseFunctions(
+		config.WithCaches(t.Context()),
+		logger.CreateLogger(),
+		v,
+		new(config.Store),
+		pctx,
+		baseDir,
+	)
 	require.NoError(t, err)
 
 	got, err := funcs[config.FuncNameGetTerraformCommand].Call(nil)
@@ -237,7 +255,14 @@ func TestEarlyStackParseFunctions_GetTerraformCLIArgsReadsPctx(t *testing.T) {
 	pctx.TerraformCliArgs = iacargs.New()
 	pctx.TerraformCliArgs.InsertArguments(0, "-auto-approve")
 
-	funcs, err := config.EarlyStackParseFunctions(config.WithCaches(t.Context()), logger.CreateLogger(), v, pctx, baseDir)
+	funcs, err := config.EarlyStackParseFunctions(
+		config.WithCaches(t.Context()),
+		logger.CreateLogger(),
+		v,
+		new(config.Store),
+		pctx,
+		baseDir,
+	)
 	require.NoError(t, err)
 
 	got, err := funcs[config.FuncNameGetTerraformCLIArgs].Call(nil)
@@ -255,7 +280,14 @@ func TestEarlyStackParseFunctions_MarkAsReadAppendsToPctxFilesRead(t *testing.T)
 	pctx := newStackParsePctx(t, baseDir)
 	pctx.FilesRead = config.NewFilesRead()
 
-	funcs, err := config.EarlyStackParseFunctions(config.WithCaches(t.Context()), logger.CreateLogger(), v, pctx, baseDir)
+	funcs, err := config.EarlyStackParseFunctions(
+		config.WithCaches(t.Context()),
+		logger.CreateLogger(),
+		v,
+		new(config.Store),
+		pctx,
+		baseDir,
+	)
 	require.NoError(t, err)
 
 	got, err := funcs[config.FuncNameMarkAsRead].Call([]cty.Value{cty.StringVal("inputs.yaml")})
@@ -277,6 +309,7 @@ func TestEarlyStackParseFunctions_PathRelativeToIncludeFallback(t *testing.T) {
 		t.Context(),
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		newStackParsePctx(t, baseDir),
 		baseDir,
 	)
@@ -309,7 +342,14 @@ unit "vpc" {
 
 	pctx := newStackParsePctx(t, stackDir)
 	funcsFor := func(dir string) (map[string]function.Function, error) {
-		return config.EarlyStackParseFunctions(config.WithCaches(t.Context()), logger.CreateLogger(), v, pctx, dir)
+		return config.EarlyStackParseFunctions(
+			config.WithCaches(t.Context()),
+			logger.CreateLogger(),
+			v,
+			new(config.Store),
+			pctx,
+			dir,
+		)
 	}
 
 	paths, err := inthclparse.UnitPathsFromStackDir(
@@ -353,7 +393,14 @@ unit "vpc" {
 	)
 
 	funcsFor := func(dir string) (map[string]function.Function, error) {
-		return config.EarlyStackParseFunctions(config.WithCaches(t.Context()), logger.CreateLogger(), v, pctx, dir)
+		return config.EarlyStackParseFunctions(
+			config.WithCaches(t.Context()),
+			logger.CreateLogger(),
+			v,
+			new(config.Store),
+			pctx,
+			dir,
+		)
 	}
 
 	paths, err := inthclparse.UnitPathsFromStackDir(
@@ -382,6 +429,7 @@ func TestEarlyStackParseFunctions_TerraformStdlibIncluded(t *testing.T) {
 		t.Context(),
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		newStackParsePctx(t, baseDir),
 		baseDir,
 	)

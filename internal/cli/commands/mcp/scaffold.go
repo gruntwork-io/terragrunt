@@ -195,10 +195,11 @@ func scaffoldInto(
 	cv := d.callVenv(rootVenv, env, io.Discard)
 
 	ctx = freshCallContext(ctx)
+	s := new(config.Store)
 
 	opts.ScaffoldRootFileName = scaffold.GetDefaultRootFileName(ctx, cv.FS, opts)
 
-	plan, err := scaffold.Prepare(ctx, l, cv, opts, input.Source, input.Template)
+	plan, err := scaffold.Prepare(ctx, l, cv, s, opts, input.Source, input.Template)
 	if err != nil {
 		return scaffoldOutput{}, scaffoldExplainDenials(err, d.rec)
 	}

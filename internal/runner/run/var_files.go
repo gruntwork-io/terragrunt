@@ -10,8 +10,8 @@ import (
 
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/hashicorp/hcl/v2/hclwrite"
-	ctyjson "github.com/zclconf/go-cty/cty/json"
 
+	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/hclhelper"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
@@ -98,8 +98,8 @@ func encodeTFVars(inputs map[string]any) ([]byte, error) {
 		return nil, err
 	}
 
-	var values ctyjson.SimpleJSONValue
-	if err := values.UnmarshalJSON(asJSON); err != nil {
+	values, err := ctyhelper.DecodeJSON(asJSON)
+	if err != nil {
 		return nil, err
 	}
 

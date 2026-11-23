@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -28,7 +27,7 @@ func Run(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	srcPath, dstPath string,
 	opts *options.TerragruntOptions,
 ) error {
@@ -82,7 +81,7 @@ func Run(
 
 	srcPctx := configbridge.NewParsingContext(srcOpts)
 
-	srcRemoteState, err := config.ParseRemoteState(ctx, l, srcV, srcPctx)
+	srcRemoteState, err := config.ParseRemoteState(ctx, l, srcV, s, srcPctx)
 	if err != nil {
 		return err
 	}
@@ -98,7 +97,7 @@ func Run(
 
 	dstPctx := configbridge.NewParsingContext(dstOpts)
 
-	dstRemoteState, err := config.ParseRemoteState(ctx, l, dstV, dstPctx)
+	dstRemoteState, err := config.ParseRemoteState(ctx, l, dstV, s, dstPctx)
 	if err != nil {
 		return err
 	}

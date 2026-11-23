@@ -1,0 +1,110 @@
+package config_test
+
+import (
+	"path/filepath"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/zclconf/go-cty/cty"
+
+	"github.com/gruntwork-io/terragrunt/internal/iam"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+)
+
+func TestResolveUnitConfigLeavesTheCallersContextUnchanged(t *testing.T) {
+	t.Parallel()
+
+	v := venv.MemVenv()
+	root := vfs.MemRoot
+	cfgPath := filepath.Join(root, "unit", config.DefaultTerragruntConfigPath)
+
+	require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(root, "root.hcl"), []byte(`
+locals {
+  region = "us-east-1"
+}
+
+inputs = {
+  region = local.region
+}
+`), 0o644))
+	require.NoError(t, vfs.WriteFile(v.FS, cfgPath, []byte(`
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+
+locals {
+  name = "unit"
+}
+
+inputs = {
+  name = local.name
+}
+`), 0o644))
+
+	ctx, run := newTestUnitParsingContext(t, cfgPath)
+	run.OriginalIAMRoleOptions = iam.RoleOptions{RoleARN: "arn:aws:iam::123456789012:role/cli"}
+	runLocals := cty.ObjectVal(map[string]cty.Value{"from_run": cty.StringVal("run")})
+	run.Locals = &runLocals
+
+	want := run.Clone()
+	pc := run
+	l := logger.CreateLogger()
+
+	s := new(config.Store)
+
+	first, err := s.ResolveUnitConfig(ctx, l, v, pc, cfgPath)
+	require.NoError(t, err)
+
+	second, err := s.ResolveUnitConfig(ctx, l, v, pc, cfgPath)
+	require.NoError(t, err)
+
+	firstCfg, err := first.ResolveRunConfig(ctx, l, v, new(config.Store), pc)
+	require.NoError(t, err)
+
+	secondCfg, err := second.ResolveRunConfig(ctx, l, v, new(config.Store), pc)
+	require.NoError(t, err)
+
+	assert.Equal(t, firstCfg, secondCfg)
+	assert.Equal(t, map[string]any{"name": "unit", "region": "us-east-1"}, firstCfg.Inputs)
+
+	assert.Equal(t, want, run)
+}
+
+func TestResolveUnitConfigAppliesRunScopedValues(t *testing.T) {
+	t.Parallel()
+
+	v := venv.MemVenv()
+	cfgPath := filepath.Join(vfs.MemRoot, config.DefaultTerragruntConfigPath)
+
+	require.NoError(t, vfs.WriteFile(v.FS, cfgPath, []byte(`
+inputs = {
+  vpc_id = dependency.vpc.outputs.id
+}
+`), 0o644))
+
+	ctx, run := newTestUnitParsingContext(t, cfgPath)
+	decodedDeps := cty.ObjectVal(map[string]cty.Value{
+		"vpc": cty.ObjectVal(map[string]cty.Value{
+			"outputs": cty.ObjectVal(map[string]cty.Value{"id": cty.StringVal("vpc-from-run")}),
+		}),
+	})
+	run.DecodedDependencies = &decodedDeps
+
+	l := logger.CreateLogger()
+
+	pc := run
+
+	s := new(config.Store)
+
+	parsed, err := s.ResolveUnitConfig(ctx, l, v, pc, cfgPath)
+	require.NoError(t, err)
+
+	cfg, err := parsed.ResolveRunConfig(ctx, l, v, new(config.Store), pc)
+	require.NoError(t, err)
+
+	assert.Equal(t, "vpc-from-run", cfg.Inputs["vpc_id"])
+}

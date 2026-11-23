@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -58,7 +57,7 @@ dependencies {
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithRelationships()
 
-	components, err := d.Discover(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(rewrite.Store), opts)
+	components, err := d.Discover(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(config.Store), opts)
 	require.NoError(t, err)
 
 	app := components.FilterByPath(appDir)
@@ -140,7 +139,7 @@ include "root" {
 					WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 					WithRelationships()
 
-				components, err := d.Discover(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(rewrite.Store), opts)
+				components, err := d.Discover(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(config.Store), opts)
 				require.NoError(t, err)
 
 				app := components.FilterByPath(appDir)

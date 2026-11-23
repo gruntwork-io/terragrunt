@@ -43,10 +43,12 @@ func verifyFile(fsys vfs.FS, checkedFile, checksumsFile, signatureFile string) e
 
 	// verify checksums
 	// calculate checksum of package file
-	packageChecksum, err := vfs.FileSHA256(fsys, checkedFile)
-	if err != nil {
+	h := sha256.New()
+	if err := vfs.HashFile(fsys, h, checkedFile); err != nil {
 		return err
 	}
+
+	packageChecksum := h.Sum(nil)
 
 	// match expected checksum
 	expectedChecksum := util.MatchSha256Checksum(checksums, []byte(filepath.Base(checkedFile)))

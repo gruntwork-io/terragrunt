@@ -14,7 +14,6 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -40,7 +39,7 @@ import (
 //
 // Returns an error when --inputs is combined with --show-config-path or
 // --json, or when --strict is set without --inputs.
-func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *config.Store, opts *options.TerragruntOptions) error {
 	if opts.HCLValidateOutputs && !opts.Experiments.Evaluate(experiment.OutputsBlock) {
 		return ErrOutputsExperimentRequired
 	}
@@ -80,7 +79,7 @@ func RunValidate(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 ) error {
 	collector := &DiagnosticsCollector{}
@@ -134,7 +133,7 @@ func RunValidate(
 		componentV := v.WithEnvCloned()
 
 		if _, ok := c.(*component.Stack); ok {
-			parseErrs = append(parseErrs, parser.Stack(ctx, l, componentV, opts, c.Path())...)
+			parseErrs = append(parseErrs, parser.Stack(ctx, l, componentV, s, opts, c.Path())...)
 
 			continue
 		}
@@ -254,7 +253,7 @@ func RunValidateInputs(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 ) error {
 	opts = opts.Clone()
@@ -787,7 +786,7 @@ func discoverComponents(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	wts *worktrees.Worktrees,
 ) (components component.Components, discoveryErr, err error) {
