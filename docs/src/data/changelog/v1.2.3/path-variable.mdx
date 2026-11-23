@@ -5,29 +5,8 @@ category: "experiments-added"
 
 #### `path-variable` experiment adds the `path` variable
 
-Functions such as `get_terragrunt_dir()` and `get_parent_terragrunt_dir()` return a different directory in a unit, in an included file and in a file that `read_terragrunt_config` reads. Enable the [`path-variable`](/reference/experiments/active#path-variable) experiment to read each location by name:
-
-- `path.unit` is the directory of the unit, in every file that Terragrunt evaluates for that unit.
-- `path.stack` is the directory that holds `terragrunt.stack.hcl`.
-- `path.module` is the directory in which Terragrunt runs OpenTofu/Terraform for the unit.
-- `path.include` is the path of the included file.
-- `path.read` is the path of the file that `read_terragrunt_config` reads.
-
-```hcl
-# root.hcl
-remote_state {
-  backend = "s3"
-
-  config = {
-    bucket = "my-tofu-state"
-    key    = "${trimprefix(path.unit, "${dirname(path.include)}/")}/tofu.tfstate"
-    region = "us-east-1"
-  }
-}
-```
+Enable the [`path-variable`](/reference/experiments/active#path-variable) experiment to read paths by name: `path.unit`, `path.stack`, `path.module`, `path.include` and `path.read`.
 
 ```bash
 terragrunt run --all --experiment path-variable -- plan
 ```
-
-A reference to `path` without the experiment enabled returns an error.
