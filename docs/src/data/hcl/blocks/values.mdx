@@ -74,7 +74,7 @@ blocks:
       - name: nullable
         type: bool
         default: "false"
-        description: When `true`, a `null` value stays `null`. Otherwise a `null` value takes the `default`, and is an error for a value without one.
+        description: When `true`, a `null` value stays `null`. Otherwise Terragrunt replaces `null` with the `default`, and reports an error for a value without one.
     example: |
       # terragrunt.hcl
 
@@ -102,9 +102,9 @@ A config can have one `values` block, in the `terragrunt.hcl` of a unit or the `
 
 Before Terragrunt evaluates the rest of the config, it resolves `values` from `terragrunt.values.hcl`:
 
-- A value the file doesn't set takes its `default`. A value without a default is required, and leaving it unset is an error.
+- A value the file doesn't set, or sets to `null`, takes its `default`. A value without a default is required, and leaving it unset or `null` is an error.
+- With `nullable = true`, a value set to `null` stays `null`.
 - Each value converts to its `type` by the same rules as an OpenTofu variable, so `"2"` becomes the number `2` for a `number` value. The `optional()` attributes of an object type take their defaults.
-- A value set to `null` takes its `default`, or fails when it has none. Set `nullable = true` to keep the `null`.
 
 A unit or stack with no `terragrunt.values.hcl` gets only its defaults. If it declares a required value, reading its config fails, e.g. when you run `terragrunt hcl validate` in the catalog's copy of the unit. Give every value a default to read the config without a values file.
 
