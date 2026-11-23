@@ -494,7 +494,7 @@ func stackDependencyPaths(
 		},
 	)
 
-	varsFor := configbridge.StackVarFactory(ctx, l, v, opts)
+	varsFor := configbridge.StackVarFactory(ctx, l, v, pctx)
 
 	// Expand stack dependency paths to individual unit paths.
 	expanded := make([]string, 0, len(depPaths))

@@ -63,10 +63,8 @@ func StackVarFactory(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	opts *options.TerragruntOptions,
+	pctx *config.ParsingContext,
 ) inthclparse.StackVarFactory {
-	pctx := NewParsingContext(opts)
-
 	return func(stackDir string) (map[string]cty.Value, error) {
 		stackFile := filepath.Join(stackDir, config.DefaultStackFile)
 
@@ -88,7 +86,7 @@ func StackDirArgs(
 ) *inthclparse.StackDirArgs {
 	return &inthclparse.StackDirArgs{
 		FuncsFor: StackFuncFactory(ctx, l, v, opts),
-		VarsFor:  StackVarFactory(ctx, l, v, opts),
+		VarsFor:  StackVarFactory(ctx, l, v, NewParsingContext(opts)),
 	}
 }
 
