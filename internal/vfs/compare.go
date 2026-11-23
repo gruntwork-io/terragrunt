@@ -45,7 +45,8 @@ func WithBlockSize(n int) DirsDifferOption {
 // or content.
 //
 // File contents are read only when both directories hold the same paths with the same sizes and permissions, and
-// only up to the first difference.
+// only up to the first difference. Outside Windows, a pair of paths that name the same file, as two hard links to one
+// inode do, is never read.
 //
 // Returns [ErrNotRegularFile] when a file below either directory is neither a regular file nor a symbolic link to
 // one.
@@ -65,7 +66,7 @@ func DirsDiffer(fsys FS, fromDir, toDir string, opts ...DirsDifferOption) (bool,
 		return false, err
 	}
 
-	if !slices.Equal(fromFiles, toFiles) {
+	if !sameListing(fromFiles, toFiles) {
 		return true, nil
 	}
 
@@ -74,7 +75,7 @@ func DirsDiffer(fsys FS, fromDir, toDir string, opts ...DirsDifferOption) (bool,
 	}
 
 	if cfg.blockSize > 0 {
-		return filesDiffer(fsys, fromDir, toDir, fromFiles, newCompareBuffers(cfg.blockSize))
+		return filesDiffer(fsys, fromDir, toDir, fromFiles, toFiles, newCompareBuffers(cfg.blockSize))
 	}
 
 	bufs, ok := compareBuffersPool.Get().(*compareBuffers)
@@ -84,7 +85,7 @@ func DirsDiffer(fsys FS, fromDir, toDir string, opts ...DirsDifferOption) (bool,
 
 	defer compareBuffersPool.Put(bufs)
 
-	return filesDiffer(fsys, fromDir, toDir, fromFiles, bufs)
+	return filesDiffer(fsys, fromDir, toDir, fromFiles, toFiles, bufs)
 }
 
 // dirsDifferConfig is what the options of a [DirsDiffer] call set.
@@ -109,9 +110,17 @@ func newCompareBuffers(size int) *compareBuffers {
 
 // dirFile is a file below a directory being compared with another.
 type dirFile struct {
+	info    fs.FileInfo
 	relPath string
-	size    int64
-	perm    fs.FileMode
+}
+
+// sameListing reports whether from and to hold the same relative paths, with the same sizes and permissions.
+func sameListing(from, to []dirFile) bool {
+	return slices.EqualFunc(from, to, func(a, b dirFile) bool {
+		return a.relPath == b.relPath &&
+			a.info.Size() == b.info.Size() &&
+			a.info.Mode().Perm() == b.info.Mode().Perm()
+	})
 }
 
 // listDirFiles returns the files below rootDir that none of ignore reports true for, sorted by relative path.
@@ -153,7 +162,7 @@ func listDirFiles(fsys FS, rootDir string, ignore []func(fs.DirEntry) bool) ([]d
 			return fmt.Errorf("could not compute relative path for %s: %w", path, err)
 		}
 
-		files = append(files, dirFile{relPath: relPath, size: info.Size(), perm: info.Mode().Perm()})
+		files = append(files, dirFile{info: info, relPath: relPath})
 
 		return nil
 	})
@@ -168,14 +177,18 @@ func listDirFiles(fsys FS, rootDir string, ignore []func(fs.DirEntry) bool) ([]d
 	return files, nil
 }
 
-// filesDiffer reports whether any of files, found below both fromDir and toDir, holds different bytes on the two
-// sides.
-func filesDiffer(fsys FS, fromDir, toDir string, files []dirFile, bufs *compareBuffers) (bool, error) {
-	for _, file := range files {
+// filesDiffer reports whether any file of fromFiles holds different bytes than the file at the same index of
+// toFiles, which lists the same relative paths.
+func filesDiffer(fsys FS, fromDir, toDir string, fromFiles, toFiles []dirFile, bufs *compareBuffers) (bool, error) {
+	for i, from := range fromFiles {
+		if sameFile(from.info, toFiles[i].info) {
+			continue
+		}
+
 		differ, err := fileContentsDiffer(
 			fsys,
-			filepath.Join(fromDir, file.relPath),
-			filepath.Join(toDir, file.relPath),
+			filepath.Join(fromDir, from.relPath),
+			filepath.Join(toDir, from.relPath),
 			bufs,
 		)
 		if err != nil {
