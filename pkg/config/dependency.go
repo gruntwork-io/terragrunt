@@ -401,6 +401,8 @@ func validateConfigPathsNotNull(cfgPath string, deps Dependencies) error {
 //
 // Whether that is an error or a warning is left to the dependency-config-path-file strict
 // control.
+//
+// Returns the error of ctx when ctx ends before every block is checked.
 func validateDependencyConfigPathDirs(
 	ctx context.Context,
 	pctx *ParsingContext,
@@ -410,6 +412,10 @@ func validateDependencyConfigPathDirs(
 	deps Dependencies,
 ) error {
 	for i := range deps {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+
 		dep := &deps[i]
 
 		path, ok := dep.configPathFrom(pctx.TerragruntConfigPath)

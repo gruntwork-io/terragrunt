@@ -61,7 +61,7 @@ func readDependencyPaths(
 		return dependencyPaths{err: err}
 	}
 
-	paths, err := extractDependencyPaths(d.paths, unit.Config(), c)
+	paths, err := extractDependencyPaths(ctx, d.paths, unit.Config(), c)
 	if err != nil {
 		return dependencyPaths{err: err}
 	}
@@ -74,6 +74,10 @@ func readDependencyPaths(
 	check := configbridge.AmbiguousConfigCheck(opts)
 
 	for _, path := range paths {
+		if err := ctx.Err(); err != nil {
+			return dependencyPaths{err: err}
+		}
+
 		if err := config.RejectAmbiguousDefaultConfig(v.FS, path, check); err != nil {
 			return dependencyPaths{err: err}
 		}
@@ -132,7 +136,9 @@ func (r *pipelineRelations) link(
 			continue
 		}
 
-		linker.add(v, c, declared.paths)
+		if err := linker.add(ctx, v, c, declared.paths); err != nil {
+			return errors.Join(append(errs, err)...)
+		}
 	}
 
 	walks := newTransientWalks(linker, components)
@@ -163,7 +169,9 @@ func (r *pipelineRelations) link(
 				continue
 			}
 
-			linker.add(v, unit, declared.paths)
+			if err := linker.add(ctx, v, unit, declared.paths); err != nil {
+				return errors.Join(append(errs, err)...)
+			}
 		}
 
 		walks = slices.DeleteFunc(walks, func(w *transientWalk) bool {
@@ -301,6 +309,7 @@ func (r *pipelineRelations) linkForDependents(
 		}
 
 		if err := linkReached(
+			ctx,
 			v.FS,
 			c,
 			declared.paths,
@@ -317,9 +326,12 @@ func (r *pipelineRelations) linkForDependents(
 // linkReached links c to the component at each of depPaths, taking it from components or adding it there with the
 // discovery context of a component the graph reached from c.
 //
+// Returns the error of ctx when ctx ends before every path is linked.
+//
 // Returns a [config.AmbiguousConfigError] when check is [config.RejectAmbiguousConfig] and a dependency path that
 // components does not hold has both default unit config files.
 func linkReached(
+	ctx context.Context,
 	fsys vfs.FS,
 	c component.Component,
 	depPaths []string,
@@ -329,6 +341,10 @@ func linkReached(
 	parentCtx := c.DiscoveryContext()
 
 	for _, depPath := range depPaths {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+
 		dep, err := componentFromDependencyPath(fsys, depPath, check, components)
 		if err != nil {
 			return err
@@ -474,7 +490,7 @@ func (t *dependencyTraversal) run(
 		var next component.Components
 
 		for _, c := range reached {
-			next = append(next, t.dependenciesOf(l, v.FS, c, depth-level-1)...)
+			next = append(next, t.dependenciesOf(ctx, l, v.FS, c, depth-level-1)...)
 		}
 
 		reached = next
@@ -482,8 +498,9 @@ func (t *dependencyTraversal) run(
 }
 
 // dependenciesOf adds the dependencies of c to the results and returns the ones the traversal continues from, each
-// with left depth to go.
+// with left depth to go. It records the error of ctx and returns none when ctx ends before every dependency is added.
 func (t *dependencyTraversal) dependenciesOf(
+	ctx context.Context,
 	l log.Logger,
 	fsys vfs.FS,
 	c component.Component,
@@ -499,6 +516,12 @@ func (t *dependencyTraversal) dependenciesOf(
 	var next component.Components
 
 	for _, depPath := range declared.paths {
+		if err := ctx.Err(); err != nil {
+			t.errs = append(t.errs, err)
+
+			return nil
+		}
+
 		dep, ok := t.reach(l, fsys, c, depPath)
 		if ok && t.continuesFrom(dep, left) {
 			next = append(next, dep)
@@ -619,14 +642,22 @@ type dependencyLinker struct {
 }
 
 // add links c to the component at each of paths, creating a unit for a path that has none.
-func (k *dependencyLinker) add(v *venv.Venv, c component.Component, paths []string) {
+//
+// Returns the error of ctx when ctx ends before every path is linked.
+func (k *dependencyLinker) add(ctx context.Context, v *venv.Venv, c component.Component, paths []string) error {
 	for _, path := range paths {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+
 		dep := k.dependency(v, path)
 
 		if !slices.Contains(c.Dependencies(), dep) {
 			c.AddDependency(dep)
 		}
 	}
+
+	return nil
 }
 
 // dependency returns the component at path: the one discovery found, or a unit that only its dependents reach.
