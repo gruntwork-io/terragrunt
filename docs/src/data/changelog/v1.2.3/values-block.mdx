@@ -30,7 +30,8 @@ terragrunt stack generate --experiment values-block
 18:10:44.033 ERROR  Error: Undeclared value "tag" for unit "app"
 18:10:44.033 ERROR    on /path/to/live/terragrunt.stack.hcl line 7, in unit "app":
 18:10:44.033 ERROR     7:     tag  = { team = "payments" }
-18:10:44.033 ERROR  The unit at ../catalog/units/app does not declare a value named "tag". Did you mean "tags"?
+18:10:44.033 ERROR  The unit at ../catalog/units/app does not declare a value named "tag".
+18:10:44.033 ERROR  Did you mean "tags"?
 ```
 
 `terragrunt hcl validate` reports each `values.<name>` read that the block doesn't declare. See the [`values` block reference](/reference/hcl/blocks/values/).

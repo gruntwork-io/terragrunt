@@ -94,9 +94,11 @@ import SideBySide from '@components/SideBySide.astro';
   The `values` block needs the [`values-block`](/reference/experiments/active#values-block) experiment. Enable it with `--experiment values-block` or `TG_EXPERIMENT=values-block`. Without the experiment, a config that has the block fails with an error.
 </Aside>
 
-The `values` block lists the values a unit or stack reads as `values.<name>`, each with an optional type, default, and description. Terragrunt reports a key the block doesn't declare, a value of the wrong type, and a required value that nothing sets.
+The `values` block is optional. A config without it reads `terragrunt.values.hcl` unchecked, with or without the experiment.
 
-A config can have one `values` block, in the `terragrunt.hcl` of a unit or the `terragrunt.stack.hcl` of a stack. A `values` block in a file that another config includes, such as `root.hcl`, or in an [`autoinclude`](/reference/hcl/blocks/autoinclude) block, is an error. A config without the block reads `terragrunt.values.hcl` unchecked, with or without the experiment.
+A `values` block lists the values a unit or stack reads as `values.<name>`, each with an optional type, default, and description. Terragrunt reports a key the block doesn't declare, a value of the wrong type, and a required value that nothing sets.
+
+A config can have one `values` block, in the `terragrunt.hcl` of a unit or the `terragrunt.stack.hcl` of a stack. A `values` block in a file that another config includes, such as `root.hcl`, or in an [`autoinclude`](/reference/hcl/blocks/autoinclude) block, is an error.
 
 ### How values resolve
 
@@ -110,7 +112,7 @@ A unit or stack with no `terragrunt.values.hcl` gets only its defaults. If it de
 
 ### When Terragrunt checks values
 
-[`terragrunt stack generate`](/reference/cli/commands/stack/generate) checks the `values` of each [`unit`](/reference/hcl/blocks/unit) and [`stack`](/reference/hcl/blocks/stack) block against the `values` block of the config it generates. [`stack run`](/reference/cli/commands/stack/run) and `run --all` generate the stack first, so they run the check too. Terragrunt writes no `terragrunt.values.hcl` for a unit or stack that fails the check.
+Terragrunt checks values only for a unit or stack whose config has a `values` block. [`terragrunt stack generate`](/reference/cli/commands/stack/generate) checks the `values` of each [`unit`](/reference/hcl/blocks/unit) and [`stack`](/reference/hcl/blocks/stack) block against that `values` block. [`stack run`](/reference/cli/commands/stack/run) and `run --all` generate the stack first, so they run the check too. Terragrunt writes no `terragrunt.values.hcl` for a unit or stack that fails the check.
 
 In this example, the stack passes the unit a key that the unit doesn't declare:
 
@@ -158,14 +160,15 @@ Generation fails at the `tag` key and suggests the `tags` value the unit declare
 18:10:44.033 ERROR  Error: Undeclared value "tag" for unit "app"
 18:10:44.033 ERROR    on /path/to/live/terragrunt.stack.hcl line 7, in unit "app":
 18:10:44.033 ERROR     7:     tag  = { team = "payments" }
-18:10:44.033 ERROR  The unit at ../catalog/units/app does not declare a value named "tag". Did you mean "tags"?
+18:10:44.033 ERROR  The unit at ../catalog/units/app does not declare a value named "tag".
+18:10:44.033 ERROR  Did you mean "tags"?
 ```
 
 Terragrunt checks the values again when it reads the unit or stack config, so the same errors point at the line of a `terragrunt.values.hcl` file you edit by hand.
 
 ### Checking references with hcl validate
 
-[`terragrunt hcl validate`](/reference/cli/commands/hcl/validate) reports each `values.<name>` read in a config that its `values` block doesn't declare, including a read inside `try()` that would otherwise fall back without an error. It checks the file that declares the block, and skips HCL JSON files.
+[`terragrunt hcl validate`](/reference/cli/commands/hcl/validate) checks `values.<name>` reads only in a config that has a `values` block, and skips HCL JSON files. It reports each read that the block doesn't declare, including one inside `try()` or `can()`, which can never succeed.
 
 ```hcl title="terragrunt.hcl" {15}
 values {
@@ -199,6 +202,9 @@ error: Undeclared value
 15 |   tags = merge(try(values.tgas, {}), { managed_by = "terragrunt" })
    |                    ^^^^^^^^^^^
    |
-   = The values block of this unit does not declare "tgas". Did you mean
-     "tags"? Fix the reference, or declare "tgas" in the values block.
+   = The values block of this unit does not declare "tgas", so try() always
+     returns its fallback.
+   = Did you mean "tags"?
+   = To make a value optional, declare it with a default in the values block,
+     and read it without try().
 ```

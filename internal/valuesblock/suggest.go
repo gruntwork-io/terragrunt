@@ -11,20 +11,20 @@ import (
 // suggestions HCL and OpenTofu make.
 const maxSuggestionDistance = 2
 
-// Hint returns a sentence, with a leading space, for a reference to name, which d does not declare. The sentence
-// suggests the declared name closest to name, or lists the declared names when none is close.
+// Hint returns a paragraph, after a blank line, for a reference to name, which d does not declare. It suggests
+// the declared name closest to name, or lists the declared names when none is close.
 func (d *Declarations) Hint(name string) string {
 	names := d.Names()
 
 	if suggestion := NameSuggestion(name, names); suggestion != "" {
-		return fmt.Sprintf(" Did you mean %q?", suggestion)
+		return fmt.Sprintf("\n\nDid you mean %q?", suggestion)
 	}
 
 	if len(names) == 0 {
-		return " It declares no values."
+		return "\n\nThe values block declares no values."
 	}
 
-	return " It declares: " + strings.Join(names, ", ") + "."
+	return "\n\nDeclared values: " + strings.Join(names, ", ") + "."
 }
 
 // NameSuggestion returns the name in names closest to given, or the empty string when none is within two edits. Of

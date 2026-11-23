@@ -20,6 +20,9 @@ const tagsValuesBlock = `values {
 }
 `
 
+const tryAdvice = "To make a value optional, declare it with a default in the values block, and read it " +
+	"without try()."
+
 func TestRunValidateValuesReferences(t *testing.T) {
 	t.Parallel()
 
@@ -34,40 +37,69 @@ func TestRunValidateValuesReferences(t *testing.T) {
 			name:   "inside try",
 			block:  tagsValuesBlock,
 			inputs: "inputs = {\n  tags = try(values.tgas, {})\n}\n",
-			detail: `The values block of this unit does not declare "tgas". Did you mean "tags"? ` +
-				`Fix the reference, or declare "tgas" in the values block.`,
+			detail: "The values block of this unit does not declare \"tgas\", so try() always returns its fallback.\n\n" +
+				"Did you mean \"tags\"?\n\n" + tryAdvice,
+			line: 9,
+		},
+		{
+			name:   "inside can",
+			block:  tagsValuesBlock,
+			inputs: "inputs = {\n  tagged = can(values.tgas) ? \"yes\" : \"no\"\n}\n",
+			detail: "The values block of this unit does not declare \"tgas\", so can() always returns false.\n\n" +
+				"Did you mean \"tags\"?\n\n" +
+				"To make a value optional, declare it with a default in the values block, and read it without can().",
+			line: 9,
+		},
+		{
+			name:   "innermost guard",
+			block:  tagsValuesBlock,
+			inputs: "inputs = {\n  tagged = try(can(values.tgas) ? 1 : 0, 2)\n}\n",
+			detail: "The values block of this unit does not declare \"tgas\", so can() always returns false.\n\n" +
+				"Did you mean \"tags\"?\n\n" +
+				"To make a value optional, declare it with a default in the values block, and read it without can().",
+			line: 9,
+		},
+		{
+			name:   "last argument of try",
+			block:  tagsValuesBlock,
+			inputs: "inputs = {\n  tags = try(values.tags, values.tgas)\n}\n",
+			detail: "The values block of this unit does not declare \"tgas\".\n\n" +
+				"Did you mean \"tags\"?\n\n" +
+				"Fix the reference, or declare \"tgas\" in the values block.",
 			line: 9,
 		},
 		{
 			name:   "evaluated",
 			block:  tagsValuesBlock,
 			inputs: "inputs = {\n  name = values.typo\n}\n",
-			detail: `The values block of this unit does not declare "typo". It declares: tags. ` +
-				`Fix the reference, or declare "typo" in the values block.`,
+			detail: "The values block of this unit does not declare \"typo\".\n\n" +
+				"Declared values: tags.\n\n" +
+				"Fix the reference, or declare \"typo\" in the values block.",
 			line: 9,
 		},
 		{
 			name:   "string index",
 			block:  tagsValuesBlock,
 			inputs: "inputs = {\n  name = try(values[\"typo\"], \"\")\n}\n",
-			detail: `The values block of this unit does not declare "typo". It declares: tags. ` +
-				`Fix the reference, or declare "typo" in the values block.`,
+			detail: "The values block of this unit does not declare \"typo\", so try() always returns its fallback.\n\n" +
+				"Declared values: tags.\n\n" + tryAdvice,
 			line: 9,
 		},
 		{
 			name:   "nested attribute",
 			block:  tagsValuesBlock,
 			inputs: "inputs = {\n  name = try(values.tgas.name, \"\")\n}\n",
-			detail: `The values block of this unit does not declare "tgas". Did you mean "tags"? ` +
-				`Fix the reference, or declare "tgas" in the values block.`,
+			detail: "The values block of this unit does not declare \"tgas\", so try() always returns its fallback.\n\n" +
+				"Did you mean \"tags\"?\n\n" + tryAdvice,
 			line: 9,
 		},
 		{
 			name:   "empty values block",
 			block:  "values {}\n",
 			inputs: "inputs = {\n  name = values.name\n}\n",
-			detail: `The values block of this unit does not declare "name". It declares no values. ` +
-				`Fix the reference, or declare "name" in the values block.`,
+			detail: "The values block of this unit does not declare \"name\".\n\n" +
+				"The values block declares no values.\n\n" +
+				"Fix the reference, or declare \"name\" in the values block.",
 			line: 4,
 		},
 	}
@@ -160,8 +192,9 @@ unit "app" {
 	diag := requireOnlyDiagnosticAt(t, result, "Undeclared value", "live/terragrunt.stack.hcl", 11)
 	assert.Equal(
 		t,
-		`The values block of this stack does not declare "regoin". Did you mean "region"? `+
-			`Fix the reference, or declare "regoin" in the values block.`,
+		"The values block of this stack does not declare \"regoin\".\n\n"+
+			"Did you mean \"region\"?\n\n"+
+			"Fix the reference, or declare \"regoin\" in the values block.",
 		diag.Detail,
 	)
 }

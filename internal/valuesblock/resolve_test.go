@@ -54,7 +54,7 @@ func TestResolve(t *testing.T) {
 }`,
 			diags: []wantDiag{{
 				summary: `Undeclared value "tag" for unit "app"`,
-				detail:  `The unit at catalog/units/app does not declare a value named "tag". Did you mean "tags"?`,
+				detail:  `The unit at catalog/units/app does not declare a value named "tag".` + "\n\n" + `Did you mean "tags"?`,
 				line:    3,
 			}},
 			want: cty.ObjectVal(map[string]cty.Value{
@@ -77,8 +77,8 @@ func TestResolve(t *testing.T) {
 }`,
 			diags: []wantDiag{{
 				summary: `Undeclared value "zzz"`,
-				detail: `The stack at live/terragrunt.stack.hcl does not declare a value named "zzz". ` +
-					`It declares: alpha, beta.`,
+				detail: `The stack at live/terragrunt.stack.hcl does not declare a value named "zzz".` + "\n\n" +
+					`Declared values: alpha, beta.`,
 				line: 4,
 			}},
 			want: cty.ObjectVal(map[string]cty.Value{"alpha": cty.NumberIntVal(1), "beta": cty.NumberIntVal(2)}),
@@ -90,8 +90,8 @@ func TestResolve(t *testing.T) {
 			supply:    `{ a = 1 }`,
 			diags: []wantDiag{{
 				summary: `Undeclared value "a"`,
-				detail: `The stack at live/terragrunt.stack.hcl does not declare a value named "a". ` +
-					`It declares no values.`,
+				detail: `The stack at live/terragrunt.stack.hcl does not declare a value named "a".` + "\n\n" +
+					`The values block declares no values.`,
 				line: 1,
 			}},
 			want: cty.EmptyObjectVal,

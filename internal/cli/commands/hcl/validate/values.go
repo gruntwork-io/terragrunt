@@ -71,7 +71,7 @@ func (p ComponentParser) checkValueReferences(
 		diags = append(diags, &hcl.Diagnostic{
 			Severity: hcl.DiagError,
 			Summary:  summaryUndeclaredValue,
-			Detail:   undeclaredValueDetail(kind, ref.Name, decls),
+			Detail:   undeclaredValueDetail(kind, &ref, decls),
 			Subject:  ref.Range.Ptr(),
 		})
 	}
@@ -81,8 +81,28 @@ func (p ComponentParser) checkValueReferences(
 	return p.Collector.keepDistinct(file.File, append(declDiags, diags...))
 }
 
-// undeclaredValueDetail explains that decls, the values block of the kind of component, does not declare name.
-func undeclaredValueDetail(kind valuesblock.Kind, name string, decls *valuesblock.Declarations) string {
-	return fmt.Sprintf("The values block of this %s does not declare %q.", kind, name) + decls.Hint(name) +
-		fmt.Sprintf(" Fix the reference, or declare %q in the values block.", name)
+// undeclaredValueDetail explains that decls, the values block of the kind of component, does not declare the value ref
+// reads. For a read that try or can guards, it says the guard always falls back, and suggests a default in place of
+// the guard.
+func undeclaredValueDetail(kind valuesblock.Kind, ref *config.ValueReference, decls *valuesblock.Declarations) string {
+	if ref.Guard == "" {
+		return fmt.Sprintf("The values block of this %s does not declare %q.", kind, ref.Name) + decls.Hint(ref.Name) +
+			fmt.Sprintf("\n\nFix the reference, or declare %q in the values block.", ref.Name)
+	}
+
+	result := "returns its fallback"
+	if ref.Guard == config.FuncCan {
+		result = "returns false"
+	}
+
+	return fmt.Sprintf(
+		"The values block of this %s does not declare %q, so %s() always %s.",
+		kind,
+		ref.Name,
+		ref.Guard,
+		result,
+	) + decls.Hint(ref.Name) + fmt.Sprintf(
+		"\n\nTo make a value optional, declare it with a default in the values block, and read it without %s().",
+		ref.Guard,
+	)
 }

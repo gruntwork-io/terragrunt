@@ -268,8 +268,8 @@ func (render *HumanRender) fitsBeside(gutter int, pointer sourcePointer, label s
 	return used+lipgloss.Width(label) <= render.width
 }
 
-// notes renders what follows the source: the part of the detail that is not beside the pointer, then the
-// function call and the expression values that led to the diagnostic.
+// notes renders what follows the source: the part of the detail that is not beside the pointer, one note per
+// paragraph, then the function call and the expression values that led to the diagnostic.
 func (render *HumanRender) notes(diag *diagnostic.Diagnostic, source renderedSource) string {
 	var notes []string
 
@@ -278,8 +278,10 @@ func (render *HumanRender) notes(diag *diagnostic.Diagnostic, source renderedSou
 		_, detail, _ = strings.Cut(detail, "\n")
 	}
 
-	if detail != "" {
-		notes = append(notes, detail)
+	for paragraph := range strings.SplitSeq(detail, "\n\n") {
+		if paragraph = strings.Trim(paragraph, "\n"); paragraph != "" {
+			notes = append(notes, paragraph)
+		}
 	}
 
 	notes = append(notes, snippetNotes(diag.Snippet)...)
