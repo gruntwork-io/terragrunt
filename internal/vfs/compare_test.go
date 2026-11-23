@@ -1,6 +1,8 @@
 package vfs_test
 
 import (
+	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -8,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -224,4 +227,71 @@ func TestDirsDifferSymlinkToADirectory(t *testing.T) {
 
 	_, err := vfs.DirsDiffer(fsys, fromDir, toDir)
 	require.ErrorIs(t, err, vfs.ErrNotRegularFile)
+}
+
+func TestDirsDifferHardLinks(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		hardLink bool
+		wantErr  bool
+	}{
+		{name: "hard_link_is_not_read", hardLink: true},
+		{name: "copy_is_read", wantErr: true},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if tc.hardLink && runtime.GOOS == "windows" {
+				t.Skip("Skipping on Windows: hard links are read like copies")
+			}
+
+			osFS := vfs.NewOSFS()
+			root := t.TempDir()
+			fromFile := filepath.Join(root, "from", "file.txt")
+			toFile := filepath.Join(root, "to", "file.txt")
+
+			require.NoError(t, osFS.MkdirAll(filepath.Dir(fromFile), 0755))
+			require.NoError(t, osFS.MkdirAll(filepath.Dir(toFile), 0755))
+			require.NoError(t, vfs.WriteFile(osFS, fromFile, []byte("content"), 0644))
+
+			if tc.hardLink {
+				require.NoError(t, vfs.Link(osFS, fromFile, toFile))
+			} else {
+				require.NoError(t, vfs.WriteFile(osFS, toFile, []byte("content"), 0644))
+			}
+
+			fsys := &openRefusingFS{FS: osFS, refused: map[string]struct{}{fromFile: {}, toFile: {}}}
+
+			differ, err := vfs.DirsDiffer(fsys, filepath.Dir(fromFile), filepath.Dir(toFile))
+			if tc.wantErr {
+				require.ErrorIs(t, err, errOpenRefused)
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.False(t, differ)
+		})
+	}
+}
+
+// errOpenRefused is the error openRefusingFS returns for the paths it refuses to open.
+var errOpenRefused = errors.New("open refused")
+
+// openRefusingFS is a [vfs.FS] that fails to open the paths in refused.
+type openRefusingFS struct {
+	vfs.FS
+	refused map[string]struct{}
+}
+
+func (fsys *openRefusingFS) Open(name string) (afero.File, error) {
+	if _, ok := fsys.refused[name]; ok {
+		return nil, fmt.Errorf("%w: %s", errOpenRefused, name)
+	}
+
+	return fsys.FS.Open(name)
 }
