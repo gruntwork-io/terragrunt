@@ -377,7 +377,10 @@ func sanitizeReadFiles(files []string) []string {
 // extractDependencyPaths extracts all dependency paths from a Terragrunt
 // configuration, sorted and deduplicated. A relative path is resolved against
 // the directory that holds the config file of c.
+//
+// Returns the error of ctx when ctx ends before every path is resolved.
 func extractDependencyPaths(
+	ctx context.Context,
 	paths *vfs.PathResolver,
 	cfg *config.TerragruntConfig,
 	c component.Component,
@@ -396,6 +399,10 @@ func extractDependencyPaths(
 	}
 
 	for _, depPath := range configPaths {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+
 		if !filepath.IsAbs(depPath) {
 			depPath = filepath.Clean(filepath.Join(dir, depPath))
 		}
@@ -478,6 +485,8 @@ func storeStackConfigs(
 //
 // Returns a [config.AmbiguousConfigError] when the check opts asks for is [config.RejectAmbiguousConfig] and a
 // dependency directory holds both default unit config files, even when it also holds a stack file.
+//
+// Returns the error of ctx when ctx ends before every path is expanded.
 func stackDependencyPaths(
 	ctx context.Context,
 	l log.Logger,
@@ -500,6 +509,10 @@ func stackDependencyPaths(
 	expanded := make([]string, 0, len(depPaths))
 
 	for _, depPath := range depPaths {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+
 		// Stat upfront so a non-directory dep path (e.g. another-name.hcl) is preserved instead of
 		// being passed to the parser, which would reject it as ENOTDIR. The duplication of work is
 		// intentional.
