@@ -87,6 +87,26 @@ func TestRunValidateValuesReferences(t *testing.T) {
 	}
 }
 
+func TestRunValidateValuesReferenceHighlightsTheTraversal(t *testing.T) {
+	t.Parallel()
+
+	result := runValidate(t, &validateRun{
+		files: map[string]string{
+			"app/terragrunt.hcl": tagsValuesBlock + "\ninputs = {\n  tags = try(values.tgas, {})\n}\n",
+		},
+		experiments: []string{experiment.ValuesBlock},
+	})
+
+	diag := requireOnlyDiagnosticAt(t, result, "Undeclared value", "app/terragrunt.hcl", 9)
+	assert.Equal(t, 14, diag.Range.Start.Column)
+	assert.Equal(t, 25, diag.Range.End.Column)
+
+	require.NotNil(t, diag.Snippet)
+	assert.Equal(t, `  tags = try(values.tgas, {})`, diag.Snippet.Code)
+	assert.Equal(t, 13, diag.Snippet.HighlightStartOffset)
+	assert.Equal(t, 24, diag.Snippet.HighlightEndOffset)
+}
+
 func TestRunValidateValuesReferencesAcceptDeclaredValues(t *testing.T) {
 	t.Parallel()
 
