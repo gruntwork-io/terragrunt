@@ -475,7 +475,8 @@ func (ctx *ParsingContext) WithConfigPath(
 // OriginalTerragruntConfigPath to the dependency's path, so get_original_terragrunt_dir() resolves to the
 // dependency's own directory. The dependency evaluates its own locals, feature flags, values, includes, and
 // dependency blocks, never those of the config whose dependency it is, and assumes no IAM role that config
-// assumed beyond the one the command started with.
+// assumed beyond the one the command started with. It decodes all of its blocks even when that config is read only
+// for its catalog block.
 func (ctx *ParsingContext) WithDependencyConfigPath(
 	l log.Logger,
 	cfgPath string,
@@ -492,6 +493,8 @@ func (ctx *ParsingContext) WithDependencyConfigPath(
 	c.Features = nil
 	c.Values = nil
 	c.includes = nil
+	c.catalogOnly = false
+	c.catalogStubDir = ""
 
 	if c.IAMRoleOptions != c.OriginalIAMRoleOptions {
 		c.IAMRoleOptions = iam.RoleOptions{}

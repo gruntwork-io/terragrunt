@@ -417,6 +417,71 @@ catalog {
 	assert.Equal(t, &config.CatalogConfig{URLs: []string{"https://example.com/networking"}}, cfg)
 }
 
+func TestReadCatalogConfigFetchesTheOutputsOfADependencyFromItsRemoteState(t *testing.T) {
+	t.Parallel()
+
+	v := venvtest.NewWithOSFS()
+
+	printOutputs := func(_ context.Context, inv vexec.Invocation) vexec.Result {
+		if !slices.Contains(inv.Args, "output") {
+			return vexec.Result{}
+		}
+
+		if !vfs.Exists(v.FS, filepath.Join(inv.Dir, "backend.tf")) {
+			return vexec.Result{Stdout: []byte(`{}`)}
+		}
+
+		return vexec.Result{
+			Stdout: []byte(`{"urls": {"type": ["list", "string"], "value": ["https://example.com/networking"]}}`),
+		}
+	}
+
+	v = v.WithExec(vexec.NewMemExec(printOutputs))
+
+	rootDir, err := vfs.EvalSymlinks(v.FS, t.TempDir())
+	require.NoError(t, err)
+
+	files := map[string]string{
+		"registry/terragrunt.hcl": `
+remote_state {
+  backend = "local"
+
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite"
+  }
+
+  config = {
+    path = "${get_terragrunt_dir()}/terraform.tfstate"
+  }
+}
+`,
+		"registry/main.tf": `output "urls" { value = ["https://example.com/networking"] }`,
+		"root.hcl": `
+dependency "registry" {
+  config_path = "${get_parent_terragrunt_dir()}/registry"
+}
+
+catalog {
+  urls = dependency.registry.outputs.urls
+}
+`,
+	}
+
+	for path, content := range files {
+		file := filepath.Join(rootDir, filepath.FromSlash(path))
+		require.NoError(t, v.FS.MkdirAll(filepath.Dir(file), 0o755))
+		require.NoError(t, vfs.WriteFile(v.FS, file, []byte(content), 0o644))
+	}
+
+	ctx, pctx := newTestParsingContext(t, filepath.Join(rootDir, "terragrunt.hcl"))
+	pctx.ScaffoldRootFileName = "root.hcl"
+
+	cfg, err := config.ReadCatalogConfig(ctx, logger.CreateLogger(), v, new(config.Store), pctx)
+	require.NoError(t, err)
+	assert.Equal(t, &config.CatalogConfig{URLs: []string{"https://example.com/networking"}}, cfg)
+}
+
 // TestParseConfigStringKeepsCommandsInAMissingConfigDir pins that only a catalog
 // read moves run_cmd out of a directory that doesn't exist. Any other parse
 // fails there, so a config never runs a program somewhere it did not name.
