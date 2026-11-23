@@ -35,3 +35,9 @@ terragrunt stack generate --experiment values-block
 ```
 
 `terragrunt hcl validate` reports each `values.<name>` read that the block doesn't declare. See the [`values` block reference](/reference/hcl/blocks/values/).
+
+When a unit or stack without the block reads a value inside `try()` to fall back to a default, `stack generate` shows a tip to declare the value with a default in a `values` block instead:
+
+```text
+18:10:44.033 INFO   TIP (values-block): The unit at ../catalog/units/app reads `values.tags` inside `try()` to fall back to a default. Declare the value with a default in a `values` block instead. See https://docs.terragrunt.com/reference/hcl/blocks/values
+```

@@ -179,6 +179,9 @@ func (s *Stack) GeneratedPath(stackDir string) string {
 // GenerateStackFile generates the Terragrunt stack configuration from the given stackFilePath,
 // reads necessary values, and generates units and stacks in the target directory.
 // It handles the creation of required directories and returns any errors encountered.
+//
+// With the values-block experiment enabled, it calls reportTryDefault for each generated config without a values block
+// that reads a value inside try(). It may call reportTryDefault from several goroutines at once.
 func GenerateStackFile(
 	ctx context.Context,
 	l log.Logger,
@@ -187,6 +190,7 @@ func GenerateStackFile(
 	pctx *ParsingContext,
 	pool *worker.Pool,
 	stackFilePath string,
+	reportTryDefault func(TryDefault),
 ) error {
 	stackSourceDir := filepath.Dir(stackFilePath)
 
@@ -240,23 +244,24 @@ func GenerateStackFile(
 	}
 
 	genOpts := generateOpts{
-		rootWorkingDir:  pctx.RootWorkingDir,
-		logShowAbsPaths: pctx.LogShowAbsPaths,
-		sourceMap:       pctx.SourceMap,
-		noStackValidate: pctx.NoStackValidate,
-		stackConfigPath: pctx.TerragruntStackConfigPath,
-		sourceFile:      stackFilePath,
-		sourceDir:       stackSourceDir,
-		targetDir:       stackTargetDir,
-		autoIncludes:    autoIncludes,
-		stackSrcBytes:   stackSrcBytes,
-		casEnabled:      cs.Enabled,
-		casOffline:      pctx.CASOffline,
-		casInstance:     cs.Instance,
-		strictControls:  pctx.StrictControls,
-		experiments:     pctx.Experiments,
-		parserOpts:      pctx.ParserOptions(l, v),
-		diagsMu:         new(sync.Mutex),
+		rootWorkingDir:   pctx.RootWorkingDir,
+		logShowAbsPaths:  pctx.LogShowAbsPaths,
+		sourceMap:        pctx.SourceMap,
+		noStackValidate:  pctx.NoStackValidate,
+		stackConfigPath:  pctx.TerragruntStackConfigPath,
+		sourceFile:       stackFilePath,
+		sourceDir:        stackSourceDir,
+		targetDir:        stackTargetDir,
+		autoIncludes:     autoIncludes,
+		stackSrcBytes:    stackSrcBytes,
+		casEnabled:       cs.Enabled,
+		casOffline:       pctx.CASOffline,
+		casInstance:      cs.Instance,
+		strictControls:   pctx.StrictControls,
+		experiments:      pctx.Experiments,
+		parserOpts:       pctx.ParserOptions(l, v),
+		diagsMu:          new(sync.Mutex),
+		reportTryDefault: reportTryDefault,
 		// One getter per stack, so every component shares its credential resolution.
 		ociGetter: getter.NewOCIGetter(l, v),
 	}
@@ -542,24 +547,25 @@ func setupCAS(l log.Logger, v *venv.Venv, pctx *ParsingContext, enabled bool) (c
 
 // generateOpts holds the subset of options needed for stack/unit generation.
 type generateOpts struct {
-	autoIncludes    map[string]*inthclparse.AutoIncludeResolved
-	casInstance     *cas.CAS
-	ociGetter       *getter.OCIGetter
-	sourceMap       map[string]string
-	diagsMu         *sync.Mutex
-	strictControls  strict.Controls
-	experiments     experiment.Experiments
-	parserOpts      []hclparse.Option
-	rootWorkingDir  string
-	stackConfigPath string
-	sourceFile      string
-	sourceDir       string
-	targetDir       string
-	stackSrcBytes   []byte
-	logShowAbsPaths bool
-	noStackValidate bool
-	casEnabled      bool
-	casOffline      bool
+	autoIncludes     map[string]*inthclparse.AutoIncludeResolved
+	casInstance      *cas.CAS
+	ociGetter        *getter.OCIGetter
+	sourceMap        map[string]string
+	diagsMu          *sync.Mutex
+	reportTryDefault func(TryDefault)
+	strictControls   strict.Controls
+	experiments      experiment.Experiments
+	parserOpts       []hclparse.Option
+	rootWorkingDir   string
+	stackConfigPath  string
+	sourceFile       string
+	sourceDir        string
+	targetDir        string
+	stackSrcBytes    []byte
+	logShowAbsPaths  bool
+	noStackValidate  bool
+	casEnabled       bool
+	casOffline       bool
 }
 
 // generateUnits iterates through a slice of Unit objects, generating each one by copying
@@ -906,16 +912,34 @@ func generateComponent(
 	return generateAutoInclude(l, v, opts, cmp, dest)
 }
 
-// checkSuppliedValues resolves the values cmp sets against the values block of the config generated to dest.
+// checkSuppliedValues resolves the values cmp sets against the values block of the config generated to dest. It passes
+// a config without a values block that reads a value inside try() to opts.reportTryDefault.
 //
 // Reports a diagnostic, through the file whose block sets the values, for each key the block does not declare, each
 // value that does not convert to its type, and each required value cmp does not set.
 //
-// Checks nothing when the config at dest declares no values block, when the values are not yet known, or when cmp
-// sets no values and dest has a terragrunt.values.hcl of its own.
+// Checks nothing when the values-block experiment is off. Resolves nothing when the config at dest declares no values
+// block, when the values are not yet known, or when cmp sets no values and dest has a terragrunt.values.hcl of its own.
 func checkSuppliedValues(v *venv.Venv, opts *generateOpts, cmp *componentToGenerate, dest string) error {
 	if !opts.experiments.Evaluate(experiment.ValuesBlock) {
 		return nil
+	}
+
+	opts.diagsMu.Lock()
+	defer opts.diagsMu.Unlock()
+
+	file, err := generatedConfig(v, opts, cmp, dest)
+	if err != nil || file == nil {
+		return err
+	}
+
+	decls, diags := valuesblock.Decode(file.Body)
+	if decls == nil {
+		return reportTryDefault(opts, cmp, file)
+	}
+
+	if err := file.HandleDiagnostics(diags); err != nil {
+		return err
 	}
 
 	unset := cmp.values == nil || cmp.values.IsNull()
@@ -928,14 +952,6 @@ func checkSuppliedValues(v *venv.Venv, opts *generateOpts, cmp *componentToGener
 		return nil
 	}
 
-	opts.diagsMu.Lock()
-	defer opts.diagsMu.Unlock()
-
-	decls, err := declaredValues(v, opts, cmp, dest)
-	if err != nil || decls == nil {
-		return err
-	}
-
 	supplied := valuesblock.NothingSupplied(cmp.supply.defRange)
 	if cmp.values != nil {
 		supplied = valuesblock.SuppliedByExpr(*cmp.values, cmp.supply.expr)
@@ -946,7 +962,7 @@ func checkSuppliedValues(v *venv.Venv, opts *generateOpts, cmp *componentToGener
 		kind = valuesblock.KindStack
 	}
 
-	_, diags := decls.Resolve(supplied, valuesblock.Component{
+	_, diags = decls.Resolve(supplied, valuesblock.Component{
 		Kind:     kind,
 		Address:  cmp.address,
 		Location: redact.NewURL(cmp.source).String(),
@@ -955,14 +971,8 @@ func checkSuppliedValues(v *venv.Venv, opts *generateOpts, cmp *componentToGener
 	return cmp.supply.file.HandleDiagnostics(diags)
 }
 
-// declaredValues returns the values block of the config generated to dest, or nil when dest holds no config or its
-// config has no values block.
-func declaredValues(
-	v *venv.Venv,
-	opts *generateOpts,
-	cmp *componentToGenerate,
-	dest string,
-) (*valuesblock.Declarations, error) {
+// generatedConfig parses the config generated to dest, or returns nil when dest holds no config.
+func generatedConfig(v *venv.Venv, opts *generateOpts, cmp *componentToGenerate, dest string) (*hclparse.File, error) {
 	target := filepath.Join(dest, DefaultStackFile)
 	if cmp.kind == unitKind {
 		target = GetDefaultConfigPath(v.FS, dest)
@@ -972,21 +982,32 @@ func declaredValues(
 		return nil, nil
 	}
 
-	file, err := hclparse.NewParser(opts.parserOpts...).ParseFromFile(v.FS, target)
+	return hclparse.NewParser(opts.parserOpts...).ParseFromFile(v.FS, target)
+}
+
+// reportTryDefault passes the first read of a value inside try() in file, the config of cmp without a values block,
+// to opts.reportTryDefault.
+//
+// Returns [BlockNestingExceededError] when the blocks of file nest too deep.
+func reportTryDefault(opts *generateOpts, cmp *componentToGenerate, file *hclparse.File) error {
+	refs, err := ValueReferences(file)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	decls, diags := valuesblock.Decode(file.Body)
-	if decls == nil {
-		return nil, nil
+	i := slices.IndexFunc(refs, func(ref ValueReference) bool { return ref.Guard == FuncTry })
+	if i < 0 {
+		return nil
 	}
 
-	if err := file.HandleDiagnostics(diags); err != nil {
-		return nil, err
+	kind := valuesblock.KindUnit
+	if cmp.kind == stackKind {
+		kind = valuesblock.KindStack
 	}
 
-	return decls, nil
+	opts.reportTryDefault(TryDefault{Kind: string(kind), Source: redact.NewURL(cmp.source).String(), Name: refs[i].Name})
+
+	return nil
 }
 
 // fetchComponentSource copies a component from its cas:: tree, the CAS when enabled, or the standard getter.

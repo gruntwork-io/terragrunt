@@ -129,7 +129,16 @@ func generateValuesFuzzStack(t *testing.T, v *venv.Venv, stackHCL string) error 
 
 	defer pool.Stop()
 
-	genErr := config.GenerateStackFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, pool, stackPath)
+	genErr := config.GenerateStackFile(
+		ctx,
+		logger.CreateLogger(),
+		v,
+		new(config.Store),
+		pctx,
+		pool,
+		stackPath,
+		func(config.TryDefault) {},
+	)
 
 	return errors.Join(genErr, pool.Wait())
 }

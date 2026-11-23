@@ -16,6 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/tips"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -251,6 +252,10 @@ func generateLevel(
 	wp := worker.NewWorkerPool(opts.Parallelism)
 	defer wp.Stop()
 
+	reportTryDefault := func(read config.TryDefault) {
+		tips.GiveValuesBlockTip(l, read, opts.Tips)
+	}
+
 	for _, node := range levelNodes {
 		if generatedFiles[node.FilePath] {
 			continue
@@ -273,7 +278,7 @@ func generateLevel(
 
 			defer s.InvalidateUnder(filepath.Dir(node.FilePath))
 
-			return config.GenerateStackFile(ctx, scopedLogger, v, s, scopedPctx, wp, node.FilePath)
+			return config.GenerateStackFile(ctx, scopedLogger, v, s, scopedPctx, wp, node.FilePath, reportTryDefault)
 		})
 	}
 

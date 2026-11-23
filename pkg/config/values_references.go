@@ -23,6 +23,17 @@ type ValueReference struct {
 	Range hcl.Range
 }
 
+// TryDefault is a read of values.<Name> inside try() in the config of a generated component without a values block,
+// where try() stands in for a default that a values block would declare.
+type TryDefault struct {
+	// Kind is the kind of the component, unit or stack.
+	Kind string
+	// Source is the source of the component, with any credentials redacted.
+	Source string
+	// Name is the value the config reads.
+	Name string
+}
+
 // The functions that guard a read of values.
 const (
 	// FuncTry is the try function, which returns its first argument that evaluates without an error.

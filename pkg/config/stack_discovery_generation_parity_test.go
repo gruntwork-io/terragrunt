@@ -440,7 +440,10 @@ func generateStackLevel(t *testing.T, v *venv.Venv, stackPath string) {
 
 	defer pool.Stop()
 
-	require.NoError(t, config.GenerateStackFile(ctx, l, v, new(config.Store), pctx, pool, stackPath))
+	require.NoError(
+		t,
+		config.GenerateStackFile(ctx, l, v, new(config.Store), pctx, pool, stackPath, func(config.TryDefault) {}),
+	)
 	require.NoError(t, pool.Wait())
 }
 

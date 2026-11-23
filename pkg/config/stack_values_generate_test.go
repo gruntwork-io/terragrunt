@@ -5,6 +5,7 @@ import (
 	"maps"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/hashicorp/hcl/v2"
@@ -502,8 +503,102 @@ unit "app_%d" {
 	assert.Equal(t, want, counts)
 }
 
+func TestGenerateStackFileReportsTryDefaults(t *testing.T) {
+	t.Parallel()
+
+	const stack = `unit "plain" {
+  source = "../catalog/units/plain"
+  path   = "plain"
+
+  values = {
+    tags = { team = "core" }
+  }
+}
+`
+
+	testCases := []struct {
+		name       string
+		inputs     string
+		want       []config.TryDefault
+		experiment valuesExperiment
+	}{
+		{
+			name:       "try in a config without a values block",
+			inputs:     `inputs = { tags = try(values.tags, {}) }`,
+			experiment: valuesExperimentOn,
+			want:       []config.TryDefault{{Kind: "unit", Source: "../catalog/units/plain", Name: "tags"}},
+		},
+		{
+			name:       "experiment off",
+			inputs:     `inputs = { tags = try(values.tags, {}) }`,
+			experiment: valuesExperimentOff,
+		},
+		{
+			name:       "can",
+			inputs:     `inputs = { tagged = can(values.tags) }`,
+			experiment: valuesExperimentOn,
+		},
+		{
+			name:       "last argument of try",
+			inputs:     `inputs = { tags = try(local.missing, values.tags) }`,
+			experiment: valuesExperimentOn,
+		},
+		{
+			name:       "config with a values block",
+			inputs:     "values {\n  value \"tags\" {}\n}\n\ninputs = { tags = try(values.tags, {}) }",
+			experiment: valuesExperimentOn,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			reads := valuesGeneration{
+				files: map[string]string{
+					"catalog/units/plain/terragrunt.hcl": tc.inputs,
+					"catalog/units/plain/main.tf":        "",
+					"live/terragrunt.stack.hcl":          stack,
+				},
+				experiment: tc.experiment,
+			}.tryDefaults(t)
+
+			assert.Equal(t, tc.want, reads)
+		})
+	}
+}
+
 // run generates valuesStackPath from valuesCatalog and g.files, and returns the venv and the error of the generation.
 func (g valuesGeneration) run(t *testing.T) (*venv.Venv, error) {
+	t.Helper()
+
+	return g.generate(t, func(config.TryDefault) {})
+}
+
+// tryDefaults generates valuesStackPath from valuesCatalog and g.files, and returns the reads that the generation
+// reports to the callback of [config.GenerateStackFile].
+func (g valuesGeneration) tryDefaults(t *testing.T) []config.TryDefault {
+	t.Helper()
+
+	var (
+		mu    sync.Mutex
+		reads []config.TryDefault
+	)
+
+	_, err := g.generate(t, func(read config.TryDefault) {
+		mu.Lock()
+		defer mu.Unlock()
+
+		reads = append(reads, read)
+	})
+	require.NoError(t, err)
+
+	return reads
+}
+
+// generate generates valuesStackPath from valuesCatalog and g.files, passing reportTryDefault to
+// [config.GenerateStackFile], and returns the venv and the error of the generation.
+func (g valuesGeneration) generate(t *testing.T, reportTryDefault func(config.TryDefault)) (*venv.Venv, error) {
 	t.Helper()
 
 	files := maps.Clone(valuesCatalog)
@@ -530,7 +625,16 @@ func (g valuesGeneration) run(t *testing.T) (*venv.Venv, error) {
 
 	defer pool.Stop()
 
-	err := config.GenerateStackFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, pool, valuesStackPath)
+	err := config.GenerateStackFile(
+		ctx,
+		logger.CreateLogger(),
+		v,
+		new(config.Store),
+		pctx,
+		pool,
+		valuesStackPath,
+		reportTryDefault,
+	)
 	if err != nil {
 		return v, err
 	}
