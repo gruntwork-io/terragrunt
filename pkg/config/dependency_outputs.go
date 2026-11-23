@@ -46,21 +46,19 @@ func (dep *Dependency) withDeclaredOutputs(
 	}
 
 	effective := *dep
-	effective.MockOutputs = mergeDeclaredMockValues(declaredMockValues(pctx, dep, declared), dep.MockOutputs)
 
-	strategy := declared.MockStrategy
-	if strategy == nil {
-		return declaredDependency{dep: &effective, outputs: declared}, nil
+	if strategy := declared.MockStrategy; strategy != nil {
+		if dep.MockOutputsAllowedTerraformCommands == nil && strategy.AllowedCommands != nil {
+			effective.MockOutputsAllowedTerraformCommands = strategy.AllowedCommands
+		}
+
+		if dep.MockOutputsMergeStrategyWithState == nil && dep.MockOutputsMergeWithState == nil &&
+			strategy.MergeWithState != nil {
+			effective.MockOutputsMergeStrategyWithState = strategy.MergeWithState
+		}
 	}
 
-	if dep.MockOutputsAllowedTerraformCommands == nil && strategy.AllowedCommands != nil {
-		effective.MockOutputsAllowedTerraformCommands = strategy.AllowedCommands
-	}
-
-	if dep.MockOutputsMergeStrategyWithState == nil && dep.MockOutputsMergeWithState == nil &&
-		strategy.MergeWithState != nil {
-		effective.MockOutputsMergeStrategyWithState = strategy.MergeWithState
-	}
+	effective.MockOutputs = mergeDeclaredMockValues(declaredMockValues(pctx, &effective, declared), dep.MockOutputs)
 
 	return declaredDependency{dep: &effective, outputs: declared}, nil
 }
@@ -248,12 +246,12 @@ func readableMocks(pctx *ParsingContext, dep *Dependency) map[string]cty.Value {
 	return values
 }
 
-// declaredMockValues returns the mock values dep reads from declared, none for an apply or destroy no list names.
+// declaredMockValues returns the mock values dep reads from declared, none for an apply or destroy its list omits.
 func declaredMockValues(pctx *ParsingContext, dep *Dependency, declared *OutputsConfig) *cty.Value {
+	command := pctx.OriginalTofuCommand
 	commands := dep.MockOutputsAllowedTerraformCommands
-	listed := commands != nil && len(*commands) > 0 || declared.MockStrategy.listsCommands()
 
-	if !listed && slices.Contains(unlistedMockCommands, pctx.OriginalTofuCommand) {
+	if slices.Contains(unlistedMockCommands, command) && (commands == nil || !slices.Contains(*commands, command)) {
 		return nil
 	}
 

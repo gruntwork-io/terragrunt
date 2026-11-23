@@ -221,11 +221,6 @@ func (s *OutputsMockStrategy) Clone() *OutputsMockStrategy {
 	return clone
 }
 
-// listsCommands reports whether s names the commands that read the mock values.
-func (s *OutputsMockStrategy) listsCommands() bool {
-	return s != nil && s.AllowedCommands != nil && len(*s.AllowedCommands) > 0
-}
-
 // merge replaces each attribute of s that other sets.
 func (s *OutputsMockStrategy) merge(other *OutputsMockStrategy) {
 	if other.AllowedCommands != nil {

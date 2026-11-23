@@ -73,7 +73,7 @@ blocks:
       - name: nullable
         type: bool
         default: "false"
-        description: Set it to `true` for an output whose value can be `null`. OpenTofu/Terraform leaves a `null` output out of the state. Dependents then read `null` for the output, and Terragrunt does not report it as missing.
+        description: Set it to `true` for an output whose value can be `null`. OpenTofu/Terraform leaves a `null` output out of the state. Dependents then read `null` for the output, unless a state merge supplies its `mock_value`. Terragrunt does not report the output as missing.
     example: |
       # vpc/terragrunt.hcl
 
@@ -142,7 +142,7 @@ Settings on the `dependency` block override the `outputs` block of the unit it r
 
 When the unit has outputs in state, Terragrunt expects every declared output among them. For a declared output that the state lacks:
 
-- With `nullable = true`, dependents read `null`.
+- With `nullable = true`, dependents read `null`, unless a state merge supplies a mock value.
 - With a `mock_value`, dependents read the mock value for a command that `allowed_commands` permits, e.g. a `plan` after you add an output and before the next apply.
 - Otherwise the run fails. It also fails for an output with a `mock_value` when `merge_with_state` is `no_merge`.
 

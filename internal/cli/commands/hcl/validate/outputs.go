@@ -13,6 +13,7 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 	hclparser "github.com/hashicorp/hcl/v2/hclparse"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
 	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
@@ -294,6 +295,29 @@ func includedFiles(
 		return paths, nil
 	}
 
+	autoIncludes, err := autoIncludeIncludes(ctx, l, v, pctx, autoInclude)
+	if err != nil {
+		return nil, err
+	}
+
+	autoPaths, err := mergedIncludePaths(autoIncludes)
+	if err != nil {
+		return nil, err
+	}
+
+	paths = append(paths, autoInclude.ConfigPath)
+
+	return append(paths, autoPaths...), nil
+}
+
+// autoIncludeIncludes returns the includes of the autoinclude file by name.
+func autoIncludeIncludes(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pctx *config.ParsingContext,
+	autoInclude *hclparse.File,
+) (config.IncludeConfigsMap, error) {
 	l, autoPctx, err := pctx.WithConfigPath(l, autoInclude.ConfigPath)
 	if err != nil {
 		return nil, err
@@ -313,14 +337,7 @@ func includedFiles(
 		return nil, err
 	}
 
-	autoPaths, err := mergedIncludePaths(autoCfg.ProcessedIncludes)
-	if err != nil {
-		return nil, err
-	}
-
-	paths = append(paths, autoInclude.ConfigPath)
-
-	return append(paths, autoPaths...), nil
+	return autoCfg.ProcessedIncludes, nil
 }
 
 // mergedIncludePaths returns the paths of the includes that are merged or exposed, in label order.
@@ -428,7 +445,7 @@ func declaredOutputsChecks(
 		return nil, nil
 	}
 
-	files, err := declarationFiles(ctx, l, v, s, pctx, cfg, opts.TerragruntConfigPath, missing)
+	files, err := declarationFiles(ctx, l, v, s, pctx, cfg, opts.TerragruntConfigPath)
 	if err != nil {
 		return nil, err
 	}
@@ -436,7 +453,7 @@ func declaredOutputsChecks(
 	return missingOutputDiagnostics(files, module.dir, missing), nil
 }
 
-// declarationFiles returns the syntax tree of the unit, and of its includes when it does not declare all of names.
+// declarationFiles returns the files whose output declarations the unit keeps, each before the files it overrides.
 func declarationFiles(
 	ctx context.Context,
 	l log.Logger,
@@ -445,40 +462,103 @@ func declarationFiles(
 	pctx *config.ParsingContext,
 	cfg *config.TerragruntConfig,
 	configPath string,
-	names []string,
 ) ([]*hclparse.File, error) {
-	unit, err := syntaxTree(ctx, l, v, s, pctx, configPath)
-	if err != nil {
-		return nil, err
-	}
-
-	files := []*hclparse.File{unit}
-	ranges := config.OutputDeclarationRanges(unit)
-
-	if !slices.ContainsFunc(names, func(name string) bool { return ranges[name].Empty() }) {
-		return files, nil
-	}
-
 	autoInclude, err := autoIncludeTree(ctx, l, v, s, pctx, configPath)
 	if err != nil {
 		return nil, err
 	}
 
-	includedPaths, err := includedFiles(ctx, l, v, pctx, cfg, autoInclude)
+	if autoInclude != nil {
+		autoIncludes, err := autoIncludeIncludes(ctx, l, v, pctx, autoInclude)
+		if err != nil {
+			return nil, err
+		}
+
+		files, err := mergedDeclarationFiles(ctx, l, v, s, pctx, autoInclude, autoIncludes)
+		if err != nil {
+			return nil, err
+		}
+
+		if slices.ContainsFunc(files, declaresOutputs) {
+			return files, nil
+		}
+	}
+
+	unit, err := syntaxTree(ctx, l, v, s, pctx, configPath)
 	if err != nil {
 		return nil, err
 	}
 
-	for _, includedPath := range includedPaths {
-		included, err := syntaxTree(ctx, l, v, s, pctx, includedPath)
+	return mergedDeclarationFiles(ctx, l, v, s, pctx, unit, cfg.ProcessedIncludes)
+}
+
+// mergedDeclarationFiles returns file, then the includes whose output declarations merge into it, the last one first.
+func mergedDeclarationFiles(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	s *rewrite.Store,
+	pctx *config.ParsingContext,
+	file *hclparse.File,
+	includes config.IncludeConfigsMap,
+) ([]*hclparse.File, error) {
+	files := []*hclparse.File{file}
+	declared := declaresOutputs(file)
+
+	for _, name := range slices.Backward(includeNames(file)) {
+		include, ok := includes[name]
+		if !ok {
+			continue
+		}
+
+		strategy, err := include.GetMergeStrategy()
+		if err != nil {
+			return nil, err
+		}
+
+		if strategy == config.NoMerge || strategy == config.ShallowMerge && declared {
+			continue
+		}
+
+		included, err := syntaxTree(ctx, l, v, s, pctx, include.Path)
 		if err != nil {
 			return nil, err
 		}
 
 		files = append(files, included)
+		declared = declared || declaresOutputs(included)
 	}
 
 	return files, nil
+}
+
+// includeNames returns the name of each include block of file in source order, empty for a bare include.
+func includeNames(file *hclparse.File) []string {
+	body, ok := file.Body.(*hclsyntax.Body)
+	if !ok {
+		return nil
+	}
+
+	var names []string
+
+	for _, block := range body.Blocks {
+		if block.Type != config.MetadataInclude {
+			continue
+		}
+
+		names = append(names, strings.Join(block.Labels, ""))
+	}
+
+	return names
+}
+
+// declaresOutputs reports whether file has an outputs block.
+func declaresOutputs(file *hclparse.File) bool {
+	body, ok := file.Body.(*hclsyntax.Body)
+
+	return ok && slices.ContainsFunc(body.Blocks, func(block *hclsyntax.Block) bool {
+		return block.Type == config.MetadataOutputs
+	})
 }
 
 // missingOutputDiagnostics reports each output the module at dir lacks, at its first declaration in files.

@@ -3,6 +3,7 @@ package validate_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"maps"
 	"net/http"
@@ -2010,6 +2011,98 @@ func TestRunValidateOutputsContractsNamesAnEmptyOutputsBlock(t *testing.T) {
 	require.Len(t, result.diags, 1)
 	assert.Equal(t, "Undeclared dependency output", result.diags[0].Summary)
 	assert.Contains(t, result.diags[0].Detail, "Declared outputs: none.")
+}
+
+func TestRunValidateOutputsContractsPointsAtTheEffectiveDeclaration(t *testing.T) {
+	t.Parallel()
+
+	const includedOutputs = `
+outputs {
+  output "vpc_id" {
+    mock_value = "vpc-mock"
+  }
+
+  output "nat_id" {
+    mock_value = "nat-mock"
+  }
+}
+`
+
+	const includeBlock = `
+include "%s" {
+  path           = find_in_parent_folders("%s.hcl")
+  merge_strategy = "%s"
+  expose         = true
+}
+`
+
+	testCases := []struct {
+		name         string
+		unit         string
+		autoInclude  string
+		expectedFile string
+	}{
+		{
+			name:         "an exposed no_merge include is not the origin",
+			unit:         fmt.Sprintf(includeBlock, "a", "a", "no_merge") + fmt.Sprintf(includeBlock, "z", "z", "deep"),
+			expectedFile: "z.hcl",
+		},
+		{
+			name:         "the later of two merged includes is the origin",
+			unit:         fmt.Sprintf(includeBlock, "a", "a", "deep") + fmt.Sprintf(includeBlock, "z", "z", "deep"),
+			expectedFile: "z.hcl",
+		},
+		{
+			name:         "the later of two merged includes is the origin in the other order",
+			unit:         fmt.Sprintf(includeBlock, "z", "z", "deep") + fmt.Sprintf(includeBlock, "a", "a", "deep"),
+			expectedFile: "a.hcl",
+		},
+		{
+			name: "a shallow include that the unit block replaces is not the origin",
+			unit: fmt.Sprintf(includeBlock, "z", "z", "deep") + fmt.Sprintf(includeBlock, "a", "a", "shallow") + `
+outputs {
+  output "subnet_ids" {
+    mock_value = []
+  }
+}
+`,
+			expectedFile: "z.hcl",
+		},
+		{
+			name:         "the outputs block of the autoinclude file replaces the unit block",
+			unit:         includedOutputs,
+			autoInclude:  includedOutputs,
+			expectedFile: "vpc/terragrunt.autoinclude.hcl",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			files := withFiles(outputsContractFiles, map[string]string{
+				"a.hcl":              includedOutputs,
+				"z.hcl":              includedOutputs,
+				"vpc/terragrunt.hcl": tc.unit,
+			})
+
+			if tc.autoInclude != "" {
+				files["vpc/terragrunt.autoinclude.hcl"] = tc.autoInclude
+			}
+
+			result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}, outputs: true})
+
+			require.Error(t, result.err)
+			require.Len(t, result.diags, 1)
+
+			diag := result.diags[0]
+
+			assert.Equal(t, "Declared output not in module", diag.Summary)
+			require.NotNil(t, diag.Range)
+			assert.Equal(t, filepath.Join(result.root, filepath.FromSlash(tc.expectedFile)), diag.Range.Filename)
+			assert.Equal(t, 7, diag.Range.Start.Line)
+		})
+	}
 }
 
 // TestRunOutputsFlagRequiresExperiment expects --outputs to fail while the outputs-block experiment is off.

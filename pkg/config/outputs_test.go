@@ -947,6 +947,27 @@ outputs {
 			check:          requireDeclaredMocks,
 		},
 		{
+			name:           "an empty dependent list does not let declared mocks stand in for apply",
+			vpcConfig:      withMockStrategy(`allowed_commands = ["plan"]`),
+			dependencyBody: `mock_outputs_allowed_terraform_commands = []`,
+			command:        "apply",
+			check:          requireNoOutputs,
+		},
+		{
+			name:           "an empty dependent list lets declared mocks stand in for plan",
+			vpcConfig:      withMockStrategy(`allowed_commands = ["validate"]`),
+			dependencyBody: `mock_outputs_allowed_terraform_commands = []`,
+			command:        "plan",
+			check:          requireDeclaredMocks,
+		},
+		{
+			name:           "a dependent list without apply wins over an allowed_commands that lists it",
+			vpcConfig:      withMockStrategy(`allowed_commands = ["apply"]`),
+			dependencyBody: `mock_outputs_allowed_terraform_commands = ["plan"]`,
+			command:        "apply",
+			check:          requireNoOutputs,
+		},
+		{
 			name:           "the dependent's mock_outputs stand in for apply without the declared mocks",
 			vpcConfig:      outputsBlockWithoutStrategy,
 			dependencyBody: `mock_outputs = { vpc_id = "app-mock" }`,
