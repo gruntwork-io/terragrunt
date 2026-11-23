@@ -481,3 +481,14 @@ func TestPatchAwsProviderInTerraformCodeHappyPath(t *testing.T) {
 		})
 	}
 }
+
+func TestPatchAwsProviderInTerraformCodeRejectsKeysThatNormalizeToTheSameString(t *testing.T) {
+	t.Parallel()
+
+	_, _, err := awsproviderpatch.PatchAwsProviderInTerraformCode(
+		terraformCodeExampleAwsProviderNonEmptyOriginal,
+		"test.tf",
+		map[string]string{"region": "{\"\u00e9\":1,\"e\u0301\":2}"},
+	)
+	require.ErrorAs(t, err, new(awsproviderpatch.TypeInferenceError))
+}

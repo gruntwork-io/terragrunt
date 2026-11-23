@@ -6,6 +6,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -340,13 +341,6 @@ func TestSharedFlagsSetOptions(t *testing.T) {
 			want: []bool{true, true},
 		},
 		{
-			name:     "use partial parse config cache by deprecated env var",
-			newFlags: usePartialParseConfigCacheFlags,
-			env:      map[string]string{"TERRAGRUNT_USE_PARTIAL_PARSE_CONFIG_CACHE": "true"},
-			got:      func(opts *options.TerragruntOptions) any { return opts.UsePartialParseConfigCache },
-			want:     true,
-		},
-		{
 			name:     "provider cache flags by name",
 			newFlags: shared.NewProviderCacheFlags,
 			args: clihelper.Args{
@@ -570,6 +564,59 @@ func noStackGenerateFlags(opts *options.TerragruntOptions) clihelper.Flags {
 
 func usePartialParseConfigCacheFlags(opts *options.TerragruntOptions) clihelper.Flags {
 	return clihelper.Flags{shared.NewUsePartialParseConfigCacheFlag(opts)}
+}
+
+// TestUsePartialParseConfigCacheFlagFailsUnderItsStrictControl pins that --use-partial-parse-config-cache, by name or
+// by either environment variable, only warns until its strict control is enabled, and that setting it to false is
+// not a use of it.
+func TestUsePartialParseConfigCacheFlagFailsUnderItsStrictControl(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		env  map[string]string
+		name string
+		args clihelper.Args
+		used bool
+	}{
+		{
+			name: "flag",
+			args: clihelper.Args{"--use-partial-parse-config-cache"},
+			env:  map[string]string{},
+			used: true,
+		},
+		{
+			name: "flag set to false",
+			args: clihelper.Args{"--use-partial-parse-config-cache=false"},
+			env:  map[string]string{},
+		},
+		{name: "env var", env: map[string]string{"TG_USE_PARTIAL_PARSE_CONFIG_CACHE": "true"}, used: true},
+		{
+			name: "deprecated env var",
+			env:  map[string]string{"TERRAGRUNT_USE_PARTIAL_PARSE_CONFIG_CACHE": "true"},
+			used: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			warned := options.NewTerragruntOptions()
+			require.NoError(t, parseAndRunActions(t, usePartialParseConfigCacheFlags(warned), tc.args, tc.env))
+
+			strict := options.NewTerragruntOptions()
+			require.NoError(t, strict.StrictControls.EnableControl(controls.UsePartialParseConfigCache))
+
+			err := parseAndRunActions(t, usePartialParseConfigCacheFlags(strict), tc.args, tc.env)
+			if tc.used {
+				require.Error(t, err)
+
+				return
+			}
+
+			require.NoError(t, err)
+		})
+	}
 }
 
 // parseAndRunActions parses args and env into fs and runs the actions of every flag that was set.

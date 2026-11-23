@@ -157,6 +157,23 @@ func (file *File) HandleDiagnostics(diags hcl.Diagnostics) error {
 	return file.handleDiagnostics(file, diags)
 }
 
+// FilterDiagnostics passes diags through the parser's diagnostics handlers and returns what they keep as an error, as
+// [File.HandleDiagnostics] does, but writes nothing.
+func (file *File) FilterDiagnostics(diags hcl.Diagnostics) error {
+	kept, err := file.filterDiagnostics(file, diags)
+	if err != nil || kept == nil {
+		return err
+	}
+
+	return kept
+}
+
+// WriteDiagnostics writes diags through the parser's diagnostics writer, which writes only diagnostics that contain an
+// error.
+func (file *File) WriteDiagnostics(diags hcl.Diagnostics) error {
+	return file.writeDiagnostics(diags)
+}
+
 // Rebind returns a new File wrapper bound to `parser`, sharing the underlying AST.
 //
 // `parser` must be non-nil; Rebind panics otherwise. In practice all callers

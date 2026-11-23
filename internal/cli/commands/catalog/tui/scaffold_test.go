@@ -55,6 +55,7 @@ func TestModelCtrlDScaffoldsModuleWithRacing(t *testing.T) {
 		ctx,
 		logger.CreateLogger(),
 		venvtest.NewOSWithEmptyEnv(),
+		new(config.Store),
 		opts,
 		entry,
 		componentCh,

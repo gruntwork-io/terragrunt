@@ -329,8 +329,39 @@ func TestListStackDependentUnits_ThroughExcludedUnits(t *testing.T) {
 	rnr := buildTestRunnerFromUnits(t, "/tmp/test", component.Components{vpc, db, app})
 
 	deps := rnr.ListStackDependentUnits()
+	assert.ElementsMatch(t, []string{"/tmp/test/db", "/tmp/test/app"}, deps["/tmp/test/vpc"])
+	assert.Equal(t, []string{"/tmp/test/app"}, deps["/tmp/test/db"])
+}
+
+func TestListStackDependentUnits_OfExcludedUnits(t *testing.T) {
+	t.Parallel()
+
+	vpc := component.NewUnit("/tmp/test/vpc").WithConfig(&config.TerragruntConfig{})
+	app := component.NewUnit("/tmp/test/app").WithConfig(&config.TerragruntConfig{})
+
+	app.AddDependency(vpc)
+	vpc.SetExcluded(true)
+
+	rnr := buildTestRunnerFromUnits(t, "/tmp/test", component.Components{vpc, app})
+
+	deps := rnr.ListStackDependentUnits()
 	assert.Equal(t, []string{"/tmp/test/app"}, deps["/tmp/test/vpc"])
-	assert.NotContains(t, deps, "/tmp/test/db")
+}
+
+func TestListStackDependentUnits_ThroughUndiscoveredComponents(t *testing.T) {
+	t.Parallel()
+
+	vpc := component.NewUnit("/tmp/test/vpc").WithConfig(&config.TerragruntConfig{})
+	db := component.NewUnit("/tmp/test/db")
+	app := component.NewUnit("/tmp/test/app").WithConfig(&config.TerragruntConfig{})
+
+	db.AddDependency(vpc)
+	app.AddDependency(db)
+
+	rnr := buildTestRunnerFromUnits(t, "/tmp/test", component.Components{vpc, app})
+
+	deps := rnr.ListStackDependentUnits()
+	assert.Equal(t, []string{"/tmp/test/app"}, deps["/tmp/test/vpc"])
 }
 
 func TestNewFromComponents_PreventDestroyWalksTheDependencyGraph(t *testing.T) {

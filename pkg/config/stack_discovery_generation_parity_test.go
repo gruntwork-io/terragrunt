@@ -317,7 +317,7 @@ unit "member" {
 				generationParityLiveDir,
 				&inthclparse.StackDirArgs{
 					FuncsFor: func(stackDir string) (map[string]function.Function, error) {
-						return config.EarlyStackParseFunctions(ctx, l, v, pctx, stackDir)
+						return config.EarlyStackParseFunctions(ctx, l, v, new(config.Store), pctx, stackDir)
 					},
 				},
 			)
@@ -397,7 +397,7 @@ func generateStackLevel(t *testing.T, v *venv.Venv, stackPath string) {
 
 	defer pool.Stop()
 
-	require.NoError(t, config.GenerateStackFile(ctx, l, v, pctx, pool, stackPath))
+	require.NoError(t, config.GenerateStackFile(ctx, l, v, new(config.Store), pctx, pool, stackPath))
 	require.NoError(t, pool.Wait())
 }
 

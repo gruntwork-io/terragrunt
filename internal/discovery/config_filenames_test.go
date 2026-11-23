@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -127,7 +126,7 @@ func TestDiscovery_ExplicitConfigFilename(t *testing.T) {
 				config.WithCaches(t.Context()),
 				logger.CreateLogger(),
 				venv.MemVenv().WithFS(venvtest.NewFS(t, root, files)),
-				new(rewrite.Store),
+				new(config.Store),
 				opts,
 			)
 			require.NoError(t, err)

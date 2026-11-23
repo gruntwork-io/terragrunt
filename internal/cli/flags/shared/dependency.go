@@ -21,8 +21,8 @@ const (
 	// `--no-dependency-fetch-output-from-state`, which reads dependency outputs by running `tofu output`
 	// in place of reading the state file.
 	NoDependencyFetchOutputFromStateFlagName = "no-dependency-fetch-output-from-state"
-	// UsePartialParseConfigCacheFlagName is the flag name for `--use-partial-parse-config-cache`, which
-	// caches includes during partial parsing.
+	// UsePartialParseConfigCacheFlagName is the flag name for the hidden, deprecated
+	// `--use-partial-parse-config-cache`. Setting it only evaluates its strict control.
 	UsePartialParseConfigCacheFlagName = "use-partial-parse-config-cache"
 )
 
@@ -68,17 +68,25 @@ func NewDependencyOutputFlags(opts *options.TerragruntOptions) clihelper.Flags {
 	}
 }
 
-// NewUsePartialParseConfigCacheFlag creates the flag that caches includes during partial parsing.
+// NewUsePartialParseConfigCacheFlag creates the deprecated flag that enabled the partial parse cache, which no longer
+// exists. Setting it evaluates its strict control.
 func NewUsePartialParseConfigCacheFlag(opts *options.TerragruntOptions) *flags.Flag {
 	tgPrefix := flags.Prefix{flags.TgPrefix}
 	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
 
 	return flags.NewFlag(
 		&clihelper.BoolFlag{
-			Name:        UsePartialParseConfigCacheFlagName,
-			EnvVars:     tgPrefix.EnvVars(UsePartialParseConfigCacheFlagName),
-			Destination: &opts.UsePartialParseConfigCache,
-			Usage:       "Enables caching of includes during partial parsing operations. Will also be used for the --iam-role option if provided.",
+			Name:    UsePartialParseConfigCacheFlagName,
+			EnvVars: tgPrefix.EnvVars(UsePartialParseConfigCacheFlagName),
+			Usage:   "Deprecated: this flag has no effect.",
+			Hidden:  true,
+			Action: func(ctx context.Context, _ *clihelper.Context, value bool) error {
+				if value {
+					return opts.StrictControls.FilterByNames(controls.UsePartialParseConfigCache).Evaluate(ctx)
+				}
+
+				return nil
+			},
 		},
 		flags.WithDeprecatedEnvVars(
 			terragruntPrefix.EnvVars("use-partial-parse-config-cache"),

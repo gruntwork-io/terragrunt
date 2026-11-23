@@ -49,12 +49,13 @@ func StackFuncFactory(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 ) inthclparse.StackFuncFactory {
 	pctx := NewParsingContext(opts)
 
 	return func(stackDir string) (map[string]function.Function, error) {
-		return config.EarlyStackParseFunctions(ctx, l, v, pctx, stackDir)
+		return config.EarlyStackParseFunctions(ctx, l, v, s, pctx, stackDir)
 	}
 }
 
@@ -62,7 +63,6 @@ func StackFuncFactory(
 func StackVarFactory(
 	ctx context.Context,
 	l log.Logger,
-	v *venv.Venv,
 	pctx *config.ParsingContext,
 ) inthclparse.StackVarFactory {
 	return func(stackDir string) (map[string]cty.Value, error) {
@@ -73,7 +73,7 @@ func StackVarFactory(
 			return nil, err
 		}
 
-		return config.TerragruntEvalVariables(ctx, scopedLogger, scopedPctx, stackFile, config.ParsedExposedInclude(v))
+		return config.TerragruntEvalVariables(ctx, scopedLogger, scopedPctx, stackFile, nil)
 	}
 }
 
@@ -82,11 +82,12 @@ func StackDirArgs(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 ) *inthclparse.StackDirArgs {
 	return &inthclparse.StackDirArgs{
-		FuncsFor: StackFuncFactory(ctx, l, v, opts),
-		VarsFor:  StackVarFactory(ctx, l, v, NewParsingContext(opts)),
+		FuncsFor: StackFuncFactory(ctx, l, v, s, opts),
+		VarsFor:  StackVarFactory(ctx, l, NewParsingContext(opts)),
 	}
 }
 
@@ -109,7 +110,6 @@ func populateFromOpts(pctx *config.ParsingContext, opts *options.TerragruntOptio
 	pctx.LogDisableErrorSummary = opts.LogDisableErrorSummary
 	pctx.IAMRoleOptions = opts.IAMRoleOptions
 	pctx.OriginalIAMRoleOptions = opts.OriginalIAMRoleOptions
-	pctx.UsePartialParseConfigCache = opts.UsePartialParseConfigCache
 	pctx.MaxFoldersToCheck = opts.MaxFoldersToCheck
 	pctx.NoDependencyFetchOutputFromState = opts.NoDependencyFetchOutputFromState
 	pctx.SkipOutput = opts.SkipOutput

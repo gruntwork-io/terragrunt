@@ -21,6 +21,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
 	"github.com/gruntwork-io/terragrunt/internal/view/tui/form"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -135,6 +136,9 @@ type Model struct {
 	// entrypoint, so scaffold and form-discovery leaves run against the
 	// same filesystem and exec handles as the rest of Terragrunt.
 	venv *venv.Venv
+	// store is the Store the scaffold and form-discovery leaves parse configs through, shared with the rest of
+	// Terragrunt.
+	store *config.Store
 	// pagerKeys are the keybindings handled while reading a README in the
 	// pager view.
 	pagerKeys PagerKeyMap
@@ -203,6 +207,7 @@ func NewModelStreaming(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	initial *ComponentEntry,
 	componentCh chan *ComponentEntry,
@@ -210,7 +215,7 @@ func NewModelStreaming(
 ) Model {
 	items := []list.Item{initial}
 
-	m := newModelWithItems(l, v, opts, items, componentCh)
+	m := newModelWithItems(l, v, s, opts, items, componentCh)
 	m.ctx = ctx
 	m.errCh = errCh
 	m.loading = true
@@ -422,6 +427,7 @@ func isDuplicate(items []list.Item, sourcePath string) bool {
 func newModelWithItems(
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	items []list.Item,
 	componentCh chan *ComponentEntry,
@@ -475,6 +481,7 @@ func newModelWithItems(
 		logger:            l,
 		componentCh:       componentCh,
 		venv:              v,
+		store:             s,
 		// Matches lipgloss.HasDarkBackground's fallback. Corrected on the
 		// first tea.BackgroundColorMsg.
 		hasDarkBG: true,

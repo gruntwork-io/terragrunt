@@ -178,7 +178,7 @@ func TestPathVariableModuleInConfiguredDownloadDir(t *testing.T) {
 				pctx.DownloadDir = filepath.Join(root, tc.option)
 			}
 
-			cfg, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+			cfg, err := new(config.Store).ResolveRunConfig(ctx, l, v, pctx, cfgPath)
 			require.NoError(t, err)
 
 			want, err := tf.NewSource(l, v.FS, tc.source, filepath.Join(root, tc.downloadDir), unitDir, false)
@@ -189,7 +189,7 @@ func TestPathVariableModuleInConfiguredDownloadDir(t *testing.T) {
 	}
 }
 
-func TestPathVariableModuleInPartialParseCacheFollowsParsingContext(t *testing.T) {
+func TestPathVariableModuleInSharedStoreFollowsParsingContext(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -217,17 +217,17 @@ func TestPathVariableModuleInPartialParseCacheFollowsParsingContext(t *testing.T
 			cfgPath := filepath.Join(unitDir, config.DefaultTerragruntConfigPath)
 
 			ctx, pctx := newPathParsingContext(t, cfgPath)
-			pctx.UsePartialParseConfigCache = true
 			pctx = pctx.WithDecodeList(config.TerraformBlock)
+			s := new(config.Store)
 
-			_, err := config.PartialParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+			_, err := s.ResolvePartialConfig(ctx, l, v, pctx, cfgPath)
 			require.NoError(t, err)
 
 			changed := pctx.Clone()
 			changed.Source = tc.option
 			changed.DownloadDir = filepath.Join(root, tc.downloadDir)
 
-			cfg, err := config.PartialParseConfigFile(ctx, l, v, changed, cfgPath, nil)
+			cfg, err := s.ResolvePartialConfig(ctx, l, v, changed, cfgPath)
 			require.NoError(t, err)
 
 			want, err := tf.NewSource(l, v.FS, tc.source, changed.DownloadDir, unitDir, false)
@@ -240,7 +240,7 @@ func TestPathVariableModuleInPartialParseCacheFollowsParsingContext(t *testing.T
 	}
 }
 
-func TestPathVariableStackInPartialParseCacheFollowsNewStackFile(t *testing.T) {
+func TestPathVariableStackInSharedStoreFollowsNewStackFile(t *testing.T) {
 	t.Parallel()
 
 	v, root := pathFixture(t)
@@ -249,11 +249,11 @@ func TestPathVariableStackInPartialParseCacheFollowsNewStackFile(t *testing.T) {
 	cfgPath := filepath.Join(unitDir, config.DefaultTerragruntConfigPath)
 
 	ctx, pctx := newPathParsingContext(t, cfgPath)
-	pctx.UsePartialParseConfigCache = true
 	pctx = pctx.WithDecodeList(config.TerraformBlock)
+	s := new(config.Store)
 
 	for _, want := range []string{"no-stack", unitDir} {
-		cfg, err := config.PartialParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+		cfg, err := s.ResolvePartialConfig(ctx, l, v, pctx, cfgPath)
 		require.NoError(t, err)
 
 		hooks := cfg.Terraform.GetBeforeHooks()
@@ -274,10 +274,50 @@ func TestPathVariableModuleOfInPlaceUnit(t *testing.T) {
 	ctx, pctx := newPathParsingContext(t, cfgPath)
 	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.NoDotTerragruntCache))
 
-	cfg, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, cfgPath, nil)
+	cfg, err := new(config.Store).ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, cfgPath)
 	require.NoError(t, err)
 
 	assert.Equal(t, unitDir, cfg.Inputs["module"])
+}
+
+func TestPathVariableModuleOfInPlaceUnitWithDependencyInTerraformBlock(t *testing.T) {
+	t.Parallel()
+
+	root := venvtest.Root("/fixture")
+	appDir := filepath.Join(root, "app")
+
+	result := resolveUnit(t, unitCase{
+		cfgPath: filepath.Join(appDir, config.DefaultTerragruntConfigPath),
+		newFS: memFS(root, map[string]string{
+			"vpc/terragrunt.hcl": "",
+			"vpc/main.tf":        "",
+			"app/main.tf":        "",
+			"app/terragrunt.hcl": `
+dependency "vpc" {
+  config_path = "../vpc"
+}
+
+terraform {
+  no_dot_terragrunt_cache = true
+  include_in_copy         = [dependency.vpc.outputs.id]
+}
+
+inputs = {
+  module = path.module
+}
+`,
+		}),
+		configure: func(pctx *config.ParsingContext) {
+			pctx.OriginalTerragruntConfigPath = pctx.TerragruntConfigPath
+
+			require.NoError(t, pctx.Experiments.EnableExperiment(experiment.PathVariable))
+			require.NoError(t, pctx.Experiments.EnableExperiment(experiment.NoDotTerragruntCache))
+		},
+	})
+
+	require.NoError(t, result.runConfigErr)
+	require.NotNil(t, result.cfg)
+	assert.Equal(t, appDir, result.cfg.Inputs["module"])
 }
 
 func TestPathVariableModuleOfRejectedInPlaceUnit(t *testing.T) {
@@ -309,7 +349,7 @@ func TestPathVariableModuleOfRejectedInPlaceUnit(t *testing.T) {
 				require.NoError(t, pctx.Experiments.EnableExperiment(experiment.NoDotTerragruntCache))
 			}
 
-			cfg, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+			cfg, err := new(config.Store).ResolveRunConfig(ctx, l, v, pctx, cfgPath)
 			require.NoError(t, err)
 
 			want, err := tf.NewSource(l, v.FS, tc.source, pctx.DownloadDir, unitDir, false)
@@ -363,7 +403,7 @@ func TestPathVariableModuleRejectsDependencyReference(t *testing.T) {
 			cfgPath := filepath.Join(root, "module", "dependency", tc.unit, tc.config)
 			ctx, pctx := newPathParsingContext(t, cfgPath)
 
-			_, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, cfgPath, nil)
+			_, err := new(config.Store).ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, cfgPath)
 
 			var got config.ModuleDirReferencesDependencyError
 
@@ -381,7 +421,7 @@ func TestPathVariableModuleRejectsDependencyReferenceInJSONSource(t *testing.T) 
 	cfgPath := filepath.Join(root, "module", "dependency", "source-json", config.DefaultTerragruntJSONConfigPath)
 	ctx, pctx := newPathParsingContext(t, cfgPath)
 
-	_, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, cfgPath, nil)
+	_, err := new(config.Store).ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, cfgPath)
 
 	var got config.TerraformSourceReferencesDependencyError
 
@@ -445,7 +485,7 @@ func TestPathVariableInStackFile(t *testing.T) {
 
 	ctx, pctx := newPathParsingContext(t, stackPath)
 
-	stack, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), v, pctx, stackPath, nil)
+	stack, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, stackPath, nil)
 	require.NoError(t, err)
 	require.Len(t, stack.Units, 1)
 	require.NotNil(t, stack.Units[0].Values)
@@ -482,10 +522,10 @@ func TestPathVariableInStackFileReadFromUnit(t *testing.T) {
 			ctx, pctx := unitPathParsingContext(t, v, filepath.Join(root, "stack", "consumer"))
 			l := logger.CreateLogger()
 
-			values, err := config.ReadValues(ctx, l, v, pctx, stackDir)
+			values, err := config.ReadValues(ctx, l, v, new(config.Store), pctx, stackDir)
 			require.NoError(t, err)
 
-			stack, err := config.ReadStackConfigFile(ctx, l, v, pctx, stackPath, values)
+			stack, err := config.ReadStackConfigFile(ctx, l, v, new(config.Store), pctx, stackPath, values)
 			require.NoError(t, err)
 			require.Len(t, stack.Units, 1)
 			require.NotNil(t, stack.Units[0].Values)
@@ -617,7 +657,7 @@ func TestPathVariableInStackInclude(t *testing.T) {
 
 	ctx, pctx := newPathParsingContext(t, stackPath)
 
-	stack, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), v, pctx, stackPath, nil)
+	stack, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, stackPath, nil)
 	require.NoError(t, err)
 	require.Len(t, stack.Units, 2)
 
@@ -699,12 +739,44 @@ func TestPathVariableInStackFileEvalVariables(t *testing.T) {
 				require.NoError(t, pctx.Experiments.EnableExperiment(name))
 			}
 
-			exposed := config.ParsedExposedInclude(venv.MemVenv())
-
-			vars, err := config.TerragruntEvalVariables(ctx, logger.CreateLogger(), pctx, stackPath, exposed)
+			vars, err := config.TerragruntEvalVariables(ctx, logger.CreateLogger(), pctx, stackPath, nil)
 			require.NoError(t, err)
 
 			assert.Equal(t, tc.want, vars)
+		})
+	}
+}
+
+func TestPathVariableResolvesInEachFixtureUnit(t *testing.T) {
+	t.Parallel()
+
+	fixtures := loadFixtures(t, []string{"path-variable"}, map[string]struct{}{
+		"path-variable/module/dependency":           {},
+		"path-variable/stack/units":                 {},
+		"path-variable/stack-include/catalog/units": {},
+	})
+	require.NotEmpty(t, fixtures.configs)
+
+	for _, fixture := range fixtures.configs {
+		t.Run(fixture.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := resolveUnit(t, unitCase{
+				newFS:   fixtures.newFS,
+				cfgPath: fixture.path,
+				configure: func(pctx *config.ParsingContext) {
+					pctx.SkipOutput = true
+					pctx.OriginalTofuCommand = "plan"
+					pctx.OriginalTerragruntConfigPath = fixture.path
+
+					require.NoError(t, pctx.Experiments.EnableExperiment(experiment.PathVariable))
+					require.NoError(t, pctx.Experiments.EnableExperiment(experiment.NoDotTerragruntCache))
+				},
+			})
+
+			require.NoError(t, result.runConfigErr)
+			require.NotNil(t, result.cfg)
+			assert.NotEmpty(t, result.cfg.Inputs)
 		})
 	}
 }
@@ -723,7 +795,7 @@ func TestPathVariableUnitOfDependencyConfig(t *testing.T) {
 	l, pctx, err := pctx.WithDependencyConfigPath(l, dependencyPath)
 	require.NoError(t, err)
 
-	cfg, err := config.ParseConfigFile(ctx, l, v, pctx, dependencyPath, nil)
+	cfg, err := new(config.Store).ResolveRunConfig(ctx, l, v, pctx, dependencyPath)
 	require.NoError(t, err)
 
 	assert.Equal(t, dependencyDir, cfg.Inputs["unit"])
@@ -739,7 +811,7 @@ func TestPathVariableRequiresExperiment(t *testing.T) {
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.OriginalTerragruntConfigPath = cfgPath
 
-	_, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, cfgPath, nil)
+	_, err := new(config.Store).ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, cfgPath)
 
 	var diags hcl.Diagnostics
 
@@ -769,7 +841,7 @@ func TestPathVariableErrorNamesTheExperimentWhenDisabled(t *testing.T) {
 			ctx, pctx := newTestParsingContext(t, cfgPath)
 			pctx.OriginalTerragruntConfigPath = cfgPath
 
-			_, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, cfgPath, nil)
+			_, err := new(config.Store).ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, cfgPath)
 
 			var diags hcl.Diagnostics
 
@@ -810,7 +882,7 @@ func unitPathParsingContext(t *testing.T, v *venv.Venv, unitDir string) (context
 	file, err := pctx.NewParser(l, v).ParseFromFile(v.FS, cfgPath)
 	require.NoError(t, err)
 
-	pctx.Path, err = config.PathVariable(ctx, l, v, pctx, file, nil)
+	pctx.Path, err = config.PathVariable(ctx, l, v, new(config.Store), pctx, file, nil)
 	require.NoError(t, err)
 	require.NotNil(t, pctx.Path)
 
@@ -835,7 +907,15 @@ func generatePathStack(t *testing.T, v *venv.Venv, stackDir string, experiments 
 
 	defer pool.Stop()
 
-	if err := config.GenerateStackFile(ctx, logger.CreateLogger(), v, pctx, pool, stackPath); err != nil {
+	if err := config.GenerateStackFile(
+		ctx,
+		logger.CreateLogger(),
+		v,
+		new(config.Store),
+		pctx,
+		pool,
+		stackPath,
+	); err != nil {
 		return err
 	}
 
@@ -848,7 +928,7 @@ func parsePathInputs(ctx context.Context, t *testing.T, v *venv.Venv, cfgPath st
 
 	_, pctx := newPathParsingContext(t, cfgPath)
 
-	cfg, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, cfgPath, nil)
+	cfg, err := new(config.Store).ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, cfgPath)
 	require.NoError(t, err)
 
 	return cfg.Inputs

@@ -3,9 +3,7 @@ package cas
 import (
 	"context"
 	"encoding/hex"
-	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -222,23 +220,11 @@ func hashLocalEntry(
 	}
 }
 
-// hashFileAlg hashes a file's contents using the given algorithm and returns
-// the hex-encoded digest. It exists alongside hashFile (which is hard-coded
-// to SHA-1 for the git remote flow) so the local flow can use SHA-256.
+// hashFileAlg returns the hex-encoded alg digest of the contents of the file at path.
 func hashFileAlg(fsys vfs.FS, path string, alg HashAlgorithm) (string, error) {
-	file, err := fsys.Open(path)
-	if err != nil {
-		return "", err
-	}
-
 	h := alg.NewHash()
-
-	if _, err := io.Copy(h, file); err != nil {
-		return "", errors.Join(err, file.Close())
-	}
-
-	if err := file.Close(); err != nil {
-		return "", fmt.Errorf("closing %s after hashing failed: %w", path, err)
+	if err := vfs.HashFile(fsys, h, path); err != nil {
+		return "", err
 	}
 
 	return hex.EncodeToString(h.Sum(nil)), nil

@@ -16,18 +16,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestPartialParseEvaluatesAnExposedIncludeForLocalsThatReadIt pins how many times a partial parse evaluates an
-// exposed include: once more when the locals of the including config read `include`.
-func TestPartialParseEvaluatesAnExposedIncludeForLocalsThatReadIt(t *testing.T) {
+// TestPartialParseEvaluatesAnExposedIncludeOnce pins that a partial parse evaluates an exposed include once, whether
+// or not the locals of the including config read `include`.
+func TestPartialParseEvaluatesAnExposedIncludeOnce(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
 		name   string
 		locals string
-		want   int64
 	}{
-		{name: "locals that read include", locals: `env = include.root.locals.env`, want: 3},
-		{name: "locals that do not read include", locals: `env = "dev"`, want: 2},
+		{name: "locals that read include", locals: `env = include.root.locals.env`},
+		{name: "locals that do not read include", locals: `env = "dev"`},
 	}
 
 	for i, tc := range testCases {
@@ -66,9 +65,67 @@ locals {
 			ctx, pctx := newTestParsingContext(t, cfgPath)
 			pctx = pctx.WithDecodeList(config.TerragruntVersionConstraints, config.FeatureFlagsBlock)
 
-			_, err := config.PartialParseConfigFile(ctx, logger.CreateLogger(), v, pctx, cfgPath, nil)
+			s := new(config.Store)
+
+			_, err := s.ResolvePartialConfig(ctx, logger.CreateLogger(), v, pctx, cfgPath)
 			require.NoError(t, err)
-			assert.Equal(t, tc.want, evaluations.Load())
+			assert.Equal(t, int64(1), evaluations.Load())
+		})
+	}
+}
+
+func TestPartialParseOfAnExposedIncludeLeavesOutACatalogThatReadsDependency(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name       string
+		decodeList []config.PartialDecodeSectionType
+	}{
+		{name: "dependency blocks", decodeList: []config.PartialDecodeSectionType{config.DependencyBlock}},
+		{name: "terraform block", decodeList: []config.PartialDecodeSectionType{config.TerraformBlock}},
+		{name: "remote_state block", decodeList: []config.PartialDecodeSectionType{config.RemoteStateBlock}},
+	}
+
+	for i, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := venvtest.Root(fmt.Sprintf("/exposed-include-catalog-%d", i))
+			cfgPath := filepath.Join(root, "unit", config.DefaultTerragruntConfigPath)
+
+			v := venv.MemVenv().WithFS(venvtest.NewFS(t, root, map[string]string{
+				"registry/" + config.DefaultTerragruntConfigPath: "",
+				"root.hcl": `
+dependency "registry" {
+  config_path  = "${get_parent_terragrunt_dir()}/registry"
+  skip_outputs = true
+
+  mock_outputs = {
+    urls = ["https://example.com/modules"]
+  }
+}
+
+catalog {
+  urls = dependency.registry.outputs.urls
+}
+`,
+				filepath.Join("unit", config.DefaultTerragruntConfigPath): `
+include "root" {
+  path   = find_in_parent_folders("root.hcl")
+  expose = true
+}
+
+locals {
+  included = include.root
+}
+`,
+			}))
+
+			ctx, pctx := newTestParsingContext(t, cfgPath)
+			pctx = pctx.WithDecodeList(tc.decodeList...)
+
+			_, err := new(config.Store).ResolvePartialConfig(ctx, logger.CreateLogger(), v, pctx, cfgPath)
+			require.NoError(t, err)
 		})
 	}
 }

@@ -432,6 +432,7 @@ func storeStackConfigs(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	components component.Components,
 ) {
@@ -453,14 +454,14 @@ func storeStackConfigs(
 		// values (and shows its definitions in consumers like browse).
 		pctx := configbridge.NewParsingContext(opts)
 
-		values, err := config.ReadValues(ctx, l, v, pctx, stackDir)
+		values, err := config.ReadValues(ctx, l, v, s, pctx, stackDir)
 		if err != nil {
 			l.Debugf("Skipping stack config %s: %v", stackFile, err)
 
 			continue
 		}
 
-		cfg, err := config.ReadStackConfigFile(ctx, l, v, pctx, stackFile, values)
+		cfg, err := config.ReadStackConfigFile(ctx, l, v, s, pctx, stackFile, values)
 		if err != nil {
 			l.Debugf("Skipping stack config %s: %v", stackFile, err)
 
@@ -481,6 +482,7 @@ func stackDependencyPaths(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	depPaths []string,
 ) ([]string, error) {
@@ -490,11 +492,11 @@ func stackDependencyPaths(
 	// Factory builds the dir-scoped function map for each stack dir visited during expansion.
 	funcsFor := inthclparse.StackFuncFactory(
 		func(stackDir string) (map[string]function.Function, error) {
-			return config.EarlyStackParseFunctions(ctx, l, v, pctx, stackDir)
+			return config.EarlyStackParseFunctions(ctx, l, v, s, pctx, stackDir)
 		},
 	)
 
-	varsFor := configbridge.StackVarFactory(ctx, l, v, pctx)
+	varsFor := configbridge.StackVarFactory(ctx, l, pctx)
 
 	// Expand stack dependency paths to individual unit paths.
 	expanded := make([]string, 0, len(depPaths))

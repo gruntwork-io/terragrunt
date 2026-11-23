@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -61,6 +62,22 @@ resource "random_pet" "this" {}
 `
 	childOutputTF = `output "ok" {
   value = true
+}
+`
+	generatedTF = `locals {
+  generated_at = "2026-01-01T00:00:00Z"
+}
+
+provider "null" {
+  default_tags {
+    tags = { Commit = "0123abc" }
+  }
+}
+`
+	backendTF = `terraform {
+  backend "s3" {
+    key = "unit/tofu.tfstate"
+  }
 }
 `
 	autoInitPlanRuns = 3
@@ -284,6 +301,26 @@ resource "null_resource" "this" {
 			},
 		},
 		{
+			name:  "in place, generated locals and provider arguments change after init",
+			files: map[string]string{"main.tf": nullProviderTF, "generated.tf": generatedTF},
+			editAfterFirstRun: map[string]string{
+				"generated.tf": strings.NewReplacer("2026-01-01", "2026-01-02", "0123abc", "4567def").Replace(generatedTF),
+			},
+			inPlace: true,
+			want:    []string{tf.CommandNameInit, tf.CommandNamePlan, tf.CommandNamePlan, tf.CommandNamePlan},
+		},
+		{
+			name:              "in place, generated backend configuration changes after init",
+			files:             map[string]string{"main.tf": nullProviderTF, "backend.tf": backendTF},
+			editAfterFirstRun: map[string]string{"backend.tf": strings.Replace(backendTF, "unit/", "other/", 1)},
+			inPlace:           true,
+			want: []string{
+				tf.CommandNameInit, tf.CommandNamePlan,
+				tf.CommandNameInit, tf.CommandNamePlan,
+				tf.CommandNamePlan,
+			},
+		},
+		{
 			name:              "in place, lock file changes after init",
 			files:             map[string]string{"main.tf": nullProviderTF},
 			editAfterFirstRun: map[string]string{tf.TerraformLockFile: "provider \"registry.opentofu.org/hashicorp/null\" {}\n"},
@@ -367,6 +404,85 @@ resource "null_resource" "this" {
 					require.NoError(t, opts.Experiments.EnableExperiment(experiment.NoDotTerragruntCache))
 
 					cfg.Terraform.NoDotTerragruntCache = true
+				}
+
+				require.NoError(
+					t,
+					run.Run(t.Context(), logger.CreateLogger(), v, opts, report.NewReport(), cfg, creds.NewGetter()),
+				)
+			}
+
+			assert.Equal(t, tc.want, tofuCommands(rec.snapshot()))
+		})
+	}
+}
+
+func TestRunAutoInitCountsCommandEnvVarsOfTheVariablesInitReads(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name   string
+		source string
+		want   []string
+	}{
+		{
+			name:   "module source reads a constant local",
+			source: "local.example",
+			want: []string{
+				tf.CommandNameInit, tf.CommandNamePlan, tf.CommandNameValidate,
+				tf.CommandNamePlan, tf.CommandNameValidate,
+			},
+		},
+		{
+			name:   "module source reads the variable the env vars set",
+			source: `"./${var.mode}"`,
+			want: []string{
+				tf.CommandNameInit, tf.CommandNamePlan, tf.CommandNameInit, tf.CommandNameValidate,
+				tf.CommandNameInit, tf.CommandNamePlan, tf.CommandNameInit, tf.CommandNameValidate,
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			fsys := vfs.NewOSFS()
+			dir := filepath.Join(t.TempDir(), "unit")
+			require.NoError(t, fsys.MkdirAll(dir, 0o755))
+
+			configPath := filepath.Join(dir, "terragrunt.hcl")
+			require.NoError(t, vfs.WriteFile(fsys, configPath, nil, 0o644))
+			writeUnitFiles(t, fsys, dir, map[string]string{
+				"main.tf": nullProviderTF + "variable \"mode\" {}\n\nlocals {\n  example = \"./example\"\n}\n\n" +
+					"module \"example\" {\n  source = " + tc.source + "\n}\n",
+				"example/main.tf": childOutputTF,
+			})
+
+			rec := &recorder{}
+			v := venv.MemVenv().
+				WithExec(vexec.NewMemExec(fakeTofu(fsys, rec, initInstallsProvidersAndModules, []string{"example"}))).
+				WithFS(fsys)
+			s := runE2EScaffold{dir: dir, configPath: configPath}
+
+			extraArgs := []runcfg.TerraformExtraArguments{
+				{Name: "plan", Commands: []string{tf.CommandNamePlan}, EnvVars: map[string]string{"TF_VAR_mode": "plan"}},
+				{
+					Name:     "validate",
+					Commands: []string{tf.CommandNameValidate},
+					EnvVars:  map[string]string{"TF_VAR_mode": "validate"},
+				},
+			}
+
+			for _, command := range []string{
+				tf.CommandNamePlan, tf.CommandNameValidate, tf.CommandNamePlan, tf.CommandNameValidate,
+			} {
+				opts := newRunE2EOpts(t, s, command)
+				opts.AutoInit = true
+				require.NoError(t, opts.Experiments.EnableExperiment(experiment.NoDotTerragruntCache))
+
+				cfg := &runcfg.RunConfig{
+					Terraform: runcfg.TerraformConfig{NoDotTerragruntCache: true, ExtraArgs: extraArgs},
 				}
 
 				require.NoError(

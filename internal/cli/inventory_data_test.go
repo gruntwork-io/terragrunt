@@ -995,6 +995,7 @@ var configParsingFlags = slices.Concat(backendFlags, []cliFlag{
 		names:             []string{"use-partial-parse-config-cache"},
 		envVars:           []string{"TG_USE_PARTIAL_PARSE_CONFIG_CACHE"},
 		deprecatedEnvVars: []string{"TERRAGRUNT_USE_PARTIAL_PARSE_CONFIG_CACHE"},
+		hidden:            true,
 	},
 	{names: []string{"version-manager-file-name"}, envVars: []string{"TG_VERSION_MANAGER_FILE_NAME"}},
 })

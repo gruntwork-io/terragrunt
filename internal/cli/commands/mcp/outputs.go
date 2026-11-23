@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"slices"
 
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/report"
@@ -169,7 +168,7 @@ func outputsFetchViaRun(
 
 	pctx := configbridge.NewParsingContext(opts)
 
-	cfg, err := new(rewrite.Store).ReadTerragruntConfig(ctx, l, cv, pctx)
+	cfg, err := new(config.Store).ReadTerragruntConfig(ctx, l, cv, pctx)
 	if err != nil {
 		return getOutputsOutput{}, err
 	}
@@ -295,10 +294,11 @@ func outputsFetchViaStateRead(
 	cv := d.callVenv(rootVenv, env, io.Discard)
 
 	ctx = freshCallContext(ctx)
+	s := new(config.Store)
 
 	pctx := configbridge.NewParsingContext(opts)
 
-	viable, reason := outputsStateReadViable(ctx, l, cv, pctx, opts.TerragruntConfigPath)
+	viable, reason := outputsStateReadViable(ctx, l, cv, s, pctx, opts.TerragruntConfigPath)
 	if !viable {
 		out.Degraded = append(d.rec.notes(), fmt.Sprintf(
 			"outputs not fetched: %s; restart the MCP server with --allow=exec for real outputs, or use render_config on dependent units to see their mock_outputs",
@@ -310,7 +310,7 @@ func outputsFetchViaStateRead(
 
 	unit := &config.Unit{Name: filepath.Base(dir), Path: dir}
 
-	raw, err := unit.ReadOutputsJSON(ctx, l, cv, pctx, dir)
+	raw, err := unit.ReadOutputsJSON(ctx, l, cv, s, pctx, dir)
 	if err != nil {
 		// A denied subprocess means the machinery gave up on the in-process
 		// path (e.g. a nested dependency needed a real fetch); degrade
@@ -346,6 +346,7 @@ func outputsStateReadViable(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	pctx *config.ParsingContext,
 	configPath string,
 ) (bool, string) {
@@ -353,7 +354,7 @@ func outputsStateReadViable(
 		WithDecodeList(config.RemoteStateBlock, config.TerragruntFlags, config.EngineBlock).
 		WithDiagnosticsSuppressed()
 
-	cfg, err := config.PartialParseConfigFile(ctx, l, v, probeCtx, configPath, nil)
+	cfg, err := s.ResolvePartialConfig(ctx, l, v, probeCtx, configPath)
 	if err != nil {
 		// A remote_state block that references dependency outputs cannot be
 		// parsed standalone, which also rules out the direct state read.

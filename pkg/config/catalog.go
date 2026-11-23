@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"slices"
 
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/zclconf/go-cty/cty"
 )
@@ -79,17 +81,19 @@ func (cfg *CatalogConfig) normalize(fsys vfs.FS, cfgPath string) {
 //
 // We want users to be able to browse to any folder in an `infra-live` repo, run `terragrunt catalog` (with no URL) arg.
 // ReadCatalogConfig looks for the "nearest" `terragrunt.hcl` in the parent directories if the given
-// `opts.TerragruntConfigPath` does not exist. Since our normal parsing `ParseConfig` does not always work,
+// `opts.TerragruntConfigPath` does not exist. Since a normal parse does not always work,
 // as some `terragrunt.hcl` files are meant to be used from an `include` and/or they might use
 // `find_in_parent_folders` and they only work from certain child folders, it parses this file to see if the
 // config contains `include{...find_in_parent_folders()...}` block to determine if it is the root configuration.
 // If it finds `terragrunt.hcl` that already has `include`, then read that configuration as is,
 // otherwise generate a stub child `terragrunt.hcl` in memory with an `include` to pull in the one we found.
-// Unlike the "ReadTerragruntConfig" func, it ignores any configuration errors not related to the "catalog" block.
+// Unlike [Store.ReadTerragruntConfig], it ignores any configuration errors not related to the "catalog" block, and it
+// fetches dependency outputs only when a catalog block reads `dependency`.
 func ReadCatalogConfig(
 	parentCtx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 ) (*CatalogConfig, error) {
 	cfgPath, configString, err := findCatalogConfig(parentCtx, l, v, pctx)
@@ -102,12 +106,50 @@ func ReadCatalogConfig(
 	pctx.Parser.HaltOnErrorOnlyInBlocks = append(pctx.Parser.HaltOnErrorOnlyInBlocks, MetadataCatalog)
 	pctx.catalogOnly = true
 
-	config, err := ParseConfigString(parentCtx, l, v, pctx, cfgPath, configString, nil)
+	if !vfs.Exists(v.FS, cfgPath) {
+		pctx.catalogStubDir = filepath.Dir(cfgPath)
+	}
+
+	pctx = pctx.forStore(v)
+
+	ctx, release := s.withReleaseScope(parentCtx)
+	defer release()
+
+	c, config, err := s.resolveCatalogFile(ctx, l, v, pctx, cfgPath, configString)
+	if c != nil && c.catalogReadsDependency() {
+		config, err = c.ResolveRunConfig(ctx, l, v, s, pctx)
+	}
+
 	if err != nil {
 		return nil, err
 	}
 
 	return config.Catalog, nil
+}
+
+// resolveCatalogFile resolves the config at cfgPath that [ReadCatalogConfig] found, parsing content as the child it
+// generated when there is one.
+func (s *Store) resolveCatalogFile(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pc *ParsingContext,
+	cfgPath, content string,
+) (*UnitConfig, *TerragruntConfig, error) {
+	if pc.catalogStubDir == "" {
+		return s.resolveFile(ctx, l, v, pc, cfgPath)
+	}
+
+	pc, err := pc.incrementDepth()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	parse := func(_ context.Context, parser *hclparse.Parser) (*hclparse.File, error) {
+		return parser.ParseFromString(content, cfgPath)
+	}
+
+	return s.resolveParsed(ctx, l, v, pc, cfgPath, parse)
 }
 
 func findCatalogConfig(
@@ -223,4 +265,17 @@ func convertToTerragruntCatalogConfig(
 	}
 
 	return cfg, nil
+}
+
+// catalogReadsDependency reports whether the catalog block of c, or of a file c merges, reads `dependency`.
+func (c *UnitConfig) catalogReadsDependency() bool {
+	if c.Catalog != nil && c.Catalog.readsDependency() {
+		return true
+	}
+
+	merged := append([]*includedFile{c.kept.autoInclude}, c.kept.included...)
+
+	return slices.ContainsFunc(merged, func(file *includedFile) bool {
+		return file != nil && file.cfg != nil && file.cfg.catalogReadsDependency()
+	})
 }

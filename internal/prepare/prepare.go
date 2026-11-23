@@ -14,7 +14,6 @@ package prepare
 import (
 	"context"
 
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
@@ -46,7 +45,7 @@ func PrepareConfig(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 ) (*Config, error) {
 	// We need to get the credentials from auth-provider-cmd at the very beginning,

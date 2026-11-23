@@ -313,7 +313,8 @@ func runTerragruntWithConfig(
 
 	if len(cfg.Terraform.ExtraArgs) > 0 {
 		args := FilterTerraformExtraArgs(l, v.FS, opts, cfg)
-		extraEnvVars := filterTerraformEnvVarsFromExtraArgsRunCfg(opts, cfg)
+		cmd := opts.TerraformCliArgs.CommandName(opts.TerraformCliArgs.First())
+		extraEnvVars := extraArgsEnvVars(cfg, cmd)
 
 		opts.InsertTerraformCliArgs(args...)
 
@@ -424,7 +425,7 @@ func runTerragruntWithConfig(
 
 			var recordInitError error
 			if opts.TerraformCliArgs.First() == tf.CommandNameInit {
-				recordInitError = recordInit(v.FS, opts, v.Env)
+				recordInitError = recordInit(v.FS, opts, cfg, v.Env)
 			}
 
 			return errors.Join(lockFileError, recordInitError)
@@ -435,8 +436,13 @@ func runTerragruntWithConfig(
 // recordInit updates what [needsInitRunCfg] reads on later runs after a successful init: it
 // stores the [tf.InitFingerprint] of the working directory and removes the
 // [ModuleInitRequiredFile] that requested the init.
-func recordInit(fsys vfs.FS, opts *Options, env map[string]string) error {
-	fingerprint, err := tf.InitFingerprint(fsys, opts.CacheDir, opts.DataDir(env))
+func recordInit(fsys vfs.FS, opts *Options, cfg *runcfg.RunConfig, env map[string]string) error {
+	fingerprint, err := tf.ComputeInitFingerprint(
+		fsys,
+		opts.CacheDir,
+		opts.DataDir(env),
+		initInputs(cfg, env),
+	)
 	if err != nil {
 		return err
 	}
@@ -728,33 +734,54 @@ func remoteStateNeedsInit(
 
 // FilterTerraformExtraArgs extracts terraform extra arguments using runcfg types.
 func FilterTerraformExtraArgs(l log.Logger, fsys vfs.FS, opts *Options, cfg *runcfg.RunConfig) []string {
-	out := []string{}
 	cmd := opts.TerraformCliArgs.CommandName(opts.TerraformCliArgs.First())
+
+	appliesPlanFile := (cmd == tf.CommandNameApply || cmd == tf.CommandNameDestroy) &&
+		vfs.IsFile(fsys, opts.TerraformCliArgs.Last())
+
+	vars := keepVarArgs
+	if appliesPlanFile {
+		vars = dropVarArgs
+	}
+
+	return extraArgs(cfg, cmd, vars)
+}
+
+// varArgs selects whether [extraArgs] keeps the -var arguments and var files of extra_arguments.
+type varArgs int
+
+const (
+	// keepVarArgs keeps them.
+	keepVarArgs varArgs = iota
+	// dropVarArgs leaves them out, as apply and destroy of a saved plan file take no variables.
+	dropVarArgs
+)
+
+// extraArgs returns the arguments that the extra_arguments of cfg give cmd, with the -var arguments and var files
+// that vars selects.
+func extraArgs(cfg *runcfg.RunConfig, cmd string, vars varArgs) []string {
+	out := []string{}
 
 	for i := range cfg.Terraform.ExtraArgs {
 		arg := &cfg.Terraform.ExtraArgs[i]
 		for _, argCmd := range arg.Commands {
-			if cmd == argCmd {
-				lastArg := opts.TerraformCliArgs.Last()
-				skipVars := (cmd == tf.CommandNameApply || cmd == tf.CommandNameDestroy) &&
-					vfs.IsFile(fsys, lastArg)
+			if cmd != argCmd {
+				continue
+			}
 
-				if len(arg.Arguments) > 0 {
-					if skipVars {
-						for _, a := range arg.Arguments {
-							if !strings.HasPrefix(a, "-var") {
-								out = append(out, a)
-							}
-						}
-					} else {
-						out = append(out, arg.Arguments...)
-					}
+			if vars == keepVarArgs {
+				out = append(out, arg.Arguments...)
+
+				for _, file := range arg.VarFiles {
+					out = append(out, "-var-file="+file)
 				}
 
-				if !skipVars {
-					for _, file := range arg.VarFiles {
-						out = append(out, "-var-file="+file)
-					}
+				continue
+			}
+
+			for _, a := range arg.Arguments {
+				if !strings.HasPrefix(a, "-var") {
+					out = append(out, a)
 				}
 			}
 		}
@@ -842,13 +869,9 @@ func declaredVariables(l log.Logger, fsys vfs.FS, modulePath string) map[string]
 	return declared
 }
 
-// filterTerraformEnvVarsFromExtraArgsRunCfg extracts terraform env vars from extra args using runcfg types.
-func filterTerraformEnvVarsFromExtraArgsRunCfg(
-	opts *Options,
-	cfg *runcfg.RunConfig,
-) map[string]string {
+// extraArgsEnvVars returns the environment variables that the extra_arguments of cfg set for cmd.
+func extraArgsEnvVars(cfg *runcfg.RunConfig, cmd string) map[string]string {
 	out := map[string]string{}
-	cmd := opts.TerraformCliArgs.CommandName(opts.TerraformCliArgs.First())
 
 	for i := range cfg.Terraform.ExtraArgs {
 		arg := &cfg.Terraform.ExtraArgs[i]
@@ -936,7 +959,7 @@ func needsInitRunCfg(
 		return true, nil
 	}
 
-	state, err := checkInitFingerprint(v.FS, opts, v.Env)
+	state, err := checkInitFingerprint(v.FS, opts, cfg, v.Env)
 	if err != nil {
 		return false, err
 	}
@@ -965,6 +988,49 @@ func needsInitRunCfg(
 	return remoteStateNeedsInit(ctx, l, v, &cfg.RemoteState, opts)
 }
 
+// initInputs returns a function that gathers the [tf.InitInputs] of an init that runs with env and
+// with the extra_arguments that cfg gives init. The function leaves env as it is.
+func initInputs(cfg *runcfg.RunConfig, env map[string]string) func() (tf.InitInputs, error) {
+	return func() (tf.InitInputs, error) {
+		initEnv := maps.Clone(env)
+		maps.Copy(initEnv, extraArgsEnvVars(cfg, tf.CommandNameInit))
+
+		args := extraArgs(cfg, tf.CommandNameInit, keepVarArgs)
+
+		generated := make(map[string]string, len(cfg.TFVarsInputs)+len(cfg.JSONInputs))
+
+		for _, inputs := range []struct {
+			values map[string]any
+			kind   string
+		}{
+			{values: cfg.TFVarsInputs, kind: "tfvars"},
+			{values: cfg.JSONInputs, kind: "json"},
+		} {
+			for name, value := range inputs.values {
+				encoded, err := json.Marshal(value)
+				if err != nil {
+					return tf.InitInputs{}, err
+				}
+
+				generated[name] += inputs.kind + ":" + string(encoded) + "\n"
+			}
+		}
+
+		for name, value := range cfg.Inputs {
+			if value == nil {
+				generated[name] += "null\n"
+			}
+		}
+
+		return tf.InitInputs{
+			Env:               initEnv,
+			Args:              args,
+			Generated:         generated,
+			GeneratedVarFiles: []string{NullTFVarsFile, TFVarsFile, JSONVarsFile},
+		}, nil
+	}
+}
+
 // initFingerprintState is how the fingerprint recorded by the last init relates to the working
 // directory as it is now.
 type initFingerprintState int
@@ -975,10 +1041,15 @@ const (
 	fingerprintStale
 )
 
-// checkInitFingerprint compares the fingerprint recorded by the last init, if any, against a
-// fresh [tf.InitFingerprint] of the working directory.
-func checkInitFingerprint(fsys vfs.FS, opts *Options, env map[string]string) (initFingerprintState, error) {
-	recorded, err := vfs.ReadFile(fsys, filepath.Join(opts.DataDir(env), tf.InitFingerprintFile))
+// checkInitFingerprint compares the fingerprint recorded by the last init, if any, against the
+// working directory as it is now.
+func checkInitFingerprint(
+	fsys vfs.FS,
+	opts *Options,
+	cfg *runcfg.RunConfig,
+	env map[string]string,
+) (initFingerprintState, error) {
+	recorded, err := tf.ReadInitFingerprint(fsys, opts.DataDir(env))
 	if errors.Is(err, os.ErrNotExist) {
 		return fingerprintMissing, nil
 	}
@@ -987,12 +1058,18 @@ func checkInitFingerprint(fsys vfs.FS, opts *Options, env map[string]string) (in
 		return fingerprintMissing, err
 	}
 
-	current, err := tf.InitFingerprint(fsys, opts.CacheDir, opts.DataDir(env))
+	current, err := tf.InitFingerprintCurrent(
+		fsys,
+		opts.CacheDir,
+		opts.DataDir(env),
+		recorded,
+		initInputs(cfg, env),
+	)
 	if err != nil {
 		return fingerprintMissing, err
 	}
 
-	if current != string(recorded) {
+	if !current {
 		return fingerprintStale, nil
 	}
 

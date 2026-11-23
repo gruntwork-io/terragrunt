@@ -39,7 +39,14 @@ func TestRunOnEmptyWorkspaceWritesNothing(t *testing.T) {
 	require.NoError(t, v.FS.MkdirAll(workDir, 0o755))
 
 	err := catalog.Run(
-		config.WithCaches(t.Context()), logger.CreateLogger(), v, newOptions(t, workDir, catalog.FormatJSONL), "",
+		config.WithCaches(
+			t.Context(),
+		),
+		logger.CreateLogger(),
+		v,
+		new(config.Store),
+		newOptions(t, workDir, catalog.FormatJSONL),
+		"",
 	)
 
 	require.NoError(t, err)
@@ -93,7 +100,14 @@ func TestRunReportsEveryUnreachableSource(t *testing.T) {
 			}
 
 			err := catalog.Run(
-				config.WithCaches(t.Context()), logger.CreateLogger(), v, newOptions(t, workDir, catalog.FormatJSONL), "",
+				config.WithCaches(
+					t.Context(),
+				),
+				logger.CreateLogger(),
+				v,
+				new(config.Store),
+				newOptions(t, workDir, catalog.FormatJSONL),
+				"",
 			)
 
 			var loadErr *tui.SourceLoadError
@@ -131,7 +145,14 @@ func TestRunLoadsARepoNamedTwiceOnce(t *testing.T) {
 	))
 
 	err := catalog.Run(
-		config.WithCaches(t.Context()), logger.CreateLogger(), v, newOptions(t, rootDir, catalog.FormatJSONL), "",
+		config.WithCaches(
+			t.Context(),
+		),
+		logger.CreateLogger(),
+		v,
+		new(config.Store),
+		newOptions(t, rootDir, catalog.FormatJSONL),
+		"",
 	)
 
 	var loadErr *tui.SourceLoadError
@@ -182,7 +203,14 @@ func TestRunReportsASourceWhoseGitCommandsFail(t *testing.T) {
 	))
 
 	err := catalog.Run(
-		config.WithCaches(t.Context()), logger.CreateLogger(), v, newOptions(t, rootDir, catalog.FormatJSONL), "",
+		config.WithCaches(
+			t.Context(),
+		),
+		logger.CreateLogger(),
+		v,
+		new(config.Store),
+		newOptions(t, rootDir, catalog.FormatJSONL),
+		"",
 	)
 
 	var loadErr *tui.SourceLoadError
@@ -229,7 +257,14 @@ func TestRunWritesComponentsFromTheCatalogBlock(t *testing.T) {
 	))
 
 	err := catalog.Run(
-		config.WithCaches(t.Context()), logger.CreateLogger(), v, newOptions(t, rootDir, catalog.FormatJSONL), "",
+		config.WithCaches(
+			t.Context(),
+		),
+		logger.CreateLogger(),
+		v,
+		new(config.Store),
+		newOptions(t, rootDir, catalog.FormatJSONL),
+		"",
 	)
 
 	require.NoError(t, err)
@@ -254,7 +289,14 @@ func TestRunToleratesAnUnparseableCatalogConfig(t *testing.T) {
 	))
 
 	err := catalog.Run(
-		config.WithCaches(t.Context()), logger.CreateLogger(), v, newOptions(t, rootDir, catalog.FormatJSONL), "",
+		config.WithCaches(
+			t.Context(),
+		),
+		logger.CreateLogger(),
+		v,
+		new(config.Store),
+		newOptions(t, rootDir, catalog.FormatJSONL),
+		"",
 	)
 
 	require.NoError(t, err)
@@ -278,7 +320,7 @@ func TestRunReportsAnUnparseableCatalogConfigWhenAsked(t *testing.T) {
 	opts := newOptions(t, rootDir, catalog.FormatJSONL)
 	opts.UnreadableConfig = catalog.ReportUnreadableConfig
 
-	err := catalog.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, opts, "")
+	err := catalog.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(config.Store), opts, "")
 
 	var loadErr *tui.SourceLoadError
 
@@ -300,6 +342,7 @@ func TestRunWithAnExplicitRepoURLSkipsDiscovery(t *testing.T) {
 
 	err := catalog.Run(
 		config.WithCaches(t.Context()), logger.CreateLogger(), v,
+		new(config.Store),
 		newOptions(t, workDir, catalog.FormatJSONL), "github.com/acme/explicit",
 	)
 
@@ -315,6 +358,7 @@ func TestRunRejectsAnUnknownFormat(t *testing.T) {
 
 	err := catalog.Run(
 		config.WithCaches(t.Context()), logger.CreateLogger(), venv.MemVenv(),
+		new(config.Store),
 		newOptions(t, "/catalog-unknown-format", "yaml"), "github.com/acme/vpc",
 	)
 

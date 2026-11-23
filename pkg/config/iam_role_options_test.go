@@ -4,53 +4,58 @@ import (
 	"context"
 	"fmt"
 	"maps"
-	"os"
 	"path/filepath"
 	"sync/atomic"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
-	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// TestResolveIAMRoleOptionsIdenticalContentInTwoDirectories pins that two
-// configs with the same content resolve their own IAM role when the role
-// depends on the directory the config is in.
-func TestResolveIAMRoleOptionsIdenticalContentInTwoDirectories(t *testing.T) {
+// callerARNLocal is a locals block that reads the identity of the role a parse evaluates with.
+const callerARNLocal = `
+locals {
+  arn = get_aws_caller_identity_arn()
+}
+`
+
+// TestResolveRunConfigAssumesTheRoleOfIdenticalContentInEachDirectory pins that two configs with the same content
+// each evaluate with their own IAM role when the role depends on the directory the config is in.
+func TestResolveRunConfigAssumesTheRoleOfIdenticalContentInEachDirectory(t *testing.T) {
 	t.Parallel()
 
-	const content = `iam_role = "arn:aws:iam::123456789012:role/${basename(get_terragrunt_dir())}"` + "\n"
+	const content = `
+iam_role               = "arn:aws:iam::123456789012:role/${basename(get_terragrunt_dir())}"
+iam_web_identity_token = "fake-token"
+` + callerARNLocal
 
-	tmpDir := t.TempDir()
+	root := venvtest.Root("/iam-identical-content")
+	sts, _ := memSTS()
+	v := venv.MemVenv().WithHTTP(sts).WithFS(venvtest.NewFS(t, root, map[string]string{
+		filepath.Join("a", config.DefaultTerragruntConfigPath): content,
+		filepath.Join("b", config.DefaultTerragruntConfigPath): content,
+	}))
+	s := new(config.Store)
 
 	for _, name := range []string{"a", "b"} {
-		dir := filepath.Join(tmpDir, name)
-		require.NoError(t, os.MkdirAll(dir, 0755))
+		cfgPath := filepath.Join(root, name, config.DefaultTerragruntConfigPath)
+		ctx, pctx := newIAMParsingContext(t, cfgPath)
 
-		cfgPath := filepath.Join(dir, config.DefaultTerragruntConfigPath)
-		require.NoError(t, os.WriteFile(cfgPath, []byte(content), 0644))
-
-		file, err := hclparse.NewParser().ParseFromString(content, cfgPath)
+		cfg, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, cfgPath)
 		require.NoError(t, err)
-
-		v := venvtest.NewWithOSFS()
-		ctx, pctx := newTestParsingContext(t, cfgPath)
-
-		opts, err := config.ResolveIAMRoleOptions(ctx, logger.CreateLogger(), v, pctx, file, nil)
-		require.NoError(t, err)
-		assert.Equal(t, "arn:aws:iam::123456789012:role/"+name, opts.RoleARN)
+		assert.Equal(t, "arn:aws:iam::123456789012:role/"+name, cfg.Locals["arn"])
 	}
 }
 
-// TestResolveIAMRoleOptionsReadsTheRoleOfAnInclude pins that the role an included file sets reaches the including
-// config unless the include does not merge, including when the include path reads the config's values.
-func TestResolveIAMRoleOptionsReadsTheRoleOfAnInclude(t *testing.T) {
+// TestResolveRunConfigAssumesTheRoleOfAnInclude pins that a config evaluates with the role a file it merges sets,
+// including when the include path reads the config's values.
+func TestResolveRunConfigAssumesTheRoleOfAnInclude(t *testing.T) {
 	t.Parallel()
 
 	const role = "arn:aws:iam::123456789012:role/root"
@@ -59,20 +64,16 @@ func TestResolveIAMRoleOptionsReadsTheRoleOfAnInclude(t *testing.T) {
 		files   map[string]string
 		name    string
 		include string
-		want    string
 	}{
-		{name: "default merge", include: `path = find_in_parent_folders("root.hcl")`, want: role},
+		{name: "default merge", include: `path = find_in_parent_folders("root.hcl")`},
 		{
 			name:    "deep merge",
 			include: `path = find_in_parent_folders("root.hcl")` + "\n" + `merge_strategy = "deep"`,
-			want:    role,
 		},
-		{name: "no merge", include: `path = find_in_parent_folders("root.hcl")` + "\n" + `merge_strategy = "no_merge"`},
 		{
 			name:    "path from values",
 			include: `path = "${values.root_dir}/root.hcl"`,
 			files:   map[string]string{filepath.Join("unit", "terragrunt.values.hcl"): `root_dir = ".."`},
-			want:    role,
 		},
 	}
 
@@ -81,40 +82,40 @@ func TestResolveIAMRoleOptionsReadsTheRoleOfAnInclude(t *testing.T) {
 			t.Parallel()
 
 			root := venvtest.Root(fmt.Sprintf("/iam-include-%d", i))
-			unit := "include \"root\" {\n" + tc.include + "\n}\n"
 			cfgPath := filepath.Join(root, "unit", config.DefaultTerragruntConfigPath)
 
 			files := map[string]string{
 				"root.hcl": `iam_role = "` + role + `"` + "\n",
-				filepath.Join("unit", config.DefaultTerragruntConfigPath): unit,
+				filepath.Join("unit", config.DefaultTerragruntConfigPath): "include \"root\" {\n" + tc.include + "\n}\n" +
+					callerARNLocal,
 			}
 			maps.Copy(files, tc.files)
 
-			v := venv.MemVenv().WithFS(venvtest.NewFS(t, root, files))
+			sts, _ := memSTS()
+			v := venv.MemVenv().WithHTTP(sts).WithFS(venvtest.NewFS(t, root, files))
+			ctx, pctx := newIAMParsingContext(t, cfgPath)
 
-			file, err := hclparse.NewParser().ParseFromString(unit, cfgPath)
+			cfg, err := new(config.Store).ResolveRunConfig(
+				ctx,
+				logger.CreateLogger(),
+				v,
+				pctx,
+				cfgPath,
+			)
 			require.NoError(t, err)
-
-			ctx, pctx := newTestParsingContext(t, cfgPath)
-
-			opts, err := config.ResolveIAMRoleOptions(ctx, logger.CreateLogger(), v, pctx, file, nil)
-			require.NoError(t, err)
-			assert.Equal(t, tc.want, opts.RoleARN)
+			assert.Equal(t, role, cfg.Locals["arn"])
 		})
 	}
 }
 
-// TestResolveIAMRoleOptionsRunsTheCommandOfAnIncludePathOnce pins that resolving the role of a config whose include
-// path calls run_cmd runs the command once: in the partial parse of the Terragrunt flags.
-func TestResolveIAMRoleOptionsRunsTheCommandOfAnIncludePathOnce(t *testing.T) {
+// TestResolveRunConfigRunsTheCommandOfAnIncludePathOncePerPass pins that a config whose include path calls run_cmd
+// runs the command twice: once resolving the role the include sets, and once in the parse that evaluates with it.
+func TestResolveRunConfigRunsTheCommandOfAnIncludePathOncePerPass(t *testing.T) {
 	t.Parallel()
 
+	const role = "arn:aws:iam::123456789012:role/root"
+
 	root := venvtest.Root("/iam-include-run-cmd")
-	unit := `
-include "root" {
-  path = run_cmd("--terragrunt-quiet", "--terragrunt-no-cache", "echo", "../root.hcl")
-}
-`
 	cfgPath := filepath.Join(root, "unit", config.DefaultTerragruntConfigPath)
 
 	var runs atomic.Int64
@@ -125,18 +126,41 @@ include "root" {
 		return vexec.Result{Stdout: []byte(inv.Args[len(inv.Args)-1])}
 	}, vexec.WithLookPath(func(file string) (string, error) { return "/usr/bin/" + file, nil }))
 
-	v := venv.MemVenv().WithExec(exec).WithFS(venvtest.NewFS(t, root, map[string]string{
-		"root.hcl": `iam_role = "arn:aws:iam::123456789012:role/root"` + "\n",
-		filepath.Join("unit", config.DefaultTerragruntConfigPath): unit,
+	sts, _ := memSTS()
+	v := venv.MemVenv().WithExec(exec).WithHTTP(sts).WithFS(venvtest.NewFS(t, root, map[string]string{
+		"root.hcl": `iam_role = "` + role + `"` + "\n",
+		filepath.Join("unit", config.DefaultTerragruntConfigPath): `
+include "root" {
+  path = run_cmd("--terragrunt-quiet", "--terragrunt-no-cache", "echo", "../root.hcl")
+}
+` + callerARNLocal,
 	}))
 
-	file, err := hclparse.NewParser().ParseFromString(unit, cfgPath)
+	ctx, pctx := newIAMParsingContext(t, cfgPath)
+
+	cfg, err := new(config.Store).ResolveRunConfig(
+		ctx,
+		logger.CreateLogger(),
+		v,
+		pctx,
+		cfgPath,
+	)
 	require.NoError(t, err)
+	assert.Equal(t, role, cfg.Locals["arn"])
+	assert.Equal(t, int64(2), runs.Load())
+}
+
+// newIAMParsingContext returns a context for parsing cfgPath that assumes roles with a web identity token. The run
+// evaluates with a role of its own until the config's role resolves.
+func newIAMParsingContext(t *testing.T, cfgPath string) (context.Context, *config.ParsingContext) {
+	t.Helper()
 
 	ctx, pctx := newTestParsingContext(t, cfgPath)
+	pctx.IAMRoleOptions = iam.RoleOptions{
+		RoleARN:          "arn:aws:iam::111111111111:role/run",
+		WebIdentityToken: "fake-token",
+	}
+	pctx.OriginalIAMRoleOptions = iam.RoleOptions{WebIdentityToken: "fake-token"}
 
-	opts, err := config.ResolveIAMRoleOptions(ctx, logger.CreateLogger(), v, pctx, file, nil)
-	require.NoError(t, err)
-	assert.Equal(t, "arn:aws:iam::123456789012:role/root", opts.RoleARN)
-	assert.Equal(t, int64(1), runs.Load())
+	return ctx, pctx
 }

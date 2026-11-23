@@ -11,6 +11,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
+	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -1597,4 +1598,15 @@ func TestGenerateConfigDisabledFromString(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRemoteStateConfigToTerraformCodeRejectsKeysThatNormalizeToTheSameString(t *testing.T) {
+	t.Parallel()
+
+	_, err := codegen.RemoteStateConfigToTerraformCode(
+		"s3",
+		map[string]any{"tags": map[string]any{"\u00e9": "a", "e\u0301": "b"}},
+		map[string]any{},
+	)
+	require.ErrorAs(t, err, new(ctyhelper.JSONKeyCollisionError))
 }

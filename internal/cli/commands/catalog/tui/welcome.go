@@ -11,6 +11,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -77,6 +78,7 @@ var (
 // list TUI or settles into a "no sources found" help screen.
 type WelcomeModel struct {
 	venv             *venv.Venv
+	store            *config.Store
 	ctx              context.Context
 	logger           log.Logger
 	lastDiscoveryErr error
@@ -105,12 +107,13 @@ func NewWelcomeModel(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	loadFunc LoadFunc,
 ) WelcomeModel {
-	s := spinner.New()
-	s.Spinner = spinner.Dot
-	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#50FA7B"))
+	spin := spinner.New()
+	spin.Spinner = spinner.Dot
+	spin.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#50FA7B"))
 
 	return WelcomeModel{
 		ctx:         ctx,
@@ -121,8 +124,9 @@ func NewWelcomeModel(
 		statusCh:    make(chan string, statusChannelSize),
 		componentCh: make(chan *ComponentEntry, statusChannelSize),
 		errCh:       make(chan error, 1),
-		spinner:     s,
+		spinner:     spin,
 		venv:        v,
+		store:       s,
 		statusText:  "Discovering components from your infrastructure...",
 		state:       welcomeLoading,
 	}
@@ -137,6 +141,7 @@ func Run(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	warnCh <-chan viewtui.Warning,
 	loadFunc LoadFunc,
@@ -144,7 +149,7 @@ func Run(
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	model := NewWelcomeModel(ctx, l, v, opts, loadFunc)
+	model := NewWelcomeModel(ctx, l, v, s, opts, loadFunc)
 	model.warnCh = warnCh
 
 	finalModel, err := tea.NewProgram(model, tea.WithContext(ctx)).Run()
@@ -362,6 +367,7 @@ func (m WelcomeModel) handleComponentMsg(msg componentMsg) (tea.Model, tea.Cmd) 
 		m.ctx,
 		m.logger,
 		m.venv,
+		m.store,
 		m.opts,
 		msg.entry,
 		m.componentCh,

@@ -40,8 +40,8 @@ const (
 type graphTraversalParams struct {
 	resultSet   map[string]component.Component
 	visited     map[string]int
-	evalCtx     EvaluationContext
 	boundary    string
+	evalCtx     EvaluationContext
 	direction   GraphDirection
 	warnOnLimit bool
 }
@@ -54,7 +54,21 @@ type EvaluationContext struct {
 	WorkingDir         string
 	ResolvedWorkingDir string
 	DiscoveryBoundary  string
+	targets            graphTargets
 }
+
+// graphTargets says which of the components a graph expression is evaluated
+// against can be its targets.
+type graphTargets int
+
+const (
+	// anyGraphTargets lets any of them be a target.
+	anyGraphTargets graphTargets = iota
+	// foundGraphTargets leaves out the components discovery only reached by
+	// following the dependency graph, which a target expression on its own
+	// never selects.
+	foundGraphTargets
+)
 
 // WorktreeContext carries what resolving a boundary inside a Git worktree needs.
 type WorktreeContext struct {
@@ -387,6 +401,8 @@ func evaluatePrefixExpression(
 		return nil, NewEvaluationError("unknown prefix operator: " + expr.Operator)
 	}
 
+	evalCtx.targets = anyGraphTargets
+
 	toExclude, err := Evaluate(l, evalCtx, expr.Right, components)
 	if err != nil {
 		return nil, err
@@ -407,7 +423,7 @@ func evaluatePrefixExpression(
 
 	// We don't use slices.DeleteFunc here because we don't want the members of the original components slice to be
 	// zeroed.
-	results := make(component.Components, 0, len(components)-len(toExclude))
+	results := make(component.Components, 0, len(components))
 
 	for _, c := range components {
 		if _, excluded := excludePaths[c.Path()]; excluded {
@@ -436,6 +452,8 @@ func evaluateInfixExpression(
 		return nil, err
 	}
 
+	evalCtx.targets = anyGraphTargets
+
 	rightResult, err := Evaluate(l, evalCtx, expr.Right, leftResult)
 	if err != nil {
 		return nil, err
@@ -456,12 +474,9 @@ func evaluateGraphExpression(
 		return nil, err
 	}
 
-	// NOTE: We previously filtered out components with OriginGraphDiscovery here to avoid
-	// including components that were only discovered via graph relationships. However, this
-	// caused issues with intersection filters like "service... | !^db..." where db is
-	// discovered via the first filter and then needs to be used as a target in the second.
-	// The discovery phase already handles this logic properly, so we don't need to filter
-	// by origin here during filter evaluation.
+	if evalCtx.targets == foundGraphTargets {
+		targetMatches = foundComponents(targetMatches)
+	}
 
 	if len(targetMatches) == 0 {
 		return component.Components{}, nil
@@ -527,6 +542,20 @@ func evaluateGraphExpression(
 	}
 
 	return result, nil
+}
+
+// foundComponents returns the components discovery found, leaving out those it
+// only reached by following the dependency graph.
+func foundComponents(components component.Components) component.Components {
+	found := make(component.Components, 0, len(components))
+
+	for _, c := range components {
+		if !component.ReachedByTraversal(c) {
+			found = append(found, c)
+		}
+	}
+
+	return found
 }
 
 // evaluateGitFilter evaluates a Git filter expression by comparing components between Git references.

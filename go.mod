@@ -56,7 +56,6 @@ require (
 	github.com/hashicorp/hcl v1.0.1-vault-7
 	github.com/hashicorp/hcl/v2 v2.25.0
 	github.com/hashicorp/terraform-svchost v0.2.1
-	github.com/huandu/go-clone v1.7.5
 	github.com/invopop/jsonschema v0.14.0
 	github.com/mattn/go-runewidth v0.0.31
 	github.com/mattn/go-shellwords v1.0.16

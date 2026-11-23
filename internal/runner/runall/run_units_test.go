@@ -11,7 +11,6 @@ import (
 	"sync"
 	"testing"
 
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/report"
@@ -43,7 +42,7 @@ func TestRun_RejectsDisabledCommands(t *testing.T) {
 
 			opts := newRunOptions(t, command)
 
-			err := runall.Run(t.Context(), logger.CreateLogger(), venv.MemVenv(), new(rewrite.Store), opts)
+			err := runall.Run(t.Context(), logger.CreateLogger(), venv.MemVenv(), new(config.Store), opts)
 
 			var disabled runall.RunAllDisabledErr
 
@@ -98,7 +97,7 @@ func TestRun_SummaryFollowsOutputMode(t *testing.T) {
 				tc.configure(opts)
 			}
 
-			require.NoError(t, runall.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(rewrite.Store), opts))
+			require.NoError(t, runall.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(config.Store), opts))
 
 			require.True(t, rec.ran(tc.command), "the %s command should run in the unit", tc.command)
 			assert.Equal(t, tc.wantSummary, strings.Contains(out.String(), summaryHeader))
@@ -116,7 +115,7 @@ func TestRun_ReturnsUnitFailure(t *testing.T) {
 		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
 		v,
-		new(rewrite.Store),
+		new(config.Store),
 		newRunOptions(t, "plan"),
 	)
 
@@ -140,7 +139,7 @@ func TestRun_DeclinedConfirmationCancels(t *testing.T) {
 			opts := newRunOptions(t, command)
 			opts.NonInteractive = false
 
-			err := runall.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(rewrite.Store), opts)
+			err := runall.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(config.Store), opts)
 
 			require.ErrorIs(t, err, runall.ErrUserCancelled)
 			assert.False(t, rec.ran(command), "a declined %s should not reach any unit", command)
@@ -159,7 +158,7 @@ func TestRun_ConfirmationPromptFailureFails(t *testing.T) {
 	opts := newRunOptions(t, "apply")
 	opts.NonInteractive = false
 
-	err := runall.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(rewrite.Store), opts)
+	err := runall.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(config.Store), opts)
 
 	require.ErrorIs(t, err, errWrite, "a prompt that cannot be shown should fail the run")
 	assert.False(t, rec.ran("apply"), "no unit should run without confirmation")
@@ -180,7 +179,7 @@ func TestRun_WritesReportFiles(t *testing.T) {
 	opts.ReportFormat = "json"
 	opts.SummaryPerUnit = true
 
-	require.NoError(t, runall.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(rewrite.Store), opts))
+	require.NoError(t, runall.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(config.Store), opts))
 
 	reportData, err := vfs.ReadFile(v.FS, reportFile)
 	require.NoError(t, err, "the report should be written")
@@ -248,7 +247,7 @@ unit "vpc" {
 			opts := newRunOptions(t, "plan")
 			opts.NoStackGenerate = tc.noGenerate
 
-			require.NoError(t, runall.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(rewrite.Store), opts))
+			require.NoError(t, runall.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(config.Store), opts))
 
 			exists, err := vfs.FileExists(v.FS, generated)
 			require.NoError(t, err)
@@ -273,7 +272,7 @@ func TestRun_InvalidStackFileFails(t *testing.T) {
 		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
 		v,
-		new(rewrite.Store),
+		new(config.Store),
 		newRunOptions(t, "plan"),
 	)
 
@@ -296,7 +295,7 @@ func TestRun_SourceUpdateCleansGeneratedStacks(t *testing.T) {
 	opts := newRunOptions(t, "plan")
 	opts.SourceUpdate = true
 
-	require.NoError(t, runall.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(rewrite.Store), opts))
+	require.NoError(t, runall.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(config.Store), opts))
 
 	exists, err = vfs.FileExists(v.FS, stale)
 	require.NoError(t, err)
@@ -310,7 +309,7 @@ func TestRun_SourceUpdateCleanFailureFails(t *testing.T) {
 	opts.SourceUpdate = true
 	opts.WorkingDir = "/missing"
 
-	err := runall.Run(config.WithCaches(t.Context()), logger.CreateLogger(), venv.MemVenv(), new(rewrite.Store), opts)
+	err := runall.Run(config.WithCaches(t.Context()), logger.CreateLogger(), venv.MemVenv(), new(config.Store), opts)
 
 	require.ErrorIs(t, err, fs.ErrNotExist, "a failed clean should stop the run")
 }
@@ -324,7 +323,7 @@ func TestRun_GitFilterNeedsGit(t *testing.T) {
 	opts := newRunOptions(t, "plan")
 	opts.Filters = filter.Filters{gitFilter}
 
-	err = runall.Run(config.WithCaches(t.Context()), logger.CreateLogger(), venv.MemVenv(), new(rewrite.Store), opts)
+	err = runall.Run(config.WithCaches(t.Context()), logger.CreateLogger(), venv.MemVenv(), new(config.Store), opts)
 
 	require.ErrorIs(t, err, vexec.ErrNoSpawn, "a git filter should build worktrees with git first")
 }

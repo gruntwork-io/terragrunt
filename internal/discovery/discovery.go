@@ -8,7 +8,6 @@ import (
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
@@ -30,7 +29,7 @@ func (d *Discovery) Discover(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 ) (component.Components, error) {
 	d.classifier = filter.NewClassifier(d.filters)
@@ -221,7 +220,7 @@ func (d *Discovery) Discover(
 			Collect(ctx, l, "discovery_phase_stack_configs", map[string]any{
 				"components_in": len(components),
 			}, func(childCtx context.Context, childL log.Logger) error {
-				storeStackConfigs(childCtx, childL, v, opts, components)
+				storeStackConfigs(childCtx, childL, v, s, opts, components)
 
 				return nil
 			}); err != nil {
@@ -248,7 +247,7 @@ func (d *Discovery) walkAndParse(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 ) (walked, error) {
 	parseReasons := slices.Clone(d.parseReasons)
@@ -311,7 +310,7 @@ func (d *Discovery) runWorktreeWalk(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 ) (*foundResults, error) {
 	var result *foundResults
@@ -562,7 +561,7 @@ func (d *Discovery) dropOutsideBoundary(
 	kept := make(component.Components, 0, len(components))
 
 	for _, c := range components {
-		if !reachedByTraversal(c) {
+		if !component.ReachedByTraversal(c) {
 			kept = append(kept, c)
 			continue
 		}
@@ -587,20 +586,6 @@ func (d *Discovery) dropOutsideBoundary(
 	}
 
 	return kept
-}
-
-// reachedByTraversal reports whether a component entered discovery by following
-// the dependency graph rather than by being walked to.
-func reachedByTraversal(c component.Component) bool {
-	dctx := c.DiscoveryContext()
-	if dctx == nil {
-		return false
-	}
-
-	origin := dctx.Origin()
-
-	return origin == component.OriginGraphDiscovery ||
-		origin == component.OriginRelationshipDiscovery
 }
 
 // applyExcludeModules marks units (and optionally their dependencies) excluded via terragrunt exclude blocks.

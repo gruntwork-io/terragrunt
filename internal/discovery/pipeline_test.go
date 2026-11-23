@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
@@ -76,7 +75,7 @@ func (r *pipelineRun) discover(ctx context.Context, t *testing.T) (component.Com
 		d = r.configure(d)
 	}
 
-	return d.Discover(config.WithCaches(ctx), l, v, new(rewrite.Store), opts)
+	return d.Discover(config.WithCaches(ctx), l, v, new(config.Store), opts)
 }
 
 func TestDiscoveryPipelineRelatesDependenciesOutsideTheFiltersWithRacing(t *testing.T) {
@@ -732,35 +731,162 @@ func TestDiscoveryPipelineFindsDependentsAboveTheWorkingDirectory(t *testing.T) 
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			workingDir := filepath.Join(corpusRepoRoot, "live", "prod")
-
-			v := memRepoRootVenv(t, corpusRepoRoot)
-			writeFixture(t, v, prefixPaths(files))
-
-			opts := options.NewTerragruntOptions()
-			opts.WorkingDir = workingDir
-			opts.RootWorkingDir = workingDir
-
-			l := logger.CreateLogger()
-
-			filters, err := filter.ParseFilterQueries(l, []string{tt.query})
-			require.NoError(t, err)
-
-			got, err := discovery.NewDiscovery(workingDir).
-				WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: workingDir}).
-				WithGitRoot(corpusRepoRoot).
-				WithFilters(filters).
-				Discover(config.WithCaches(t.Context()), l, v, new(rewrite.Store), opts)
-			require.NoError(t, err)
-
-			want := make([]string, 0, len(tt.want))
-			for _, path := range tt.want {
-				want = append(want, filepath.Join(corpusRepoRoot, filepath.FromSlash(path)))
-			}
-
-			assert.ElementsMatch(t, want, got.Paths())
+			assert.ElementsMatch(t, repoPaths(tt.want), discoverFromRepoDir(t, files, "live/prod", tt.query))
 		})
 	}
+}
+
+func TestDiscoveryPipelineCountsDependentDepthPastSameNamedDependents(t *testing.T) {
+	t.Parallel()
+
+	files := map[string]string{
+		"live/a/vpc/terragrunt.hcl": "",
+		"live/b/vpc/terragrunt.hcl": dependenciesOn("../../a/vpc"),
+		"live/c/vpc/terragrunt.hcl": dependenciesOn("../../b/vpc"),
+		"live/d/vpc/terragrunt.hcl": dependenciesOn("../../c/vpc"),
+	}
+
+	tests := []struct {
+		name       string
+		workingDir string
+		query      string
+		want       []string
+	}{
+		{
+			name:       "one dependent",
+			workingDir: "live/a",
+			query:      "1...vpc",
+			want:       []string{"live/a/vpc", "live/b/vpc"},
+		},
+		{
+			name:       "two dependents",
+			workingDir: "live/a",
+			query:      "2...vpc",
+			want:       []string{"live/a/vpc", "live/b/vpc", "live/c/vpc"},
+		},
+		{
+			name:       "one dependent excluding the target",
+			workingDir: "live/a",
+			query:      "1...^vpc",
+			want:       []string{"live/b/vpc"},
+		},
+		{
+			name:       "one dependency",
+			workingDir: "live/d",
+			query:      "vpc...1",
+			want:       []string{"live/d/vpc", "live/c/vpc"},
+		},
+		{
+			name:       "every dependent",
+			workingDir: "live/a",
+			query:      "...vpc",
+			want:       []string{"live/a/vpc", "live/b/vpc", "live/c/vpc", "live/d/vpc"},
+		},
+		{
+			name:       "every same-named unit below the working directory",
+			workingDir: "live",
+			query:      "1...vpc",
+			want:       []string{"live/a/vpc", "live/b/vpc", "live/c/vpc", "live/d/vpc"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.ElementsMatch(t, repoPaths(tt.want), discoverFromRepoDir(t, files, tt.workingDir, tt.query))
+		})
+	}
+}
+
+func TestDiscoveryPipelineTraversesEveryGraphExpressionOfAnIntersection(t *testing.T) {
+	t.Parallel()
+
+	files := map[string]string{
+		"live/east/vpc/terragrunt.hcl": "",
+		"live/east/app/terragrunt.hcl": dependenciesOn("../vpc"),
+		"live/west/vpc/terragrunt.hcl": dependenciesOn("../../east/vpc"),
+		"live/west/app/terragrunt.hcl": dependenciesOn("../vpc"),
+	}
+
+	tests := []struct {
+		name       string
+		workingDir string
+		query      string
+		want       []string
+	}{
+		{
+			name:       "dependents without the dependencies of every target",
+			workingDir: "live",
+			query:      "...vpc | !^vpc...",
+			want:       []string{"live/east/app", "live/west/vpc", "live/west/app"},
+		},
+		{
+			name:       "dependents without the dependencies of a target below the working directory",
+			workingDir: "live/west",
+			query:      "...vpc | !^vpc...",
+			want:       []string{"live/west/vpc", "live/west/app"},
+		},
+		{
+			name:       "dependents narrowed to a dependency traversal",
+			workingDir: "live/east",
+			query:      "...vpc | vpc...",
+			want:       []string{"live/east/vpc", "live/west/vpc"},
+		},
+		{
+			name:       "no target below the working directory",
+			workingDir: "live/east/vpc",
+			query:      "app... | ...vpc",
+			want:       []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.ElementsMatch(t, repoPaths(tt.want), discoverFromRepoDir(t, files, tt.workingDir, tt.query))
+		})
+	}
+}
+
+// discoverFromRepoDir writes files below the repository root, runs discovery with query from workingDir, which is
+// relative to the root, and returns the paths of the components it returns.
+func discoverFromRepoDir(t *testing.T, files map[string]string, workingDir, query string) []string {
+	t.Helper()
+
+	dir := filepath.Join(corpusRepoRoot, filepath.FromSlash(workingDir))
+
+	v := memRepoRootVenv(t, corpusRepoRoot)
+	writeFixture(t, v, prefixPaths(files))
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = dir
+	opts.RootWorkingDir = dir
+
+	l := logger.CreateLogger()
+
+	filters, err := filter.ParseFilterQueries(l, []string{query})
+	require.NoError(t, err)
+
+	got, err := discovery.NewDiscovery(dir).
+		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: dir}).
+		WithGitRoot(corpusRepoRoot).
+		WithFilters(filters).
+		Discover(config.WithCaches(t.Context()), l, v, new(config.Store), opts)
+	require.NoError(t, err)
+
+	return got.Paths()
+}
+
+// repoPaths returns each of paths, which are relative to the repository root, as an absolute path.
+func repoPaths(paths []string) []string {
+	abs := make([]string, 0, len(paths))
+	for _, path := range paths {
+		abs = append(abs, filepath.Join(corpusRepoRoot, filepath.FromSlash(path)))
+	}
+
+	return abs
 }
 
 func TestDiscoveryPipelineLinksADependencyAboveTheWorkingDirectoryOnce(t *testing.T) {
@@ -788,7 +914,7 @@ func TestDiscoveryPipelineLinksADependencyAboveTheWorkingDirectoryOnce(t *testin
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: workingDir}).
 		WithGitRoot(corpusRepoRoot).
 		WithFilters(filters).
-		Discover(config.WithCaches(t.Context()), l, v, new(rewrite.Store), opts)
+		Discover(config.WithCaches(t.Context()), l, v, new(config.Store), opts)
 	require.NoError(t, err)
 
 	vpc := filepath.Join(workingDir, "vpc")

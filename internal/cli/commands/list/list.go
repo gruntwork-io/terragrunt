@@ -9,7 +9,6 @@ import (
 	"sort"
 	"strings"
 
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 
 	"errors"
@@ -31,7 +30,7 @@ import (
 )
 
 // Run runs the list command.
-func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *rewrite.Store, opts *Options) error {
+func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *config.Store, opts *Options) error {
 	d, err := discovery.NewForDiscoveryCommand(l, v.FS, &discovery.DiscoveryCommandOptions{
 		WorkingDir:        opts.WorkingDir,
 		QueueConstructAs:  opts.QueueConstructAs,

@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -225,6 +226,76 @@ resource "random_pet" "this" {}
 	ranInit = append(ranInit, plan(), plan())
 
 	assert.Equal(t, []bool{true, false, true, false}, ranInit)
+}
+
+func TestTFAutoInitRunsOnlyWhenGeneratedContentInitReadsChanges(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAutoInitGeneratedContent)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureAutoInitGeneratedContent)
+
+	recorder := helpers.NewExecRecorder(vexec.NewOSExec())
+	v := helpers.RunVenv(t).WithExec(recorder)
+	command := "terragrunt plan --non-interactive --working-dir " + rootPath
+
+	ranInit := make([]bool, 0, 4)
+	ranInit = append(ranInit, planRunsInit(t, v, recorder, command), planRunsInit(t, v, recorder, command))
+
+	env := maps.Clone(v.Env)
+	env["TG_TEST_AUTO_INIT_MODULE"] = "b"
+	v = v.WithEnv(env)
+
+	ranInit = append(ranInit, planRunsInit(t, v, recorder, command), planRunsInit(t, v, recorder, command))
+
+	assert.Equal(t, []bool{true, false, true, false}, ranInit)
+}
+
+func TestTFAutoInitRunsWhenAVariableAModuleSourceReadsChanges(t *testing.T) {
+	t.Parallel()
+
+	if helpers.IsTerraform(t.Context()) {
+		t.Skip("Terraform evaluates only const variables in module sources")
+		return
+	}
+
+	testCases := []struct {
+		name string
+		unit string
+	}{
+		{name: "variable set through inputs", unit: "inputs"},
+		{name: "variable default read from a .tf.json file", unit: "json"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAutoInitStaticVariables)
+			unitPath := filepath.Join(tmpEnvPath, testFixtureAutoInitStaticVariables, tc.unit)
+
+			recorder := helpers.NewExecRecorder(vexec.NewOSExec())
+
+			plan := func(module, other string) bool {
+				t.Helper()
+
+				v := helpers.RunVenv(t).WithExec(recorder)
+				env := maps.Clone(v.Env)
+				env["TG_TEST_AUTO_INIT_MODULE"] = module
+				env["TG_TEST_AUTO_INIT_OTHER"] = other
+
+				return planRunsInit(
+					t,
+					v.WithEnv(env),
+					recorder,
+					"terragrunt plan --non-interactive --working-dir "+unitPath,
+				)
+			}
+
+			ranInit := []bool{plan("a", "1"), plan("a", "2"), plan("b", "2"), plan("b", "3")}
+
+			assert.Equal(t, []bool{true, false, true, false}, ranInit)
+		})
+	}
 }
 
 // planRunsInit runs command against v and reports whether the run executed `init`.

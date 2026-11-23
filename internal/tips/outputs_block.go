@@ -23,11 +23,12 @@ func GiveOutputsBlockTips(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	pctx *config.ParsingContext,
 	cfg *config.TerragruntConfig,
 	allTips Tips,
 ) error {
-	targets, err := config.UnitsWithoutOutputs(ctx, l, v, pctx, cfg)
+	targets, err := config.UnitsWithoutOutputs(ctx, l, v, s, pctx, cfg)
 	if err != nil {
 		return err
 	}

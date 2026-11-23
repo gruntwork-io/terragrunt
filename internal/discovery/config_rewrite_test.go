@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -175,7 +174,7 @@ func corpusVenv(t *testing.T) *venv.Venv {
 
 // discoverCorpus runs discovery over the corpus v holds, parsing through store, and returns what it found in path
 // order.
-func discoverCorpus(t *testing.T, store *rewrite.Store, v *venv.Venv) []componentView {
+func discoverCorpus(t *testing.T, store *config.Store, v *venv.Venv) []componentView {
 	t.Helper()
 
 	opts := options.NewTerragruntOptions()
@@ -246,7 +245,7 @@ func componentViews(components component.Components) []componentView {
 func TestDiscoveryReusesTheTreesOfAnEarlierDiscovery(t *testing.T) {
 	t.Parallel()
 
-	store := new(rewrite.Store)
+	store := new(config.Store)
 	v := corpusVenv(t)
 
 	want := discoverCorpus(t, store, v)

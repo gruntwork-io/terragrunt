@@ -8,7 +8,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/dag"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/dag/graph"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -26,7 +25,7 @@ func TestNewCommandShowsHelpWithItsSubcommands(t *testing.T) {
 	t.Parallel()
 
 	v := venv.MemVenv()
-	cmd := dag.NewCommand(logger.CreateLogger(), options.NewTerragruntOptions(), v, new(rewrite.Store))
+	cmd := dag.NewCommand(logger.CreateLogger(), options.NewTerragruntOptions(), v, new(config.Store))
 	cmd.CustomHelpTemplate = subcommandsTemplate
 
 	out := new(bytes.Buffer)
@@ -54,7 +53,7 @@ func TestNewCommandRunsTheGraphSubcommand(t *testing.T) {
 		t,
 		runCommand(
 			t,
-			dag.NewCommand(logger.CreateLogger(), opts, v, new(rewrite.Store)),
+			dag.NewCommand(logger.CreateLogger(), opts, v, new(config.Store)),
 			new(bytes.Buffer),
 			graph.CommandName,
 		),

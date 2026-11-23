@@ -4,7 +4,6 @@ import (
 	"context"
 	"path/filepath"
 
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/report"
@@ -26,7 +25,7 @@ import (
 )
 
 // Run runs the run command.
-func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *rewrite.Store) error {
+func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *config.Store) error {
 	tips.GiveStackTargetTip(l, v.FS, opts.WorkingDir, opts.Filters, opts.Tips)
 
 	if opts.TerraformCliArgs.IsDestroy(opts.TofuCommand) {
@@ -80,7 +79,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v *
 
 	// Early exit for version command to avoid expensive setup
 	if opts.TofuCommand == tf.CommandNameVersion {
-		return runVersionCommand(ctx, l, opts, v)
+		return runVersionCommand(ctx, l, opts, v, s)
 	}
 
 	// We need to get the credentials from auth-provider-cmd at the very beginning,
@@ -92,7 +91,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v *
 		return err
 	}
 
-	l, probe, err := checkVersionConstraints(ctx, l, opts, v)
+	l, probe, err := checkVersionConstraints(ctx, l, opts, v, s)
 	if err != nil {
 		return err
 	}
@@ -104,7 +103,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, v *
 		return err
 	}
 
-	if err := tips.GiveOutputsBlockTips(ctx, l, v, pctx, cfg, opts.Tips); err != nil {
+	if err := tips.GiveOutputsBlockTips(ctx, l, v, s, pctx, cfg, opts.Tips); err != nil {
 		return err
 	}
 
@@ -160,6 +159,7 @@ func ParseVersionCheckConfig(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 ) (*config.TerragruntConfig, error) {
 	configCtx := configbridge.NewParsingContext(opts)
@@ -169,14 +169,7 @@ func ParseVersionCheckConfig(
 		config.EngineBlock,
 	)
 
-	return config.PartialParseConfigFile(
-		ctx,
-		l,
-		v,
-		configCtx,
-		opts.TerragruntConfigPath,
-		nil,
-	)
+	return s.ResolvePartialConfig(ctx, l, v, configCtx, opts.TerragruntConfigPath)
 }
 
 // runVersionCommand runs the version command. We do this instead of going through the normal run flow because
@@ -186,9 +179,10 @@ func runVersionCommand(
 	l log.Logger,
 	opts *options.TerragruntOptions,
 	v *venv.Venv,
+	s *config.Store,
 ) error {
 	if !opts.TFPathExplicitlySet {
-		tfPath, err := getTFPathFromConfig(ctx, l, v, opts)
+		tfPath, err := getTFPathFromConfig(ctx, l, v, s, opts)
 		if err != nil {
 			return err
 		}
@@ -208,6 +202,7 @@ func getTFPathFromConfig(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 ) (string, error) {
 	if !vfs.Exists(v.FS, opts.TerragruntConfigPath) {
@@ -216,7 +211,7 @@ func getTFPathFromConfig(
 		return "", nil
 	}
 
-	cfg, err := ParseVersionCheckConfig(ctx, l, v, opts)
+	cfg, err := ParseVersionCheckConfig(ctx, l, v, s, opts)
 	if err != nil {
 		return "", err
 	}
@@ -235,8 +230,9 @@ func checkVersionConstraints(
 	l log.Logger,
 	opts *options.TerragruntOptions,
 	v *venv.Venv,
+	s *config.Store,
 ) (log.Logger, tfimpl.Probe, error) {
-	partialTerragruntConfig, err := ParseVersionCheckConfig(ctx, l, v, opts)
+	partialTerragruntConfig, err := ParseVersionCheckConfig(ctx, l, v, s, opts)
 	if err != nil {
 		return l, tfimpl.Unprobed(), err
 	}
@@ -281,7 +277,7 @@ func confirmActionWithDependentUnits(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	cfg *config.TerragruntConfig,
 ) bool {
@@ -318,7 +314,7 @@ func findDependentUnits(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
-	s *rewrite.Store,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	cfg *config.TerragruntConfig,
 ) []string {

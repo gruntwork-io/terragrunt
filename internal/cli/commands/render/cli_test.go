@@ -7,7 +7,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/render"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -90,7 +89,7 @@ func TestNewCommandRejectsFlagsRenderDoesNotRead(t *testing.T) {
 func newCommand() *clihelper.Command {
 	v := venv.MemVenv()
 
-	return render.NewCommand(logger.CreateLogger(), options.NewTerragruntOptions(), v, new(rewrite.Store))
+	return render.NewCommand(logger.CreateLogger(), options.NewTerragruntOptions(), v, new(config.Store))
 }
 
 // runCommand runs cmd with args the way the app does and returns its error.

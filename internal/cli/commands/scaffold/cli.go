@@ -75,7 +75,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelper.Fl
 
 // NewCommand returns the `terragrunt scaffold` command, which takes a module
 // URL and an optional template URL as its arguments.
-func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *clihelper.Command {
+func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *config.Store) *clihelper.Command {
 	flags := NewFlags(opts, nil)
 	// Accept backend and feature flags for scaffold as well
 	flags = append(flags, shared.NewBackendFlags(opts, nil)...)
@@ -100,7 +100,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *cl
 				opts.ScaffoldRootFileName = GetDefaultRootFileName(ctx, v.FS, opts)
 			}
 
-			return RunInteractive(ctx, l, v, opts.OptionsFromContext(ctx), moduleURL, templateURL)
+			return RunInteractive(ctx, l, v, s, opts.OptionsFromContext(ctx), moduleURL, templateURL)
 		},
 	}
 }

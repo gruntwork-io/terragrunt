@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/render"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
@@ -40,7 +39,7 @@ func TestRenderJSON_Basic(t *testing.T) {
 	err := render.Run(
 		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
-		venvtest.NewOSWithEmptyEnv().WithWriter(&outputBuffer), new(rewrite.Store), opts,
+		venvtest.NewOSWithEmptyEnv().WithWriter(&outputBuffer), new(config.Store), opts,
 	)
 	require.NoError(t, err)
 
@@ -67,7 +66,7 @@ func TestRenderJSON_WithMetadata(t *testing.T) {
 	err := render.Run(
 		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
-		venvtest.NewOSWithEmptyEnv().WithWriter(&outputBuffer), new(rewrite.Store), opts,
+		venvtest.NewOSWithEmptyEnv().WithWriter(&outputBuffer), new(config.Store), opts,
 	)
 	require.NoError(t, err)
 
@@ -93,7 +92,7 @@ func TestRenderJSON_WriteToFile(t *testing.T) {
 	err := render.Run(
 		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
-		venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard), new(rewrite.Store), opts,
+		venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard), new(config.Store), opts,
 	)
 	require.NoError(t, err)
 
@@ -155,7 +154,7 @@ func TestRenderWriteWithoutOutputPath(t *testing.T) {
 			err := render.Run(
 				config.WithCaches(t.Context()),
 				logger.CreateLogger(),
-				venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard), new(rewrite.Store), opts,
+				venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard), new(config.Store), opts,
 			)
 			require.NoError(t, err)
 
@@ -232,7 +231,7 @@ func renderToFilePerm(t *testing.T, format, outputPath string) os.FileMode {
 	err := render.Run(
 		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
-		venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard), new(rewrite.Store), opts,
+		venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard), new(config.Store), opts,
 	)
 	require.NoError(t, err)
 
@@ -251,7 +250,7 @@ func TestRenderJSON_InvalidFormat(t *testing.T) {
 	err := render.Run(
 		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
-		venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard), new(rewrite.Store), opts,
+		venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard), new(config.Store), opts,
 	)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid format")
@@ -268,7 +267,7 @@ func TestRenderJSON_HCLFormat(t *testing.T) {
 	err := render.Run(
 		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
-		venvtest.NewOSWithEmptyEnv().WithWriter(&renderedBuffer), new(rewrite.Store), opts,
+		venvtest.NewOSWithEmptyEnv().WithWriter(&renderedBuffer), new(config.Store), opts,
 	)
 	require.NoError(t, err)
 
@@ -289,7 +288,7 @@ func TestRenderJSON_NumberOutOfRange(t *testing.T) {
 	err := render.Run(
 		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
-		venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard), new(rewrite.Store), opts,
+		venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard), new(config.Store), opts,
 	)
 
 	var diags hcl.Diagnostics
@@ -333,7 +332,7 @@ func TestRenderAllFilter(t *testing.T) {
 	err = render.Run(
 		config.WithCaches(t.Context()),
 		l,
-		venvtest.NewOSWithEmptyEnv().WithWriter(&outputBuffer), new(rewrite.Store), opts,
+		venvtest.NewOSWithEmptyEnv().WithWriter(&outputBuffer), new(config.Store), opts,
 	)
 	require.NoError(t, err)
 
@@ -365,7 +364,7 @@ func TestRenderAllReadsJSONUnits(t *testing.T) {
 		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
 		venv.MemVenv().WithFS(fsys).WithWriter(&outputBuffer),
-		new(rewrite.Store),
+		new(config.Store),
 		opts,
 	)
 	require.NoError(t, err)
@@ -388,7 +387,7 @@ func TestRenderAllDiscoveryBoundaryMustExist(t *testing.T) {
 	err = render.Run(
 		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
-		venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), render.NewOptions(tgOptions),
+		venvtest.NewOSWithEmptyEnv(), new(config.Store), render.NewOptions(tgOptions),
 	)
 
 	var boundaryErr discovery.DiscoveryBoundaryDirError
@@ -441,7 +440,7 @@ inputs = { name = "` + name + `" }
 	require.NoError(t, render.Run(
 		config.WithCaches(t.Context()),
 		l,
-		venvtest.NewOSWithEmptyEnv().WithWriter(&outputBuffer), new(rewrite.Store), opts,
+		venvtest.NewOSWithEmptyEnv().WithWriter(&outputBuffer), new(config.Store), opts,
 	))
 
 	var rendered struct {
@@ -599,7 +598,7 @@ func TestRenderSensitiveMockValue(t *testing.T) {
 				config.WithCaches(t.Context()),
 				logger.CreateLogger(),
 				venvtest.NewOSWithEmptyEnv().WithWriter(&rendered),
-				new(rewrite.Store),
+				new(config.Store),
 				opts,
 			)
 			require.NoError(t, err)
@@ -641,7 +640,7 @@ func TestRenderJSONKeepsIntegersAboveFloat64Precision(t *testing.T) {
 				err := render.Run(
 					config.WithCaches(t.Context()),
 					logger.CreateLogger(),
-					venvtest.NewOSWithEmptyEnv().WithWriter(&rendered), new(rewrite.Store), opts,
+					venvtest.NewOSWithEmptyEnv().WithWriter(&rendered), new(config.Store), opts,
 				)
 				require.NoError(t, err)
 
@@ -659,7 +658,7 @@ func TestRenderJSONKeepsIntegersAboveFloat64Precision(t *testing.T) {
 				err := render.Run(
 					config.WithCaches(t.Context()),
 					logger.CreateLogger(),
-					venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard), new(rewrite.Store), opts,
+					venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard), new(config.Store), opts,
 				)
 				require.NoError(t, err)
 
@@ -727,7 +726,7 @@ func renderToString(t *testing.T, fixture, format string) string {
 	err := render.Run(
 		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
-		venvtest.NewOSWithEmptyEnv().WithWriter(&rendered), new(rewrite.Store), opts,
+		venvtest.NewOSWithEmptyEnv().WithWriter(&rendered), new(config.Store), opts,
 	)
 	require.NoError(t, err)
 
@@ -824,7 +823,7 @@ func renderConfig(t *testing.T, cfg, format string) string {
 		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
 		venvtest.NewOSWithEmptyEnv().WithWriter(&rendered),
-		new(rewrite.Store),
+		new(config.Store),
 		opts,
 	))
 

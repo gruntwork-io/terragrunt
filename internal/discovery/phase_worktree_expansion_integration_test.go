@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
@@ -108,7 +107,7 @@ func discoverExpansionChanges(
 
 	require.NoError(
 		t,
-		generate.NewGenerator().GenerateStacks(ctx, l, venvtest.NewOSWithEmptyEnv(), new(rewrite.Store), opts, w),
+		generate.NewGenerator().GenerateStacks(ctx, l, venvtest.NewOSWithEmptyEnv(), new(config.Store), opts, w),
 	)
 
 	d := discovery.NewDiscovery(tmpDir).
@@ -124,7 +123,7 @@ func discoverExpansionChanges(
 		config.WithCaches(t.Context()),
 		l,
 		venvtest.NewOSWithEmptyEnv(),
-		new(rewrite.Store),
+		new(config.Store),
 		opts,
 	)
 	require.NoError(t, err)

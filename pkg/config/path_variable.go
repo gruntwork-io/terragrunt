@@ -52,6 +52,7 @@ func PathVariable(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 	file *hclparse.File,
 	include *IncludeConfig,
@@ -84,7 +85,7 @@ func PathVariable(
 	}
 
 	if refs.has(pathAttrModule) {
-		moduleDir, err := unitModuleDir(ctx, l, v, pctx)
+		moduleDir, err := unitModuleDir(ctx, l, v, s, pctx)
 		if err != nil {
 			return nil, fmt.Errorf("resolving path.module for %s: %w", file.ConfigPath, err)
 		}
@@ -100,19 +101,17 @@ func withPathVariable(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 	file *hclparse.File,
 	include *IncludeConfig,
 ) (*ParsingContext, error) {
-	path, err := PathVariable(ctx, l, v, pctx, file, include)
+	path, err := PathVariable(ctx, l, v, s, pctx, file, include)
 	if err != nil || path == nil {
 		return pctx, err
 	}
 
-	c := pctx.Clone()
-	c.Path = path
-
-	return c, nil
+	return pctx.withPath(path), nil
 }
 
 // withValuesPathVariable returns pctx with the `path` value for the values file in directory.
@@ -120,6 +119,7 @@ func withValuesPathVariable(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 	file *hclparse.File,
 	directory string,
@@ -134,13 +134,10 @@ func withValuesPathVariable(
 	}
 
 	if !ofStack {
-		return withPathVariable(ctx, l, v, pctx, file, nil)
+		return withPathVariable(ctx, l, v, s, pctx, file, nil)
 	}
 
-	c := pctx.Clone()
-	c.Path = stackValuesPath(pctx, directory)
-
-	return c, nil
+	return pctx.withPath(stackValuesPath(pctx, directory)), nil
 }
 
 // evalPathVariable returns the `path` value of pctx, built from the base attributes when no file supplied one.
@@ -153,34 +150,7 @@ func evalPathVariable(ctx context.Context, pctx *ParsingContext) cty.Value {
 		markNotShareable(ctx)
 	}
 
-	var include *IncludeConfig
-	if pctx.TrackInclude != nil {
-		include = pctx.TrackInclude.Original
-	}
-
-	return *pathObject(basePathAttributes(pctx, include))
-}
-
-// pathCacheKeySuffix returns the part of a parse cache key that covers the inputs of the `path` value.
-func pathCacheKeySuffix(fsys vfs.FS, pctx *ParsingContext) string {
-	if !pctx.Experiments.Evaluate(experiment.PathVariable) {
-		return ""
-	}
-
-	suffix := fmt.Sprintf(
-		"-%#v-%#v-%#v-%#v",
-		pctx.OriginalTerragruntConfigPath,
-		pctx.DownloadDir,
-		pctx.Source,
-		pctx.SourceMap,
-	)
-
-	stackDir, err := enclosingStackDir(fsys, pctx)
-	if err != nil {
-		return fmt.Sprintf("%s-stack-err:%#v", suffix, err.Error())
-	}
-
-	return fmt.Sprintf("%s-stack:%#v", suffix, stackDir)
+	return *pathObject(basePathAttributes(pctx, pctx.include))
 }
 
 // pathExperimentDiagnostics adds the experiment hint to each diagnostic of an unknown `path` variable.
@@ -404,7 +374,7 @@ func enclosingStackDir(fsys vfs.FS, pctx *ParsingContext) (string, error) {
 }
 
 // unitModuleDir returns the directory in which OpenTofu/Terraform runs for the unit pctx parses.
-func unitModuleDir(ctx context.Context, l log.Logger, v *venv.Venv, pctx *ParsingContext) (string, error) {
+func unitModuleDir(ctx context.Context, l log.Logger, v *venv.Venv, s *Store, pctx *ParsingContext) (string, error) {
 	if pctx.stubWorkingDirFunc {
 		return "", nil
 	}
@@ -418,7 +388,7 @@ func unitModuleDir(ctx context.Context, l log.Logger, v *venv.Venv, pctx *Parsin
 	unitPctx.stubWorkingDirFunc = true
 	unitPctx.readConfigChain = nil
 
-	cfg, err := PartialParseConfigFile(ctx, l, v, unitPctx, unitPctx.TerragruntConfigPath, nil)
+	cfg, err := s.ResolvePartialConfig(ctx, l, v, unitPctx, unitPctx.TerragruntConfigPath)
 	if err != nil {
 		return "", err
 	}

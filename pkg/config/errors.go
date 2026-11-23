@@ -135,21 +135,6 @@ func (err InvalidGenerateBlockError) Unwrap() error {
 	return err.Err
 }
 
-// InvalidExcludeBlockError reports an exclude block whose attributes do not
-// decode into [ExcludeConfig], such as a string where a list belongs.
-type InvalidExcludeBlockError struct {
-	Err        error
-	ConfigPath string
-}
-
-func (err InvalidExcludeBlockError) Error() string {
-	return fmt.Sprintf("exclude block in %s: %s", err.ConfigPath, err.Err)
-}
-
-func (err InvalidExcludeBlockError) Unwrap() error {
-	return err.Err
-}
-
 // TFVarFileNotFoundError reports a `read_tfvars_file` argument naming a file that does not exist.
 type TFVarFileNotFoundError struct {
 	File  string

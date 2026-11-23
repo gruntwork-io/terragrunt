@@ -171,18 +171,19 @@ func GenerateStackFile(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 	pool *worker.Pool,
 	stackFilePath string,
 ) error {
 	stackSourceDir := filepath.Dir(stackFilePath)
 
-	values, err := ReadValues(ctx, l, v, pctx, stackSourceDir)
+	values, err := ReadValues(ctx, l, v, s, pctx, stackSourceDir)
 	if err != nil {
 		return fmt.Errorf("failed to read values from directory %s: %w", stackSourceDir, err)
 	}
 
-	stackFile, err := ReadStackConfigFile(ctx, l, v, pctx, stackFilePath, values)
+	stackFile, err := ReadStackConfigFile(ctx, l, v, s, pctx, stackFilePath, values)
 	if err != nil {
 		return fmt.Errorf(
 			"failed to read stack file %s in %s %w",
@@ -200,6 +201,7 @@ func GenerateStackFile(
 		ctx,
 		l,
 		v,
+		s,
 		pctx,
 		stackFilePath,
 		stackFile,
@@ -278,12 +280,13 @@ func StackAutoIncludes(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 	stackFilePath string,
 	stackFile *StackConfig,
 	values *cty.Value,
 ) (map[string]*inthclparse.AutoIncludeResolved, error) {
-	autoIncludes, _, err := resolveStackAutoIncludes(ctx, l, v, pctx, stackFilePath, stackFile, values)
+	autoIncludes, _, err := resolveStackAutoIncludes(ctx, l, v, s, pctx, stackFilePath, stackFile, values)
 
 	return autoIncludes, err
 }
@@ -296,6 +299,7 @@ func resolveStackAutoIncludes(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 	stackFilePath string,
 	stackFile *StackConfig,
@@ -338,21 +342,15 @@ func resolveStackAutoIncludes(
 	}
 
 	// Production eval context (functions + caller variables) for the phased parser. The parser populates `local.*`, `unit.*`, `stack.*` itself.
-	prodEvalCtx, evalCtxErr := CreateTerragruntEvalContext(
+	prodEvalCtx := evalContextWithoutIncludes(
 		ctx,
 		scopedLogger,
 		v,
+		s,
 		scopedPctx,
 		stackFilePath,
 		hclparse.AnyFunctionCalls(),
 	)
-	if evalCtxErr != nil {
-		return nil, nil, AutoIncludeParserStageError{
-			Stage: "eval-context",
-			File:  stackFilePath,
-			Err:   evalCtxErr,
-		}
-	}
 
 	// Evaluate the autoinclude with the stack-file function set (derived from the eval context already built
 	// above) so directory-context functions like get_working_dir resolve against the stack file instead of
@@ -1414,10 +1412,11 @@ func (u *Unit) ReadOutputs(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 	unitDir string,
 ) (map[string]cty.Value, error) {
-	jsonBytes, err := u.ReadOutputsJSON(ctx, l, v, pctx, unitDir)
+	jsonBytes, err := u.ReadOutputsJSON(ctx, l, v, s, pctx, unitDir)
 	if err != nil {
 		return nil, err
 	}
@@ -1439,6 +1438,7 @@ func (u *Unit) ReadOutputsJSON(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 	unitDir string,
 ) ([]byte, error) {
@@ -1448,6 +1448,7 @@ func (u *Unit) ReadOutputsJSON(
 		ctx,
 		l,
 		v,
+		s,
 		pctx,
 		filepath.Join(unitDir, DefaultTerragruntConfigPath),
 	)
@@ -1460,6 +1461,7 @@ func ReadStackConfigFile(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 	filePath string,
 	values *cty.Value,
@@ -1477,7 +1479,7 @@ func ReadStackConfigFile(
 		return nil, err
 	}
 
-	return ParseStackConfig(ctx, l, v, stackPctx, file, values)
+	return ParseStackConfig(ctx, l, v, s, stackPctx, file, values)
 }
 
 // ReadStackConfigString reads and parses a Terragrunt stack configuration from a string.
@@ -1485,6 +1487,7 @@ func ReadStackConfigString(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 	cfgPath string,
 	configString string,
@@ -1500,7 +1503,7 @@ func ReadStackConfigString(
 		return nil, err
 	}
 
-	return ParseStackConfig(ctx, l, v, pctx, hclFile, values)
+	return ParseStackConfig(ctx, l, v, s, pctx, hclFile, values)
 }
 
 // ParseStackConfig parses the stack configuration from the given file and values.
@@ -1508,6 +1511,7 @@ func ParseStackConfig(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	parser *ParsingContext,
 	file *hclparse.File,
 	values *cty.Value,
@@ -1520,23 +1524,26 @@ func ParseStackConfig(
 		return nil, err
 	}
 
-	if err := processLocals(ctx, l, v, parser, file); err != nil {
+	locals, err := evaluateStackLocals(ctx, l, v, s, parser, file)
+	if err != nil {
 		return nil, err
+	}
+
+	if locals != nil {
+		parser = parser.WithLocals(locals)
 	}
 
 	// The context also evaluates the files the stack includes and its stack autoinclude file, whose calls file does not
 	// name.
-	evalParsingContext, err := CreateTerragruntEvalContext(
+	evalParsingContext := evalContextWithoutIncludes(
 		ctx,
 		l,
 		v,
+		s,
 		parser,
 		file.ConfigPath,
 		hclparse.AnyFunctionCalls(),
 	)
-	if err != nil {
-		return nil, err
-	}
 
 	parserOpts := parser.ParserOptions(l, v)
 
@@ -2382,6 +2389,7 @@ func ReadValues(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 	directory string,
 ) (*cty.Value, error) {
@@ -2407,15 +2415,12 @@ func ReadValues(
 		return nil, err
 	}
 
-	pctx, err = withValuesPathVariable(ctx, l, v, pctx, file, directory)
+	pctx, err = withValuesPathVariable(ctx, l, v, s, pctx, file, directory)
 	if err != nil {
 		return nil, err
 	}
 
-	evalParsingContext, err := CreateTerragruntEvalContext(ctx, l, v, pctx, file.ConfigPath, file.FunctionCalls())
-	if err != nil {
-		return nil, err
-	}
+	evalParsingContext := evalContextWithoutIncludes(ctx, l, v, s, pctx, file.ConfigPath, file.FunctionCalls())
 
 	values := map[string]cty.Value{}
 
@@ -2428,54 +2433,43 @@ func ReadValues(
 	return &result, nil
 }
 
-// processLocals processes the locals block in the stack file.
-func processLocals(
+// evaluateStackLocals evaluates the locals block of the stack file as [EvaluateLocalsBlock] does for a unit config
+// file. It returns nil when the file has no locals block.
+//
+// Returns [CouldNotEvaluateAllLocalsError] when a local can never be evaluated.
+func evaluateStackLocals(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	parser *ParsingContext,
 	file *hclparse.File,
-) error {
-	localsBlock, err := file.Blocks(MetadataLocals, false)
+) (*cty.Value, error) {
+	attrs, err := localsAttributes(l, file)
+	if attrs == nil {
+		return nil, err
+	}
+
+	evaluatedLocals, err := evaluateLocals(
+		ctx,
+		l,
+		v,
+		s,
+		parser,
+		file,
+		attrs,
+		func() (map[string]cty.Value, error) { return evalVariablesWithoutIncludes(ctx, parser), nil },
+	)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	if len(localsBlock) == 0 {
-		return nil
-	}
-
-	if len(localsBlock) > 1 {
-		return fmt.Errorf(
-			"up to one locals block is allowed per stack file, but found %d in %s",
-			len(localsBlock),
-			file.ConfigPath,
-		)
-	}
-
-	attrs, err := localsBlock[0].JustAttributes()
+	locals, err := ConvertValuesMapToCtyVal(evaluatedLocals)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	evaluatedLocals, err := evaluateLocalsInOrder(ctx, l, v, parser, file, attrs, ParsedExposedInclude(v))
-	if err != nil {
-		l.Debugf(
-			"Encountered error while evaluating locals in file %s",
-			util.RelPathForLog(parser.RootWorkingDir, file.ConfigPath, parser.LogShowAbsPaths),
-		)
-
-		return err
-	}
-
-	localsAsCtyVal, err := ConvertValuesMapToCtyVal(evaluatedLocals)
-	if err != nil {
-		return err
-	}
-
-	parser.Locals = &localsAsCtyVal
-
-	return nil
+	return &locals, nil
 }
 
 // validateTargetDir errors unless destDir holds expectedFile as a regular file.

@@ -11,7 +11,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/backend/migrate"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -50,7 +49,7 @@ func TestNewCommandExposesTheMigrateFlags(t *testing.T) {
 	t.Parallel()
 
 	v := venv.MemVenv()
-	cmd := migrate.NewCommand(logger.CreateLogger(), newOpts(t, v), v, new(rewrite.Store))
+	cmd := migrate.NewCommand(logger.CreateLogger(), newOpts(t, v), v, new(config.Store))
 
 	assert.Equal(t, migrate.CommandName, cmd.Name)
 
@@ -142,7 +141,7 @@ func TestNewCommandMigratesBetweenUnits(t *testing.T) {
 
 			v := newVenv().WithFS(venvtest.NewFS(t, memRoot, tc.files))
 
-			err := runCommand(t, migrate.NewCommand(logger.CreateLogger(), newOpts(t, v), v, new(rewrite.Store)), tc.args...)
+			err := runCommand(t, migrate.NewCommand(logger.CreateLogger(), newOpts(t, v), v, new(config.Store)), tc.args...)
 			if tc.wantErr {
 				require.Error(t, err)
 
@@ -166,7 +165,7 @@ func TestRunFailsOnAMissingWorkingDir(t *testing.T) {
 	opts := newOpts(t, v)
 	opts.WorkingDir = filepath.Join(memRoot, "missing")
 
-	err := migrate.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(rewrite.Store), "src", "dst", opts)
+	err := migrate.Run(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(config.Store), "src", "dst", opts)
 
 	require.ErrorIs(t, err, fs.ErrNotExist)
 }

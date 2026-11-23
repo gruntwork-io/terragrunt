@@ -50,7 +50,6 @@ func TestNewParsingContextCopiesEveryOption(t *testing.T) {
 	assert.True(t, pctx.LogDisableErrorSummary)
 	assert.Equal(t, opts.IAMRoleOptions, pctx.IAMRoleOptions)
 	assert.Equal(t, opts.OriginalIAMRoleOptions, pctx.OriginalIAMRoleOptions)
-	assert.True(t, pctx.UsePartialParseConfigCache)
 	assert.Equal(t, opts.MaxFoldersToCheck, pctx.MaxFoldersToCheck)
 	assert.True(t, pctx.NoDependencyFetchOutputFromState)
 	assert.True(t, pctx.SkipOutput)
@@ -232,7 +231,7 @@ func TestStackFuncFactoryScopesFunctionsToStackDir(t *testing.T) {
 	opts.WorkingDir = "/mem/root/live"
 	opts.RootWorkingDir = "/mem/root"
 
-	funcsFor := configbridge.StackFuncFactory(t.Context(), logger.CreateLogger(), venv.MemVenv(), opts)
+	funcsFor := configbridge.StackFuncFactory(t.Context(), logger.CreateLogger(), venv.MemVenv(), new(config.Store), opts)
 
 	testCases := []struct {
 		name     string
@@ -276,7 +275,7 @@ func TestStackDirArgsScopesVariablesToStackDir(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, opts.Experiments.EnableExperiment(experiment.PathVariable))
 
-	args := configbridge.StackDirArgs(t.Context(), logger.CreateLogger(), venv.MemVenv(), opts)
+	args := configbridge.StackDirArgs(t.Context(), logger.CreateLogger(), venv.MemVenv(), new(config.Store), opts)
 	require.NotNil(t, args.FuncsFor)
 
 	vars, err := args.VarsFor(stackDir)
@@ -348,7 +347,6 @@ func optionsWithDistinctValues(t *testing.T) *options.TerragruntOptions {
 
 	opts.LogShowAbsPaths = true
 	opts.LogDisableErrorSummary = true
-	opts.UsePartialParseConfigCache = true
 	opts.NoDependencyFetchOutputFromState = true
 	opts.SkipOutput = true
 	opts.TFPathExplicitlySet = true

@@ -11,7 +11,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/list"
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/view/dag"
@@ -84,7 +83,7 @@ func TestBasicDiscovery(t *testing.T) {
 		config.WithCaches(t.Context()),
 		l,
 		venvtest.NewOSWithEmptyEnv().WithWriter(writer),
-		new(rewrite.Store),
+		new(config.Store),
 		opts,
 	)
 	require.NoError(t, err)
@@ -130,7 +129,7 @@ func TestRunPropagatesAmbiguousConfigError(t *testing.T) {
 		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
 		venv.MemVenv().WithFS(fsys),
-		new(rewrite.Store),
+		new(config.Store),
 		list.NewOptions(tgOpts),
 	)
 
@@ -191,7 +190,7 @@ func TestHiddenDiscovery(t *testing.T) {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	err = list.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), new(rewrite.Store), opts)
+	err = list.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), new(config.Store), opts)
 	require.NoError(t, err)
 
 	// Close the write end of the pipe
@@ -266,7 +265,7 @@ dependency "unit2" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	err = list.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), new(rewrite.Store), opts)
+	err = list.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), new(config.Store), opts)
 	require.NoError(t, err)
 
 	// Close the write end of the pipe
@@ -340,7 +339,7 @@ dependency "unit3" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	err = list.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), new(rewrite.Store), opts)
+	err = list.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), new(config.Store), opts)
 	require.NoError(t, err)
 
 	// Close the write end of the pipe
@@ -454,7 +453,7 @@ dependency "C" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	err = list.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), new(rewrite.Store), opts)
+	err = list.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), new(config.Store), opts)
 	require.NoError(t, err)
 
 	// Close the write end of the pipe
@@ -594,7 +593,7 @@ dependency "unit1" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	err = list.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), new(rewrite.Store), opts)
+	err = list.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), new(config.Store), opts)
 	require.NoError(t, err)
 
 	w.Close()
@@ -654,7 +653,7 @@ func TestDotFormatWithoutDependencies(t *testing.T) {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	err = list.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), new(rewrite.Store), opts)
+	err = list.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), new(config.Store), opts)
 	require.NoError(t, err)
 
 	w.Close()
@@ -727,7 +726,7 @@ dependency "unit2" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	err = list.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), new(rewrite.Store), opts)
+	err = list.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), new(config.Store), opts)
 	require.NoError(t, err)
 
 	w.Close()
@@ -805,7 +804,7 @@ dependency "unit2" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	err = list.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), new(rewrite.Store), opts)
+	err = list.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), new(config.Store), opts)
 	require.NoError(t, err)
 
 	w.Close()
@@ -876,7 +875,7 @@ dependency "unit1" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	err = list.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), new(rewrite.Store), opts)
+	err = list.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), new(config.Store), opts)
 	require.NoError(t, err)
 
 	w.Close()
@@ -943,7 +942,7 @@ exclude {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	err = list.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), new(rewrite.Store), opts)
+	err = list.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), new(config.Store), opts)
 	require.NoError(t, err)
 
 	w.Close()
@@ -1025,7 +1024,7 @@ dependency "unit3" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	err = list.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), new(rewrite.Store), opts)
+	err = list.Run(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv().WithWriter(w), new(config.Store), opts)
 	require.NoError(t, err)
 
 	w.Close()
@@ -1097,7 +1096,7 @@ dependency "zulu" {
 
 			v := venv.MemVenv().WithFS(fsys).WithWriter(&buf)
 
-			require.NoError(t, list.Run(config.WithCaches(t.Context()), newTestLogger(t), v, new(rewrite.Store), opts))
+			require.NoError(t, list.Run(config.WithCaches(t.Context()), newTestLogger(t), v, new(config.Store), opts))
 			assert.Equal(t, tc.wantOutput, buf.String())
 		})
 	}
@@ -1157,7 +1156,7 @@ dependency "zulu" {
 
 			v := venv.MemVenv().WithFS(fsys).WithWriter(&buf)
 
-			require.NoError(t, list.Run(config.WithCaches(t.Context()), newTestLogger(t), v, new(rewrite.Store), opts))
+			require.NoError(t, list.Run(config.WithCaches(t.Context()), newTestLogger(t), v, new(config.Store), opts))
 			assert.Equal(t, tc.wantLabels, treeLabels(buf.String()))
 		})
 	}
@@ -1184,7 +1183,7 @@ func TestTextFormatGivesAWidePathItsOwnLine(t *testing.T) {
 
 	v := venv.MemVenv().WithFS(fsys).WithWriter(&buf)
 
-	require.NoError(t, list.Run(config.WithCaches(t.Context()), newTestLogger(t), v, new(rewrite.Store), opts))
+	require.NoError(t, list.Run(config.WithCaches(t.Context()), newTestLogger(t), v, new(config.Store), opts))
 
 	wantPaths := []string{
 		filepath.Join(widePathPrefix, "one"),
@@ -1235,7 +1234,7 @@ func TestRunRejectsUnsupportedOptions(t *testing.T) {
 
 			v := venv.MemVenv().WithFS(fsys).WithWriter(&buf)
 
-			require.Error(t, list.Run(config.WithCaches(t.Context()), newTestLogger(t), v, new(rewrite.Store), opts))
+			require.Error(t, list.Run(config.WithCaches(t.Context()), newTestLogger(t), v, new(config.Store), opts))
 			assert.Empty(t, buf.String())
 		})
 	}
@@ -1272,7 +1271,7 @@ func TestRunFailsWhenTheWriterFails(t *testing.T) {
 			v := venv.MemVenv().WithFS(fsys).WithWriter(failingWriter{})
 			require.ErrorIs(
 				t,
-				list.Run(config.WithCaches(t.Context()), newTestLogger(t), v, new(rewrite.Store), opts),
+				list.Run(config.WithCaches(t.Context()), newTestLogger(t), v, new(config.Store), opts),
 				errWriteFailed,
 			)
 		})
@@ -1319,7 +1318,7 @@ func TestRunDiscoveryProgress(t *testing.T) {
 			var buf strings.Builder
 
 			v := venv.MemVenv().WithFS(fsys).WithWriter(&buf)
-			require.NoError(t, list.Run(ctx, l, v, new(rewrite.Store), opts))
+			require.NoError(t, list.Run(ctx, l, v, new(config.Store), opts))
 
 			assert.Equal(
 				t,
@@ -1410,7 +1409,7 @@ exclude {
 	var buf strings.Builder
 
 	v := venv.MemVenv().WithFS(fsys).WithWriter(&buf)
-	require.NoError(t, list.Run(config.WithCaches(t.Context()), newTestLogger(t), v, new(rewrite.Store), opts))
+	require.NoError(t, list.Run(config.WithCaches(t.Context()), newTestLogger(t), v, new(config.Store), opts))
 
 	assert.Equal(t, []string{"kept", "plain"}, strings.Fields(buf.String()))
 }
@@ -1458,7 +1457,7 @@ exclude {
 	var buf strings.Builder
 
 	v := venv.MemVenv().WithFS(fsys).WithWriter(&buf)
-	require.NoError(t, list.Run(config.WithCaches(t.Context()), newTestLogger(t), v, new(rewrite.Store), opts))
+	require.NoError(t, list.Run(config.WithCaches(t.Context()), newTestLogger(t), v, new(config.Store), opts))
 
 	assert.Equal(
 		t,

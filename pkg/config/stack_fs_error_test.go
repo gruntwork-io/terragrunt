@@ -38,7 +38,7 @@ unit "app" {
 	})
 	ctx, pctx := newTestParsingContext(t, stackPath)
 
-	_, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), v, pctx, stackPath, nil)
+	_, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, stackPath, nil)
 	require.ErrorIs(t, err, errStatFailed)
 }
 
@@ -57,7 +57,7 @@ func TestReadValuesPropagatesStatError(t *testing.T) {
 	})
 	ctx, pctx := newTestParsingContext(t, filepath.Join(tmpDir, config.DefaultTerragruntConfigPath))
 
-	values, err := config.ReadValues(ctx, logger.CreateLogger(), v, pctx, tmpDir)
+	values, err := config.ReadValues(ctx, logger.CreateLogger(), v, new(config.Store), pctx, tmpDir)
 	require.ErrorIs(t, err, errStatFailed)
 	assert.Nil(t, values)
 }

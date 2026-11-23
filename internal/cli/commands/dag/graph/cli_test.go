@@ -9,7 +9,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/dag/graph"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
-	rewrite "github.com/gruntwork-io/terragrunt/internal/config/rewrite"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -28,29 +27,16 @@ func BenchmarkRunGraphDependencies(b *testing.B) {
 	testDir := "../../../../../test/fixtures"
 
 	fixtureDirs := []struct {
-		description          string
-		workingDir           string
-		usePartialParseCache bool
+		description string
+		workingDir  string
 	}{
 		{
-			"PartialParseBenchmarkRegressionCaching",
+			"PartialParseBenchmarkRegression",
 			"regressions/benchmark-parsing/production/deployment-group-1/webserver/terragrunt.hcl",
-			true,
 		},
 		{
-			"PartialParseBenchmarkRegressionNoCache",
-			"regressions/benchmark-parsing/production/deployment-group-1/webserver/terragrunt.hcl",
-			false,
-		},
-		{
-			"PartialParseBenchmarkRegressionIncludesCaching",
+			"PartialParseBenchmarkRegressionIncludes",
 			"regressions/benchmark-parsing-includes/production/deployment-group-1/webserver/terragrunt.hcl",
-			true,
-		},
-		{
-			"PartialParseBenchmarkRegressionIncludesNoCache",
-			"regressions/benchmark-parsing-includes/production/deployment-group-1/webserver/terragrunt.hcl",
-			false,
 		},
 	}
 
@@ -61,12 +47,6 @@ func BenchmarkRunGraphDependencies(b *testing.B) {
 			require.NoError(b, err)
 
 			terragruntOptions, err := options.NewTerragruntOptionsForTest(workingDir)
-			if fixture.usePartialParseCache {
-				terragruntOptions.UsePartialParseConfigCache = true
-			} else {
-				terragruntOptions.UsePartialParseConfigCache = false
-			}
-
 			require.NoError(b, err)
 
 			b.ResetTimer()
@@ -75,7 +55,7 @@ func BenchmarkRunGraphDependencies(b *testing.B) {
 			err = graph.Run(
 				config.WithCaches(b.Context()),
 				logger.CreateLogger(),
-				venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard), new(rewrite.Store), terragruntOptions,
+				venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard), new(config.Store), terragruntOptions,
 			)
 
 			b.StopTimer()
@@ -92,7 +72,7 @@ func TestNewCommandExposesTheQueueFlags(t *testing.T) {
 	t.Parallel()
 
 	cmd := graph.NewCommand(
-		logger.CreateLogger(), options.NewTerragruntOptions(), venv.MemVenv(), new(rewrite.Store),
+		logger.CreateLogger(), options.NewTerragruntOptions(), venv.MemVenv(), new(config.Store),
 	)
 
 	assert.Equal(t, graph.CommandName, cmd.Name)
@@ -122,7 +102,7 @@ func TestNewCommandRendersTheDependencyGraph(t *testing.T) {
 	opts.WorkingDir = root
 	opts.RootWorkingDir = root
 
-	cmd := graph.NewCommand(logger.CreateLogger(), opts, v, new(rewrite.Store))
+	cmd := graph.NewCommand(logger.CreateLogger(), opts, v, new(config.Store))
 	require.NoError(t, cmd.Action(config.WithCaches(t.Context()), &clihelper.Context{}))
 
 	assert.Equal(

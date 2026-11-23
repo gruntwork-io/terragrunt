@@ -2,7 +2,6 @@ package config
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -349,15 +348,17 @@ func includeMapAsCtyVal(
 	pctx *ParsingContext,
 	exposed ExposedInclude,
 ) (cty.Value, error) {
-	bareInclude, hasBareInclude := pctx.TrackInclude.CurrentMap[bareIncludeKey]
-	if len(pctx.TrackInclude.CurrentMap) == 1 && hasBareInclude {
+	byName := pctx.includes.ByName()
+
+	bareInclude, hasBareInclude := byName[bareIncludeKey]
+	if len(byName) == 1 && hasBareInclude {
 		l.Debug("Detected single bare include block - exposing as top level")
 		return includeConfigAsCtyVal(ctx, l, pctx, bareInclude, exposed)
 	}
 
 	exposedIncludeMap := map[string]cty.Value{}
 
-	for key, included := range pctx.TrackInclude.CurrentMap {
+	for key, included := range byName {
 		parsedIncludedCty, err := includeConfigAsCtyVal(ctx, l, pctx, included, exposed)
 		if err != nil {
 			return cty.NilVal, err
@@ -448,39 +449,6 @@ func includeConfigAsCtyVal(
 // name of include and the path of the file it names.
 func ExposedIncludeError(include *IncludeConfig, err error) error {
 	return fmt.Errorf("exposed include %s (%s): %w", includeBlockLabel(*include), include.Path, err)
-}
-
-// ParsedExposedInclude returns an [ExposedInclude] that parses the included config with the context it is given. It
-// parses the whole config, or only the sections of the context's decode list when the config has a dependency block
-// and the parse is partial.
-func ParsedExposedInclude(v *venv.Venv) ExposedInclude {
-	return func(
-		ctx context.Context,
-		l log.Logger,
-		pctx *ParsingContext,
-		include *IncludeConfig,
-	) (cty.Value, error) {
-		parsed, err := parseIncludedConfig(ctx, l, v, pctx, include)
-		if err != nil {
-			return cty.NilVal, err
-		}
-
-		return TerragruntConfigAsCty(parsed)
-	}
-}
-
-// CtyToStruct converts a cty.Value to a go struct.
-func CtyToStruct(ctyValue cty.Value, target any) error {
-	jsonBytes, err := ctyjson.Marshal(ctyValue, ctyValue.Type())
-	if err != nil {
-		return err
-	}
-
-	if err := json.Unmarshal(jsonBytes, target); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 // CtyValueAsString converts a cty.Value to a string.
