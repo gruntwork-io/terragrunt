@@ -823,6 +823,7 @@ func TestParseStackFileScopesPathIncludeToIncludedFile(t *testing.T) {
 
 	content := string(generated)
 	assert.Contains(t, content, "auto_include = "+strconv.Quote(includePath))
+	assert.Contains(t, content, "auto_index   = "+strconv.Quote(includePath))
 	assert.Contains(t, content, `"components.hcl:${path.unit}"`)
 }
 

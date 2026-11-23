@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
+	"github.com/zclconf/go-cty/cty/function/stdlib"
 )
 
 // noFuncs is the factory returning an empty HCL function map shared by tests that
@@ -1353,6 +1354,7 @@ func pathFuncs() map[string]function.Function {
 	return map[string]function.Function{
 		"basename": funcs.BasenameFunc,
 		"dirname":  funcs.DirnameFunc,
+		"lower":    stdlib.LowerFunc,
 		"try":      tryfunc.TryFunc,
 	}
 }

@@ -120,7 +120,7 @@ func partialEvalByType(expr hclsyntax.Expression, args *EvalArgs) ([]byte, error
 	case *hclsyntax.UnaryOpExpr:
 		return partialEvalChildren(args, e.Range(), []hclsyntax.Expression{e.Val})
 	case *hclsyntax.IndexExpr:
-		return partialEvalChildren(args, e.Range(), []hclsyntax.Expression{e.Collection, e.Key})
+		return partialEvalIndex(e, args)
 	case *hclsyntax.RelativeTraversalExpr:
 		return partialEvalChildren(args, e.Range(), []hclsyntax.Expression{e.Source})
 	case *hclsyntax.ForExpr:
@@ -321,6 +321,50 @@ func readsPathInclude(traversal hcl.Traversal) bool {
 	}
 
 	return false
+}
+
+// partialEvalIndex renders `path[key]` as the value of `path.include` when key renders as "include".
+func partialEvalIndex(e *hclsyntax.IndexExpr, args *EvalArgs) ([]byte, error) {
+	if !args.indexesDeferredPath(e) {
+		return partialEvalChildren(args, e.Range(), []hclsyntax.Expression{e.Collection, e.Key})
+	}
+
+	key, err := PartialEval(e.Key, args)
+	whole, keyRange := e.Range(), e.Key.Range()
+	index := slices.Concat(
+		args.SrcBytes[whole.Start.Byte:keyRange.Start.Byte],
+		key,
+		args.SrcBytes[keyRange.End.Byte:whole.End.Byte],
+	)
+
+	if err != nil || !bytes.Equal(key, valueToHCLBytes(cty.StringVal(pathAttrInclude))) {
+		return index, err
+	}
+
+	include := hcl.Traversal{hcl.TraverseRoot{Name: varPath}, hcl.TraverseAttr{Name: pathAttrInclude}}
+
+	val, diags := include.TraverseAbs(args.EvalCtx)
+	if !diags.HasErrors() && val.IsWhollyKnown() && valueRendersAsHCLLiteral(val, 0) {
+		return valueToHCLBytes(val), nil
+	}
+
+	return index, PartialEvalUnresolvedError{
+		Reason: "path.include is not available at generation time",
+		Err:    diags,
+	}
+}
+
+// indexesDeferredPath reports whether e indexes the deferred `path` object outside an iterator named `path`.
+func (args *EvalArgs) indexesDeferredPath(e *hclsyntax.IndexExpr) bool {
+	collection, ok := e.Collection.(*hclsyntax.ScopeTraversalExpr)
+	if !ok || len(collection.Traversal) != 1 || collection.Traversal.RootName() != varPath {
+		return false
+	}
+
+	_, deferred := args.Deferred[varPath]
+	_, iterator := args.iterators[varPath]
+
+	return deferred && !iterator
 }
 
 func partialEvalTemplate(e *hclsyntax.TemplateExpr, args *EvalArgs) ([]byte, error) {

@@ -16,6 +16,7 @@ import (
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/worker"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -175,6 +176,81 @@ func TestPathVariableModuleInConfiguredDownloadDir(t *testing.T) {
 	}
 }
 
+func TestPathVariableModuleInPartialParseCacheFollowsParsingContext(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name        string
+		option      string
+		source      string
+		downloadDir string
+	}{
+		{name: "download directory", source: ".", downloadDir: "option-cache"},
+		{
+			name:        "source option",
+			option:      "../modules//app",
+			source:      "../modules//app",
+			downloadDir: filepath.Join("module", "hook", ".terragrunt-cache"),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v, root := pathFixture(t)
+			l := logger.CreateLogger()
+			unitDir := filepath.Join(root, "module", "hook")
+			cfgPath := filepath.Join(unitDir, config.DefaultTerragruntConfigPath)
+
+			ctx, pctx := newPathParsingContext(t, cfgPath)
+			pctx.UsePartialParseConfigCache = true
+			pctx = pctx.WithDecodeList(config.TerraformBlock)
+
+			_, err := config.PartialParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+			require.NoError(t, err)
+
+			changed := pctx.Clone()
+			changed.Source = tc.option
+			changed.DownloadDir = filepath.Join(root, tc.downloadDir)
+
+			cfg, err := config.PartialParseConfigFile(ctx, l, v, changed, cfgPath, nil)
+			require.NoError(t, err)
+
+			want, err := tf.NewSource(l, v.FS, tc.source, changed.DownloadDir, unitDir, false)
+			require.NoError(t, err)
+
+			hooks := cfg.Terraform.GetBeforeHooks()
+			require.Len(t, hooks, 2)
+			assert.Equal(t, []string{"ls", want.WorkingDir}, hooks[0].Execute)
+		})
+	}
+}
+
+func TestPathVariableStackInPartialParseCacheFollowsNewStackFile(t *testing.T) {
+	t.Parallel()
+
+	v, root := pathFixture(t)
+	l := logger.CreateLogger()
+	unitDir := filepath.Join(root, "module", "hook")
+	cfgPath := filepath.Join(unitDir, config.DefaultTerragruntConfigPath)
+
+	ctx, pctx := newPathParsingContext(t, cfgPath)
+	pctx.UsePartialParseConfigCache = true
+	pctx = pctx.WithDecodeList(config.TerraformBlock)
+
+	for _, want := range []string{"no-stack", unitDir} {
+		cfg, err := config.PartialParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+		require.NoError(t, err)
+
+		hooks := cfg.Terraform.GetBeforeHooks()
+		require.Len(t, hooks, 2)
+		assert.Equal(t, []string{"ls", want}, hooks[1].Execute)
+
+		require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(unitDir, config.DefaultStackFile), nil, 0o644))
+	}
+}
+
 func TestPathVariableModuleOfInPlaceUnit(t *testing.T) {
 	t.Parallel()
 
@@ -237,10 +313,39 @@ func TestPathVariableModuleRejectsDependencyReference(t *testing.T) {
 	testCases := []struct {
 		name      string
 		unit      string
+		config    string
 		attribute string
 	}{
-		{name: "download_dir", unit: "download-dir", attribute: "download_dir"},
-		{name: "no_dot_terragrunt_cache", unit: "in-place", attribute: "terraform.no_dot_terragrunt_cache"},
+		{
+			name:      "download_dir",
+			unit:      "download-dir",
+			config:    config.DefaultTerragruntConfigPath,
+			attribute: "download_dir",
+		},
+		{
+			name:      "no_dot_terragrunt_cache",
+			unit:      "in-place",
+			config:    config.DefaultTerragruntConfigPath,
+			attribute: "terraform.no_dot_terragrunt_cache",
+		},
+		{
+			name:      "download_dir in JSON",
+			unit:      "download-dir-json",
+			config:    config.DefaultTerragruntJSONConfigPath,
+			attribute: "download_dir",
+		},
+		{
+			name:      "no_dot_terragrunt_cache in JSON",
+			unit:      "in-place-json",
+			config:    config.DefaultTerragruntJSONConfigPath,
+			attribute: "terraform.no_dot_terragrunt_cache",
+		},
+		{
+			name:      "source in JSON",
+			unit:      "source-json",
+			config:    config.DefaultTerragruntJSONConfigPath,
+			attribute: "terraform.source",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -248,7 +353,7 @@ func TestPathVariableModuleRejectsDependencyReference(t *testing.T) {
 			t.Parallel()
 
 			v, root := pathFixture(t)
-			cfgPath := filepath.Join(root, "module", "dependency", tc.unit, config.DefaultTerragruntConfigPath)
+			cfgPath := filepath.Join(root, "module", "dependency", tc.unit, tc.config)
 			ctx, pctx := newPathParsingContext(t, cfgPath)
 
 			_, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, cfgPath, nil)
@@ -498,6 +603,7 @@ func TestPathVariableInGeneratedStackInclude(t *testing.T) {
 		"include":      includePath,
 		"stack_dir":    stackDir,
 		"auto_include": includePath,
+		"auto_index":   includePath,
 		"auto_label":   "components.hcl:" + appDir,
 	}, parsePathUnit(t, v, appDir))
 }

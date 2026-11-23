@@ -152,13 +152,26 @@ func evalPathVariable(ctx context.Context, pctx *ParsingContext) cty.Value {
 	return *pathObject(basePathAttributes(pctx, include))
 }
 
-// pathCacheKeySuffix returns the part of a parse cache key that covers the unit `path` reads.
-func pathCacheKeySuffix(pctx *ParsingContext) string {
+// pathCacheKeySuffix returns the part of a parse cache key that covers the inputs of the `path` value.
+func pathCacheKeySuffix(fsys vfs.FS, pctx *ParsingContext) string {
 	if !pctx.Experiments.Evaluate(experiment.PathVariable) {
 		return ""
 	}
 
-	return "-" + pctx.OriginalTerragruntConfigPath
+	suffix := fmt.Sprintf(
+		"-%#v-%#v-%#v-%#v",
+		pctx.OriginalTerragruntConfigPath,
+		pctx.DownloadDir,
+		pctx.Source,
+		pctx.SourceMap,
+	)
+
+	stackDir, err := enclosingStackDir(fsys, pctx)
+	if err != nil {
+		return fmt.Sprintf("%s-stack-err:%#v", suffix, err.Error())
+	}
+
+	return fmt.Sprintf("%s-stack:%#v", suffix, stackDir)
 }
 
 // autoIncludeUnitRoots returns the variable roots a unit autoinclude leaves for the generated unit to resolve.

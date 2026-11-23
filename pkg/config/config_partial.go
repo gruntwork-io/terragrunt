@@ -688,7 +688,7 @@ func TerragruntConfigFromPartialConfig(
 
 	// Fold the sibling autoinclude existence and content into the key so an in-process create, remove, or edit cannot return a stale entry, with the merge experiment-gated so the experiment-off key is byte-for-byte unchanged.
 	cacheKey += autoIncludeCacheKeySuffix(ctx, v, pctx, file.ConfigPath)
-	cacheKey += pathCacheKeySuffix(pctx)
+	cacheKey += pathCacheKeySuffix(v.FS, pctx)
 
 	terragruntConfigCache := cache.ContextCache[*TerragruntConfig](
 		ctx,
@@ -1066,7 +1066,12 @@ func PartialParseConfig(
 				return nil, TerraformSourceReferencesDependencyError{ConfigPath: file.ConfigPath}
 			}
 
-			if attr := moduleDirDependencyReference(file); attr != "" {
+			attr, err := moduleDirDependencyReference(file)
+			if err != nil {
+				return nil, err
+			}
+
+			if attr != "" {
 				return nil, ModuleDirReferencesDependencyError{ConfigPath: file.ConfigPath, Attribute: attr}
 			}
 
@@ -1343,30 +1348,50 @@ func autoIncludeContentSuffix(fsys vfs.FS, autoIncludePath string) string {
 }
 
 // moduleDirDependencyReference returns the module directory attribute of file that references a dependency, or "".
-func moduleDirDependencyReference(file *hclparse.File) string {
-	const noDotTerragruntCache = "no_dot_terragrunt_cache"
-
-	body, ok := file.Body.(*hclsyntax.Body)
-	if !ok {
-		return ""
+func moduleDirDependencyReference(file *hclparse.File) (string, error) {
+	attr, err := dependencyReferenceAttribute(file, file.Body, MetadataDownloadDir)
+	if err != nil || attr != "" {
+		return attr, err
 	}
 
-	if attr, found := body.Attributes[MetadataDownloadDir]; found && expressionReferencesDependency(attr.Expr) {
-		return MetadataDownloadDir
+	blocks, err := file.Blocks(MetadataTerraform, true)
+	if err != nil {
+		return "", err
 	}
 
-	for _, block := range body.Blocks {
-		if block.Type != MetadataTerraform {
-			continue
+	for _, block := range blocks {
+		attr, err := dependencyReferenceAttribute(file, block.Body, "source", "no_dot_terragrunt_cache")
+		if err != nil {
+			return "", err
 		}
 
-		attr, found := block.Body.Attributes[noDotTerragruntCache]
-		if found && expressionReferencesDependency(attr.Expr) {
-			return MetadataTerraform + "." + noDotTerragruntCache
+		if attr != "" {
+			return MetadataTerraform + "." + attr, nil
 		}
 	}
 
-	return ""
+	return "", nil
+}
+
+// dependencyReferenceAttribute returns the first of the named attributes of body that references a dependency, or "".
+func dependencyReferenceAttribute(file *hclparse.File, body hcl.Body, names ...string) (string, error) {
+	schema := &hcl.BodySchema{Attributes: make([]hcl.AttributeSchema, 0, len(names))}
+	for _, name := range names {
+		schema.Attributes = append(schema.Attributes, hcl.AttributeSchema{Name: name})
+	}
+
+	content, _, diags := body.PartialContent(schema)
+	if err := file.HandleDiagnostics(diags); err != nil {
+		return "", err
+	}
+
+	for _, name := range names {
+		if attr, found := content.Attributes[name]; found && expressionReferencesDependency(attr.Expr) {
+			return name, nil
+		}
+	}
+
+	return "", nil
 }
 
 // Custom error types

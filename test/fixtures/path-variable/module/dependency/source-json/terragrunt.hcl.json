@@ -1,0 +1,13 @@
+{
+  "terraform": {
+    "source": "${try(dependency.local.outputs.module, \"../../modules//app\")}"
+  },
+  "dependency": {
+    "local": {
+      "config_path": "../../local"
+    }
+  },
+  "inputs": {
+    "module": "${path.module}"
+  }
+}

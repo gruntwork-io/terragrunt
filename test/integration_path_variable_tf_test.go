@@ -50,3 +50,16 @@ func TestTFPathVariableModuleIsRunDirectory(t *testing.T) {
 		})
 	}
 }
+
+func TestTFPathVariableUnitInAwsProviderPatchAll(t *testing.T) {
+	t.Parallel()
+
+	root := copyPathVariableFixture(t)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt aws-provider-patch --all --override-attr region=eu-west-1 --non-interactive --working-dir "+
+			filepath.Join(root, "all")+pathVariableExperimentFlag,
+	)
+	require.NoError(t, err)
+}

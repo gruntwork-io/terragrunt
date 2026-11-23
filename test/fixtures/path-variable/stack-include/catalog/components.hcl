@@ -10,6 +10,7 @@ unit "app" {
   autoinclude {
     inputs = {
       auto_include = path.include
+      auto_index   = path[lower("INCLUDE")]
       auto_label   = "${basename(path.include)}:${path.unit}"
     }
   }

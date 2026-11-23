@@ -2,6 +2,7 @@ package test_test
 
 import (
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -81,6 +82,64 @@ func TestPathVariableModuleRejectsDependencyReference(t *testing.T) {
 	assert.Equal(t, "download_dir", got.Attribute)
 }
 
+func TestPathVariableInRenderAll(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name  string
+		dir   string
+		units []string
+	}{
+		{name: "unit, include and read", dir: "live", units: []string{"app", "db", "json"}},
+		{
+			name:  "module",
+			dir:   "module",
+			units: []string{"download-dir", "download-dir-include", "in-place", "local", "remote"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := copyPathVariableFixture(t)
+			workingDir := filepath.Join(root, tc.dir)
+			want := map[string]map[string]any{}
+
+			for _, unit := range tc.units {
+				want[unit] = renderPathVariableInputs(t, filepath.Join(workingDir, unit))
+			}
+
+			helpers.RunTerragrunt(
+				t,
+				"terragrunt render --all --format json --write --non-interactive --working-dir "+workingDir+
+					" --filter '!./dependency/**'"+pathVariableExperimentFlag,
+			)
+
+			got := map[string]map[string]any{}
+
+			for _, unit := range tc.units {
+				got[unit] = readRenderedPathVariableInputs(t, filepath.Join(workingDir, unit))
+			}
+
+			assert.Equal(t, want, got)
+		})
+	}
+}
+
+func TestPathVariableUnitInBackendDeleteAll(t *testing.T) {
+	t.Parallel()
+
+	root := copyPathVariableFixture(t)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt backend delete --all --force --non-interactive --working-dir "+filepath.Join(root, "all")+
+			pathVariableExperimentFlag,
+	)
+	require.NoError(t, err)
+}
+
 func TestPathVariableInGeneratedStack(t *testing.T) {
 	t.Parallel()
 
@@ -143,6 +202,7 @@ func TestPathVariableInGeneratedStackInclude(t *testing.T) {
 		"include":      includePath,
 		"stack_dir":    stackDir,
 		"auto_include": includePath,
+		"auto_index":   includePath,
 		"auto_label":   "components.hcl:" + appDir,
 	}, renderPathVariableInputs(t, appDir))
 }
@@ -240,11 +300,28 @@ func renderPathVariableInputs(t *testing.T, unitDir string) map[string]any {
 	)
 	require.NoError(t, err)
 
+	return pathVariableInputs(t, []byte(stdout))
+}
+
+// readRenderedPathVariableInputs returns the inputs of the rendered JSON file that `render --write` left in unitDir.
+func readRenderedPathVariableInputs(t *testing.T, unitDir string) map[string]any {
+	t.Helper()
+
+	rendered, err := os.ReadFile(filepath.Join(unitDir, "terragrunt.rendered.json"))
+	require.NoError(t, err)
+
+	return pathVariableInputs(t, rendered)
+}
+
+// pathVariableInputs returns the inputs of a rendered JSON config.
+func pathVariableInputs(t *testing.T, renderedJSON []byte) map[string]any {
+	t.Helper()
+
 	var rendered struct {
 		Inputs map[string]any `json:"inputs"`
 	}
 
-	require.NoError(t, json.Unmarshal([]byte(stdout), &rendered))
+	require.NoError(t, json.Unmarshal(renderedJSON, &rendered))
 
 	return rendered.Inputs
 }

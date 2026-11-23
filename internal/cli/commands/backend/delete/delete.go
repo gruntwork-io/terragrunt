@@ -94,6 +94,7 @@ func runAll(
 		unitOpts.WorkingDir = unit.Path()
 
 		unitOpts.TerragruntConfigPath = filepath.Join(unit.Path(), unit.ConfigFile())
+		unitOpts.OriginalTerragruntConfigPath = unitOpts.TerragruntConfigPath
 
 		// Parsing can write obtained credentials into the env, so each
 		// unit gets its own clone to keep them from leaking to siblings.

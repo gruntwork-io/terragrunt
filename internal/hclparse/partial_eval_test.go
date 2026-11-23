@@ -1340,6 +1340,28 @@ func TestPartialEval_ResolvesPathIncludeOfDeferredPath(t *testing.T) {
 			hcl:  `val = [for path in [path.include] : "${path}:${dependency.db.outputs.value}"]`,
 			want: `[for path in ["/catalog/components.hcl"] : "${path}:${dependency.db.outputs.value}"]`,
 		},
+		{name: "dynamic index", hcl: `val = path[local.key]`, want: `"/catalog/components.hcl"`},
+		{name: "dynamic index of another attribute", hcl: `val = path[local.other]`, want: `path["unit"]`},
+		{
+			name: "dynamic index with a deferred key",
+			hcl:  `val = path[dependency.db.outputs.key]`,
+			want: `path[dependency.db.outputs.key]`,
+		},
+		{
+			name: "dynamic index of an iterator named path",
+			hcl:  `val = [for path in dependency.db.outputs.items : path[local.key]]`,
+			want: `[for path in dependency.db.outputs.items : path["include"]]`,
+		},
+		{
+			name: "dynamic index in a function call",
+			hcl:  `val = try(path[local.key], dependency.db.outputs.value)`,
+			want: `try("/catalog/components.hcl", dependency.db.outputs.value)`,
+		},
+		{
+			name: "dynamic index with an iterator key",
+			hcl:  `val = [for key in ["include"] : path[key]]`,
+			want: `[for key in ["include"] : path[key]]`,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -1363,17 +1385,90 @@ func TestPartialEval_ResolvesPathIncludeOfDeferredPath(t *testing.T) {
 func TestPartialEval_PathIncludeOutsideIncludedFileReturnsTypedError(t *testing.T) {
 	t.Parallel()
 
-	expr, srcBytes := parseFirstAttrExpr(t, `val = path.include`)
+	testCases := []struct {
+		name string
+		hcl  string
+	}{
+		{name: "attribute", hcl: `val = path.include`},
+		{name: "dynamic index", hcl: `val = path[local.key]`},
+	}
 
-	_, err := hclparse.PartialEval(expr, &hclparse.EvalArgs{
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			expr, srcBytes := parseFirstAttrExpr(t, tc.hcl)
+
+			_, err := hclparse.PartialEval(expr, &hclparse.EvalArgs{
+				SrcBytes: srcBytes,
+				EvalCtx:  pathEvalCtx(map[string]cty.Value{}),
+				Deferred: pathDeferred,
+			})
+
+			var unresolved hclparse.PartialEvalUnresolvedError
+
+			require.ErrorAs(t, err, &unresolved)
+		})
+	}
+}
+
+func TestPartialEval_PathIndexOutsideIncludedFileKeepsNoStackLocal(t *testing.T) {
+	t.Parallel()
+
+	expr, srcBytes := parseFirstAttrExpr(t, `val = try(path[local.key], "fallback")`)
+
+	result, err := hclparse.PartialEval(expr, &hclparse.EvalArgs{
 		SrcBytes: srcBytes,
 		EvalCtx:  pathEvalCtx(map[string]cty.Value{}),
 		Deferred: pathDeferred,
 	})
+	require.NoError(t, err)
 
-	var unresolved hclparse.PartialEvalUnresolvedError
+	assert.Equal(t, `try(path["include"], "fallback")`, string(result))
+}
 
-	require.ErrorAs(t, err, &unresolved)
+func TestPartialEval_PathIndexEvaluatesKeyOnce(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		key  string
+		want string
+	}{
+		{name: "include", key: "include", want: `"/catalog/components.hcl"`},
+		{name: "other attribute", key: "unit", want: `path["unit"]`},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			calls := 0
+			evalCtx := pathEvalCtx(map[string]cty.Value{"include": cty.StringVal("/catalog/components.hcl")})
+			evalCtx.Functions = map[string]function.Function{
+				"key": function.New(&function.Spec{
+					Type: function.StaticReturnType(cty.String),
+					Impl: func([]cty.Value, cty.Type) (cty.Value, error) {
+						calls++
+
+						return cty.StringVal(tc.key), nil
+					},
+				}),
+			}
+
+			expr, srcBytes := parseFirstAttrExpr(t, `val = path[key()]`)
+
+			result, err := hclparse.PartialEval(expr, &hclparse.EvalArgs{
+				SrcBytes: srcBytes,
+				EvalCtx:  evalCtx,
+				Deferred: pathDeferred,
+			})
+			require.NoError(t, err)
+
+			assert.Equal(t, tc.want, string(result))
+			assert.Equal(t, 1, calls)
+		})
+	}
 }
 
 func TestIsPure_PathIncludeIsNotADeferredRead(t *testing.T) {
@@ -1411,7 +1506,9 @@ func pathEvalCtx(attrs map[string]cty.Value) *hcl.EvalContext {
 	path := map[string]cty.Value{"stack": cty.StringVal("/live")}
 	maps.Copy(path, attrs)
 
-	return &hcl.EvalContext{Variables: map[string]cty.Value{"path": cty.ObjectVal(path)}}
+	local := cty.ObjectVal(map[string]cty.Value{"key": cty.StringVal("include"), "other": cty.StringVal("unit")})
+
+	return &hcl.EvalContext{Variables: map[string]cty.Value{"path": cty.ObjectVal(path), "local": local}}
 }
 
 // buildEvalCtx creates an eval context with local.env = "production" and
