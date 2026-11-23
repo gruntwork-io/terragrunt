@@ -46,6 +46,19 @@ describe("readChangelogEntries", () => {
     expect(readChangelogEntries(changelogDir)).toEqual([]);
   });
 
+  test("skips the README at the top of the directory", () => {
+    fs.writeFileSync(path.join(changelogDir, "README.md"), "# Changelog entries\n");
+
+    expect(readChangelogEntries(changelogDir)).toEqual([]);
+  });
+
+  test("rejects a README inside a version directory", () => {
+    fs.mkdirSync(path.join(changelogDir, "v1.2.3"));
+    fs.writeFileSync(path.join(changelogDir, "v1.2.3", "README.md"), "# Notes\n");
+
+    expect(() => readChangelogEntries(changelogDir)).toThrow("README.md");
+  });
+
   test("rejects an entry without frontmatter", () => {
     fs.writeFileSync(path.join(changelogDir, "bare.mdx"), "#### No frontmatter\n");
 

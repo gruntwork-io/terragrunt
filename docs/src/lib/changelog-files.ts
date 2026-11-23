@@ -6,17 +6,18 @@ import { z } from "astro/zod";
 import { changelogSchema, type ChangelogEntry } from "./changelog";
 
 const CHANGELOG_FILE = /\.mdx?$/;
+const CHANGELOG_README = "README.md";
 
 /**
  * Reads every changelog entry under `dir`, for code that runs outside an Astro
- * build. Entries pass the same schema and get the same ids as in the
- * `changelog` collection, so they sort the same way. Throws on the first entry
- * the schema rejects.
+ * build. As in the `changelog` collection, the README.md at the top of `dir`
+ * is not an entry, and entries pass the same schema and get the same ids, so
+ * they sort the same way. Throws on the first entry the schema rejects.
  */
 export function readChangelogEntries(dir: string): ChangelogEntry[] {
   return fs
     .readdirSync(dir, { recursive: true, encoding: "utf-8" })
-    .filter((file) => CHANGELOG_FILE.test(file))
+    .filter((file) => CHANGELOG_FILE.test(file) && file !== CHANGELOG_README)
     .map((file) => {
       const { data, content } = matter(fs.readFileSync(path.join(dir, file), "utf-8"));
       const result = changelogSchema.safeParse(data);
