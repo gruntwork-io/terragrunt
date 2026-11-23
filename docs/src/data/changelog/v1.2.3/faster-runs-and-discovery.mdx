@@ -1,0 +1,15 @@
+---
+version: "v1.2.3"
+category: "performance-improvements"
+order: 1
+---
+
+#### Faster runs and discovery with less memory
+
+Terragrunt is generally faster and more memory efficient for any operation across multiple units.
+
+On repositories of 100 units or more, `run --all` and `find` with `--dependencies` take up to 63% less time than in v1.2.2, and use up to 89% less peak memory. The savings grow with the number of units and with how much configuration they share through `include` and `read_terragrunt_config`.
+
+These numbers come from benchmarks on an AMD Ryzen AI Max+ 395, with a stand-in for `tofu` that exits at once, so they time Terragrunt overhead alone. The repository follows the layout of [`BenchmarkDiscoverySharedConfig`](https://github.com/gruntwork-io/terragrunt/blob/main/internal/discovery/benchmark_shared_config_test.go).
+
+Where units share less, such as units that just include a `root.hcl` holding one local, `run --all plan` over 1,000 units takes up to 63% less time and up to 18% less peak memory.
