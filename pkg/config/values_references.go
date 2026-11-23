@@ -8,6 +8,7 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 
+	"github.com/gruntwork-io/terragrunt/internal/valuesblock"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 )
 
@@ -15,10 +16,9 @@ import (
 type ValueReference struct {
 	// Name is the value the reference reads. For values.a.b, it is a.
 	Name string
-	// Guard is the innermost function, [FuncTry] or [FuncCan], whose call returns a fallback in place of an error from
-	// the read. It is the empty string when no such call encloses the read. The last argument of try is not guarded by
-	// that try.
-	Guard string
+	// Guard is the innermost call that returns a fallback in place of an error from the read. The last argument of try
+	// is not guarded by that try.
+	Guard Guard
 	// Range is the source range of the whole traversal.
 	Range hcl.Range
 }
@@ -26,20 +26,24 @@ type ValueReference struct {
 // TryDefault is a read of values.<Name> inside try() in the config of a generated component without a values block,
 // where try() stands in for a default that a values block would declare.
 type TryDefault struct {
-	// Kind is the kind of the component, unit or stack.
-	Kind string
+	// Kind is the kind of the component.
+	Kind valuesblock.Kind
 	// Source is the source of the component, with any credentials redacted.
 	Source string
 	// Name is the value the config reads.
 	Name string
 }
 
-// The functions that guard a read of values.
+// Guard is a function whose call returns a fallback in place of an error from a read of values inside it.
+type Guard string
+
 const (
-	// FuncTry is the try function, which returns its first argument that evaluates without an error.
-	FuncTry = "try"
-	// FuncCan is the can function, which returns whether its argument evaluates without an error.
-	FuncCan = "can"
+	// GuardNone is the guard of a read that no try or can call encloses.
+	GuardNone Guard = ""
+	// GuardTry is the try function, which returns its first argument that evaluates without an error.
+	GuardTry Guard = "try"
+	// GuardCan is the can function, which returns whether its argument evaluates without an error.
+	GuardCan Guard = "can"
 )
 
 // ValueReferences returns the reads of values.<name> in file outside its values block, sorted by position. It returns
@@ -76,7 +80,7 @@ func bodyValueReferences(configPath string, body *hclsyntax.Body, depth int) ([]
 	var refs []ValueReference
 
 	for _, attr := range body.Attributes {
-		var guards map[int]string
+		var guards map[int]Guard
 
 		for _, traversal := range attr.Expr.Variables() {
 			if traversal.RootName() != MetadataValues {
@@ -128,10 +132,10 @@ func bodyValueReferences(configPath string, body *hclsyntax.Body, depth int) ([]
 
 // guardedReads returns the guard of each read of values in expr that a call to try or can encloses, keyed by the start
 // byte of the read.
-func guardedReads(expr hclsyntax.Expression) (map[int]string, error) {
+func guardedReads(expr hclsyntax.Expression) (map[int]Guard, error) {
 	g := &guardWalker{
-		args:  map[hclsyntax.Node]string{},
-		reads: map[int]string{},
+		args:  map[hcl.Range]Guard{},
+		reads: map[int]Guard{},
 	}
 
 	if diags := hclsyntax.Walk(expr, g); diags.HasErrors() {
@@ -143,16 +147,19 @@ func guardedReads(expr hclsyntax.Expression) (map[int]string, error) {
 
 // guardWalker records the reads of values that a call to try or can encloses.
 type guardWalker struct {
-	// args maps each guarded argument of a try or can call to the name of the function.
-	args map[hclsyntax.Node]string
+	// args maps the range of each guarded argument of a try or can call to its guard. Nodes cannot be the keys, since
+	// a for expression walks a [hclsyntax.ChildScope], which holds a map and so panics as a map key.
+	args map[hcl.Range]Guard
 	// reads maps the start byte of each guarded read of values to its innermost guard.
-	reads map[int]string
+	reads map[int]Guard
 	// guards is the stack of guards that enclose the node being walked, innermost last.
-	guards []string
+	guards []Guard
 }
 
+// Enter pushes the guard of node when node is a guarded argument, marks the arguments node guards when it is a try or
+// can call, and records node with the innermost guard when it is a guarded read of values.
 func (g *guardWalker) Enter(node hclsyntax.Node) hcl.Diagnostics {
-	if guard, ok := g.args[node]; ok {
+	if guard, ok := g.args[node.Range()]; ok {
 		g.guards = append(g.guards, guard)
 	}
 
@@ -168,8 +175,9 @@ func (g *guardWalker) Enter(node hclsyntax.Node) hcl.Diagnostics {
 	return nil
 }
 
+// Exit pops the guard that [guardWalker.Enter] pushed for node.
 func (g *guardWalker) Exit(node hclsyntax.Node) hcl.Diagnostics {
-	if _, ok := g.args[node]; ok {
+	if _, ok := g.args[node.Range()]; ok {
 		g.guards = g.guards[:len(g.guards)-1]
 	}
 
@@ -179,14 +187,15 @@ func (g *guardWalker) Exit(node hclsyntax.Node) hcl.Diagnostics {
 // markArgs records the arguments of call that it guards: every argument of can, and every argument of try but the
 // last, whose error try returns.
 func (g *guardWalker) markArgs(call *hclsyntax.FunctionCallExpr) {
-	switch call.Name {
-	case FuncCan:
+	switch Guard(call.Name) {
+	case GuardNone:
+	case GuardCan:
 		for _, arg := range call.Args {
-			g.args[arg] = FuncCan
+			g.args[arg.Range()] = GuardCan
 		}
-	case FuncTry:
+	case GuardTry:
 		for _, arg := range call.Args[:max(len(call.Args)-1, 0)] {
-			g.args[arg] = FuncTry
+			g.args[arg.Range()] = GuardTry
 		}
 	}
 }

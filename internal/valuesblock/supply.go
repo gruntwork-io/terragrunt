@@ -1,6 +1,7 @@
 package valuesblock
 
 import (
+	"cmp"
 	"maps"
 	"slices"
 
@@ -70,16 +71,16 @@ func SuppliedByAttributes(value cty.Value, attrs hcl.Attributes, whole hcl.Range
 }
 
 // EvaluateAttributes evaluates each of attrs, the attributes of a terragrunt.values.hcl file, in evalCtx and returns
-// them as one object. It evaluates them in name order, so its diagnostics come out in a stable order.
+// them as one object. It evaluates them in source order, so its diagnostics follow the file.
 func EvaluateAttributes(attrs hcl.Attributes, evalCtx *hcl.EvalContext) (cty.Value, hcl.Diagnostics) {
 	values := make(map[string]cty.Value, len(attrs))
 
 	var diags hcl.Diagnostics
 
-	for _, name := range slices.Sorted(maps.Keys(attrs)) {
-		val, valDiags := attrs[name].Expr.Value(evalCtx)
+	for _, attr := range slices.SortedFunc(maps.Values(attrs), bySourcePosition) {
+		val, valDiags := attr.Expr.Value(evalCtx)
 		diags = append(diags, valDiags...)
-		values[name] = val
+		values[attr.Name] = val
 	}
 
 	return cty.ObjectVal(values), diags
@@ -138,4 +139,9 @@ func literalKey(expr hcl.Expression) (string, bool) {
 	}
 
 	return key.AsString(), true
+}
+
+// bySourcePosition orders attributes by where they start in their file.
+func bySourcePosition(a, b *hcl.Attribute) int {
+	return cmp.Compare(a.Range.Start.Byte, b.Range.Start.Byte)
 }

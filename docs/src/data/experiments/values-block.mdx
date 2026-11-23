@@ -3,7 +3,7 @@ name: values-block
 since: "v1.2.3"
 ---
 
-Support for the `values` block on units and stacks, which declares the values a unit or stack accepts, each with an optional type, default, and description.
+Support for the `values` block on units and stacks, which declares the values a unit or stack accepts, each with an optional type, default, description, and `nullable` setting.
 
 This experiment is ongoing and disabled by default. Declaring the block without the experiment enabled returns an error. It becomes generally available once every item in the stabilization criteria below is met.
 
@@ -48,7 +48,7 @@ To transition the `values-block` feature to a stable release, the following must
 
 - [ ] Decide whether a key that the `values` block doesn't declare stays an error, or becomes a warning that a setting can raise to an error.
 - [ ] Support `validation` blocks inside `value` blocks.
-- [ ] Decide how a unit with a required value and no `terragrunt.values.hcl` runs, e.g. in a catalog.
+- [ ] Decide how a unit or stack with a required value and no `terragrunt.values.hcl` runs, e.g. in a catalog.
 - [ ] Decide whether to deprecate `values.<name>` reads in a config without a `values` block.
 - [ ] Support the `values` block in [`terragrunt-ls`](https://github.com/gruntwork-io/terragrunt-ls).
 - [ ] Read the declared values in [`terragrunt scaffold`](/reference/cli/commands/scaffold).

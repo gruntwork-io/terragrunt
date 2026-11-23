@@ -125,7 +125,7 @@ func TestResolve(t *testing.T) {
 				{summary: `Undeclared value "zeta"`, line: 2},
 				{
 					summary: `Invalid value "server"`,
-					detail: `The value is not suitable for the type declared at test.hcl:9,3-17: ` +
+					detail: `The value is not suitable for the type declared on line 9 of the stack's config: ` +
 						`attribute "name" is required.`,
 					line: 4,
 				},
@@ -147,7 +147,7 @@ func TestResolve(t *testing.T) {
 			supply:    `{}`,
 			diags: []wantDiag{{
 				summary: `Missing required value "count" for unit "app"`,
-				detail: `The unit at catalog/units/app requires the value "count", declared at test.hcl:6,3-16, ` +
+				detail: `The unit at catalog/units/app requires the value "count", declared on line 6 of its config, ` +
 					`and nothing sets it.`,
 				line: 1,
 			}},
@@ -171,8 +171,8 @@ func TestResolve(t *testing.T) {
 			supply:    `{ skip = true }`,
 			diags: []wantDiag{{
 				summary: `Missing required values "dep", "inc", "env" for unit "app"`,
-				detail: `The unit at catalog/units/app requires the values "dep" (declared at test.hcl:2,3-14), ` +
-					`"inc" (declared at test.hcl:6,3-14) and "env" (declared at test.hcl:7,3-14), ` +
+				detail: `The unit at catalog/units/app requires the values "dep" (declared on line 2), ` +
+					`"inc" (declared on line 6) and "env" (declared on line 7), ` +
 					`and nothing sets them.`,
 				line: 1,
 			}},
@@ -209,7 +209,7 @@ func TestResolve(t *testing.T) {
 			supply:    `{ o = { a = { b = "x" } } }`,
 			diags: []wantDiag{{
 				summary: `Invalid value "o"`,
-				detail: `The value is not suitable for the type declared at test.hcl:2,3-12: ` +
+				detail: `The value is not suitable for the type declared on line 2 of the stack's config: ` +
 					`attribute "a.b": a number is required.`,
 				line: 1,
 			}},
@@ -237,13 +237,13 @@ func TestResolve(t *testing.T) {
 			diags: []wantDiag{
 				{
 					summary: `Invalid value "l"`,
-					detail: `The value is not suitable for the type declared at test.hcl:2,3-12: ` +
+					detail: `The value is not suitable for the type declared on line 2 of the stack's config: ` +
 						`[0].a: a number is required.`,
 					line: 2,
 				},
 				{
 					summary: `Invalid value "m"`,
-					detail: `The value is not suitable for the type declared at test.hcl:5,3-12: ` +
+					detail: `The value is not suitable for the type declared on line 5 of the stack's config: ` +
 						`["k"]: a number is required.`,
 					line: 3,
 				},
@@ -280,16 +280,10 @@ func TestResolve(t *testing.T) {
     type    = string
     default = "d"
   }
-  value "none" {
-    default = null
-  }
 }`,
 			component: reading,
-			supply:    `{ s = null, none = null }`,
-			want: cty.ObjectVal(map[string]cty.Value{
-				"s":    cty.StringVal("d"),
-				"none": cty.NullVal(cty.DynamicPseudoType),
-			}),
+			supply:    `{ s = null }`,
+			want:      cty.ObjectVal(map[string]cty.Value{"s": cty.StringVal("d")}),
 		},
 		{
 			name: "supplied null for a required value",
@@ -304,7 +298,7 @@ func TestResolve(t *testing.T) {
 }`,
 			diags: []wantDiag{{
 				summary: `Null value "n" for unit "app"`,
-				detail: `The unit at catalog/units/app requires the value "n", declared at test.hcl:2,3-12, and does ` +
+				detail: `The unit at catalog/units/app requires the value "n", declared on line 2 of its config, and does ` +
 					`not accept null for it. Set a value, or set nullable = true in its declaration.`,
 				line: 2,
 			}},

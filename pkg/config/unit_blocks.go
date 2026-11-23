@@ -238,7 +238,15 @@ type LocalsHCL struct {
 	Remain hcl.Body `hcl:",remain"`
 }
 
-// ValuesHCL is a values block. [ReadValues] resolves the values file of the unit against its body.
+// ValuesHCL keeps a values block in the schema of a config, so decoding the config accepts the block. [ReadValues]
+// decodes the block from the file, not from this type.
 type ValuesHCL struct {
 	Remain hcl.Body `hcl:",remain"`
+}
+
+// ValueHCL keeps a value block outside the values block in the schema of a config, so [ReadValues] reports where the
+// block belongs in place of a generic unsupported block error.
+type ValueHCL struct {
+	Remain hcl.Body `hcl:",remain"`
+	Name   string   `hcl:"name,label"`
 }

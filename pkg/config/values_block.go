@@ -29,11 +29,6 @@ const (
 	IncludedConfig
 )
 
-// valuesBlockHeader keeps the values block in the schema of a config. [valuesblock.Decode] decodes its body.
-type valuesBlockHeader struct {
-	Remain hcl.Body `hcl:",remain"`
-}
-
 // valuesFileContent is a parsed and evaluated terragrunt.values.hcl.
 type valuesFileContent struct {
 	file  *hclparse.File
@@ -252,18 +247,15 @@ func readValuesFile(
 }
 
 // handleValuesDiagnostics passes each of diags through the handlers of the file in files that its subject points at,
-// or of the first file when it points at none of them, and joins the errors the handlers return.
+// and joins the errors the handlers return. Each subject lies in one of files, as resolveValues builds the supply from
+// the values file, or from the values block of the first file when there is none.
 func handleValuesDiagnostics(files []*hclparse.File, diags hcl.Diagnostics) error {
 	byFile := make([]hcl.Diagnostics, len(files))
 
 	for _, diag := range diags {
-		i := 0
-
-		if diag.Subject != nil {
-			i = max(0, slices.IndexFunc(files, func(file *hclparse.File) bool {
-				return file.Body.MissingItemRange().Filename == diag.Subject.Filename
-			}))
-		}
+		i := slices.IndexFunc(files, func(file *hclparse.File) bool {
+			return file.Body.MissingItemRange().Filename == diag.Subject.Filename
+		})
 
 		byFile[i] = append(byFile[i], diag)
 	}

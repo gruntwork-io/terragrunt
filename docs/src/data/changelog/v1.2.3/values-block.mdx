@@ -5,7 +5,7 @@ category: "experiments-added"
 
 #### `values-block` — Declare the values a unit or stack accepts
 
-Enable the [`values-block`](/reference/experiments/active#values-block) experiment and add a `values` block to a `terragrunt.hcl` or `terragrunt.stack.hcl` file to declare the values the unit or stack accepts. Each value can have a type, a default, and a description. Terragrunt checks what each `unit` and `stack` block passes against these declarations, and `values.<name>` in the component returns the declared type, with the default applied when nothing sets the value.
+Enable the [`values-block`](/reference/experiments/active#values-block) experiment and add a `values` block to a `terragrunt.hcl` or `terragrunt.stack.hcl` file to declare the values the unit or stack accepts. Each value can have a type, a default, a description, and a `nullable` setting. Terragrunt checks what each `unit` and `stack` block passes against these declarations, and `values.<name>` in the component returns the declared type, with the default applied when nothing sets the value or sets it to `null`.
 
 ```hcl
 values {
@@ -36,7 +36,7 @@ terragrunt stack generate --experiment values-block
 
 `terragrunt hcl validate` reports each `values.<name>` read that the block doesn't declare. See the [`values` block reference](/reference/hcl/blocks/values/).
 
-When a unit or stack without the block reads a value inside `try()` to fall back to a default, `stack generate` shows a tip to declare the value with a default in a `values` block instead:
+`stack generate` also shows a tip, once per run, when a unit or stack without the block reads a value inside `try()` to fall back to a default:
 
 ```text
 18:10:44.033 INFO   TIP (values-block): The unit at ../catalog/units/app reads `values.tags` inside `try()` to fall back to a default. Declare the value with a default in a `values` block instead. See https://docs.terragrunt.com/reference/hcl/blocks/values

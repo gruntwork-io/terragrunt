@@ -116,3 +116,15 @@ func TestNameSuggestion(t *testing.T) {
 		})
 	}
 }
+
+func TestEvaluateAttributesReportsInSourceOrder(t *testing.T) {
+	t.Parallel()
+
+	attrs, diags := parseHCL(t, "zz = local.a\naa = local.b\n").JustAttributes()
+	require.Empty(t, diags)
+
+	_, diags = valuesblock.EvaluateAttributes(attrs, &hcl.EvalContext{})
+	require.Len(t, diags, 2)
+	assert.Equal(t, 1, diags[0].Subject.Start.Line)
+	assert.Equal(t, 2, diags[1].Subject.Start.Line)
+}

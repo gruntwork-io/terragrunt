@@ -85,13 +85,13 @@ func (p ComponentParser) checkValueReferences(
 // reads. For a read that try or can guards, it says the guard always falls back, and suggests a default in place of
 // the guard.
 func undeclaredValueDetail(kind valuesblock.Kind, ref *config.ValueReference, decls *valuesblock.Declarations) string {
-	if ref.Guard == "" {
+	if ref.Guard == config.GuardNone {
 		return fmt.Sprintf("The values block of this %s does not declare %q.", kind, ref.Name) + decls.Hint(ref.Name) +
 			fmt.Sprintf("\n\nFix the reference, or declare %q in the values block.", ref.Name)
 	}
 
 	result := "returns its fallback"
-	if ref.Guard == config.FuncCan {
+	if ref.Guard == config.GuardCan {
 		result = "returns false"
 	}
 

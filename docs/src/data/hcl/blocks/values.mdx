@@ -1,6 +1,6 @@
 ---
 name: values
-description: Declares the values a unit or stack accepts, each with an optional type, default, and description.
+description: Declares the values a unit or stack accepts, each with an optional type, default, description, and `nullable` setting.
 configs: [unit, stack]
 since: v1.2.3
 experiment: values-block
@@ -67,7 +67,7 @@ blocks:
         description: The type of the value, written as for an [OpenTofu variable](https://opentofu.org/docs/language/values/variables/#type-constraints), e.g. `map(string)` or `object({ size = optional(number, 1) })`. Write the type without quotes, since `"string"` is an error.
       - name: default
         type: any
-        description: The value to use when nothing sets it. Without a default, the value is required. The default has to be a constant, so it can't read `local`, `values`, or `dependency`, or call a function.
+        description: The value to use when nothing sets it, or when it is set to `null` and `nullable` is `false`. Without a default, the value is required. A `null` default needs `nullable = true`. The default has to be a constant, so it can't read `local`, `values`, or `dependency`, or call a function.
       - name: description
         type: string
         description: Describes the value for readers of the config.
@@ -96,7 +96,7 @@ import SideBySide from '@components/SideBySide.astro';
 
 The `values` block is optional. A config without it reads `terragrunt.values.hcl` unchecked, with or without the experiment.
 
-A `values` block lists the values a unit or stack reads as `values.<name>`, each with an optional type, default, and description. Terragrunt reports a key the block doesn't declare, a value of the wrong type, and a required value that nothing sets.
+A `values` block lists the values a unit or stack reads as `values.<name>`, each with an optional type, default, description, and `nullable` setting. Terragrunt reports a key the block doesn't declare, a value of the wrong type, and a required value that nothing sets.
 
 A config can have one `values` block, in the `terragrunt.hcl` of a unit or the `terragrunt.stack.hcl` of a stack. A `values` block in a file that another config includes, such as `root.hcl`, or in an [`autoinclude`](/reference/hcl/blocks/autoinclude) block, is an error.
 
@@ -108,7 +108,7 @@ Before Terragrunt evaluates the rest of the config, it resolves `values` from `t
 - With `nullable = true`, a value set to `null` stays `null`.
 - Each value converts to its `type` by the same rules as an OpenTofu variable, so `"2"` becomes the number `2` for a `number` value. The `optional()` attributes of an object type take their defaults.
 
-A unit or stack with no `terragrunt.values.hcl` gets only its defaults. If it declares a required value, reading its config fails, e.g. when you run `terragrunt hcl validate` in the catalog's copy of the unit. Give every value a default to read the config without a values file.
+A unit or stack with no `terragrunt.values.hcl` gets only its defaults. If it declares a required value, reading its config fails. That includes the catalog's own copy: `terragrunt hcl validate` on a catalog unit fails, and so do `stack generate` and `run --all` from a directory that contains a catalog stack. Give every value a default to read the config without a values file.
 
 ### When Terragrunt checks values
 

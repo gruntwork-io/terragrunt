@@ -11,8 +11,12 @@ import (
 // suggestions HCL and OpenTofu make.
 const maxSuggestionDistance = 2
 
+// maxListedNames is the most declared names a hint lists, so a block with many values gives each diagnostic a short
+// hint.
+const maxListedNames = 10
+
 // Hint returns a paragraph, after a blank line, for a reference to name, which d does not declare. It suggests
-// the declared name closest to name, or lists the declared names when none is close.
+// the declared name closest to name, or lists the first declared names in sorted order when none is close.
 func (d *Declarations) Hint(name string) string {
 	names := d.Names()
 
@@ -22,6 +26,14 @@ func (d *Declarations) Hint(name string) string {
 
 	if len(names) == 0 {
 		return "\n\nThe values block declares no values."
+	}
+
+	if len(names) > maxListedNames {
+		return fmt.Sprintf(
+			"\n\nDeclared values: %s, and %d more.",
+			strings.Join(names[:maxListedNames], ", "),
+			len(names)-maxListedNames,
+		)
 	}
 
 	return "\n\nDeclared values: " + strings.Join(names, ", ") + "."

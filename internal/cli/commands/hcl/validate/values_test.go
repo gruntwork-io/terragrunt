@@ -60,6 +60,23 @@ func TestRunValidateValuesReferences(t *testing.T) {
 			line: 9,
 		},
 		{
+			name:   "for expression",
+			block:  tagsValuesBlock,
+			inputs: "inputs = {\n  names = [for k, v in values.tgas : upper(v)]\n}\n",
+			detail: "The values block of this unit does not declare \"tgas\".\n\n" +
+				"Did you mean \"tags\"?\n\n" +
+				"Fix the reference, or declare \"tgas\" in the values block.",
+			line: 9,
+		},
+		{
+			name:   "try inside a for expression",
+			block:  tagsValuesBlock,
+			inputs: "inputs = {\n  names = [for k, v in try(values.tgas, {}) : k]\n}\n",
+			detail: "The values block of this unit does not declare \"tgas\", so try() always returns its fallback.\n\n" +
+				"Did you mean \"tags\"?\n\n" + tryAdvice,
+			line: 9,
+		},
+		{
 			name:   "last argument of try",
 			block:  tagsValuesBlock,
 			inputs: "inputs = {\n  tags = try(values.tags, values.tgas)\n}\n",
@@ -72,6 +89,15 @@ func TestRunValidateValuesReferences(t *testing.T) {
 			name:   "evaluated",
 			block:  tagsValuesBlock,
 			inputs: "inputs = {\n  name = values.typo\n}\n",
+			detail: "The values block of this unit does not declare \"typo\".\n\n" +
+				"Declared values: tags.\n\n" +
+				"Fix the reference, or declare \"typo\" in the values block.",
+			line: 9,
+		},
+		{
+			name:   "evaluated string index",
+			block:  tagsValuesBlock,
+			inputs: "inputs = {\n  name = values[\"typo\"]\n}\n",
 			detail: "The values block of this unit does not declare \"typo\".\n\n" +
 				"Declared values: tags.\n\n" +
 				"Fix the reference, or declare \"typo\" in the values block.",
@@ -137,6 +163,32 @@ func TestRunValidateValuesReferenceHighlightsTheTraversal(t *testing.T) {
 	assert.Equal(t, `  tags = try(values.tgas, {})`, diag.Snippet.Code)
 	assert.Equal(t, 13, diag.Snippet.HighlightStartOffset)
 	assert.Equal(t, 24, diag.Snippet.HighlightEndOffset)
+}
+
+func TestRunValidateReportsValueBlockOutsideValuesBlock(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		file string
+		src  string
+	}{
+		{name: "unit", file: "app/terragrunt.hcl", src: "value \"name\" {\n  type = string\n}\n"},
+		{name: "stack", file: "app/terragrunt.stack.hcl", src: "value \"env\" {\n  type = string\n}\n"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := runValidate(t, &validateRun{
+				files:       map[string]string{tc.file: tc.src},
+				experiments: []string{experiment.ValuesBlock},
+			})
+
+			requireOnlyDiagnosticAt(t, result, "Value block outside a values block", tc.file, 1)
+		})
+	}
 }
 
 func TestRunValidateValuesReferencesAcceptDeclaredValues(t *testing.T) {
@@ -433,8 +485,8 @@ func TestRunValidateReportsEveryMissingRequiredValue(t *testing.T) {
 			result := runValidate(t, &validateRun{files: tc.files, experiments: []string{experiment.ValuesBlock}})
 
 			diag := requireOnlyDiagnosticAt(t, result, `Missing required values "dep", "inc"`, tc.file, tc.line)
-			assert.Contains(t, diag.Detail, `"dep" (declared at `)
-			assert.Contains(t, diag.Detail, `"inc" (declared at `)
+			assert.Contains(t, diag.Detail, `"dep" (declared on line `)
+			assert.Contains(t, diag.Detail, `"inc" (declared on line `)
 		})
 	}
 }

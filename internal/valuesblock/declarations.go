@@ -25,7 +25,10 @@ const (
 
 var (
 	valuesSchema = &hcl.BodySchema{
-		Blocks: []hcl.BlockHeaderSchema{{Type: blockName}},
+		Blocks: []hcl.BlockHeaderSchema{
+			{Type: blockName},
+			{Type: valueBlockName, LabelNames: []string{"name"}},
+		},
 	}
 	valuesBlockSchema = &hcl.BodySchema{
 		Blocks: []hcl.BlockHeaderSchema{{Type: valueBlockName, LabelNames: []string{"name"}}},
@@ -70,29 +73,36 @@ type Declaration struct {
 // Decode reads the values block of body, ignoring everything else in body. It returns nil when body has no values
 // block.
 //
-// Reports a diagnostic for a second values block, a value name that is not a valid identifier, a name declared twice,
-// an unexpected attribute or block, an invalid type constraint, a default, description, or nullable that is not a
-// constant, a default that does not conform to the type, a description that is not a string, and a nullable that is not
+// Reports a diagnostic for a value block outside the values block, a second values block, a value name that is not a
+// valid identifier, a name declared twice, an unexpected attribute or block, an invalid type constraint, a default,
+// description, or nullable that is not a constant, a default that does not conform to the type, a null default for a
+// value that is not nullable, a description that does not convert to a string, and a nullable that does not convert to
 // a bool.
 //
 // A value block whose type or default fails to decode accepts any value and resolves to an unknown value when nothing
 // sets it.
 func Decode(body hcl.Body) (*Declarations, hcl.Diagnostics) {
 	content, _, diags := body.PartialContent(valuesSchema)
-	if len(content.Blocks) == 0 {
+
+	for _, block := range content.Blocks.OfType(valueBlockName) {
+		diags = append(diags, misplacedValueDiagnostic(block))
+	}
+
+	blocks := content.Blocks.OfType(blockName)
+	if len(blocks) == 0 {
 		return nil, diags
 	}
 
-	first := content.Blocks[0]
+	first := blocks[0]
 
-	for _, extra := range content.Blocks[1:] {
+	for _, extra := range blocks[1:] {
 		diags = append(diags, &hcl.Diagnostic{
 			Severity: hcl.DiagError,
 			Summary:  "Duplicate " + blockName + " block",
 			Detail: fmt.Sprintf(
-				"Only one %s block is allowed. Another was defined at %s.",
+				"Only one %s block is allowed. Another is on line %d.",
 				blockName,
-				first.DefRange,
+				first.DefRange.Start.Line,
 			),
 			Subject: extra.DefRange.Ptr(),
 		})
@@ -113,7 +123,7 @@ func Decode(body hcl.Body) (*Declarations, hcl.Diagnostics) {
 			diags = append(diags, &hcl.Diagnostic{
 				Severity: hcl.DiagError,
 				Summary:  "Duplicate value declaration",
-				Detail:   fmt.Sprintf("The value %q was already declared at %s.", decl.Name, earlier),
+				Detail:   fmt.Sprintf("The value %q was already declared on line %d.", decl.Name, earlier.Start.Line),
 				Subject:  block.LabelRanges[0].Ptr(),
 			})
 
@@ -148,6 +158,20 @@ func (d *Declarations) Lookup(name string) (*Declaration, bool) {
 	}
 
 	return &d.Values[i], true
+}
+
+// misplacedValueDiagnostic reports block, a value block outside the values block.
+func misplacedValueDiagnostic(block *hcl.Block) *hcl.Diagnostic {
+	return &hcl.Diagnostic{
+		Severity: hcl.DiagError,
+		Summary:  "Value block outside a values block",
+		Detail: fmt.Sprintf(
+			"A value block declares one value, and goes inside the values block:\n"+
+				"  values {\n    value %q {\n      ...\n    }\n  }",
+			block.Labels[0],
+		),
+		Subject: block.DefRange.Ptr(),
+	}
 }
 
 // convert applies the optional attribute defaults of d to val and converts the result to the type of d.
@@ -244,6 +268,16 @@ func (d *Declaration) decodeDefault(attr *hcl.Attribute) hcl.Diagnostics {
 	val, diags := attr.Expr.Value(nil)
 	if diags.HasErrors() {
 		return diags
+	}
+
+	if val.IsNull() && !d.Nullable {
+		return append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  fmt.Sprintf("Null default for value %q", d.Name),
+			Detail: "A value that is not nullable can't default to null. Set nullable = true, or remove the default " +
+				"to make the value required.",
+			Subject: attr.Expr.Range().Ptr(),
+		})
 	}
 
 	converted, err := d.convert(val)

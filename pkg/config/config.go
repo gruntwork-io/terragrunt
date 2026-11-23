@@ -1027,15 +1027,16 @@ func dependencyBlock(dep *Dependency) (*hclwrite.Block, error) {
 // TerragruntConfigFile represents the configuration supported in a Terragrunt configuration file (i.e.
 // terragrunt.hcl)
 type TerragruntConfigFile struct {
-	Catalog                     *CatalogConfig     `hcl:"catalog,block"`
-	Engine                      *EngineConfig      `hcl:"engine,block"`
-	Terraform                   *TerraformConfig   `hcl:"terraform,block"`
-	TerraformBinary             *string            `hcl:"terraform_binary,attr"`
-	TerraformVersionConstraint  *string            `hcl:"terraform_version_constraint,attr"`
-	TerragruntVersionConstraint *string            `hcl:"terragrunt_version_constraint,attr"`
-	Inputs                      *cty.Value         `hcl:"inputs,attr"`
-	Variables                   []VariablesBlock   `hcl:"variables,block"`
-	Values                      *valuesBlockHeader `hcl:"values,block"`
+	Catalog                     *CatalogConfig   `hcl:"catalog,block"`
+	Engine                      *EngineConfig    `hcl:"engine,block"`
+	Terraform                   *TerraformConfig `hcl:"terraform,block"`
+	TerraformBinary             *string          `hcl:"terraform_binary,attr"`
+	TerraformVersionConstraint  *string          `hcl:"terraform_version_constraint,attr"`
+	TerragruntVersionConstraint *string          `hcl:"terragrunt_version_constraint,attr"`
+	Inputs                      *cty.Value       `hcl:"inputs,attr"`
+	Variables                   []VariablesBlock `hcl:"variables,block"`
+	Values                      *ValuesHCL       `hcl:"values,block"`
+	MisplacedValues             []ValueHCL       `hcl:"value,block"`
 
 	// We allow users to configure remote state (backend) via blocks:
 	//

@@ -65,9 +65,51 @@ values {
 }`,
 			want: []wantDiag{{
 				summary: "Duplicate values block",
-				detail:  "Only one values block is allowed. Another was defined at test.hcl:1,1-7.",
+				detail:  "Only one values block is allowed. Another is on line 1.",
 				line:    4,
 			}},
+			check: func(t *testing.T, decls *valuesblock.Declarations) {
+				t.Helper()
+				assert.Equal(t, []string{"a"}, decls.Names())
+			},
+		},
+		{
+			name: "null default for a value that is not nullable",
+			src: `values {
+  value "a" {
+    default = null
+  }
+}`,
+			want: []wantDiag{{
+				summary: `Null default for value "a"`,
+				detail: "A value that is not nullable can't default to null. Set nullable = true, or remove the " +
+					"default to make the value required.",
+				line: 3,
+			}},
+		},
+		{
+			name: "value block outside the values block",
+			src: `value "name" {
+  type = string
+}`,
+			want: []wantDiag{{
+				summary: "Value block outside a values block",
+				detail: "A value block declares one value, and goes inside the values block:\n" +
+					"  values {\n    value \"name\" {\n      ...\n    }\n  }",
+				line: 1,
+			}},
+			check: func(t *testing.T, decls *valuesblock.Declarations) {
+				t.Helper()
+				assert.Nil(t, decls)
+			},
+		},
+		{
+			name: "value block beside the values block",
+			src: `values {
+  value "a" {}
+}
+value "b" {}`,
+			want: []wantDiag{{summary: "Value block outside a values block", line: 4}},
 			check: func(t *testing.T, decls *valuesblock.Declarations) {
 				t.Helper()
 				assert.Equal(t, []string{"a"}, decls.Names())
@@ -81,7 +123,7 @@ values {
 }`,
 			want: []wantDiag{{
 				summary: "Duplicate value declaration",
-				detail:  `The value "a" was already declared at test.hcl:2,3-12.`,
+				detail:  `The value "a" was already declared on line 2.`,
 				line:    3,
 			}},
 			check: func(t *testing.T, decls *valuesblock.Declarations) {
@@ -250,7 +292,8 @@ values {
     default = [for x in [1] : x]
   }
   value "null" {
-    default = null
+    default  = null
+    nullable = true
   }
 }`,
 			check: func(t *testing.T, decls *valuesblock.Declarations) {

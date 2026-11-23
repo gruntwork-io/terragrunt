@@ -2,7 +2,7 @@
 // against it.
 //
 // A values block declares each value the component accepts with a value block, which may set a type constraint, a
-// default and a description:
+// default, a description, and whether a supplied null stays null:
 //
 //	values {
 //	  value "tags" {
