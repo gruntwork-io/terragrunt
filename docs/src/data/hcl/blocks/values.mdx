@@ -1,6 +1,6 @@
 ---
 name: values
-description: Declares the values a unit or stack accepts, with a type and an optional default for each.
+description: Declares the values a unit or stack accepts, each with an optional type, default, and description.
 configs: [unit, stack]
 since: v1.2.3
 experiment: values-block
@@ -90,7 +90,7 @@ import SideBySide from '@components/SideBySide.astro';
   The `values` block needs the [`values-block`](/reference/experiments/active#values-block) experiment. Enable it with `--experiment values-block` or `TG_EXPERIMENT=values-block`. Without the experiment, a config that has the block fails with an error.
 </Aside>
 
-The `values` block lists the values a unit or stack reads as `values.<name>`, and gives each one a type and an optional default. Terragrunt reports a key the block doesn't declare, a value of the wrong type, and a required value that nothing sets.
+The `values` block lists the values a unit or stack reads as `values.<name>`, each with an optional type, default, and description. Terragrunt reports a key the block doesn't declare, a value of the wrong type, and a required value that nothing sets.
 
 A config can have one `values` block, in the `terragrunt.hcl` of a unit or the `terragrunt.stack.hcl` of a stack. A `values` block in a file that another config includes, such as `root.hcl`, or in an [`autoinclude`](/reference/hcl/blocks/autoinclude) block, is an error. A config without the block reads `terragrunt.values.hcl` unchecked, with or without the experiment.
 
