@@ -56,10 +56,16 @@ func TestTFPathVariableUnitInAwsProviderPatchAll(t *testing.T) {
 
 	root := copyPathVariableFixture(t)
 
+	workingDir := filepath.Join(root, "all")
+
 	_, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		"terragrunt aws-provider-patch --all --override-attr region=eu-west-1 --non-interactive --working-dir "+
-			filepath.Join(root, "all")+pathVariableExperimentFlag,
+			workingDir+pathVariableExperimentFlag,
 	)
 	require.NoError(t, err)
+
+	initialized, err := filepath.Glob(filepath.Join(workingDir, ".terragrunt-cache", "*", "*", ".terraform"))
+	require.NoError(t, err)
+	assert.Len(t, initialized, 2)
 }

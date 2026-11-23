@@ -1062,17 +1062,8 @@ func PartialParseConfig(
 			output.Outputs.Merge(decoded.Outputs)
 
 		case moduleDirAttributes:
-			if TerraformSourceReferencesDependency(file) {
-				return nil, TerraformSourceReferencesDependencyError{ConfigPath: file.ConfigPath}
-			}
-
-			attr, err := moduleDirDependencyReference(file)
-			if err != nil {
+			if err := moduleDirDependencyError(file); err != nil {
 				return nil, err
-			}
-
-			if attr != "" {
-				return nil, ModuleDirReferencesDependencyError{ConfigPath: file.ConfigPath, Attribute: attr}
 			}
 
 			decoded := terragruntModuleDir{}
@@ -1347,30 +1338,43 @@ func autoIncludeContentSuffix(fsys vfs.FS, autoIncludePath string) string {
 	return fmt.Sprintf("-autoinclude:%#v-%#v", true, content)
 }
 
-// moduleDirDependencyReference returns the module directory attribute of file that references a dependency, or "".
-func moduleDirDependencyReference(file *hclparse.File) (string, error) {
+// moduleDirDependencyError returns the error for a module directory attribute of file that references a dependency.
+func moduleDirDependencyError(file *hclparse.File) error {
+	const source = "source"
+
 	attr, err := dependencyReferenceAttribute(file, file.Body, MetadataDownloadDir)
-	if err != nil || attr != "" {
-		return attr, err
+	if err != nil {
+		return err
+	}
+
+	if attr != "" {
+		return ModuleDirReferencesDependencyError{ConfigPath: file.ConfigPath, Attribute: attr}
 	}
 
 	blocks, err := file.Blocks(MetadataTerraform, true)
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	for _, block := range blocks {
-		attr, err := dependencyReferenceAttribute(file, block.Body, "source", "no_dot_terragrunt_cache")
+		attr, err := dependencyReferenceAttribute(file, block.Body, source, "no_dot_terragrunt_cache")
 		if err != nil {
-			return "", err
+			return err
+		}
+
+		if attr == source {
+			return TerraformSourceReferencesDependencyError{ConfigPath: file.ConfigPath}
 		}
 
 		if attr != "" {
-			return MetadataTerraform + "." + attr, nil
+			return ModuleDirReferencesDependencyError{
+				ConfigPath: file.ConfigPath,
+				Attribute:  MetadataTerraform + "." + attr,
+			}
 		}
 	}
 
-	return "", nil
+	return nil
 }
 
 // dependencyReferenceAttribute returns the first of the named attributes of body that references a dependency, or "".

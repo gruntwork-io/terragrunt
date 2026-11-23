@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -90,7 +91,7 @@ func TestPathVariableInRenderAll(t *testing.T) {
 		dir   string
 		units []string
 	}{
-		{name: "unit, include and read", dir: "live", units: []string{"app", "db", "json"}},
+		{name: "unit, include and read", dir: "live", units: []string{"absolute", "app", "db", "json"}},
 		{
 			name:  "module",
 			dir:   "module",
@@ -132,12 +133,14 @@ func TestPathVariableUnitInBackendDeleteAll(t *testing.T) {
 
 	root := copyPathVariableFixture(t)
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		"terragrunt backend delete --all --force --non-interactive --working-dir "+filepath.Join(root, "all")+
 			pathVariableExperimentFlag,
 	)
 	require.NoError(t, err)
+
+	assert.Equal(t, 2, strings.Count(stderr, "Delete for local backend not implemented"))
 }
 
 func TestPathVariableInGeneratedStack(t *testing.T) {
@@ -203,6 +206,7 @@ func TestPathVariableInGeneratedStackInclude(t *testing.T) {
 		"stack_dir":    stackDir,
 		"auto_include": includePath,
 		"auto_index":   includePath,
+		"auto_guard":   "components.hcl",
 		"auto_label":   "components.hcl:" + appDir,
 	}, renderPathVariableInputs(t, appDir))
 }
@@ -245,9 +249,9 @@ func TestPathVariableRequiresExperiment(t *testing.T) {
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt render --format json --non-interactive --working-dir "+filepath.Join(root, "values", "app"),
+		"terragrunt render --format json --non-interactive --working-dir "+filepath.Join(root, "live", "json"),
 	)
-	require.Error(t, err)
+	require.ErrorContains(t, err, "--experiment "+experiment.PathVariable)
 }
 
 // findPathVariableDependencies returns the dependencies of each component that discovery finds in workingDir.

@@ -71,6 +71,10 @@ In the configuration of a `dependency`, `path.unit` and `path.module` are the pa
 
 Terragrunt resolves `path.module` before it reads the outputs of a `dependency`. A unit that references `path.module` returns an error when its `download_dir` or its `terraform.no_dot_terragrunt_cache` references a `dependency` output.
 
+Terragrunt evaluates the `locals` of a unit more than one time. In an early evaluation, `path.module` can be an empty string, or a directory that the run does not use, e.g. in `run --all` or with `--source`. A `run_cmd` call in `locals` that receives `path.module` also runs with those values, so do not build the path of a destructive command from it. An expression in `locals` that fails for an empty string, e.g. `regex("[^/]+$", path.module)`, fails the unit. Wrap it in `try`, or move it to `inputs`.
+
+With `--all` and `--source`, `render` does not add the module path of each unit to the source, so its `path.module` is not the directory that `run --all` uses.
+
 In the `autoinclude` block of a `unit` block in `terragrunt.stack.hcl`, `path` has the values of the generated unit, so `path.unit` and `path.module` are the paths of that unit:
 
 ```hcl
@@ -87,7 +91,7 @@ unit "app" {
 }
 ```
 
-Terragrunt resolves `path.include` in that block when it generates the stack, so it is the path of the included file that declares the block.
+Terragrunt resolves `path.include` in that block when it generates the stack, so it is the path of the included file that declares the block. The same applies to `path[key]` when the key is known at that time. An expression that reads the whole `path` object, e.g. `keys(path)`, `lookup(path, "include", "")` or `path[key]` with a `for` iterator as the key, resolves in the generated unit, where `path` has no `include` attribute.
 
 Two parts of a stack file also resolve when Terragrunt generates the stack, where `path.unit` and `path.module` are not defined: the `config_path` of a `dependency` block, and the `autoinclude` block of a `stack` block.
 

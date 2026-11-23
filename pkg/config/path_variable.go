@@ -2,8 +2,11 @@ package config
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
+	"strings"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
@@ -30,7 +33,13 @@ const (
 	pathAttrInclude = "include"
 	// pathAttrRead names `path.read`, the path of the file read_terragrunt_config reads.
 	pathAttrRead = "read"
+	// pathExperimentHint tells how to enable the `path` variable.
+	pathExperimentHint = " The `path` variable needs the " + experiment.PathVariable + " experiment. Enable it with " +
+		"--experiment " + experiment.PathVariable + " or TG_EXPERIMENT=" + experiment.PathVariable + "."
 )
+
+// pathExperimentHintOption adds the experiment hint to the diagnostics of an unknown `path` variable.
+var pathExperimentHintOption = hclparse.WithDiagnosticsHandler(pathExperimentDiagnostics)
 
 // pathReferences is the set of `path` attributes a file references.
 type pathReferences struct {
@@ -174,6 +183,62 @@ func pathCacheKeySuffix(fsys vfs.FS, pctx *ParsingContext) string {
 	return fmt.Sprintf("%s-stack:%#v", suffix, stackDir)
 }
 
+// pathExperimentDiagnostics adds the experiment hint to each diagnostic of an unknown `path` variable.
+func pathExperimentDiagnostics(_ *hcl.File, diags hcl.Diagnostics) (hcl.Diagnostics, error) {
+	hintUnknownPath(diags)
+
+	return diags, nil
+}
+
+// withPathExperimentHint adds the experiment hint to the diagnostics that err holds when the experiment is not enabled.
+func withPathExperimentHint(enabled bool, err error) error {
+	var diags hcl.Diagnostics
+
+	if !enabled && errors.As(err, &diags) {
+		hintUnknownPath(diags)
+	}
+
+	return err
+}
+
+// hintUnknownPath adds the experiment hint to each diagnostic of an unknown `path` variable.
+func hintUnknownPath(diags hcl.Diagnostics) {
+	for _, diag := range diags {
+		if readsUnknownPath(diag) && !strings.HasSuffix(diag.Detail, pathExperimentHint) {
+			diag.Detail += pathExperimentHint
+		}
+	}
+}
+
+// readsUnknownPath reports whether diag, or a cause that diag holds, is for a reference to an unknown `path`.
+func readsUnknownPath(diag *hcl.Diagnostic) bool {
+	if causes, held := diag.Extra.(hcl.Diagnostics); held {
+		return slices.ContainsFunc(causes, referencesUnknownPath)
+	}
+
+	return referencesUnknownPath(diag)
+}
+
+// referencesUnknownPath reports whether diag is for a reference to `path` that no scope defines.
+func referencesUnknownPath(diag *hcl.Diagnostic) bool {
+	if diag.Expression == nil {
+		return false
+	}
+
+	traversal, diags := hcl.AbsTraversalForExpr(diag.Expression)
+	if diags.HasErrors() || traversal.RootName() != MetadataPath {
+		return false
+	}
+
+	for scope := diag.EvalContext; scope != nil; scope = scope.Parent() {
+		if _, defined := scope.Variables[MetadataPath]; defined {
+			return false
+		}
+	}
+
+	return true
+}
+
 // autoIncludeUnitRoots returns the variable roots a unit autoinclude leaves for the generated unit to resolve.
 func autoIncludeUnitRoots(pctx *ParsingContext) []string {
 	if !pctx.Experiments.Evaluate(experiment.PathVariable) {
@@ -273,7 +338,7 @@ func basePathAttributes(pctx *ParsingContext, include *IncludeConfig) map[string
 	}
 
 	if include != nil {
-		attrs[pathAttrInclude] = cty.StringVal(include.Path)
+		attrs[pathAttrInclude] = cty.StringVal(filepath.Clean(include.Path))
 	}
 
 	if chain := pctx.readConfigChain; len(chain) > 0 && chain[len(chain)-1].path == pctx.TerragruntConfigPath {

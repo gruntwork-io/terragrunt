@@ -327,11 +327,17 @@ func localReference(localVar hcl.Traversal, roots []string) (localName, detail s
 	rootName := localVar.RootName()
 
 	if !slices.Contains(roots, rootName) {
-		return "", fmt.Sprintf(
+		detail := fmt.Sprintf(
 			"Locals can only reference these variables: %s. This expression references %q.",
 			strings.Join(roots, ", "),
 			rootName,
 		)
+
+		if rootName == MetadataPath {
+			detail += pathExperimentHint
+		}
+
+		return "", detail
 	}
 
 	if rootName != MetadataLocal {

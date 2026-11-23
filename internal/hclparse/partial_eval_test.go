@@ -8,6 +8,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/ext/tryfunc"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1362,6 +1363,36 @@ func TestPartialEval_ResolvesPathIncludeOfDeferredPath(t *testing.T) {
 			hcl:  `val = [for key in ["include"] : path[key]]`,
 			want: `[for key in ["include"] : path[key]]`,
 		},
+		{
+			name: "dynamic index in a condition with an unresolved unused branch",
+			hcl:  `val = path[local.key] == path.include ? "same" : local.missing`,
+			want: `"same"`,
+		},
+		{
+			name: "dynamic index in a template directive",
+			hcl:  `val = "%{ if path[local.key] == path.include }same%{ else }other%{ endif }"`,
+			want: `"same"`,
+		},
+		{
+			name: "dynamic index in a template with a deferred part",
+			hcl:  `val = "${path[local.key]}:${path.unit}"`,
+			want: `"/catalog/components.hcl:${path.unit}"`,
+		},
+		{
+			name: "dynamic index in parentheses",
+			hcl:  `val = (path[local.key])`,
+			want: `"/catalog/components.hcl"`,
+		},
+		{
+			name: "dynamic index next to a read of the whole object",
+			hcl:  `val = [path[local.key], path]`,
+			want: `["/catalog/components.hcl", path]`,
+		},
+		{
+			name: "dynamic index with a key that a for expression binds",
+			hcl:  `val = [for local in dependency.db.outputs.items : path[local.key]]`,
+			want: `[for local in dependency.db.outputs.items : path[local.key]]`,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -1412,31 +1443,54 @@ func TestPartialEval_PathIncludeOutsideIncludedFileReturnsTypedError(t *testing.
 	}
 }
 
-func TestPartialEval_PathIndexOutsideIncludedFileKeepsNoStackLocal(t *testing.T) {
+func TestPartialEval_PathIncludeFallbackOutsideIncludedFile(t *testing.T) {
 	t.Parallel()
 
-	expr, srcBytes := parseFirstAttrExpr(t, `val = try(path[local.key], "fallback")`)
+	testCases := []struct {
+		name string
+		hcl  string
+	}{
+		{name: "attribute", hcl: `val = try(path.include, "fallback")`},
+		{name: "dynamic index", hcl: `val = try(path[local.key], "fallback")`},
+	}
 
-	result, err := hclparse.PartialEval(expr, &hclparse.EvalArgs{
-		SrcBytes: srcBytes,
-		EvalCtx:  pathEvalCtx(map[string]cty.Value{}),
-		Deferred: pathDeferred,
-	})
-	require.NoError(t, err)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	assert.Equal(t, `try(path["include"], "fallback")`, string(result))
+			expr, srcBytes := parseFirstAttrExpr(t, tc.hcl)
+			evalCtx := pathEvalCtx(map[string]cty.Value{})
+			evalCtx.Functions = map[string]function.Function{"try": tryfunc.TryFunc}
+
+			result, err := hclparse.PartialEval(expr, &hclparse.EvalArgs{
+				SrcBytes: srcBytes,
+				EvalCtx:  evalCtx,
+				Deferred: pathDeferred,
+			})
+			require.NoError(t, err)
+
+			assert.Equal(t, `"fallback"`, string(result))
+		})
+	}
 }
 
-func TestPartialEval_PathIndexEvaluatesKeyOnce(t *testing.T) {
+func TestPartialEval_PathIndexKeyEvaluationsDoNotGrowWithNesting(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
 		name string
 		key  string
+		hcl  string
 		want string
 	}{
-		{name: "include", key: "include", want: `"/catalog/components.hcl"`},
-		{name: "other attribute", key: "unit", want: `path["unit"]`},
+		{name: "include", key: "include", hcl: `val = path[key()]`, want: `"/catalog/components.hcl"`},
+		{name: "other attribute", key: "unit", hcl: `val = path[key()]`, want: `path["unit"]`},
+		{
+			name: "include below deferred parents",
+			key:  "include",
+			hcl:  `val = [[[path[key()]]], dependency.db.outputs.value]`,
+			want: `[[["/catalog/components.hcl"]], dependency.db.outputs.value]`,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -1456,7 +1510,7 @@ func TestPartialEval_PathIndexEvaluatesKeyOnce(t *testing.T) {
 				}),
 			}
 
-			expr, srcBytes := parseFirstAttrExpr(t, `val = path[key()]`)
+			expr, srcBytes := parseFirstAttrExpr(t, tc.hcl)
 
 			result, err := hclparse.PartialEval(expr, &hclparse.EvalArgs{
 				SrcBytes: srcBytes,
@@ -1466,7 +1520,7 @@ func TestPartialEval_PathIndexEvaluatesKeyOnce(t *testing.T) {
 			require.NoError(t, err)
 
 			assert.Equal(t, tc.want, string(result))
-			assert.Equal(t, 1, calls)
+			assert.Equal(t, 2, calls)
 		})
 	}
 }
@@ -1482,6 +1536,9 @@ func TestIsPure_PathIncludeIsNotADeferredRead(t *testing.T) {
 		{name: "path.include", hcl: `val = path.include`, want: true},
 		{name: "path.unit", hcl: `val = path.unit`, want: false},
 		{name: "both", hcl: `val = "${path.include}:${path.unit}"`, want: false},
+		{name: "index with a computed include key", hcl: `val = path["inc${"lude"}"]`, want: true},
+		{name: "index with another computed key", hcl: `val = path["un${"it"}"]`, want: false},
+		{name: "whole object", hcl: `val = path`, want: false},
 	}
 
 	for _, tc := range testCases {

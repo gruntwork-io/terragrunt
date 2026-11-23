@@ -246,6 +246,7 @@ func GenerateStackFile(
 		casOffline:      pctx.CASOffline,
 		casInstance:     cs.Instance,
 		strictControls:  pctx.StrictControls,
+		pathVariable:    pctx.Experiments.Evaluate(experiment.PathVariable),
 		// One getter per stack, so every component shares its credential resolution.
 		ociGetter: getter.NewOCIGetter(l, v),
 	}
@@ -392,7 +393,7 @@ func resolveStackAutoIncludes(
 		return nil, nil, AutoIncludeParserStageError{
 			Stage: "parse",
 			File:  stackFilePath,
-			Err:   parseErr,
+			Err:   withPathExperimentHint(pctx.Experiments.Evaluate(experiment.PathVariable), parseErr),
 		}
 	}
 
@@ -553,6 +554,7 @@ type generateOpts struct {
 	noStackValidate bool
 	casEnabled      bool
 	casOffline      bool
+	pathVariable    bool
 }
 
 // generateUnits iterates through a slice of Unit objects, generating each one by copying
@@ -838,7 +840,12 @@ func generateAutoInclude(
 		resolved.SourceBytes,
 		resolved.EvalCtx,
 	); err != nil {
-		return fmt.Errorf("failed to write autoinclude for %s %s: %w", kind, cmp.address, err)
+		return fmt.Errorf(
+			"failed to write autoinclude for %s %s: %w",
+			kind,
+			cmp.address,
+			withPathExperimentHint(opts.pathVariable, err),
+		)
 	}
 
 	return nil

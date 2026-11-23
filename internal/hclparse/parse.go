@@ -194,7 +194,7 @@ func IncludeEvalContext(evalCtx *hcl.EvalContext, includePath string) *hcl.EvalC
 
 	attrs := make(map[string]cty.Value, path.LengthInt()+1)
 	maps.Copy(attrs, path.AsValueMap())
-	attrs[pathAttrInclude] = cty.StringVal(includePath)
+	attrs[pathAttrInclude] = cty.StringVal(filepath.Clean(includePath))
 
 	child := evalCtx.NewChild()
 	child.Variables = map[string]cty.Value{varPath: cty.ObjectVal(attrs)}

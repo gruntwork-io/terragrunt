@@ -295,7 +295,10 @@ func (pc *ParseContext) parsingContext() *pkgconfig.ParsingContext {
 
 // parserOptions returns the options for the parsers that read pc's file, which log through l and write through v.
 func (pc *ParseContext) parserOptions(l log.Logger, v *venv.Venv) []pkghclparse.Option {
-	return pkgconfig.ParserOptions(l, v, pc.parserSettings())
+	settings := *pc.settings
+	settings.Parser = pc.parserSettings()
+
+	return settings.ParserOptions(l, v)
 }
 
 // parserSettings returns the file's parser settings with pc's diagnostics sink applied.

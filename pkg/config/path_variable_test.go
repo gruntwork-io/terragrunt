@@ -3,6 +3,8 @@ package config_test
 import (
 	"context"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -45,6 +47,17 @@ func TestPathVariableInUnitIncludeAndRead(t *testing.T) {
 		"root_local":   filepath.Join(root, "root.hcl"),
 		"root_read":    "not-read",
 	}, inputs)
+}
+
+func TestPathVariableIncludeOfAbsolutePathIsClean(t *testing.T) {
+	t.Parallel()
+
+	v, root := pathFixture(t)
+
+	inputs := parsePathUnit(t, v, filepath.Join(root, "live", "absolute"))
+
+	assert.Equal(t, filepath.Join(root, "root.hcl"), inputs["root_include"])
+	assert.Equal(t, filepath.Join(root, "root.hcl"), inputs["root_local"])
 }
 
 func TestPathVariableReadIsScopedToTheReadingUnit(t *testing.T) {
@@ -340,12 +353,6 @@ func TestPathVariableModuleRejectsDependencyReference(t *testing.T) {
 			config:    config.DefaultTerragruntJSONConfigPath,
 			attribute: "terraform.no_dot_terragrunt_cache",
 		},
-		{
-			name:      "source in JSON",
-			unit:      "source-json",
-			config:    config.DefaultTerragruntJSONConfigPath,
-			attribute: "terraform.source",
-		},
 	}
 
 	for _, tc := range testCases {
@@ -365,6 +372,21 @@ func TestPathVariableModuleRejectsDependencyReference(t *testing.T) {
 			assert.Equal(t, cfgPath, got.ConfigPath)
 		})
 	}
+}
+
+func TestPathVariableModuleRejectsDependencyReferenceInJSONSource(t *testing.T) {
+	t.Parallel()
+
+	v, root := pathFixture(t)
+	cfgPath := filepath.Join(root, "module", "dependency", "source-json", config.DefaultTerragruntJSONConfigPath)
+	ctx, pctx := newPathParsingContext(t, cfgPath)
+
+	_, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, cfgPath, nil)
+
+	var got config.TerraformSourceReferencesDependencyError
+
+	require.ErrorAs(t, err, &got)
+	assert.Equal(t, cfgPath, got.ConfigPath)
 }
 
 func TestPathVariableAsWholeObject(t *testing.T) {
@@ -546,6 +568,43 @@ func TestPathVariableInAutoIncludeBlockRequiresExperiment(t *testing.T) {
 	var unresolved inthclparse.PartialEvalUnresolvedError
 
 	require.ErrorAs(t, err, &unresolved)
+
+	var diags hcl.Diagnostics
+
+	require.ErrorAs(t, err, &diags)
+	assert.True(t, namesPathExperiment(diags))
+}
+
+func TestPathVariableInAutoIncludeDependencyConfigPath(t *testing.T) {
+	t.Parallel()
+
+	v, root := pathFixture(t)
+	stackDir := filepath.Join(root, "autoinclude-dependency", "live")
+
+	require.NoError(t, generatePathStack(t, v, stackDir, experiment.PathVariable, experiment.StackDependencies))
+
+	paths, err := inthclparse.AutoIncludeDependencyPaths(v.FS, filepath.Join(stackDir, config.StackDir, "app"))
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{filepath.Join(stackDir, config.StackDir, "db")}, paths)
+}
+
+func TestPathVariableInAutoIncludeDependencyConfigPathRequiresExperiment(t *testing.T) {
+	t.Parallel()
+
+	v, root := pathFixture(t)
+
+	err := generatePathStack(
+		t,
+		v,
+		filepath.Join(root, "autoinclude-dependency", "live"),
+		experiment.StackDependencies,
+	)
+
+	var diags hcl.Diagnostics
+
+	require.ErrorAs(t, err, &diags)
+	assert.True(t, namesPathExperiment(diags))
 }
 
 func TestPathVariableInStackInclude(t *testing.T) {
@@ -604,6 +663,7 @@ func TestPathVariableInGeneratedStackInclude(t *testing.T) {
 		"stack_dir":    stackDir,
 		"auto_include": includePath,
 		"auto_index":   includePath,
+		"auto_guard":   "components.hcl",
 		"auto_label":   "components.hcl:" + appDir,
 	}, parsePathUnit(t, v, appDir))
 }
@@ -684,6 +744,39 @@ func TestPathVariableRequiresExperiment(t *testing.T) {
 	var diags hcl.Diagnostics
 
 	require.ErrorAs(t, err, &diags)
+}
+
+func TestPathVariableErrorNamesTheExperimentWhenDisabled(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name   string
+		config string
+	}{
+		{name: "locals", config: filepath.Join("module", "local", config.DefaultTerragruntConfigPath)},
+		{name: "inputs", config: filepath.Join("module", "remote", config.DefaultTerragruntConfigPath)},
+		{name: "values file", config: filepath.Join("values", "app", config.DefaultTerragruntConfigPath)},
+		{name: "JSON config", config: filepath.Join("live", "json", config.DefaultTerragruntJSONConfigPath)},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v, root := pathFixture(t)
+			cfgPath := filepath.Join(root, tc.config)
+
+			ctx, pctx := newTestParsingContext(t, cfgPath)
+			pctx.OriginalTerragruntConfigPath = cfgPath
+
+			_, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, cfgPath, nil)
+
+			var diags hcl.Diagnostics
+
+			require.ErrorAs(t, err, &diags)
+			assert.True(t, namesPathExperiment(diags))
+		})
+	}
 }
 
 // pathFixture mirrors the path-variable fixture into memory and returns the venv and the fixture root.
@@ -768,4 +861,11 @@ func parsePathUnit(t *testing.T, v *venv.Venv, unitDir string) map[string]any {
 	cfgPath := filepath.Join(unitDir, config.DefaultTerragruntConfigPath)
 
 	return parsePathInputs(config.WithCaches(t.Context()), t, v, cfgPath)
+}
+
+// namesPathExperiment reports whether a diagnostic tells how to enable the path-variable experiment.
+func namesPathExperiment(diags hcl.Diagnostics) bool {
+	return slices.ContainsFunc(diags, func(diag *hcl.Diagnostic) bool {
+		return strings.Contains(diag.Detail, "--experiment "+experiment.PathVariable)
+	})
 }

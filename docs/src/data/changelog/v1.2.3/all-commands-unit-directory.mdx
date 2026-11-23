@@ -1,0 +1,10 @@
+---
+version: "v1.2.3"
+category: "bug-fixes"
+---
+
+#### `render --all`, `backend delete --all` and `aws-provider-patch --all` resolve `get_original_terragrunt_dir()` to the discovered unit
+
+With `--all`, `render`, `backend delete` and `aws-provider-patch` resolved `get_original_terragrunt_dir()` to the directory the command ran from, not to the directory of each discovered unit. A `read_terragrunt_config()` call with a path relative to `get_original_terragrunt_dir()` failed with "You attempted to run terragrunt in a folder that does not contain a terragrunt.hcl file", while `run --all` worked on the same configuration.
+
+These commands now resolve `get_original_terragrunt_dir()` to the directory of each unit, the same as `run --all`, `hcl validate` and `backend bootstrap --all`. `render --all` also resolves `get_working_dir()` to the cache directory of each unit when no download directory is set.

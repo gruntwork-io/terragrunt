@@ -11,6 +11,7 @@ unit "app" {
     inputs = {
       auto_include = path.include
       auto_index   = path[lower("INCLUDE")]
+      auto_guard   = "%{if path[lower("INCLUDE")] == path.include}${basename(path.include)}%{else}other%{endif}"
       auto_label   = "${basename(path.include)}:${path.unit}"
     }
   }

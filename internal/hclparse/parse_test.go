@@ -761,13 +761,13 @@ func TestIncludeEvalContext(t *testing.T) {
 
 		base := &hcl.EvalContext{Variables: pathVars("/live")}
 
-		scoped := hclparse.IncludeEvalContext(base, "/catalog/components.hcl")
+		scoped := hclparse.IncludeEvalContext(base, filepath.FromSlash("/catalog/units/../components.hcl"))
 
 		assert.Same(t, base, scoped.Parent())
 		assert.Equal(t, map[string]cty.Value{
 			"path": cty.ObjectVal(map[string]cty.Value{
 				"stack":   cty.StringVal("/live"),
-				"include": cty.StringVal("/catalog/components.hcl"),
+				"include": cty.StringVal(filepath.FromSlash("/catalog/components.hcl")),
 			}),
 		}, scoped.Variables)
 		assert.Equal(t, pathVars("/live"), base.Variables)
@@ -824,6 +824,7 @@ func TestParseStackFileScopesPathIncludeToIncludedFile(t *testing.T) {
 	content := string(generated)
 	assert.Contains(t, content, "auto_include = "+strconv.Quote(includePath))
 	assert.Contains(t, content, "auto_index   = "+strconv.Quote(includePath))
+	assert.Contains(t, content, `auto_guard   = "components.hcl"`)
 	assert.Contains(t, content, `"components.hcl:${path.unit}"`)
 }
 
