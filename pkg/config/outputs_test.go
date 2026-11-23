@@ -989,22 +989,22 @@ outputs {
 			check:     requireDeclaredMocks,
 		},
 		{
-			name:      "declared mocks without allowed_commands do not stand in for apply",
+			name:      "declared mocks without allowed_commands stand in for apply",
 			vpcConfig: outputsBlockWithoutStrategy,
 			command:   "apply",
-			check:     requireNoOutputs,
+			check:     requireDeclaredMocks,
 		},
 		{
-			name:      "declared mocks without allowed_commands do not stand in for destroy",
+			name:      "declared mocks without allowed_commands stand in for destroy",
 			vpcConfig: outputsBlockWithoutStrategy,
 			command:   "destroy",
-			check:     requireNoOutputs,
+			check:     requireDeclaredMocks,
 		},
 		{
-			name:      "declared mocks with an empty allowed_commands do not stand in for apply",
+			name:      "declared mocks with an empty allowed_commands stand in for apply",
 			vpcConfig: withMockStrategy("allowed_commands = []"),
 			command:   "apply",
-			check:     requireNoOutputs,
+			check:     requireDeclaredMocks,
 		},
 		{
 			name:      "declared mocks stand in for apply when allowed_commands lists it",
@@ -1020,11 +1020,11 @@ outputs {
 			check:          requireDeclaredMocks,
 		},
 		{
-			name:           "an empty dependent list does not let declared mocks stand in for apply",
+			name:           "an empty dependent list lets declared mocks stand in for apply",
 			vpcConfig:      withMockStrategy(`allowed_commands = ["plan"]`),
 			dependencyBody: `mock_outputs_allowed_terraform_commands = []`,
 			command:        "apply",
-			check:          requireNoOutputs,
+			check:          requireDeclaredMocks,
 		},
 		{
 			name:           "an empty dependent list lets declared mocks stand in for plan",
@@ -1041,7 +1041,7 @@ outputs {
 			check:          requireNoOutputs,
 		},
 		{
-			name:           "the dependent's mock_outputs stand in for apply without the declared mocks",
+			name:           "the dependent's mock_outputs win over the declared mocks key by key for apply",
 			vpcConfig:      outputsBlockWithoutStrategy,
 			dependencyBody: `mock_outputs = { vpc_id = "app-mock" }`,
 			command:        "apply",
@@ -1056,7 +1056,7 @@ inputs = {
 
 				require.NoError(t, err)
 				require.Equal(t, "app-mock", cfg.Inputs["vpc_id"])
-				require.Equal(t, false, cfg.Inputs["has_subnets"])
+				require.Equal(t, true, cfg.Inputs["has_subnets"])
 			},
 		},
 		{
@@ -1074,29 +1074,10 @@ inputs = {
 			},
 		},
 		{
-			name:      "apply without allowed_commands names the command that cannot read the declared mocks",
-			vpcConfig: outputsBlockWithoutStrategy,
-			command:   "apply",
-			check: func(t *testing.T, _ *config.TerragruntConfig, err error) {
-				t.Helper()
-
-				var notAllowedErr config.DeclaredMocksNotAllowedError
-
-				require.ErrorAs(t, err, &notAllowedErr)
-				require.Equal(t, "apply", notAllowedErr.Command)
-				requireNoOutputs(t, nil, err)
-			},
-		},
-		{
-			name:      "a unit that declares no mock value reports no command that cannot read mocks",
+			name:      "a unit that declares no mock value has no outputs for apply",
 			vpcConfig: "outputs {\n  output \"vpc_id\" {}\n\n  output \"subnet_ids\" {}\n}\n",
 			command:   "apply",
-			check: func(t *testing.T, _ *config.TerragruntConfig, err error) {
-				t.Helper()
-
-				requireNoOutputs(t, nil, err)
-				require.NotErrorAs(t, err, new(config.DeclaredMocksNotAllowedError))
-			},
+			check:     requireNoOutputs,
 		},
 		{
 			name:           "the dependent's mock_outputs fill no declared output missing from state for apply",
@@ -1131,16 +1112,12 @@ inputs = {
 			check:    requireFilledSubnets,
 		},
 		{
-			name:           "a dependent that skips outputs reads no declared mocks for apply without allowed_commands",
+			name:           "a dependent that skips outputs reads the declared mocks for apply without allowed_commands",
 			vpcConfig:      outputsBlockWithoutStrategy,
 			dependencyBody: `skip_outputs = true`,
 			command:        "apply",
 			vpcState:       vpcStateWithAllOutputs,
-			check: func(t *testing.T, _ *config.TerragruntConfig, err error) {
-				t.Helper()
-
-				requireDiagnostic(t, err, "Unsupported attribute")
-			},
+			check:          requireDeclaredMocks,
 		},
 		{
 			name:           "a dependent that skips outputs reads the declared mocks for a listed apply",
@@ -1159,17 +1136,16 @@ inputs = {
 			check:          requireFilledSubnets,
 		},
 		{
-			name:      "a state merge of the unit supplies no declared mock value for apply without allowed_commands",
+			name:      "a state merge of the unit supplies the declared mock value for apply without allowed_commands",
 			vpcConfig: withMockStrategy(`merge_with_state = "shallow"`),
 			command:   "apply",
 			vpcState:  vpcStateWithOnlyVPC,
-			check: func(t *testing.T, _ *config.TerragruntConfig, err error) {
+			check: func(t *testing.T, cfg *config.TerragruntConfig, err error) {
 				t.Helper()
 
-				var missingErr config.DeclaredOutputMissingError
-
-				require.ErrorAs(t, err, &missingErr)
-				require.Equal(t, "subnet_ids", missingErr.Output)
+				require.NoError(t, err)
+				require.Equal(t, "vpc-real", cfg.Inputs["vpc_id"])
+				require.Equal(t, mockSubnets, cfg.Inputs["subnet_ids"])
 			},
 		},
 		{
@@ -1217,11 +1193,13 @@ inputs = {
 			},
 		},
 		{
-			name:      "an output that is not nullable keeps a state with no outputs an error for apply",
-			vpcConfig: strings.Replace(nullableOutputsConfig, "%s", "", 1),
-			command:   "apply",
-			inputs:    nullableInputs,
-			check:     requireNoOutputs,
+			name: "an output that is not nullable keeps a state with no outputs an error for apply",
+			vpcConfig: strings.Replace(
+				nullableOutputsConfig, "%s", "mock_strategy {\n    allowed_commands = [\"plan\"]\n  }\n", 1,
+			),
+			command: "apply",
+			inputs:  nullableInputs,
+			check:   requireNoOutputs,
 		},
 		{
 			name:           "a dependent that skips outputs reads no null for outputs that are all nullable",

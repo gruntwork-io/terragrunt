@@ -17,7 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-// unlistedMockCommands read declared mock values only when the allowed commands name them.
+// unlistedMockCommands fill a declared output that the state lacks only when the allowed commands name them.
 var unlistedMockCommands = []string{tf.CommandNameApply, tf.CommandNameDestroy}
 
 type declaredDependency struct {
@@ -59,7 +59,7 @@ func (dep *Dependency) withDeclaredOutputs(
 		}
 	}
 
-	effective.MockOutputs = mergeDeclaredMockValues(declaredMockValues(pctx, &effective, declared), dep.MockOutputs)
+	effective.MockOutputs = mergeDeclaredMockValues(declaredMockValues(pctx, declared), dep.MockOutputs)
 
 	return declaredDependency{dep: &effective, outputs: declared}, nil
 }
@@ -263,22 +263,13 @@ func readableMocks(pctx *ParsingContext, dep *Dependency) map[string]cty.Value {
 	return values
 }
 
-// declaredMockValues returns the mock values dep reads from declared, none for an apply or destroy its list omits.
-func declaredMockValues(pctx *ParsingContext, dep *Dependency, declared *OutputsConfig) *cty.Value {
-	if runsUnlistedMockCommand(pctx, dep) {
-		return nil
-	}
-
+// declaredMockValues returns the mock values declared sets, with unknown for the rest when outputs are skipped.
+func declaredMockValues(pctx *ParsingContext, declared *OutputsConfig) *cty.Value {
 	if pctx.SkipOutput {
 		return declared.mockValuesOrUnknown()
 	}
 
 	return declared.MockValues()
-}
-
-// readsDeclaredMocks reports whether the command reads a mock value that declared sets.
-func readsDeclaredMocks(pctx *ParsingContext, dep *Dependency, declared *OutputsConfig) bool {
-	return declared != nil && declaredMockValues(pctx, dep, declared) != nil
 }
 
 // runsUnlistedMockCommand reports whether the command is an apply or destroy that the allowed commands of dep omit.

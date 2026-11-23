@@ -1091,7 +1091,7 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(
 	}
 
 	if dependencyConfig.shouldReturnMockOutputs(pctx) {
-		logMockOutputsFallback(l, pctx, targetConfig, readsDeclaredMocks(pctx, dependencyConfig, declared))
+		logMockOutputsFallback(l, pctx, targetConfig, declared)
 
 		return dependencyConfig.MockOutputs, nil
 	}
@@ -1118,15 +1118,6 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(
 		targetPath:    configPath,
 		targetConfig:  targetConfig,
 		currentConfig: pctx.TerragruntConfigPath,
-	}
-
-	if declared.MockValues() != nil {
-		return nil, DeclaredMocksNotAllowedError{
-			Err:          noOutputs,
-			TargetConfig: targetConfig,
-			ConfigPath:   pctx.TerragruntConfigPath,
-			Command:      pctx.OriginalTofuCommand,
-		}
 	}
 
 	return nil, noOutputs
@@ -3010,9 +3001,9 @@ func ValidateDependencyConfigPaths(
 	return errors.Join(errs...)
 }
 
-// logMockOutputsFallback logs the fall back to mock outputs, as a warning unless an outputs block declared them.
-func logMockOutputsFallback(l log.Logger, pctx *ParsingContext, targetConfig string, declared bool) {
-	if declared {
+// logMockOutputsFallback logs the fall back to mock outputs, at debug level for the mocks an outputs block declares.
+func logMockOutputsFallback(l log.Logger, pctx *ParsingContext, targetConfig string, declared *OutputsConfig) {
+	if declared != nil {
 		logf := l.Infof
 		if pctx.SkipOutput || isRenderCommand(pctx) || isRenderJSONCommand(pctx) {
 			logf = l.Debugf

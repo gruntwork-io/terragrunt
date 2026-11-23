@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
-	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 )
 
@@ -187,27 +186,20 @@ func TestTFOutputsBlockMergesMocksWithState(t *testing.T) {
 	require.ErrorContains(t, err, `has no output "nat_id"`)
 }
 
-func TestTFOutputsBlockDeclaredMocksStayOutOfApplyByDefault(t *testing.T) {
+func TestTFOutputsBlockDeclaredMocksReachEveryCommandWithoutAllowedCommands(t *testing.T) {
 	t.Parallel()
 
 	rootPath := filepath.Join(helpers.CopyEnvironment(t, testFixtureOutputsBlockDefaults), testFixtureOutputsBlockDefaults)
 	appPath := filepath.Join(rootPath, "app")
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
-		t,
-		"terragrunt plan --experiment outputs-block --non-interactive --working-dir "+appPath,
-	)
-	require.NoError(t, err)
-	require.Contains(t, stdout, "vpc-mock")
-
-	_, _, err = helpers.RunTerragruntCommandWithOutput(
-		t,
-		"terragrunt apply -auto-approve --experiment outputs-block --non-interactive --working-dir "+appPath,
-	)
-
-	var noOutputsErr config.TerragruntOutputTargetNoOutputs
-
-	require.ErrorAs(t, err, &noOutputsErr)
+	for _, command := range []string{"plan", "apply -auto-approve"} {
+		stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+			t,
+			"terragrunt "+command+" --experiment outputs-block --non-interactive --working-dir "+appPath,
+		)
+		require.NoError(t, err)
+		require.Contains(t, stdout, "vpc-mock")
+	}
 }
 
 func TestTFOutputsBlockNullableOutputReadsNull(t *testing.T) {
