@@ -1304,6 +1304,7 @@ inputs = {
 			vpcConfig:      nullableOnlyOutputsConfig,
 			dependencyBody: `skip_outputs = true`,
 			command:        "apply",
+			vpcState:       vpcStateWithOnlyUndocumented,
 			inputs:         natIsNullInput,
 			check:          requireUnsupportedAttribute,
 		},
