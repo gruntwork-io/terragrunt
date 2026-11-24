@@ -65,6 +65,17 @@ const (
 	outputsBlockFix = "Declare its outputs and their mock values there once, so every dependent shares them. " +
 		"See https://docs.terragrunt.com/reference/experiments/active#outputs-block"
 
+	// ValuesBlock is the tip shown when stack generation writes values for a config that declares no values block and
+	// reads a value inside try().
+	ValuesBlock = "values-block"
+
+	// ValuesBlockMessage is the default message for the values block tip.
+	ValuesBlockMessage = "A config without a `values` block reads a value inside `try()` to fall back to a default. " +
+		valuesBlockFix
+
+	valuesBlockFix = "Declare the value with a default in a `values` block instead. " +
+		"See https://docs.terragrunt.com/reference/hcl/blocks/values"
+
 	// WindowsSymlinkWarningMessage is the default message for the Windows symlink warning tip.
 	WindowsSymlinkWarningMessage = "Windows users may encounter silent fallback behavior to provider copying " +
 		"instead of symlinking in OpenTofu/Terraform. " +
@@ -116,6 +127,10 @@ func NewTips() Tips {
 		{
 			Name:    OutputsBlock,
 			Message: OutputsBlockMessage,
+		},
+		{
+			Name:    ValuesBlock,
+			Message: ValuesBlockMessage,
 		},
 	}
 }

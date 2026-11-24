@@ -406,14 +406,7 @@ func storeStackConfigs(
 		// values (and shows its definitions in consumers like browse).
 		pctx := configbridge.NewParsingContext(opts)
 
-		values, err := config.ReadValues(ctx, l, v, s, pctx, stackDir)
-		if err != nil {
-			l.Debugf("Skipping stack config %s: %v", stackFile, err)
-
-			continue
-		}
-
-		cfg, err := config.ReadStackConfigFile(ctx, l, v, s, pctx, stackFile, values)
+		cfg, err := config.ReadStackConfigFile(ctx, l, v, s, pctx, stackFile)
 		if err != nil {
 			l.Debugf("Skipping stack config %s: %v", stackFile, err)
 

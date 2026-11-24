@@ -333,3 +333,16 @@ func TestOutputsBlockIsOngoing(t *testing.T) {
 	require.NoError(t, exps.EnableExperiment(experiment.OutputsBlock))
 	assert.True(t, got.Evaluate(), "outputs-block must be enabled once explicitly requested")
 }
+
+func TestValuesBlockIsOngoing(t *testing.T) {
+	t.Parallel()
+
+	exps := experiment.NewExperiments()
+	got := exps.Find(experiment.ValuesBlock)
+	require.NotNil(t, got, "values-block experiment must be registered in NewExperiments()")
+	assert.Equal(t, experiment.StatusOngoing, got.Status, "values-block must be ongoing")
+	assert.False(t, got.Evaluate(), "values-block must be disabled by default")
+
+	require.NoError(t, exps.EnableExperiment(experiment.ValuesBlock))
+	assert.True(t, got.Evaluate(), "values-block must be enabled once explicitly requested")
+}

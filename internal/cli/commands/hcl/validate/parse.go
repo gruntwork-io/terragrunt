@@ -8,6 +8,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/valuesblock"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/view/diagnostic"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -16,7 +17,10 @@ import (
 	"github.com/hashicorp/hcl/v2"
 )
 
-const summaryUnsupportedAttribute = "Unsupported attribute"
+const (
+	summaryUnsupportedAttribute = "Unsupported attribute"
+	summaryInvalidIndex         = "Invalid index"
+)
 
 // DiagnosticsCollector gathers the diagnostics a parse reports, for a caller
 // that answers with them rather than letting the parser's default diagnostics
@@ -116,16 +120,27 @@ func (c *DiagnosticsCollector) addDistinct(diag *diagnostic.Diagnostic) {
 	c.diags = append(c.diags, diag)
 }
 
-// dropEvaluationDiagnostics removes the unattributed unsupported-attribute diagnostics inside a subject of hclDiags.
+// dropEvaluationDiagnostics removes the unattributed evaluation diagnostics inside a subject of hclDiags.
 func (c *DiagnosticsCollector) dropEvaluationDiagnostics(hclDiags hcl.Diagnostics) {
 	c.diags = slices.DeleteFunc(c.diags, func(have *diagnostic.Diagnostic) bool {
-		if _, owned := c.owners[have]; owned || have.Range == nil || have.Summary != summaryUnsupportedAttribute {
-			return false
-		}
+		return c.unattributedEvaluation(have) && withinAnySubject(*have.Range, hclDiags)
+	})
+}
 
-		return slices.ContainsFunc(hclDiags, func(diag *hcl.Diagnostic) bool {
-			return diag.Subject != nil && within(*have.Range, *diag.Subject)
-		})
+// unattributedEvaluation reports whether diag is an unsupported-attribute or invalid-index error from evaluating a
+// reference, with a range and no owning check.
+func (c *DiagnosticsCollector) unattributedEvaluation(diag *diagnostic.Diagnostic) bool {
+	if _, owned := c.owners[diag]; owned || diag.Range == nil {
+		return false
+	}
+
+	return diag.Summary == summaryUnsupportedAttribute || diag.Summary == summaryInvalidIndex
+}
+
+// withinAnySubject reports whether rng lies inside the subject of one of diags.
+func withinAnySubject(rng diagnostic.Range, diags hcl.Diagnostics) bool {
+	return slices.ContainsFunc(diags, func(diag *hcl.Diagnostic) bool {
+		return diag.Subject != nil && within(rng, *diag.Subject)
 	})
 }
 
@@ -234,16 +249,19 @@ func (p ComponentParser) Unit(
 	pctx = pctx.WithParserSettings(p.parserSettings(pctx.Parser))
 
 	cfg, err := s.ReadTerragruntConfig(ctx, l, v, pctx)
+	valuesErr := p.checkUnitValueReferences(ctx, l, v, s, pctx, configPath)
+
 	if err != nil {
 		err = p.pointAtOutputsErrors(l, v, pctx, err)
 
-		return p.Collector.pointAtDependencyErrors(v.FS, unitDir, []string{configPath}, err)
+		return errors.Join(p.Collector.pointAtDependencyErrors(v.FS, unitDir, []string{configPath}, err), valuesErr)
 	}
 
 	contractErr := p.pointAtOutputsErrors(l, v, pctx, p.validateOutputsContracts(ctx, l, v, parseOpts, pctx, cfg))
 
 	return errors.Join(
 		contractErr,
+		valuesErr,
 		p.Collector.pointAtDependencyErrors(
 			v.FS,
 			unitDir,
@@ -253,8 +271,9 @@ func (p ComponentParser) Unit(
 	)
 }
 
-// Stack parses the stack configuration in stackDir, returning every error the
-// parse produced rather than stopping at the first.
+// Stack parses the stack configuration in stackDir, collecting its diagnostics,
+// and returns the parse error joined with the errors of the values reference and
+// autoinclude checks.
 func (p ComponentParser) Stack(
 	ctx context.Context,
 	l log.Logger,
@@ -262,7 +281,7 @@ func (p ComponentParser) Stack(
 	s *config.Store,
 	opts *options.TerragruntOptions,
 	stackDir string,
-) []error {
+) error {
 	from := len(p.Collector.diags)
 	defer p.Collector.attribute(from, stackDir)
 
@@ -273,41 +292,27 @@ func (p ComponentParser) Stack(
 	parseOpts.TerragruntConfigPath = stackFilePath
 
 	parser := configbridge.NewParsingContext(parseOpts)
-
-	var parseErrs []error
-
-	values, err := config.ReadValues(ctx, l, v, s, parser, stackDir)
-	if err != nil {
-		parseErrs = append(parseErrs, err)
-	}
-
 	parser = parser.WithParserSettings(p.parserSettings(parser.Parser))
-	if values != nil {
-		parser = parser.WithValues(values)
-	}
 
 	file, err := parser.NewParser(l, v).ParseFromFile(v.FS, stackFilePath)
 	if err != nil {
-		return append(parseErrs, err)
+		return err
 	}
 
-	stackCfg, err := config.ParseStackConfig(ctx, l, v, s, parser, file, values)
+	stackCfg, err := config.ParseStackConfig(ctx, l, v, s, parser, file)
+	valuesErr := p.checkValueReferences(parser, file, valuesblock.KindStack)
+
 	if err != nil {
-		return append(parseErrs, err)
+		return errors.Join(err, valuesErr)
 	}
 
 	// The lenient stack decode above leaves autoinclude blocks unvalidated, so
 	// run the strict autoinclude parse `stack generate` uses. It no-ops unless
 	// the stack-dependencies experiment is enabled and the config declares
 	// autoinclude.
-	_, autoIncludeErr := config.StackAutoIncludes(
-		ctx, l, v, s, parser, stackFilePath, stackCfg, values,
-	)
-	if autoIncludeErr != nil {
-		parseErrs = append(parseErrs, autoIncludeErr)
-	}
+	_, autoIncludeErr := config.StackAutoIncludes(ctx, l, v, s, parser, stackFilePath, stackCfg)
 
-	return parseErrs
+	return errors.Join(valuesErr, autoIncludeErr)
 }
 
 func (p ComponentParser) parserSettings(defaults config.ParserSettings) config.ParserSettings {

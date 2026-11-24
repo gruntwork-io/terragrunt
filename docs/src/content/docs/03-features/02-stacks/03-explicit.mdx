@@ -82,7 +82,7 @@ Running `terragrunt stack generate` in the directory containing that `terragrunt
 <Aside type="note">
 Note that the contents are generated into a `.terragrunt-stack` directory. This is to make it convenient to add `.terragrunt-stack` to your `.gitignore` file, and always generate the stack on demand instead of checking it in.
 
-Also note the `terragrunt.values.hcl` files generated next to the `terragrunt.hcl` files of the units. These files contain the values specified in the `values` block for the unit.
+Also note the `terragrunt.values.hcl` files generated next to the `terragrunt.hcl` files of the units. These files contain the values specified in the `values` attribute of the `unit` block.
 </Aside>
 
 ### Example: Nested Stack with Reusable Patterns
