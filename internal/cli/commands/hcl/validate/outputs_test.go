@@ -2067,7 +2067,22 @@ include "%s" {
 }
 `
 
+	const sharedInclude = `
+include "shared" {
+  path           = find_in_parent_folders("shared/%s")
+  merge_strategy = "deep"
+}
+`
+
+	const originInclude = `
+include "origin" {
+  path           = "${get_terragrunt_dir()}/origin.hcl"
+  merge_strategy = "deep"
+}
+`
+
 	testCases := []struct {
+		files        map[string]string
 		name         string
 		unit         string
 		unitFile     string
@@ -2075,6 +2090,44 @@ include "%s" {
 		expectedFile string
 		expectedLine int
 	}{
+		{
+			name: "the autoinclude file beside an include replaces the outputs block of the include",
+			unit: fmt.Sprintf(sharedInclude, "z.hcl"),
+			files: map[string]string{
+				"shared/z.hcl":                      includedOutputs,
+				"shared/terragrunt.autoinclude.hcl": includedOutputs,
+			},
+			expectedFile: "shared/terragrunt.autoinclude.hcl",
+		},
+		{
+			name: "the autoinclude file beside an include resolves its own include as the unit",
+			unit: fmt.Sprintf(sharedInclude, "z.hcl"),
+			files: map[string]string{
+				"shared/z.hcl":                      `inputs = {}`,
+				"shared/terragrunt.autoinclude.hcl": autoIncludeOutputs + originInclude,
+				"vpc/origin.hcl":                    includedOutputs,
+			},
+			expectedFile: "vpc/origin.hcl",
+		},
+		{
+			name: "an include with the name of a stack autoinclude file merges no autoinclude file beside it",
+			unit: fmt.Sprintf(sharedInclude, config.DefaultAutoIncludeStackFile),
+			files: map[string]string{
+				"shared/" + config.DefaultAutoIncludeStackFile: includedOutputs,
+				"shared/terragrunt.autoinclude.hcl":            includedOutputs,
+			},
+			expectedFile: "shared/" + config.DefaultAutoIncludeStackFile,
+		},
+		{
+			name:        "the include of the autoinclude file merges no autoinclude file beside it",
+			unit:        `inputs = {}`,
+			autoInclude: fmt.Sprintf(sharedInclude, "z.hcl"),
+			files: map[string]string{
+				"shared/z.hcl":                      includedOutputs,
+				"shared/terragrunt.autoinclude.hcl": includedOutputs,
+			},
+			expectedFile: "shared/z.hcl",
+		},
 		{
 			name:         "an exposed no_merge include is not the origin",
 			unit:         fmt.Sprintf(includeBlock, "a", "a", "no_merge") + fmt.Sprintf(includeBlock, "z", "z", "deep"),
@@ -2141,6 +2194,7 @@ outputs {
 			files := withFiles(outputsContractFiles, map[string]string{"a.hcl": includedOutputs, "z.hcl": includedOutputs})
 			delete(files, "vpc/terragrunt.hcl")
 			files[cmp.Or(tc.unitFile, "vpc/terragrunt.hcl")] = tc.unit
+			maps.Copy(files, tc.files)
 
 			if tc.autoInclude != "" {
 				files["vpc/terragrunt.autoinclude.hcl"] = tc.autoInclude
@@ -2159,6 +2213,83 @@ outputs {
 			require.Equal(t, cmp.Or(tc.expectedLine, 7), diag.Range.Start.Line)
 		})
 	}
+}
+
+func TestRunValidateOutputsContractsResolvesTheIncludesOfTheAutoincludeAsTheUnit(t *testing.T) {
+	t.Parallel()
+
+	const unitWithSource = `
+terraform {
+  source = "${get_terragrunt_dir()}/../modules/vpc"
+}
+
+outputs {
+  output "vpc_id" {
+    mock_value = "vpc-mock"
+  }
+}
+`
+
+	const autoIncludeWithWorkingDir = `
+include "origin" {
+  path = "${get_working_dir()}/origin.hcl"
+}
+`
+
+	files := withFiles(outputsContractFiles, map[string]string{
+		"vpc/terragrunt.hcl":     unitWithSource,
+		"modules/vpc/main.tf":    outputsContractFiles["vpc/main.tf"],
+		"modules/vpc/origin.hcl": includedOutputs,
+	})
+	delete(files, "vpc/main.tf")
+
+	v := venv.MemVenv()
+	root := venvtest.Root("/repo")
+	run := &validateRun{files: files, experiments: []string{experiment.OutputsBlock}, outputs: true}
+
+	require.NoError(t, runValidateIn(t, v, root, run).err)
+
+	run.files = map[string]string{"vpc/terragrunt.autoinclude.hcl": autoIncludeWithWorkingDir}
+	result := runValidateIn(t, v, root, run)
+
+	require.Error(t, result.err)
+	require.Len(t, result.diags, 1)
+
+	diag := result.diags[0]
+
+	require.Equal(t, "Declared output not in module", diag.Summary)
+	require.NotNil(t, diag.Range)
+
+	cached := filepath.Join(root, "vpc", ".terragrunt-cache", "*", "*", "origin.hcl")
+	matched, err := filepath.Match(cached, diag.Range.Filename)
+
+	require.NoError(t, err)
+	require.True(t, matched, diag.Range.Filename)
+	require.Equal(t, 7, diag.Range.Start.Line)
+}
+
+func TestRunValidateOutputsContractsIgnoresAnAutoincludeFileThatFailsItsStat(t *testing.T) {
+	t.Parallel()
+
+	root := venvtest.Root("/repo")
+	fsys := deniedFS{FS: vfs.NewMemMapFS(), denied: filepath.Join(root, "vpc", config.DefaultAutoIncludeFile)}
+	files := withFiles(outputsContractFiles, map[string]string{"vpc/terragrunt.hcl": includedOutputs})
+
+	result := runValidateIn(t, venv.MemVenv().WithFS(fsys), root, &validateRun{
+		files:       files,
+		experiments: []string{experiment.OutputsBlock},
+		outputs:     true,
+	})
+
+	require.Error(t, result.err)
+	require.Len(t, result.diags, 1)
+
+	diag := result.diags[0]
+
+	require.Equal(t, "Declared output not in module", diag.Summary)
+	require.NotNil(t, diag.Range)
+	require.Equal(t, filepath.Join(root, "vpc", config.DefaultTerragruntConfigPath), diag.Range.Filename)
+	require.Equal(t, 7, diag.Range.Start.Line)
 }
 
 func TestRunValidateInputsAndOutputsPointsAtTheDeclarationOfABareInclude(t *testing.T) {
@@ -2376,6 +2507,20 @@ inputs = {
 
 	assert.Positive(t, without)
 	assert.Equal(t, without, with)
+}
+
+// deniedFS fails the stat of one path with a permission error.
+type deniedFS struct {
+	vfs.FS
+	denied string
+}
+
+func (fsys deniedFS) Stat(name string) (fs.FileInfo, error) {
+	if filepath.Clean(name) == fsys.denied {
+		return nil, &fs.PathError{Op: "stat", Path: name, Err: fs.ErrPermission}
+	}
+
+	return fsys.FS.Stat(name)
 }
 
 func newOpenCountingFS() *openCountingFS {

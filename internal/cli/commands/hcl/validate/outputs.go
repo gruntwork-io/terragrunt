@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/fs"
 	"maps"
 	"path/filepath"
 	"slices"
@@ -260,7 +259,7 @@ func syntaxTree(
 	return s.ParseUnitAST(ctx, v.FS, path, info, pctx.NewParser(l, v))
 }
 
-// autoIncludeTree returns the syntax tree of the autoinclude file beside configPath, or nil when there is none.
+// autoIncludeTree returns the syntax tree of the autoinclude file a parse merges beside configPath, or nil.
 func autoIncludeTree(
 	ctx context.Context,
 	l log.Logger,
@@ -269,18 +268,17 @@ func autoIncludeTree(
 	pctx *config.ParsingContext,
 	configPath string,
 ) (*hclparse.File, error) {
-	autoInclude := filepath.Join(filepath.Dir(configPath), config.DefaultAutoIncludeFile)
-
-	info, err := v.FS.Stat(autoInclude)
-	if errors.Is(err, fs.ErrNotExist) {
+	base := filepath.Base(configPath)
+	if base == config.DefaultAutoIncludeFile || base == config.DefaultAutoIncludeStackFile {
 		return nil, nil
 	}
 
-	if err != nil {
-		return nil, err
+	autoInclude := filepath.Join(filepath.Dir(configPath), config.DefaultAutoIncludeFile)
+	if !vfs.Exists(v.FS, autoInclude) {
+		return nil, nil
 	}
 
-	return s.ParseUnitAST(ctx, v.FS, autoInclude, info, pctx.NewParser(l, v))
+	return syntaxTree(ctx, l, v, s, pctx, autoInclude)
 }
 
 // includedFiles returns the merged or exposed include files of the unit, its autoinclude file and theirs.
@@ -326,20 +324,10 @@ func autoIncludeIncludes(
 	pctx *config.ParsingContext,
 	autoInclude *hclparse.File,
 ) (config.IncludeConfigsMap, error) {
-	l, autoPctx, err := pctx.WithConfigPath(l, autoInclude.ConfigPath)
-	if err != nil {
-		return nil, err
-	}
-
+	autoPctx := pctx.WithDecodeList(config.TerragruntFlags)
 	autoPctx.SkipAutoIncludeMerge = true
 
-	autoCfg, err := s.ResolvePartialConfig(
-		ctx,
-		l,
-		v,
-		autoPctx.WithDecodeList(config.TerragruntFlags),
-		autoInclude.ConfigPath,
-	)
+	autoCfg, err := s.ResolvePartialConfig(ctx, l, v, autoPctx, autoInclude.ConfigPath)
 	if err != nil {
 		return nil, err
 	}
@@ -484,7 +472,42 @@ func declarationFiles(
 		files = []*hclparse.File{unit}
 	}
 
-	return withMergedIncludes(ctx, l, v, s, pctx, files, unit, cfg.ProcessedIncludes)
+	siblings, err := siblingDeclarationFiles(ctx, l, v, s, pctx, cfg.ProcessedIncludes)
+	if err != nil {
+		return nil, err
+	}
+
+	return withMergedIncludes(ctx, l, v, s, pctx, files, unit, cfg.ProcessedIncludes, siblings)
+}
+
+// siblingDeclarationFiles returns the autoinclude files that declare outputs beside each include, by the include path.
+func siblingDeclarationFiles(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	s *config.Store,
+	pctx *config.ParsingContext,
+	includes config.IncludeConfigsMap,
+) (map[string][]*hclparse.File, error) {
+	paths, err := mergedIncludePaths(includes)
+	if err != nil {
+		return nil, err
+	}
+
+	siblings := make(map[string][]*hclparse.File, len(paths))
+
+	for _, path := range paths {
+		files, err := autoIncludeDeclarationFiles(ctx, l, v, s, pctx, path)
+		if err != nil {
+			return nil, err
+		}
+
+		if slices.ContainsFunc(files, declaresOutputs) {
+			siblings[path] = files
+		}
+	}
+
+	return siblings, nil
 }
 
 // autoIncludeDeclarationFiles returns the autoinclude file beside configPath, then its merged includes, or none.
@@ -506,10 +529,10 @@ func autoIncludeDeclarationFiles(
 		return nil, err
 	}
 
-	return withMergedIncludes(ctx, l, v, s, pctx, []*hclparse.File{autoInclude}, autoInclude, includes)
+	return withMergedIncludes(ctx, l, v, s, pctx, []*hclparse.File{autoInclude}, autoInclude, includes, nil)
 }
 
-// withMergedIncludes returns files, then the includes of owner whose output declarations merge in, the last one first.
+// withMergedIncludes returns files, then each merged include of owner or its siblings entry, the last one first.
 func withMergedIncludes(
 	ctx context.Context,
 	l log.Logger,
@@ -519,6 +542,7 @@ func withMergedIncludes(
 	files []*hclparse.File,
 	owner *hclparse.File,
 	includes config.IncludeConfigsMap,
+	siblings map[string][]*hclparse.File,
 ) ([]*hclparse.File, error) {
 	declared := slices.ContainsFunc(files, declaresOutputs)
 
@@ -537,13 +561,19 @@ func withMergedIncludes(
 			continue
 		}
 
-		included, err := syntaxTree(ctx, l, v, s, pctx, include.Path)
-		if err != nil {
-			return nil, err
+		kept := siblings[include.Path]
+
+		if len(kept) == 0 {
+			included, err := syntaxTree(ctx, l, v, s, pctx, include.Path)
+			if err != nil {
+				return nil, err
+			}
+
+			kept = []*hclparse.File{included}
 		}
 
-		files = append(files, included)
-		declared = declared || declaresOutputs(included)
+		files = append(files, kept...)
+		declared = declared || slices.ContainsFunc(kept, declaresOutputs)
 	}
 
 	return files, nil
