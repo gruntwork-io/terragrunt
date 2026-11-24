@@ -1573,6 +1573,22 @@ func TestDirectComponentPathsEvaluatesWithFactoryVariables(t *testing.T) {
 	assert.Empty(t, stackPaths)
 }
 
+func TestDirectComponentPathsEvaluatesValuesFileWithFactoryVariables(t *testing.T) {
+	t.Parallel()
+
+	fsys, root := venvtest.LoadFS(t, filepath.Join("..", "..", "test", "fixtures", "path-variable"))
+	stackDir := filepath.Join(root, "stack-values")
+
+	unitPaths, stackPaths, err := hclparse.DirectComponentPaths(t.Context(), fsys, stackDir, &hclparse.StackDirArgs{
+		FuncsFor: func(string) (map[string]function.Function, error) { return pathFuncs(), nil },
+		VarsFor:  pathVarsFor,
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{filepath.Join(stackDir, ".terragrunt-stack", "app")}, unitPaths)
+	assert.Empty(t, stackPaths)
+}
+
 func TestDirectComponentPathsScopesPathIncludeToIncludedFile(t *testing.T) {
 	t.Parallel()
 
