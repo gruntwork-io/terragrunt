@@ -83,7 +83,7 @@ include "extra" {
 	ctx, pctx := newTestParsingContext(t, stackPath)
 	v.FS = fsys
 
-	stackCfg, err := config.ReadStackConfigFile(ctx, l, v, new(config.Store), pctx, stackPath, nil)
+	stackCfg, err := config.ReadStackConfigFile(ctx, l, v, new(config.Store), pctx, stackPath)
 	require.NoError(t, err)
 
 	unitPaths := map[string]string{}
@@ -1305,7 +1305,6 @@ func parseStackStringAt(tb testing.TB, path, cfg string) (*config.StackConfig, e
 		pctx,
 		path,
 		cfg,
-		nil,
 	)
 }
 

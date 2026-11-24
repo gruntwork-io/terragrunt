@@ -268,7 +268,9 @@ func validateDiscoveredTree(
 
 	for _, c := range components {
 		if _, ok := c.(*component.Stack); ok {
-			parseErrs = append(parseErrs, parser.Stack(ctx, l, v, s, opts, c.Path())...)
+			if err := parser.Stack(ctx, l, v, s, opts, c.Path()); err != nil {
+				parseErrs = append(parseErrs, err)
+			}
 
 			continue
 		}
@@ -346,7 +348,9 @@ func validateSingleTarget(
 	}
 
 	if hasStack {
-		parseErrs = append(parseErrs, parser.Stack(ctx, l, v, s, opts, targetDir)...)
+		if err := parser.Stack(ctx, l, v, s, opts, targetDir); err != nil {
+			parseErrs = append(parseErrs, err)
+		}
 	}
 
 	return parseErrs, nil

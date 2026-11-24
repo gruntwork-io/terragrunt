@@ -78,14 +78,10 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *config.Store, opts 
 			return discoverErr
 		})
 	if telemetryErr != nil {
-		// Discover returns no components with these two errors, so logging them
+		// Discover returns no components with this error, so logging it
 		// and carrying on would print an empty result.
 		if coexistenceErr, ok := errors.AsType[discovery.CoexistenceError](telemetryErr); ok {
 			return coexistenceErr
-		}
-
-		if ambiguousErr, ok := errors.AsType[config.AmbiguousConfigError](telemetryErr); ok {
-			return ambiguousErr
 		}
 
 		l.Debugf("Errors encountered while discovering components:\n%s", telemetryErr)

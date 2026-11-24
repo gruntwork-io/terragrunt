@@ -173,31 +173,23 @@ func isExternal(fsys vfs.FS, workingDir string, componentPath string) bool {
 // boundary. The new unit's config file is probed on disk rather than left at Unit's
 // terragrunt.hcl default, so a JSON-only dependency (terragrunt.hcl.json, no terragrunt.hcl)
 // doesn't get parsed against a config file that doesn't exist.
-//
-// Returns a [config.AmbiguousConfigError] when check is [config.RejectAmbiguousConfig] and the path holds both default
-// unit config files, even when it also holds a stack file.
 func componentFromDependencyPath(
 	fsys vfs.FS,
 	path string,
-	check config.AmbiguousConfigCheck,
 	components *component.ThreadSafeComponents,
-) (component.Component, error) {
+) component.Component {
 	if existing := components.FindByPath(path); existing != nil {
-		return existing, nil
-	}
-
-	if err := config.RejectAmbiguousDefaultConfig(fsys, path, check); err != nil {
-		return nil, err
+		return existing
 	}
 
 	if _, err := fsys.Stat(filepath.Join(path, config.DefaultStackFile)); err == nil {
-		return component.NewStack(path), nil
+		return component.NewStack(path)
 	}
 
 	unit := component.NewUnit(path)
 	unit.SetConfigFile(unitConfigFilename(fsys, path))
 
-	return unit, nil
+	return unit
 }
 
 // unitConfigFilename returns the unit config filename that exists in dir, preferring
@@ -255,31 +247,16 @@ func createComponentFromPath(
 	return nil
 }
 
-// validateNoCoexistence checks that no directory has more than one Terragrunt configuration
-// file. Returns a CoexistenceError if a directory has both a unit and a stack config file, or
-// an AmbiguousConfigError if a directory has both default unit config files (terragrunt.hcl and
-// terragrunt.hcl.json), since which one applies would otherwise depend silently on filesystem
-// walk order and differ from the single-unit config loader's own resolution
-// (pkg/config.DefaultTerragruntConfigPaths).
-//
-// A config filename the user named explicitly via `--config` is never half of an ambiguous pair:
-// [ConfigFilenames] drops the default unit filenames when a custom one is supplied, so the
-// custom filename is the only unit config discovery looks for. The check below is limited to the
-// default filenames so that a caller passing a custom filename alongside the defaults still
-// resolves rather than erroring.
+// validateNoCoexistence checks that no directory has both a unit and a stack config file.
+// Returns a CoexistenceError if a directory contains both.
 func validateNoCoexistence(results []DiscoveryResult) error {
 	seen := make(map[string]DiscoveryResult, len(results))
 
 	for _, result := range results {
 		path := result.Component.Path()
 
-		if existing, ok := seen[path]; ok {
-			switch {
-			case existing.Component.Kind() != result.Component.Kind():
-				return NewCoexistenceError(existing.Component, result.Component)
-			case isAmbiguousPair(existing.Component, result.Component):
-				return newAmbiguousConfigError(existing.Component, result.Component)
-			}
+		if existing, ok := seen[path]; ok && existing.Component.Kind() != result.Component.Kind() {
+			return NewCoexistenceError(existing.Component, result.Component)
 		}
 
 		seen[path] = result
@@ -288,48 +265,16 @@ func validateNoCoexistence(results []DiscoveryResult) error {
 	return nil
 }
 
-// isAmbiguousPair reports whether a and b, two components of one kind at one path, were read from the two default
-// unit config files.
-func isAmbiguousPair(a, b component.Component) bool {
-	return a.ConfigFile() != b.ConfigFile() &&
-		isDefaultUnitConfigFile(a.ConfigFile()) &&
-		isDefaultUnitConfigFile(b.ConfigFile())
-}
-
-// newAmbiguousConfigError returns the [config.AmbiguousConfigError] for a and b, two units found at one path.
-func newAmbiguousConfigError(a, b component.Component) error {
-	return config.AmbiguousConfigError{
-		ComponentPath: a.Path(),
-		ConfigFileA:   a.ConfigFile(),
-		ConfigFileB:   b.ConfigFile(),
-	}
-}
-
-// rejectAmbiguousUnits returns a [config.AmbiguousConfigError] when two of candidates are units at one path read
-// from the two default unit config files.
-func rejectAmbiguousUnits(candidates []component.Component) error {
-	units := make(map[string]component.Component, len(candidates))
-
-	for _, candidate := range candidates {
-		if candidate.Kind() != component.UnitKind {
-			continue
-		}
-
-		existing, ok := units[candidate.Path()]
-		if ok && isAmbiguousPair(existing, candidate) {
-			return newAmbiguousConfigError(existing, candidate)
-		}
-
-		units[candidate.Path()] = candidate
+// shadowedUnitConfig reports whether path, one of filenames, is a terragrunt.hcl.json that discovery skips because
+// filenames holds terragrunt.hcl and its directory has one. The unit there is read from terragrunt.hcl, as
+// [config.GetDefaultConfigPath] reads it.
+func shadowedUnitConfig(fsys vfs.FS, path string, filenames []string) bool {
+	if filepath.Base(path) != config.DefaultTerragruntJSONConfigPath ||
+		!slices.Contains(filenames, config.DefaultTerragruntConfigPath) {
+		return false
 	}
 
-	return nil
-}
-
-// isDefaultUnitConfigFile reports whether filename is one of the default unit config filenames,
-// as opposed to a filename the user supplied through `--config`.
-func isDefaultUnitConfigFile(filename string) bool {
-	return filename == config.DefaultTerragruntConfigPath || filename == config.DefaultTerragruntJSONConfigPath
+	return vfs.IsFile(fsys, filepath.Join(filepath.Dir(path), config.DefaultTerragruntConfigPath))
 }
 
 // deduplicateResults removes duplicate components from results by path.
@@ -461,14 +406,7 @@ func storeStackConfigs(
 		// values (and shows its definitions in consumers like browse).
 		pctx := configbridge.NewParsingContext(opts)
 
-		values, err := config.ReadValues(ctx, l, v, s, pctx, stackDir)
-		if err != nil {
-			l.Debugf("Skipping stack config %s: %v", stackFile, err)
-
-			continue
-		}
-
-		cfg, err := config.ReadStackConfigFile(ctx, l, v, s, pctx, stackFile, values)
+		cfg, err := config.ReadStackConfigFile(ctx, l, v, s, pctx, stackFile)
 		if err != nil {
 			l.Debugf("Skipping stack config %s: %v", stackFile, err)
 
@@ -483,9 +421,6 @@ func storeStackConfigs(
 // Autoinclude-declared dependencies are already folded into the parsed config by the partial-parse
 // merge (which honors enabled/disabled and same-name override), so they arrive via depPaths here.
 //
-// Returns a [config.AmbiguousConfigError] when the check opts asks for is [config.RejectAmbiguousConfig] and a
-// dependency directory holds both default unit config files, even when it also holds a stack file.
-//
 // Returns the error of ctx when ctx ends before every path is expanded.
 func stackDependencyPaths(
 	ctx context.Context,
@@ -496,7 +431,6 @@ func stackDependencyPaths(
 	depPaths []string,
 ) ([]string, error) {
 	pctx := configbridge.NewParsingContext(opts)
-	check := configbridge.AmbiguousConfigCheck(opts)
 
 	// Factory builds the dir-scoped function map for each stack dir visited during expansion.
 	funcsFor := inthclparse.StackFuncFactory(
@@ -526,10 +460,6 @@ func stackDependencyPaths(
 		if statErr != nil || !info.IsDir() {
 			expanded = append(expanded, depPath)
 			continue
-		}
-
-		if err := config.RejectAmbiguousDefaultConfig(v.FS, depPath, check); err != nil {
-			return nil, err
 		}
 
 		unitPaths, err := inthclparse.UnitPathsFromStackDir(

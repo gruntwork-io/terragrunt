@@ -12,6 +12,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/find"
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -549,15 +550,15 @@ locals {
 	}
 }
 
-// TestRunPropagatesAmbiguousConfigError pins that Run returns the error for a directory holding
-// both terragrunt.hcl and terragrunt.hcl.json.
-func TestRunPropagatesAmbiguousConfigError(t *testing.T) {
+// TestRunPropagatesCoexistenceError pins that Run returns the error for a directory holding
+// both terragrunt.hcl and terragrunt.stack.hcl.
+func TestRunPropagatesCoexistenceError(t *testing.T) {
 	t.Parallel()
 
 	root := venvtest.Root("/repo")
 	fsys := venvtest.NewFS(t, root, map[string]string{
-		"dual-unit/terragrunt.hcl":      "",
-		"dual-unit/terragrunt.hcl.json": "{}",
+		"dual/terragrunt.hcl":       "",
+		"dual/terragrunt.stack.hcl": "",
 	})
 
 	tgOpts := options.NewTerragruntOptions()
@@ -572,9 +573,9 @@ func TestRunPropagatesAmbiguousConfigError(t *testing.T) {
 		find.NewOptions(tgOpts),
 	)
 
-	var ambiguousErr config.AmbiguousConfigError
-	require.ErrorAs(t, err, &ambiguousErr)
-	assert.Equal(t, filepath.Join(root, "dual-unit"), ambiguousErr.ComponentPath)
+	var coexistenceErr discovery.CoexistenceError
+	require.ErrorAs(t, err, &coexistenceErr)
+	assert.Equal(t, filepath.Join(root, "dual"), coexistenceErr.ComponentPath)
 }
 
 func TestRunWithGraphFilterAndDynamicDependencyConfigPath(t *testing.T) {

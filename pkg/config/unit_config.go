@@ -72,6 +72,10 @@ type UnitConfig struct {
 	VariablesBlocks []VariablesHCL `hcl:"variables,block"`
 	// LocalsBlock is the locals block.
 	LocalsBlock *LocalsHCL `hcl:"locals,block"`
+	// ValuesBlock is the values block.
+	ValuesBlock *ValuesHCL `hcl:"values,block"`
+	// MisplacedValueBlocks is the value blocks outside the values block.
+	MisplacedValueBlocks []ValueHCL `hcl:"value,block"`
 	// IncludeBlocks is the include blocks, in source order.
 	IncludeBlocks []IncludeHCL `hcl:"include,block"`
 	// Queue is the queue parts decoded.

@@ -5,66 +5,60 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// TestAmbiguousDefaultConfig pins that a command that loads a unit from a directory holding both
-// terragrunt.hcl and terragrunt.hcl.json is rejected instead of picking one.
-func TestAmbiguousDefaultConfig(t *testing.T) {
+// TestDirectoryWithBothDefaultConfigs pins that a command that loads a unit from a directory holding both
+// terragrunt.hcl and terragrunt.hcl.json reads terragrunt.hcl. Each terragrunt.hcl.json fails to parse.
+func TestDirectoryWithBothDefaultConfigs(t *testing.T) {
 	t.Parallel()
 
 	root := venvtest.Root("/repo")
 
 	tests := []struct {
-		files    map[string]string
-		name     string
-		wantPath string
-		args     []string
+		files map[string]string
+		name  string
+		args  []string
 	}{
 		{
 			name: "unit in the working directory",
 			files: map[string]string{
 				"unit/terragrunt.hcl":      `inputs = { from = "hcl" }`,
-				"unit/terragrunt.hcl.json": `{"inputs": {"from": "json"}}`,
+				"unit/terragrunt.hcl.json": "{",
 			},
-			args:     []string{"render", "--working-dir", filepath.Join(root, "unit")},
-			wantPath: filepath.Join(root, "unit"),
+			args: []string{"render", "--working-dir", filepath.Join(root, "unit")},
 		},
 		{
 			name: "dependency of the unit in the working directory",
 			files: map[string]string{
 				"app/terragrunt.hcl":      "dependency \"dep\" {\n  config_path = \"../dep\"\n  skip_outputs = true\n}\n",
 				"dep/terragrunt.hcl":      "",
-				"dep/terragrunt.hcl.json": "{}",
+				"dep/terragrunt.hcl.json": "{",
 			},
-			args:     []string{"render", "--working-dir", filepath.Join(root, "app")},
-			wantPath: filepath.Join(root, "dep"),
+			args: []string{"render", "--working-dir", filepath.Join(root, "app")},
 		},
 		{
 			name: "dependency outside the working directory",
 			files: map[string]string{
 				"app/terragrunt.hcl":      "dependency \"dep\" {\n  config_path = \"../dep\"\n}\n",
 				"dep/terragrunt.hcl":      "",
-				"dep/terragrunt.hcl.json": "{}",
+				"dep/terragrunt.hcl.json": "{",
 			},
 			args: []string{
 				"find", "--dag", "--dependencies", "--external", "--working-dir", filepath.Join(root, "app"),
 			},
-			wantPath: filepath.Join(root, "dep"),
 		},
 		{
 			name: "dependent above the working directory",
 			files: map[string]string{
 				".git":                     "gitdir: /elsewhere/.git\n",
 				"svc/vpc/terragrunt.hcl":   "",
-				"dual/terragrunt.hcl":      "",
-				"dual/terragrunt.hcl.json": `{"dependency": {"vpc": {"config_path": "../svc/vpc"}}}`,
+				"dual/terragrunt.hcl":      "dependency \"vpc\" {\n  config_path = \"../svc/vpc\"\n}\n",
+				"dual/terragrunt.hcl.json": "{",
 			},
-			args:     []string{"find", "--filter", "...vpc", "--working-dir", filepath.Join(root, "svc")},
-			wantPath: filepath.Join(root, "dual"),
+			args: []string{"find", "--filter", "...vpc", "--working-dir", filepath.Join(root, "svc")},
 		},
 		{
 			name: "generated unit of a stack dependency",
@@ -72,20 +66,18 @@ func TestAmbiguousDefaultConfig(t *testing.T) {
 				"app/terragrunt.hcl":                            "dependency \"stack\" {\n  config_path = \"../stack\"\n}\n",
 				"stack/terragrunt.stack.hcl":                    "unit \"u\" {\n  source = \"../src\"\n  path = \"u\"\n}\n",
 				"stack/.terragrunt-stack/u/terragrunt.hcl":      "",
-				"stack/.terragrunt-stack/u/terragrunt.hcl.json": "{}",
+				"stack/.terragrunt-stack/u/terragrunt.hcl.json": "{",
 			},
-			args:     []string{"render", "--working-dir", filepath.Join(root, "app")},
-			wantPath: filepath.Join(root, "stack", ".terragrunt-stack", "u"),
+			args: []string{"render", "--working-dir", filepath.Join(root, "app")},
 		},
 		{
 			name: "dependency outside the hcl validate walk",
 			files: map[string]string{
 				"live/app/terragrunt.hcl": "dependency \"dep\" {\n  config_path = \"../../dep\"\n}\n",
 				"dep/terragrunt.hcl":      "",
-				"dep/terragrunt.hcl.json": "{}",
+				"dep/terragrunt.hcl.json": "{",
 			},
-			args:     []string{"hcl", "validate", "--working-dir", filepath.Join(root, "live")},
-			wantPath: filepath.Join(root, "dep"),
+			args: []string{"hcl", "validate", "--working-dir", filepath.Join(root, "live")},
 		},
 	}
 
@@ -96,10 +88,7 @@ func TestAmbiguousDefaultConfig(t *testing.T) {
 			v := venv.MemVenv().WithFS(venvtest.NewFS(t, root, tt.files))
 
 			_, err := runCLI(t, v, tt.args...)
-
-			var ambiguousErr config.AmbiguousConfigError
-			require.ErrorAs(t, err, &ambiguousErr)
-			assert.Equal(t, tt.wantPath, ambiguousErr.ComponentPath)
+			require.NoError(t, err)
 		})
 	}
 }
@@ -120,9 +109,27 @@ func TestHCLFmtInDirectoryWithBothDefaultConfigs(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// TestConfigFlagSelectsOneOfBothDefaultConfigs pins that --config names the file to load in a directory
-// holding both terragrunt.hcl and terragrunt.hcl.json.
-func TestConfigFlagSelectsOneOfBothDefaultConfigs(t *testing.T) {
+// TestRenderReadsTerragruntHCLBesideTheJSONConfig pins that render prints terragrunt.hcl from a directory holding
+// both terragrunt.hcl and terragrunt.hcl.json.
+func TestRenderReadsTerragruntHCLBesideTheJSONConfig(t *testing.T) {
+	t.Parallel()
+
+	root := venvtest.Root("/repo")
+
+	v := venv.MemVenv().WithFS(venvtest.NewFS(t, root, map[string]string{
+		"unit/terragrunt.hcl":      `inputs = { from = "hcl" }`,
+		"unit/terragrunt.hcl.json": `{"inputs": {"from": "json"}}`,
+	}))
+
+	out, err := runCLI(t, v, "render", "--no-color", "--working-dir", filepath.Join(root, "unit"))
+	require.NoError(t, err)
+
+	assert.Equal(t, "inputs = {\n  from = \"hcl\"\n}\n", out)
+}
+
+// TestConfigFlagSelectsTheJSONConfigBesideTerragruntHCL pins that --config loads terragrunt.hcl.json from a
+// directory that also holds terragrunt.hcl.
+func TestConfigFlagSelectsTheJSONConfigBesideTerragruntHCL(t *testing.T) {
 	t.Parallel()
 
 	root := venvtest.Root("/repo")
@@ -134,29 +141,11 @@ func TestConfigFlagSelectsOneOfBothDefaultConfigs(t *testing.T) {
 	}))
 
 	out, err := runCLI(
-		t, v, "render", "--no-color", "--working-dir", unitDir, "--config", filepath.Join(unitDir, "terragrunt.hcl"),
+		t, v, "render", "--no-color", "--working-dir", unitDir, "--config", filepath.Join(unitDir, "terragrunt.hcl.json"),
 	)
 	require.NoError(t, err)
 
-	assert.Equal(t, "inputs = {\n  from = \"hcl\"\n}\n", out)
-}
-
-// TestConfigFlagAllowsDependencyWithBothDefaultConfigs pins that a unit loaded with --config may depend on a
-// directory holding both terragrunt.hcl and terragrunt.hcl.json.
-func TestConfigFlagAllowsDependencyWithBothDefaultConfigs(t *testing.T) {
-	t.Parallel()
-
-	root := venvtest.Root("/repo")
-	appDir := filepath.Join(root, "app")
-
-	v := venv.MemVenv().WithFS(venvtest.NewFS(t, root, map[string]string{
-		"app/terragrunt.hcl":     "dependency \"db\" {\n  config_path  = \"../db\"\n  skip_outputs = true\n}\n",
-		"db/terragrunt.hcl":      "",
-		"db/terragrunt.hcl.json": "{}",
-	}))
-
-	_, err := runCLI(t, v, "render", "--working-dir", appDir, "--config", filepath.Join(appDir, "terragrunt.hcl"))
-	require.NoError(t, err)
+	assert.Equal(t, "inputs = {\n  from = \"json\"\n}\n", out)
 }
 
 // TestRenderJSONOnlyUnit pins that a directory holding only terragrunt.hcl.json still renders.
