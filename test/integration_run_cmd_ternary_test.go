@@ -1,0 +1,67 @@
+package test_test
+
+import (
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/gruntwork-io/terragrunt/test/helpers"
+)
+
+const (
+	testFixtureRunCmdTernaryTrue  = "fixtures/run-cmd-ternary/true-condition"
+	testFixtureRunCmdTernaryFalse = "fixtures/run-cmd-ternary/false-condition"
+)
+
+// TestRunCmdTernaryOnlyRunsSelectedBranch verifies that when a ternary expression is
+// used in locals, only the branch matching the condition executes run_cmd.
+// Regression test for https://github.com/gruntwork-io/terragrunt/issues/1448
+func TestRunCmdTernaryOnlyRunsSelectedBranch(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		fixturePath string
+		wantCmd     string
+		forbidCmd   string
+	}{
+		{
+			name:        "true condition runs only true branch",
+			fixturePath: testFixtureRunCmdTernaryTrue,
+			wantCmd:     "Running command: echo branch_true",
+			forbidCmd:   "Running command: __nonexistent_terragrunt_test_command__",
+		},
+		{
+			name:        "false condition runs only false branch",
+			fixturePath: testFixtureRunCmdTernaryFalse,
+			wantCmd:     "Running command: echo branch_false",
+			forbidCmd:   "Running command: __nonexistent_terragrunt_test_command__",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpEnvPath := helpers.CopyEnvironment(t, tt.fixturePath)
+			rootPath := filepath.Join(tmpEnvPath, tt.fixturePath)
+
+			helpers.CleanupTerraformFolder(t, rootPath)
+
+			cmd := "terragrunt plan --non-interactive --log-level debug --working-dir " + rootPath
+
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+			require.NoError(t, err)
+
+			combined := stdout + stderr
+
+			assert.Equal(t, 1, strings.Count(combined, tt.wantCmd),
+				"expected selected command exactly once in output")
+			assert.Zero(t, strings.Count(combined, tt.forbidCmd),
+				"expected unselected command absent from output")
+		})
+	}
+}
