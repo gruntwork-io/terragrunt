@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 )
 
@@ -171,7 +172,7 @@ func TestGiveStackNestedGenerateTip(t *testing.T) {
 				t.Context(),
 				l,
 				fs,
-				emptyStackFuncFactory(),
+				&inthclparse.StackDirArgs{FuncsFor: emptyStackFuncFactory()},
 				workingDir,
 				filter.Filters{parsed},
 				allTips,
@@ -242,7 +243,7 @@ func TestGiveStackNestedGenerateTipNoOp(t *testing.T) {
 				t.Context(),
 				l,
 				vfs.NewMemMapFS(),
-				tc.funcsFor,
+				&inthclparse.StackDirArgs{FuncsFor: tc.funcsFor},
 				workingDir,
 				tc.filters,
 				tc.allTips,
@@ -286,11 +287,67 @@ func TestGiveStackNestedGenerateTipSkipsOnStatError(t *testing.T) {
 		t.Context(),
 		l,
 		fs,
-		emptyStackFuncFactory(),
+		&inthclparse.StackDirArgs{FuncsFor: emptyStackFuncFactory()},
 		workingDir,
 		filter.Filters{parsed},
 		tips.NewTips(),
 	)
 
 	assert.NotContains(t, output.String(), tips.StackNestedStacksNotGenerated)
+}
+
+func TestGiveStackNestedGenerateTipReadsCommandsFromFactoryVariables(t *testing.T) {
+	t.Parallel()
+
+	const (
+		workingDir   = "/work"
+		stackOfStack = "locals {\n  name = commands.accept_vars[0]\n}\n\n" +
+			"stack \"child\" {\n  source = \"x\"\n  path = local.name\n}\n"
+		stackOfUnit = "unit \"u\" {\n  source = \"x\"\n  path = \"u\"\n}\n"
+	)
+
+	stackDir := filepath.Join(workingDir, "my-stack")
+
+	fsys := vfs.NewMemMapFS()
+	writeFile(t, fsys, filepath.Join(stackDir, "terragrunt.stack.hcl"), stackOfStack)
+	writeFile(
+		t,
+		fsys,
+		filepath.Join(stackDir, ".terragrunt-stack", "plan", "terragrunt.stack.hcl"),
+		stackOfUnit,
+	)
+
+	parsed, err := filter.Parse("./my-stack | type=stack")
+	require.NoError(t, err)
+
+	l, _ := newTestLogger()
+	allTips := tips.NewTips()
+
+	tips.GiveStackNestedGenerateTip(
+		t.Context(),
+		l,
+		fsys,
+		&inthclparse.StackDirArgs{
+			FuncsFor: emptyStackFuncFactory(),
+			VarsFor: func(string) (map[string]cty.Value, error) {
+				return map[string]cty.Value{
+					"commands": cty.ObjectVal(map[string]cty.Value{
+						"accept_vars": cty.ListVal([]cty.Value{cty.StringVal("plan")}),
+					}),
+				}, nil
+			},
+		},
+		workingDir,
+		filter.Filters{parsed},
+		allTips,
+	)
+
+	tip := allTips.Find(tips.StackNestedStacksNotGenerated)
+	require.NotNil(t, tip)
+
+	shown := true
+
+	tip.OnceShow.Do(func() { shown = false })
+
+	assert.True(t, shown)
 }

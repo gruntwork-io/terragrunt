@@ -18,6 +18,7 @@ type RenderableEntry = CollectionEntry<
 	| 'hclBlocks'
 	| 'hclAttributes'
 	| 'hclFunctions'
+	| 'hclVariables'
 >;
 
 type Component = Parameters<typeof container.renderToString>[0];

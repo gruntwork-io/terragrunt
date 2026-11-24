@@ -20,12 +20,12 @@ func GiveStackNestedGenerateTip(
 	ctx context.Context,
 	l log.Logger,
 	fsys vfs.FS,
-	funcsFor inthclparse.StackFuncFactory,
+	args *inthclparse.StackDirArgs,
 	workingDir string,
 	filters filter.Filters,
 	allTips Tips,
 ) {
-	if len(filters) == 0 || allTips == nil || funcsFor == nil {
+	if len(filters) == 0 || allTips == nil || args == nil || args.FuncsFor == nil {
 		return
 	}
 
@@ -47,7 +47,7 @@ func GiveStackNestedGenerateTip(
 			dir = filepath.Join(workingDir, dir)
 		}
 
-		if !stackHasUngeneratedNestedStacks(ctx, l, fsys, funcsFor, dir) {
+		if !stackHasUngeneratedNestedStacks(ctx, l, fsys, args, dir) {
 			continue
 		}
 
@@ -98,17 +98,17 @@ func stackHasUngeneratedNestedStacks(
 	ctx context.Context,
 	l log.Logger,
 	fsys vfs.FS,
-	funcsFor inthclparse.StackFuncFactory,
+	args *inthclparse.StackDirArgs,
 	dir string,
 ) bool {
-	_, nestedStackDirs, err := inthclparse.DirectComponentPaths(ctx, fsys, dir, funcsFor)
+	_, nestedStackDirs, err := inthclparse.DirectComponentPaths(ctx, fsys, dir, args)
 	if err != nil {
 		l.Debugf("stack-nested-generate tip: skipping %q: %v", dir, err)
 		return false
 	}
 
 	for _, nestedDir := range nestedStackDirs {
-		if !nestedStackGenerated(ctx, l, fsys, funcsFor, nestedDir) {
+		if !nestedStackGenerated(ctx, l, fsys, args, nestedDir) {
 			return true
 		}
 	}
@@ -122,10 +122,10 @@ func nestedStackGenerated(
 	ctx context.Context,
 	l log.Logger,
 	fsys vfs.FS,
-	funcsFor inthclparse.StackFuncFactory,
+	args *inthclparse.StackDirArgs,
 	nestedDir string,
 ) bool {
-	unitPaths, stackPaths, err := inthclparse.DirectComponentPaths(ctx, fsys, nestedDir, funcsFor)
+	unitPaths, stackPaths, err := inthclparse.DirectComponentPaths(ctx, fsys, nestedDir, args)
 	if err != nil {
 		l.Debugf("stack-nested-generate tip: skipping %q: %v", nestedDir, err)
 		return true

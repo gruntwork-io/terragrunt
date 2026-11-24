@@ -13,6 +13,7 @@ import {
 type FunctionData = CollectionEntry<'hclFunctions'>['data'];
 type BlockData = CollectionEntry<'hclBlocks'>['data'];
 type AttributeData = CollectionEntry<'hclAttributes'>['data'];
+type VariableData = CollectionEntry<'hclVariables'>['data'];
 
 const examples: FunctionData['examples'] = [{ code: 'x = 1\n' }];
 
@@ -46,6 +47,23 @@ function attributeEntry(data: Partial<AttributeData>): CollectionEntry<'hclAttri
 		collection: 'hclAttributes',
 		data: { name: 'attr', description: 'An attribute.', configs: ['unit'], examples, type: 'bool', ...data },
 	} as CollectionEntry<'hclAttributes'>;
+}
+
+function variableEntry(data: Partial<VariableData>): CollectionEntry<'hclVariables'> {
+	return {
+		id: 'path',
+		collection: 'hclVariables',
+		data: {
+			name: 'path',
+			description: 'A variable.',
+			configs: ['unit', 'stack'],
+			attributes: [
+				{ name: 'unit', type: 'string', configs: ['unit'], description: 'The unit.\n', example: 'x = path.unit\n' },
+				{ name: 'include', type: 'string', configs: ['unit', 'stack'], description: 'The file.', example: 'y = path.include\n' },
+			],
+			...data,
+		},
+	} as CollectionEntry<'hclVariables'>;
 }
 
 describe('hclItemPath', () => {
@@ -172,6 +190,20 @@ describe('itemHeadings', () => {
 	test('adds nothing past Examples for an attribute', () => {
 		expect(slugs(attributeEntry({}))).toEqual(['usage', 'examples']);
 	});
+
+	test('names each variable attribute under Attributes, before Examples', () => {
+		expect(itemHeadings(variableEntry({ examples }), [])).toEqual([
+			{ depth: 2, slug: 'usage', text: 'Usage' },
+			{ depth: 2, slug: 'attributes', text: 'Attributes' },
+			{ depth: 3, slug: 'unit', text: 'path.unit' },
+			{ depth: 3, slug: 'include', text: 'path.include' },
+			{ depth: 2, slug: 'examples', text: 'Examples' },
+		]);
+	});
+
+	test('omits Examples for a variable with none', () => {
+		expect(slugs(variableEntry({}))).toEqual(['usage', 'attributes', 'unit', 'include']);
+	});
 });
 
 describe('itemAnchors', () => {
@@ -200,6 +232,11 @@ describe('itemAnchors', () => {
 
 	test('returns nothing for an attribute without body headings', () => {
 		expect(itemAnchors(attributeEntry({}), [])).toEqual([]);
+	});
+
+	test('adds attribute names for a variable', () => {
+		const body = [{ depth: 3, slug: 'in-a-dependency', text: 'In a dependency' }];
+		expect(itemAnchors(variableEntry({}), body)).toEqual(['in-a-dependency', 'unit', 'include']);
 	});
 });
 
@@ -235,6 +272,28 @@ describe('anchorRedirects', () => {
 });
 
 describe('referenceMarkdown', () => {
+	test('renders each variable attribute as a section with its type and configs', () => {
+		expect(referenceMarkdown(variableEntry({}))).toEqual({
+			before: '## Usage',
+			after: [
+				'## Attributes',
+				'### `path.unit`',
+				'The unit.',
+				'- **Type:** `string`\n- **Defined in:** `unit`',
+				'```hcl\nx = path.unit\n```',
+				'### `path.include`',
+				'The file.',
+				'- **Type:** `string`\n- **Defined in:** `unit`, `stack`',
+				'```hcl\ny = path.include\n```',
+			].join('\n\n'),
+		});
+	});
+
+	test('renders the examples of a variable after its attributes', () => {
+		const { after } = referenceMarkdown(variableEntry({ examples }));
+		expect(after.endsWith(['```hcl\ny = path.include\n```', '## Examples', '```hcl\nx = 1\n```'].join('\n\n'))).toBe(true);
+	});
+
 	test('escapes pipes in table cells', () => {
 		const entry = functionEntry({
 			params: [{ name: 'mode', type: 'string', optional: false, description: 'Either `a|b` or `c`.' }],

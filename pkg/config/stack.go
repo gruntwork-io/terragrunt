@@ -406,7 +406,7 @@ func resolveStackAutoIncludes(
 		return nil, nil, AutoIncludeParserStageError{
 			Stage: "parse",
 			File:  stackFilePath,
-			Err:   parseErr,
+			Err:   withCommandsExperimentHint(pctx.Experiments, parseErr),
 		}
 	}
 
@@ -859,7 +859,12 @@ func generateAutoInclude(
 		resolved.SourceBytes,
 		resolved.EvalCtx,
 	); err != nil {
-		return fmt.Errorf("failed to write autoinclude for %s %s: %w", kind, cmp.address, err)
+		return fmt.Errorf(
+			"failed to write autoinclude for %s %s: %w",
+			kind,
+			cmp.address,
+			withCommandsExperimentHint(opts.experiments, err),
+		)
 	}
 
 	return nil

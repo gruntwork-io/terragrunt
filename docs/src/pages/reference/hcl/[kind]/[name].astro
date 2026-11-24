@@ -4,6 +4,7 @@ import { render } from 'astro:content';
 import HclAttribute from '@components/HclAttribute.astro';
 import HclBlock from '@components/HclBlock.astro';
 import HclFunction from '@components/HclFunction.astro';
+import HclVariable from '@components/HclVariable.astro';
 import { HCL_KINDS, itemHeadings, type HclEntry } from '@lib/hcl';
 import { getPublishedHclItems } from '@lib/hcl/published';
 
@@ -36,4 +37,5 @@ const { headings } = await render(entry);
 	{entry.collection === 'hclBlocks' && <HclBlock entry={entry} />}
 	{entry.collection === 'hclAttributes' && <HclAttribute entry={entry} />}
 	{entry.collection === 'hclFunctions' && <HclFunction entry={entry} />}
+	{entry.collection === 'hclVariables' && <HclVariable entry={entry} />}
 </StarlightPage>

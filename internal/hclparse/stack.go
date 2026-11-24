@@ -389,10 +389,22 @@ const DefaultMaxStackRecursionDepth = 1000
 // exercise only literal attributes return an empty map.
 type StackFuncFactory func(stackDir string) (map[string]function.Function, error)
 
+// StackVarFactory builds the HCL variables the stack file in a given stack directory evaluates with.
+type StackVarFactory func(stackDir string) (map[string]cty.Value, error)
+
 // StackDirArgs bundles the shared arguments for nested-stack expansion.
 type StackDirArgs struct {
 	FuncsFor StackFuncFactory
+	VarsFor  StackVarFactory
 	MaxDepth int
+}
+
+func (args *StackDirArgs) varsFor(stackDir string) (map[string]cty.Value, error) {
+	if args.VarsFor == nil {
+		return nil, nil
+	}
+
+	return args.VarsFor(stackDir)
 }
 
 // maxDepth returns the recursion bound to enforce, falling back to
@@ -440,13 +452,13 @@ func UnitPathsFromStackDir(
 // DirectComponentPaths returns the generated on-disk paths of the direct enabled unit and
 // stack components declared in stackDir's terragrunt.stack.hcl, honoring
 // no_dot_terragrunt_stack. It does not recurse into nested stacks; an absent stack
-// file yields empty slices and a nil error without calling funcsFor. funcsFor must be
+// file yields empty slices and a nil error without calling args.FuncsFor. args.FuncsFor must be
 // non-nil and return a non-nil map.
 func DirectComponentPaths(
 	ctx context.Context,
 	fsys vfs.FS,
 	stackDir string,
-	funcsFor StackFuncFactory,
+	args *StackDirArgs,
 ) (unitPaths, stackPaths []string, err error) {
 	if fsys == nil {
 		panic(fmt.Sprintf("hclparse.DirectComponentPaths: fsys is nil (stackDir=%q)", stackDir))
@@ -456,7 +468,11 @@ func DirectComponentPaths(
 		panic("hclparse.DirectComponentPaths: stackDir is empty")
 	}
 
-	if funcsFor == nil {
+	if args == nil {
+		panic(fmt.Sprintf("hclparse.DirectComponentPaths: args is nil (stackDir=%q)", stackDir))
+	}
+
+	if args.FuncsFor == nil {
 		panic(fmt.Sprintf("hclparse.DirectComponentPaths: funcsFor is nil (stackDir=%q)", stackDir))
 	}
 
@@ -472,7 +488,7 @@ func DirectComponentPaths(
 		return nil, nil, nil
 	}
 
-	funcs, err := funcsFor(stackDir)
+	funcs, err := args.FuncsFor(stackDir)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -486,7 +502,12 @@ func DirectComponentPaths(
 		)
 	}
 
-	units, stacks, err := decodeDiscovery(ctx, fsys, stackDir, stackFile, data, funcs)
+	vars, err := args.varsFor(stackDir)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	units, stacks, err := decodeDiscovery(ctx, fsys, stackDir, stackFile, data, funcs, vars)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -558,7 +579,12 @@ func unitPathsFromStackDir(
 		)
 	}
 
-	units, stacks, err := decodeDiscovery(ctx, fsys, stackDir, stackFile, data, funcs)
+	vars, err := args.varsFor(stackDir)
+	if err != nil {
+		return nil, err
+	}
+
+	units, stacks, err := decodeDiscovery(ctx, fsys, stackDir, stackFile, data, funcs, vars)
 	if err != nil {
 		return nil, err
 	}
@@ -627,6 +653,7 @@ func decodeDiscovery(
 	stackDir, stackFile string,
 	data []byte,
 	funcs map[string]function.Function,
+	vars map[string]cty.Value,
 ) ([]*unitPathOnlyHCL, []*stackPathOnlyHCL, error) {
 	parsedFile, err := parseStackFileRoot(data, stackFile)
 	if err != nil {
@@ -638,7 +665,9 @@ func decodeDiscovery(
 		Variables: map[string]cty.Value{},
 	}
 
-	values, err := discoveryValues(fsys, stackDir, stackFile, parsedFile.Remain, funcs)
+	maps.Copy(evalCtx.Variables, vars)
+
+	values, err := discoveryValues(fsys, stackDir, stackFile, parsedFile.Remain, funcs, vars)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -710,13 +739,14 @@ func discoveryValues(
 	stackDir, stackFile string,
 	body hcl.Body,
 	funcs map[string]function.Function,
+	vars map[string]cty.Value,
 ) (*cty.Value, error) {
 	decls, diags := valuesblock.Decode(body)
 	if diags.HasErrors() {
 		return nil, FileDecodeError{Name: stackFile, Err: diags}
 	}
 
-	file, err := readDiscoveryValues(fsys, stackDir, funcs)
+	file, err := readDiscoveryValues(fsys, stackDir, funcs, vars)
 	if err != nil {
 		return nil, err
 	}
@@ -763,6 +793,7 @@ func readDiscoveryValues(
 	fsys vfs.FS,
 	stackDir string,
 	funcs map[string]function.Function,
+	vars map[string]cty.Value,
 ) (*discoveryValuesFile, error) {
 	valuesPath := filepath.Join(stackDir, valuesFileName)
 
@@ -784,6 +815,8 @@ func readDiscoveryValues(
 		Functions: funcs,
 		Variables: map[string]cty.Value{},
 	}
+
+	maps.Copy(evalCtx.Variables, vars)
 
 	attrs, diags := file.Body.JustAttributes()
 

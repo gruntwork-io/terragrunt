@@ -1,0 +1,6 @@
+{
+  "inputs": {
+    "vars": "${commands.accept_vars}",
+    "indexed": "${commands[\"accept_parallelism\"]}"
+  }
+}

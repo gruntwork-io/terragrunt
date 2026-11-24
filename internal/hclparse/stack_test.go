@@ -1,6 +1,7 @@
 package hclparse_test
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,6 +14,7 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 )
 
@@ -1246,7 +1248,12 @@ func TestDirectComponentPaths_NotAStackSkipsFuncFactory(t *testing.T) {
 		return map[string]function.Function{}, nil
 	}
 
-	unitPaths, stackPaths, err := hclparse.DirectComponentPaths(t.Context(), fs, "/test", funcsFor)
+	unitPaths, stackPaths, err := hclparse.DirectComponentPaths(
+		t.Context(),
+		fs,
+		"/test",
+		&hclparse.StackDirArgs{FuncsFor: funcsFor},
+	)
 	require.NoError(t, err)
 	assert.Nil(t, unitPaths)
 	assert.Nil(t, stackPaths)
@@ -1524,6 +1531,98 @@ func TestParseStackFile_IncludedValuesBlockRejected(t *testing.T) {
 	var typed hclparse.IncludeValidationError
 	require.ErrorAs(t, err, &typed)
 	assert.Equal(t, "shared", typed.IncludeName)
+}
+
+func TestUnitPathsFromStackDirReadsCommandsFromFactoryVariables(t *testing.T) {
+	t.Parallel()
+
+	fsys, root := venvtest.LoadFS(t, filepath.Join("..", "..", "test", "fixtures", "commands-variable"))
+	stackDir := filepath.Join(root, "discovery", "live")
+
+	unitPaths, err := hclparse.UnitPathsFromStackDir(t.Context(), fsys, stackDir, &hclparse.StackDirArgs{
+		FuncsFor: noFuncs,
+		VarsFor:  commandsVarsFor,
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{filepath.Join(stackDir, ".terragrunt-stack", "plan-init")}, unitPaths)
+}
+
+func TestDirectComponentPathsReadsCommandsFromFactoryVariables(t *testing.T) {
+	t.Parallel()
+
+	fsys, root := venvtest.LoadFS(t, filepath.Join("..", "..", "test", "fixtures", "commands-variable"))
+	stackDir := filepath.Join(root, "discovery", "live")
+
+	unitPaths, stackPaths, err := hclparse.DirectComponentPaths(t.Context(), fsys, stackDir, &hclparse.StackDirArgs{
+		FuncsFor: noFuncs,
+		VarsFor:  commandsVarsFor,
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{filepath.Join(stackDir, ".terragrunt-stack", "plan-init")}, unitPaths)
+	assert.Empty(t, stackPaths)
+}
+
+func TestUnitPathsFromStackDirWithoutFactoryVariablesRejectsCommands(t *testing.T) {
+	t.Parallel()
+
+	fsys, root := venvtest.LoadFS(t, filepath.Join("..", "..", "test", "fixtures", "commands-variable"))
+	stackDir := filepath.Join(root, "discovery", "live")
+
+	_, err := hclparse.UnitPathsFromStackDir(t.Context(), fsys, stackDir, &hclparse.StackDirArgs{FuncsFor: noFuncs})
+
+	var decodeErr hclparse.FileDecodeError
+
+	require.ErrorAs(t, err, &decodeErr)
+
+	var diags hcl.Diagnostics
+
+	require.ErrorAs(t, err, &diags)
+	require.NotEmpty(t, diags)
+	require.NotNil(t, diags[0].Subject)
+
+	assert.Equal(t, "Unknown variable", diags[0].Summary)
+	assert.Equal(t, filepath.Join(stackDir, "terragrunt.values.hcl"), diags[0].Subject.Filename)
+}
+
+func TestDirectComponentPathsReturnsVariableFactoryError(t *testing.T) {
+	t.Parallel()
+
+	fsys, root := venvtest.LoadFS(t, filepath.Join("..", "..", "test", "fixtures", "commands-variable"))
+	stackDir := filepath.Join(root, "discovery", "live")
+	errVars := errors.New("variables failed")
+
+	_, _, err := hclparse.DirectComponentPaths(t.Context(), fsys, stackDir, &hclparse.StackDirArgs{
+		FuncsFor: noFuncs,
+		VarsFor:  func(string) (map[string]cty.Value, error) { return nil, errVars },
+	})
+
+	require.ErrorIs(t, err, errVars)
+}
+
+func TestUnitPathsFromStackDirReturnsVariableFactoryError(t *testing.T) {
+	t.Parallel()
+
+	fsys, root := venvtest.LoadFS(t, filepath.Join("..", "..", "test", "fixtures", "commands-variable"))
+	stackDir := filepath.Join(root, "discovery", "live")
+	errVars := errors.New("variables failed")
+
+	_, err := hclparse.UnitPathsFromStackDir(t.Context(), fsys, stackDir, &hclparse.StackDirArgs{
+		FuncsFor: noFuncs,
+		VarsFor:  func(string) (map[string]cty.Value, error) { return nil, errVars },
+	})
+
+	require.ErrorIs(t, err, errVars)
+}
+
+func commandsVarsFor(string) (map[string]cty.Value, error) {
+	return map[string]cty.Value{
+		"commands": cty.ObjectVal(map[string]cty.Value{
+			"accept_parallelism": cty.ListVal([]cty.Value{cty.StringVal("plan")}),
+			"accept_input":       cty.ListVal([]cty.Value{cty.StringVal("init")}),
+		}),
+	}, nil
 }
 
 // writeStackDir returns an in-memory filesystem holding files, keyed by slash-separated paths under dir.
