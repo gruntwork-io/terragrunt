@@ -75,7 +75,7 @@ blocks:
       - name: nullable
         type: bool
         default: "false"
-        description: Set it to `true` for an output whose value can be `null`. OpenTofu/Terraform leaves a `null` output out of the state. When the state has other outputs, dependents read `null` for the output, unless a state merge supplies its `mock_value`, and Terragrunt does not report the output as missing. It has no effect while the state has no outputs. Terragrunt cannot tell such a state from a unit that is not applied, so the rules for mock values apply.
+        description: Set it to `true` for an output whose value can be `null`. OpenTofu/Terraform leaves a `null` output out of the state. When the state has other outputs, dependents read `null` for the output, unless a state merge supplies its `mock_value`, and Terragrunt does not report the output as missing. It has no effect while the state has no outputs. Terragrunt cannot tell such a state from a unit that is not applied, so the rules for mock values apply. Set `mock_value = null` as well to let dependents read `null` under those rules.
     example: |
       # vpc/terragrunt.hcl
 
