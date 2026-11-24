@@ -1,4 +1,4 @@
 inputs = {
-  unit        = unit.path
+  unit        = path.unit
   working_dir = get_working_dir()
 }

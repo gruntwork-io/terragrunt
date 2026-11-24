@@ -8,7 +8,7 @@ unit "app" {
   path   = "app"
 
   values = {
-    stack_dir = stack.path
+    stack_dir = path.stack
     net_dir   = stack.net.path
   }
 }

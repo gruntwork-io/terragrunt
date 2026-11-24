@@ -231,7 +231,7 @@ func readValuesFile(
 		return nil, err
 	}
 
-	pctx, err = withValuesPathVariables(ctx, l, v, s, pctx, file, dir)
+	pctx, err = withValuesPathVariable(ctx, l, v, s, pctx, file, dir)
 	if err != nil {
 		return nil, err
 	}

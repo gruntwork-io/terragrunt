@@ -485,12 +485,12 @@ func (s *Store) prepareBase(
 
 	pc = pc.withInclude(include)
 
-	pathVars, err := PathVariables(ctx, l, v, s, pctx, file, include)
+	pathValue, err := PathVariable(ctx, l, v, s, pctx, file, include)
 	if err != nil {
 		return nil, err
 	}
 
-	pc = pc.withPathVars(pathVars)
+	pc = pc.withPath(pathValue)
 
 	var errs []error
 

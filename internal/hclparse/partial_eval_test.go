@@ -1,6 +1,7 @@
 package hclparse_test
 
 import (
+	"maps"
 	"math/big"
 	"strings"
 	"testing"
@@ -1412,7 +1413,7 @@ func TestPartialEval_ResolvesPathIncludeOfDeferredPath(t *testing.T) {
 	}
 }
 
-func TestPartialEval_KeepsUnitPathForGeneratedUnit(t *testing.T) {
+func TestPartialEval_KeepsPathUnitForGeneratedUnit(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -1420,12 +1421,12 @@ func TestPartialEval_KeepsUnitPathForGeneratedUnit(t *testing.T) {
 		hcl  string
 		want string
 	}{
-		{name: "attribute", hcl: `val = unit.path`, want: `unit.path`},
-		{name: "index", hcl: `val = unit["path"]`, want: `unit["path"]`},
+		{name: "attribute", hcl: `val = path.unit`, want: `path.unit`},
+		{name: "index", hcl: `val = path["unit"]`, want: `path["unit"]`},
 		{name: "path of a unit block", hcl: `val = unit.db.path`, want: `"/live/db"`},
 		{name: "path of a unit block with the name path", hcl: `val = unit.path.path`, want: `"/live/named"`},
-		{name: "template", hcl: `val = "${unit.db.path}:${unit.path}"`, want: `"/live/db:${unit.path}"`},
-		{name: "stack.path", hcl: `val = "${stack.path}:${unit.path}"`, want: `"/live:${unit.path}"`},
+		{name: "template", hcl: `val = "${unit.db.path}:${path.unit}"`, want: `"/live/db:${path.unit}"`},
+		{name: "path.parentstack", hcl: `val = "${path.parentstack}:x"`, want: `"${path.parentstack}:x"`},
 		{
 			name: "iterator named unit",
 			hcl:  `val = [for unit in dependency.db.outputs.items : unit.path]`,
@@ -1577,9 +1578,9 @@ func TestIsPure_PathIncludeIsNotADeferredRead(t *testing.T) {
 		{name: "index with a computed include key", hcl: `val = path["inc${"lude"}"]`, want: true},
 		{name: "index with another computed key", hcl: `val = path["down${"load"}"]`, want: false},
 		{name: "whole object", hcl: `val = path`, want: false},
-		{name: "unit.path", hcl: `val = unit.path`, want: false},
+		{name: "path.unit", hcl: `val = path.unit`, want: false},
 		{name: "path of a unit block", hcl: `val = unit.db.path`, want: true},
-		{name: "stack.path", hcl: `val = stack.path`, want: true},
+		{name: "path.parentstack", hcl: `val = path.parentstack`, want: false},
 	}
 
 	for _, tc := range testCases {
@@ -1593,21 +1594,22 @@ func TestIsPure_PathIncludeIsNotADeferredRead(t *testing.T) {
 	}
 }
 
-// pathDeferred is what a unit autoinclude keeps for the generated unit: `dependency`, `path` and `unit.path`.
+// pathDeferred is the deferred roots of a unit autoinclude that keeps `path` for the generated unit.
 var pathDeferred = map[string]struct{}{
 	"dependency": {},
 	"path":       {},
-	"unit.path":  {},
 }
 
-// pathEvalCtx returns the eval context of a stack file in /live whose `path` object holds attrs.
+// pathEvalCtx returns the eval context of a stack file whose `path` object holds path.stack and attrs.
 func pathEvalCtx(attrs map[string]cty.Value) *hcl.EvalContext {
+	path := map[string]cty.Value{"stack": cty.StringVal("/live")}
+	maps.Copy(path, attrs)
+
 	local := cty.ObjectVal(map[string]cty.Value{"key": cty.StringVal("include"), "other": cty.StringVal("download")})
 
 	return &hcl.EvalContext{Variables: map[string]cty.Value{
-		"path":  cty.ObjectVal(attrs),
+		"path":  cty.ObjectVal(path),
 		"local": local,
-		"stack": cty.ObjectVal(map[string]cty.Value{"path": cty.StringVal("/live")}),
 		"unit": cty.ObjectVal(map[string]cty.Value{
 			"db":   cty.ObjectVal(map[string]cty.Value{"path": cty.StringVal("/live/db")}),
 			"path": cty.ObjectVal(map[string]cty.Value{"path": cty.StringVal("/live/named")}),

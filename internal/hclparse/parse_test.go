@@ -717,7 +717,7 @@ unit "app" {
 func TestGenerateAutoIncludeFileKeepsUnitRoots(t *testing.T) {
 	t.Parallel()
 
-	fsys, resolved := resolvePathAutoInclude(t, []string{"path", "unit.path"})
+	fsys, resolved := resolvePathAutoInclude(t, []string{"path"})
 
 	err := hclparse.GenerateAutoIncludeFile(fsys, resolved, testGenDir, resolved.SourceBytes, resolved.EvalCtx)
 	require.NoError(t, err)
@@ -725,13 +725,11 @@ func TestGenerateAutoIncludeFileKeepsUnitRoots(t *testing.T) {
 	generated, err := vfs.ReadFile(fsys, filepath.Join(testGenDir, hclparse.AutoIncludeFile))
 	require.NoError(t, err)
 
-	stackDir := resolved.EvalCtx.Variables["stack"].GetAttr("path").AsString()
-
 	content := string(generated)
-	assert.Contains(t, content, "consumer = unit.path")
+	assert.Contains(t, content, "consumer = path.unit")
 	assert.Contains(t, content, "= path.download")
-	assert.Contains(t, content, "auto_stack  = "+strconv.Quote(stackDir))
-	assert.Contains(t, content, `"live:${unit.path}"`)
+	assert.Contains(t, content, "= path.parentstack")
+	assert.Contains(t, content, `"live:${path.unit}"`)
 	assert.NotContains(t, content, "local.env")
 }
 
@@ -768,6 +766,7 @@ func TestIncludeEvalContext(t *testing.T) {
 		assert.Same(t, base, scoped.Parent())
 		assert.Equal(t, map[string]cty.Value{
 			"path": cty.ObjectVal(map[string]cty.Value{
+				"stack":   cty.StringVal("/live"),
 				"include": cty.StringVal(filepath.FromSlash("/catalog/components.hcl")),
 			}),
 		}, scoped.Variables)
@@ -775,7 +774,7 @@ func TestIncludeEvalContext(t *testing.T) {
 	})
 }
 
-func TestParseStackFileKeepsStackPathBesideStackBlocks(t *testing.T) {
+func TestParseStackFileKeepsPathStackBesideStackBlocks(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -796,7 +795,7 @@ unit "app" {
   path   = "app"
 
   values = {
-    stack_dir = stack.path
+    stack_dir = path.stack
     net_dir   = stack.net.path
   }
 }
@@ -807,7 +806,7 @@ unit "app" {
 			name: "stack block with the name path",
 			src: `
 locals {
-  stack_dir = stack.path
+  stack_dir = path.stack
 }
 
 stack "path" {
@@ -870,7 +869,7 @@ func TestParseStackFileScopesPathIncludeToIncludedFile(t *testing.T) {
 		StackDir:  stackDir,
 		Variables: pathVars(stackDir),
 		Functions: pathFuncs(),
-		UnitRoots: []string{"path", "unit.path"},
+		UnitRoots: []string{"path"},
 	})
 	require.NoError(t, err)
 	require.Len(t, result.Units, 2)
@@ -904,7 +903,7 @@ func TestParseStackFileScopesPathIncludeToIncludedFile(t *testing.T) {
 	assert.Contains(t, content, "auto_include = "+strconv.Quote(includePath))
 	assert.Contains(t, content, "auto_index   = "+strconv.Quote(includePath))
 	assert.Contains(t, content, `auto_guard   = "components.hcl"`)
-	assert.Contains(t, content, `"components.hcl:${unit.path}"`)
+	assert.Contains(t, content, `"components.hcl:${path.unit}"`)
 }
 
 // TestGenerateAutoIncludeFile_MockOutputsResolvesLocal pins that a dependency's mock_outputs resolves

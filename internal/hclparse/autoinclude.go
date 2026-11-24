@@ -59,7 +59,7 @@ type AutoIncludeResolved struct {
 	// Kind is KindUnit or KindStack and drives the generated filename (terragrunt.autoinclude.hcl vs terragrunt.autoinclude.stack.hcl).
 	Kind         AutoIncludeKind
 	Dependencies []AutoIncludeDependency
-	// UnitRoots are the roots, and the references such as `unit.path`, kept verbatim for the generated unit to resolve.
+	// UnitRoots are the variable roots kept verbatim, beside dependency, for the generated unit to resolve.
 	UnitRoots []string
 }
 

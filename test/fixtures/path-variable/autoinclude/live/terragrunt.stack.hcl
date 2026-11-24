@@ -17,15 +17,15 @@ unit "app" {
       skip_outputs = true
 
       mock_outputs = {
-        consumer = unit.path
+        consumer = path.unit
       }
     }
 
     inputs = {
-      auto_unit   = unit.path
+      auto_unit   = path.unit
       auto_module = path.download
-      auto_stack  = stack.path
-      auto_label  = "${local.env}:${unit.path}"
+      auto_stack  = path.parentstack
+      auto_label  = "${local.env}:${path.unit}"
       db_consumer = dependency.db.outputs.consumer
     }
   }

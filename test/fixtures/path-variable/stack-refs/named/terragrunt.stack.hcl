@@ -1,5 +1,5 @@
 locals {
-  stack_dir = stack.path
+  stack_dir = path.stack
 }
 
 stack "path" {

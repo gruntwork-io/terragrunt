@@ -8,10 +8,10 @@ locals {
 }
 
 inputs = {
-  unit        = unit.path
+  unit        = path.unit
   include     = try(path.include, "not-included")
   read        = try(path.read, "not-read")
-  stack       = try(stack.path, "no-stack")
+  stack       = try(path.parentstack, "no-stack")
   env_read    = local.env.locals.read_file
   env_unit    = local.env.locals.read_unit
   env_include = local.env.locals.read_include

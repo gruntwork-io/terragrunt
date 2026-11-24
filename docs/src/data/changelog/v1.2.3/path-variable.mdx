@@ -3,9 +3,9 @@ version: "v1.2.3"
 category: "experiments-added"
 ---
 
-#### `path-variable` experiment adds `unit.path`, `stack.path` and the `path` variable
+#### `path-variable` experiment adds the `path` variable
 
-Enable the [`path-variable`](/reference/experiments/active#path-variable) experiment to read paths by name: `unit.path`, `stack.path`, `path.download`, `path.include` and `path.read`.
+Enable the [`path-variable`](/reference/experiments/active#path-variable) experiment to read paths by name: `path.unit`, `path.stack`, `path.parentstack`, `path.download`, `path.include` and `path.read`.
 
 ```bash
 terragrunt run --all --experiment path-variable -- plan

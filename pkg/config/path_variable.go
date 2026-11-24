@@ -13,7 +13,6 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
-	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -24,32 +23,34 @@ import (
 )
 
 const (
-	// selfPathAttr names the attribute of `unit.path` and `stack.path`.
-	selfPathAttr = "path"
+	// pathAttrUnit names `path.unit`, the directory of the unit config.
+	pathAttrUnit = "unit"
+	// pathAttrStack names `path.stack`, the directory of the stack file.
+	pathAttrStack = "stack"
+	// pathAttrParentStack names `path.parentstack`, the directory of the nearest stack file at or above the unit.
+	pathAttrParentStack = "parentstack"
 	// pathAttrDownload names `path.download`, the directory in which OpenTofu/Terraform runs.
 	pathAttrDownload = "download"
 	// pathAttrInclude names `path.include`, the path of the included file.
 	pathAttrInclude = "include"
 	// pathAttrRead names `path.read`, the path of the file read_terragrunt_config reads.
 	pathAttrRead = "read"
-	// pathExperimentHint tells how to enable `unit.path`, `stack.path` and the `path` variable.
-	pathExperimentHint = " `unit.path`, `stack.path` and the `path` variable need the " + experiment.PathVariable +
-		" experiment. Enable it with --experiment " + experiment.PathVariable + " or TG_EXPERIMENT=" +
-		experiment.PathVariable + "."
+	// pathExperimentHint tells how to enable the `path` variable.
+	pathExperimentHint = " The `path` variable needs the " + experiment.PathVariable + " experiment. Enable it with " +
+		"--experiment " + experiment.PathVariable + " or TG_EXPERIMENT=" + experiment.PathVariable + "."
 )
 
-// pathExperimentHintOption adds the experiment hint to the diagnostics of an unknown path value.
+// pathExperimentHintOption adds the experiment hint to the diagnostics of an unknown `path` variable.
 var pathExperimentHintOption = hclparse.WithDiagnosticsHandler(pathExperimentDiagnostics)
 
-// pathReferences is the set of path values a file references.
+// pathReferences is the set of `path` attributes a file references.
 type pathReferences struct {
-	unit     bool
-	stack    bool
-	download bool
+	attrs map[string]struct{}
+	whole bool
 }
 
-// PathVariables returns the `unit`, `stack` and `path` variables for file; returns nil when the experiment is disabled.
-func PathVariables(
+// PathVariable returns the `path` value for file; returns nil when the path-variable experiment is disabled.
+func PathVariable(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
@@ -57,7 +58,7 @@ func PathVariables(
 	pctx *ParsingContext,
 	file *hclparse.File,
 	include *IncludeConfig,
-) (map[string]cty.Value, error) {
+) (*cty.Value, error) {
 	if !pctx.Experiments.Evaluate(experiment.PathVariable) {
 		return nil, nil
 	}
@@ -65,16 +66,27 @@ func PathVariables(
 	attrs := basePathAttributes(pctx, include)
 
 	if isStackConfigFile(pctx.TerragruntConfigPath) {
-		return pathVariables(pctx, attrs), nil
+		return pathObject(attrs), nil
 	}
 
 	refs := filePathReferences(file)
 
-	if refs.unit || refs.stack || refs.download {
+	if refs.has(pathAttrUnit) || refs.has(pathAttrParentStack) || refs.has(pathAttrDownload) {
 		markNotShareable(ctx)
 	}
 
-	if refs.download {
+	if refs.has(pathAttrParentStack) {
+		stackDir, err := enclosingStackDir(v.FS, pctx)
+		if err != nil {
+			return nil, fmt.Errorf("resolving path.parentstack for %s: %w", file.ConfigPath, err)
+		}
+
+		if stackDir != "" {
+			attrs[pathAttrParentStack] = cty.StringVal(stackDir)
+		}
+	}
+
+	if refs.has(pathAttrDownload) {
 		moduleDir, err := unitModuleDir(ctx, l, v, s, pctx)
 		if err != nil {
 			return nil, fmt.Errorf("resolving path.download for %s: %w", file.ConfigPath, err)
@@ -83,26 +95,11 @@ func PathVariables(
 		attrs[pathAttrDownload] = cty.StringVal(moduleDir)
 	}
 
-	vars := pathVariables(pctx, attrs)
-
-	if !refs.stack {
-		return vars, nil
-	}
-
-	stackDir, err := enclosingStackDir(v.FS, pctx)
-	if err != nil {
-		return nil, fmt.Errorf("resolving stack.path for %s: %w", file.ConfigPath, err)
-	}
-
-	if stackDir != "" {
-		vars[MetadataStack] = selfPath(stackDir)
-	}
-
-	return vars, nil
+	return pathObject(attrs), nil
 }
 
-// withPathVariables returns a copy of pctx with the path variables for file, or pctx when the experiment is disabled.
-func withPathVariables(
+// withPathVariable returns a copy of pctx with the `path` value for file, or pctx when the experiment is disabled.
+func withPathVariable(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
@@ -111,16 +108,16 @@ func withPathVariables(
 	file *hclparse.File,
 	include *IncludeConfig,
 ) (*ParsingContext, error) {
-	vars, err := PathVariables(ctx, l, v, s, pctx, file, include)
-	if err != nil || vars == nil {
+	path, err := PathVariable(ctx, l, v, s, pctx, file, include)
+	if err != nil || path == nil {
 		return pctx, err
 	}
 
-	return pctx.withPathVars(vars), nil
+	return pctx.withPath(path), nil
 }
 
-// withValuesPathVariables returns pctx with the path variables for the values file in directory.
-func withValuesPathVariables(
+// withValuesPathVariable returns pctx with the `path` value for the values file in directory.
+func withValuesPathVariable(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
@@ -139,26 +136,26 @@ func withValuesPathVariables(
 	}
 
 	if !ofStack {
-		return withPathVariables(ctx, l, v, s, pctx, file, nil)
+		return withPathVariable(ctx, l, v, s, pctx, file, nil)
 	}
 
-	return pctx.withPathVars(stackValuesPathVariables(pctx, directory)), nil
+	return pctx.withPath(stackValuesPath(pctx, directory)), nil
 }
 
-// evalPathVariables returns the path variables of pctx, built from the base values when no file supplied them.
-func evalPathVariables(ctx context.Context, pctx *ParsingContext) map[string]cty.Value {
-	if pctx.PathVars != nil {
-		return pctx.PathVars
+// evalPathVariable returns the `path` value of pctx, built from the base attributes when no file supplied one.
+func evalPathVariable(ctx context.Context, pctx *ParsingContext) cty.Value {
+	if pctx.Path != nil {
+		return *pctx.Path
 	}
 
 	if !isStackConfigFile(pctx.TerragruntConfigPath) {
 		markNotShareable(ctx)
 	}
 
-	return pathVariables(pctx, basePathAttributes(pctx, pctx.include))
+	return *pathObject(basePathAttributes(pctx, pctx.include))
 }
 
-// pathExperimentDiagnostics adds the experiment hint to each diagnostic of an unknown path value.
+// pathExperimentDiagnostics adds the experiment hint to each diagnostic of an unknown `path` variable.
 func pathExperimentDiagnostics(_ *hcl.File, diags hcl.Diagnostics) (hcl.Diagnostics, error) {
 	hintUnknownPath(diags)
 
@@ -176,7 +173,7 @@ func withPathExperimentHint(enabled bool, err error) error {
 	return err
 }
 
-// hintUnknownPath adds the experiment hint to each diagnostic of an unknown path value.
+// hintUnknownPath adds the experiment hint to each diagnostic of an unknown `path` variable.
 func hintUnknownPath(diags hcl.Diagnostics) {
 	for _, diag := range diags {
 		if readsUnknownPath(diag) && !strings.HasSuffix(diag.Detail, pathExperimentHint) {
@@ -185,7 +182,7 @@ func hintUnknownPath(diags hcl.Diagnostics) {
 	}
 }
 
-// readsUnknownPath reports whether diag, or a cause that diag holds, is for a reference to an unknown path value.
+// readsUnknownPath reports whether diag, or a cause that diag holds, is for a reference to an unknown `path`.
 func readsUnknownPath(diag *hcl.Diagnostic) bool {
 	if causes, held := diag.Extra.(hcl.Diagnostics); held {
 		return slices.ContainsFunc(causes, referencesUnknownPath)
@@ -194,14 +191,14 @@ func readsUnknownPath(diag *hcl.Diagnostic) bool {
 	return referencesUnknownPath(diag)
 }
 
-// referencesUnknownPath reports whether diag is for a reference to a path value where no scope defines `path`.
+// referencesUnknownPath reports whether diag is for a reference to `path` that no scope defines.
 func referencesUnknownPath(diag *hcl.Diagnostic) bool {
 	if diag.Expression == nil {
 		return false
 	}
 
 	traversal, diags := hcl.AbsTraversalForExpr(diag.Expression)
-	if diags.HasErrors() || !readsPathValue(traversal) {
+	if diags.HasErrors() || traversal.RootName() != MetadataPath {
 		return false
 	}
 
@@ -220,45 +217,63 @@ func autoIncludeUnitRoots(pctx *ParsingContext) []string {
 		return nil
 	}
 
-	return []string{MetadataPath, MetadataUnit + "." + selfPathAttr}
+	return []string{MetadataPath}
 }
 
-// readsPathValue reports whether traversal reads `unit.path`, `stack.path` or the `path` variable.
-func readsPathValue(traversal hcl.Traversal) bool {
-	root := traversal.RootName()
-	if root == MetadataPath {
+// has reports whether the file references attr, alone or through the whole `path` object.
+func (refs pathReferences) has(attr string) bool {
+	if refs.whole {
 		return true
 	}
 
-	name, named := inthclparse.FirstAttribute(traversal)
+	_, found := refs.attrs[attr]
 
-	return (root == MetadataUnit || root == MetadataStack) && named && name == selfPathAttr && len(traversal[1:]) == 1
+	return found
 }
 
-// add records the path value that traversal reads.
+// add records the `path` attribute traversal reads.
 func (refs *pathReferences) add(traversal hcl.Traversal) {
-	switch traversal.RootName() {
-	case MetadataUnit:
-		refs.unit = true
-	case MetadataStack:
-		refs.stack = true
-	case MetadataPath:
-		name, named := inthclparse.FirstAttribute(traversal)
-		refs.download = refs.download || !named || name == pathAttrDownload
+	if traversal.RootName() != MetadataPath {
+		return
 	}
+
+	name, named := pathAttributeName(traversal)
+	if !named {
+		refs.whole = true
+
+		return
+	}
+
+	refs.attrs[name] = struct{}{}
 }
 
-// filePathReferences returns the path values the expressions of file reference, all of them for a file with errors.
+// pathAttributeName returns the attribute a traversal rooted at `path` reads, and false when it names none.
+func pathAttributeName(traversal hcl.Traversal) (string, bool) {
+	steps := traversal.SimpleSplit().Rel
+	if len(steps) == 0 {
+		return "", false
+	}
+
+	switch step := steps[0].(type) {
+	case hcl.TraverseAttr:
+		return step.Name, true
+	case hcl.TraverseIndex:
+		if step.Key.Type() == cty.String && step.Key.IsKnown() && !step.Key.IsNull() {
+			return step.Key.AsString(), true
+		}
+	}
+
+	return "", false
+}
+
+// filePathReferences returns the `path` attributes the expressions of file reference.
 func filePathReferences(file *hclparse.File) pathReferences {
-	refs := pathReferences{}
-	all := pathReferences{unit: true, stack: true, download: true}
+	refs := pathReferences{attrs: map[string]struct{}{}}
 
 	body, ok := file.Body.(*hclsyntax.Body)
 	if !ok {
 		attrs, diags := file.Body.JustAttributes()
-		if diags.HasErrors() {
-			return all
-		}
+		refs.whole = diags.HasErrors()
 
 		for _, attr := range attrs {
 			for _, traversal := range attr.Expr.Variables() {
@@ -281,32 +296,18 @@ func filePathReferences(file *hclparse.File) pathReferences {
 
 		return nil
 	})
-	if diags.HasErrors() {
-		return all
-	}
+	refs.whole = refs.whole || diags.HasErrors()
 
 	return refs
 }
 
-// pathVariables returns the `path` object of attrs with the `stack.path` of a stack file or the `unit.path` of a unit.
-func pathVariables(pctx *ParsingContext, attrs map[string]cty.Value) map[string]cty.Value {
-	vars := map[string]cty.Value{MetadataPath: cty.ObjectVal(attrs)}
-
-	if isStackConfigFile(pctx.TerragruntConfigPath) {
-		vars[MetadataStack] = selfPath(filepath.Dir(pctx.TerragruntConfigPath))
-
-		return vars
-	}
-
-	vars[MetadataUnit] = selfPath(filepath.Dir(pctx.OriginalTerragruntConfigPath))
-	vars[MetadataStack] = cty.EmptyObjectVal
-
-	return vars
-}
-
 // basePathAttributes returns the `path` attributes that need no parse and no filesystem probe.
 func basePathAttributes(pctx *ParsingContext, include *IncludeConfig) map[string]cty.Value {
-	attrs := map[string]cty.Value{}
+	attrs := map[string]cty.Value{pathAttrUnit: cty.StringVal(filepath.Dir(pctx.OriginalTerragruntConfigPath))}
+
+	if isStackConfigFile(pctx.TerragruntConfigPath) {
+		attrs = map[string]cty.Value{pathAttrStack: cty.StringVal(filepath.Dir(pctx.TerragruntConfigPath))}
+	}
 
 	if include != nil {
 		attrs[pathAttrInclude] = cty.StringVal(filepath.Clean(include.Path))
@@ -319,24 +320,23 @@ func basePathAttributes(pctx *ParsingContext, include *IncludeConfig) map[string
 	return attrs
 }
 
-// stackValuesPathVariables returns the path variables of the values file that belongs to the stack file in stackDir.
-func stackValuesPathVariables(pctx *ParsingContext, stackDir string) map[string]cty.Value {
-	attrs := map[string]cty.Value{}
+// stackValuesPath returns the `path` value of the values file that belongs to the stack file in stackDir.
+func stackValuesPath(pctx *ParsingContext, stackDir string) *cty.Value {
+	attrs := map[string]cty.Value{pathAttrStack: cty.StringVal(stackDir)}
 
 	read, found := basePathAttributes(pctx, nil)[pathAttrRead]
 	if found && filepath.Dir(pctx.TerragruntConfigPath) == stackDir {
 		attrs[pathAttrRead] = read
 	}
 
-	return map[string]cty.Value{
-		MetadataStack: selfPath(stackDir),
-		MetadataPath:  cty.ObjectVal(attrs),
-	}
+	return pathObject(attrs)
 }
 
-// selfPath returns the object that holds dir as its `path` attribute.
-func selfPath(dir string) cty.Value {
-	return cty.ObjectVal(map[string]cty.Value{selfPathAttr: cty.StringVal(dir)})
+// pathObject returns attrs as the `path` object value.
+func pathObject(attrs map[string]cty.Value) *cty.Value {
+	value := cty.ObjectVal(attrs)
+
+	return &value
 }
 
 // isStackConfigFile reports whether path names a stack file or a stack autoinclude file.

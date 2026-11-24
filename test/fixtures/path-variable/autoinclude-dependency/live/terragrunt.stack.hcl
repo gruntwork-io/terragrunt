@@ -9,7 +9,7 @@ unit "app" {
 
   autoinclude {
     dependency "db" {
-      config_path  = "${stack.path}/.terragrunt-stack/db"
+      config_path  = "${path.stack}/.terragrunt-stack/db"
       skip_outputs = true
     }
   }

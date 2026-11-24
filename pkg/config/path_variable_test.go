@@ -241,7 +241,7 @@ func TestPathVariableModuleInSharedStoreFollowsParsingContext(t *testing.T) {
 	}
 }
 
-func TestPathVariableStackInSharedStoreFollowsNewStackFile(t *testing.T) {
+func TestPathVariableParentStackInSharedStoreFollowsNewStackFile(t *testing.T) {
 	t.Parallel()
 
 	v, root := pathFixture(t)
@@ -513,10 +513,12 @@ func TestPathVariableAsWholeObject(t *testing.T) {
 	t.Parallel()
 
 	v, root := pathFixture(t)
-	inputs := parsePathUnit(t, v, filepath.Join(root, "module", "local"))
+	unitDir := filepath.Join(root, "module", "local")
+
+	inputs := parsePathUnit(t, v, unitDir)
 
 	require.NotEmpty(t, inputs["working_dir"])
-	assert.Equal(t, map[string]any{"download": inputs["working_dir"]}, inputs["whole"])
+	assert.Equal(t, map[string]any{"unit": unitDir, "download": inputs["working_dir"]}, inputs["whole"])
 }
 
 func TestPathVariableInValuesFile(t *testing.T) {
@@ -543,7 +545,7 @@ func TestPathVariableInJSONConfig(t *testing.T) {
 	assert.Equal(t, map[string]any{"unit": unitDir, "indexed": unitDir}, inputs)
 }
 
-func TestPathVariableStackOfUnitBelowStackFile(t *testing.T) {
+func TestPathVariableParentStackOfUnitBelowStackFile(t *testing.T) {
 	t.Parallel()
 
 	v, root := pathFixture(t)
@@ -552,7 +554,74 @@ func TestPathVariableStackOfUnitBelowStackFile(t *testing.T) {
 
 	inputs := parsePathUnit(t, v, unitDir)
 
-	assert.Equal(t, map[string]any{"unit": unitDir, "stack": stackDir}, inputs)
+	assert.Equal(t, map[string]any{"unit": unitDir, "stack": "no-stack", "parent_stack": stackDir}, inputs)
+}
+
+func TestPathVariableParentStackInReadFileFollowsTheReadingUnit(t *testing.T) {
+	t.Parallel()
+
+	const (
+		common = "locals {\n  stack = try(path.parentstack, \"no-stack\")\n}\n"
+		unit   = "locals {\n  common = read_terragrunt_config(\"{{root}}/common.hcl\")\n}\n\n" +
+			"inputs = {\n  stack = local.common.locals.stack\n}\n"
+	)
+
+	root := venvtest.Root("/fixture")
+	stackDir := filepath.Join(root, "live")
+	v := venv.MemVenv().WithFS(memFS(root, map[string]string{
+		"common.hcl":                common,
+		"plain/app/terragrunt.hcl":  unit,
+		"live/terragrunt.stack.hcl": "",
+		"live/app/terragrunt.hcl":   unit,
+	})(t))
+
+	written := time.Now().Add(-time.Hour)
+	require.NoError(t, v.FS.Chtimes(filepath.Join(root, "common.hcl"), written, written))
+
+	ctx := config.WithCaches(t.Context())
+
+	plain := parsePathInputs(ctx, t, v, filepath.Join(root, "plain", "app", config.DefaultTerragruntConfigPath))
+	inStack := parsePathInputs(ctx, t, v, filepath.Join(stackDir, "app", config.DefaultTerragruntConfigPath))
+
+	assert.Equal(t, "no-stack", plain["stack"])
+	assert.Equal(t, stackDir, inStack["stack"])
+}
+
+func TestPathVariableParentStackSearchRunsOnlyWhenRead(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		config   string
+		searches bool
+	}{
+		{name: "path.unit", config: "inputs = {\n  dir = path.unit\n}\n"},
+		{name: "path.parentstack", config: "inputs = {\n  dir = path.parentstack\n}\n", searches: true},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := venvtest.Root("/fixture")
+			cfgPath := filepath.Join(root, "app", config.DefaultTerragruntConfigPath)
+			v := venv.MemVenv().WithFS(memFS(root, map[string]string{"app/terragrunt.hcl": tc.config})(t))
+
+			ctx, pctx := newPathParsingContext(t, cfgPath)
+			pctx.MaxFoldersToCheck = 0
+
+			_, err := new(config.Store).ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, cfgPath)
+			if !tc.searches {
+				require.NoError(t, err)
+
+				return
+			}
+
+			var notFound config.ParentFileNotFoundError
+
+			require.ErrorAs(t, err, &notFound)
+		})
+	}
 }
 
 func TestPathVariableInStackFile(t *testing.T) {
@@ -576,10 +645,11 @@ func TestPathVariableInStackFile(t *testing.T) {
 		"stack_dir":       stackDir,
 		"unit_in_stack":   "no-unit",
 		"module_in_stack": "no-module",
+		"parent_in_stack": "no-parent",
 	}, values)
 }
 
-func TestPathVariableStackPathBesideStackBlocks(t *testing.T) {
+func TestPathVariableStackBesideStackBlocks(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -627,12 +697,12 @@ func TestPathVariableStackPathBesideStackBlocks(t *testing.T) {
 	}
 }
 
-func TestPathVariableUnitPathInStackLocalsNamesTheExperimentOnlyWhenDisabled(t *testing.T) {
+func TestPathVariableUnitInStackLocalsNamesTheExperimentOnlyWhenDisabled(t *testing.T) {
 	t.Parallel()
 
 	const stackFile = `
 locals {
-  unit_dir = unit.path
+  unit_dir = path.unit
 }
 
 unit "app" {
@@ -708,6 +778,7 @@ func TestPathVariableInStackFileReadFromUnit(t *testing.T) {
 				"stack_dir":       stackDir,
 				"unit_in_stack":   "no-unit",
 				"module_in_stack": "no-module",
+				"parent_in_stack": "no-parent",
 			}, unitValues)
 		})
 	}
@@ -894,8 +965,7 @@ func TestPathVariableInStackFileEvalVariables(t *testing.T) {
 			name:        "experiment enabled",
 			experiments: []string{experiment.PathVariable},
 			want: map[string]cty.Value{
-				config.MetadataPath:  cty.EmptyObjectVal,
-				config.MetadataStack: cty.ObjectVal(map[string]cty.Value{"path": cty.StringVal(stackDir)}),
+				config.MetadataPath: cty.ObjectVal(map[string]cty.Value{"stack": cty.StringVal(stackDir)}),
 			},
 		},
 	}
@@ -1001,8 +1071,11 @@ func TestPathVariableErrorNamesTheExperimentWhenDisabled(t *testing.T) {
 		{name: "inputs", config: filepath.Join("module", "remote", config.DefaultTerragruntConfigPath)},
 		{name: "values file", config: filepath.Join("values", "app", config.DefaultTerragruntConfigPath)},
 		{name: "JSON config", config: filepath.Join("live", "json", config.DefaultTerragruntJSONConfigPath)},
-		{name: "unit.path in locals", config: filepath.Join("all", "app", config.DefaultTerragruntConfigPath)},
-		{name: "stack.path in a unit", config: filepath.Join("stack", "live", "manual", config.DefaultTerragruntConfigPath)},
+		{name: "path.unit in locals", config: filepath.Join("all", "app", config.DefaultTerragruntConfigPath)},
+		{
+			name:   "path.parentstack in a unit",
+			config: filepath.Join("stack", "live", "manual", config.DefaultTerragruntConfigPath),
+		},
 	}
 
 	for _, tc := range testCases {
@@ -1045,7 +1118,7 @@ func newPathParsingContext(t *testing.T, cfgPath string) (context.Context, *conf
 	return ctx, pctx
 }
 
-// unitPathParsingContext returns the parsing context of the unit in unitDir with its path variables set.
+// unitPathParsingContext returns the parsing context of the unit in unitDir with its `path` value set.
 func unitPathParsingContext(t *testing.T, v *venv.Venv, unitDir string) (context.Context, *config.ParsingContext) {
 	t.Helper()
 
@@ -1056,9 +1129,9 @@ func unitPathParsingContext(t *testing.T, v *venv.Venv, unitDir string) (context
 	file, err := pctx.NewParser(l, v).ParseFromFile(v.FS, cfgPath)
 	require.NoError(t, err)
 
-	pctx.PathVars, err = config.PathVariables(ctx, l, v, new(config.Store), pctx, file, nil)
+	pctx.Path, err = config.PathVariable(ctx, l, v, new(config.Store), pctx, file, nil)
 	require.NoError(t, err)
-	require.NotNil(t, pctx.PathVars)
+	require.NotNil(t, pctx.Path)
 
 	return ctx, pctx
 }

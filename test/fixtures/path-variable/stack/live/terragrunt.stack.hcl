@@ -1,5 +1,5 @@
 locals {
-  stack_dir = stack.path
+  stack_dir = path.stack
 }
 
 unit "app" {
@@ -8,7 +8,8 @@ unit "app" {
 
   values = {
     stack_dir       = local.stack_dir
-    unit_in_stack   = try(unit.path, "no-unit")
+    unit_in_stack   = try(path.unit, "no-unit")
     module_in_stack = try(path.download, "no-module")
+    parent_in_stack = try(path.parentstack, "no-parent")
   }
 }

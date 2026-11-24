@@ -1,4 +1,4 @@
 locals {
   read_file = path.read
-  read_unit = unit.path
+  read_unit = path.unit
 }

@@ -301,7 +301,7 @@ func TestGiveStackNestedGenerateTipEvaluatesWithFactoryVariables(t *testing.T) {
 
 	const (
 		workingDir   = "/work"
-		stackOfStack = "locals {\n  dir = stack.path\n}\n\nstack \"child\" {\n  source = \"x\"\n  path = \"child\"\n}\n"
+		stackOfStack = "locals {\n  dir = path.stack\n}\n\nstack \"child\" {\n  source = \"x\"\n  path = \"child\"\n}\n"
 		stackOfUnit  = "unit \"u\" {\n  source = \"x\"\n  path = \"u\"\n}\n"
 	)
 
@@ -329,7 +329,7 @@ func TestGiveStackNestedGenerateTipEvaluatesWithFactoryVariables(t *testing.T) {
 			FuncsFor: emptyStackFuncFactory(),
 			VarsFor: func(dir string) (map[string]cty.Value, error) {
 				return map[string]cty.Value{
-					"stack": cty.ObjectVal(map[string]cty.Value{"path": cty.StringVal(dir)}),
+					"path": cty.ObjectVal(map[string]cty.Value{"stack": cty.StringVal(dir)}),
 				}, nil
 			},
 		},

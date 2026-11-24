@@ -84,9 +84,9 @@ var parsingContextFieldsOutsideKey = map[string]string{
 	"Features":                     clearedByRead,
 	"FilesRead":                    "the read records the files its parse reads whether or not the reading config does",
 	"Values":                       "the parse replaces it with the file's own values before evaluating anything",
-	"PathVars":                     "the parse replaces it with the file's own path variables before evaluating anything",
+	"Path":                         "the parse replaces it with the file's own path value before evaluating anything",
 	"WorkingDir":                   "the read sets it from the file's path, which is in the key",
-	"OriginalTerragruntConfigPath": "every function and path variable that reads it stops the result being shared",
+	"OriginalTerragruntConfigPath": "every function and `path` attribute that reads it stops the result being shared",
 	"SourceMap": "only get_working_dir, `path.download`, the remote state source URL, dependencies, and stack " +
 		"files read it, and none of those results are shared",
 	"readConfigChain": "it detects cycles, which fail the read, and marks the target that `path.read` names, which is in the key",
