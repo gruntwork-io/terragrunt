@@ -748,7 +748,7 @@ type ModuleDirReferencesDependencyError struct {
 
 func (err ModuleDirReferencesDependencyError) Error() string {
 	return fmt.Sprintf(
-		"%s in %s cannot reference dependency outputs when path.module is read; the module directory must be resolvable before dependencies are evaluated",
+		"%s in %s cannot reference dependency outputs when path.download is read; the directory must be resolvable before dependencies are evaluated",
 		err.Attribute,
 		err.ConfigPath,
 	)

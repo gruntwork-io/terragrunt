@@ -4,6 +4,6 @@ include "root" {
 }
 
 inputs = {
-  unit            = path.unit
+  unit            = unit.path
   exposed_include = include.root.locals.included_file
 }

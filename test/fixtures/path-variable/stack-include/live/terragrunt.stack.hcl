@@ -8,6 +8,6 @@ unit "root" {
 
   values = {
     include   = try(path.include, "no-include")
-    stack_dir = path.stack
+    stack_dir = stack.path
   }
 }

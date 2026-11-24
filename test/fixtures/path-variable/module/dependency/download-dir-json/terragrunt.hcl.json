@@ -6,6 +6,6 @@
   },
   "download_dir": "${try(dependency.local.outputs.module, \"/abs/path\")}",
   "inputs": {
-    "module": "${path.module}"
+    "module": "${path.download}"
   }
 }

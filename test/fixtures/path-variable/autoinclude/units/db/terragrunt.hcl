@@ -1,3 +1,3 @@
 inputs = {
-  unit = path.unit
+  unit = unit.path
 }

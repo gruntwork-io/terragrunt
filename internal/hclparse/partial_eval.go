@@ -367,11 +367,11 @@ func (w *pathReadWalker) Exit(node hclsyntax.Node) hcl.Diagnostics {
 	return nil
 }
 
-// defers reports whether traversal reads a deferred root, other than `path.include` outside an iterator named `path`.
+// defers reports whether traversal reads a deferred root, other than `path.include`, or a deferred attribute.
 func (args *EvalArgs) defers(traversal hcl.Traversal) bool {
 	root := traversal.RootName()
 	if _, deferred := args.Deferred[root]; !deferred {
-		return false
+		return args.defersAttribute(traversal)
 	}
 
 	_, iterator := args.iterators[root]
@@ -379,22 +379,42 @@ func (args *EvalArgs) defers(traversal hcl.Traversal) bool {
 	return iterator || !readsPathInclude(traversal)
 }
 
+// defersAttribute reports whether traversal is a reference such as `unit.path` that args defers by root and attribute.
+func (args *EvalArgs) defersAttribute(traversal hcl.Traversal) bool {
+	name, named := FirstAttribute(traversal)
+	if !named || len(traversal[1:]) != 1 {
+		return false
+	}
+
+	_, deferred := args.Deferred[traversal.RootName()+"."+name]
+
+	return deferred
+}
+
 // readsPathInclude reports whether traversal reads `path.include`.
 func readsPathInclude(traversal hcl.Traversal) bool {
-	if traversal.RootName() != varPath || len(traversal) == 1 {
-		return false
+	name, named := FirstAttribute(traversal)
+
+	return traversal.RootName() == varPath && named && name == pathAttrInclude
+}
+
+// FirstAttribute returns the attribute that the step after the root of traversal reads, and false when it names none.
+func FirstAttribute(traversal hcl.Traversal) (string, bool) {
+	if len(traversal) <= 1 {
+		return "", false
 	}
 
 	switch step := traversal[1].(type) {
 	case hcl.TraverseAttr:
-		return step.Name == pathAttrInclude
+		return step.Name, true
 	case hcl.TraverseIndex:
 		key := step.Key
-
-		return key.Type() == cty.String && key.IsKnown() && !key.IsNull() && key.AsString() == pathAttrInclude
+		if key.Type() == cty.String && key.IsKnown() && !key.IsNull() {
+			return key.AsString(), true
+		}
 	}
 
-	return false
+	return "", false
 }
 
 // partialEvalIndex renders an index by child; `path[key]` with the key "include" that has no value is an error.

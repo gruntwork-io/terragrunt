@@ -5,5 +5,5 @@ terraform {
 download_dir = "${get_terragrunt_dir()}/../custom-cache"
 
 inputs = {
-  module = path.module
+  module = path.download
 }

@@ -1,5 +1,5 @@
 locals {
-  module = path.module
+  module = path.download
 }
 
 inputs = {

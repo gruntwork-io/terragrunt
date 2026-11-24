@@ -1299,6 +1299,42 @@ func TestBuildComponentRefMap_WithRefs(t *testing.T) {
 	assert.Equal(t, "app-service", appVal.GetAttr("path").AsString())
 }
 
+func TestWithStackPath(t *testing.T) {
+	t.Parallel()
+
+	self := cty.ObjectVal(map[string]cty.Value{"path": cty.StringVal("/live")})
+	net := cty.ObjectVal(map[string]cty.Value{"path": cty.StringVal("/live/net")})
+	named := cty.ObjectVal(map[string]cty.Value{"path": net})
+
+	testCases := []struct {
+		current cty.Value
+		refs    cty.Value
+		want    cty.Value
+		name    string
+	}{
+		{name: "no current value", current: cty.NilVal, refs: cty.EmptyObjectVal, want: cty.EmptyObjectVal},
+		{name: "no stack blocks", current: self, refs: cty.EmptyObjectVal, want: self},
+		{
+			name:    "stack block with another name",
+			current: self,
+			refs:    cty.ObjectVal(map[string]cty.Value{"net": net}),
+			want:    cty.ObjectVal(map[string]cty.Value{"path": cty.StringVal("/live"), "net": net}),
+		},
+		{name: "stack block with the name path", current: self, refs: named, want: named},
+		{name: "current value of a stack block with the name path", current: named, refs: named, want: named},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := hclparse.WithStackPath(tc.current, tc.refs)
+
+			assert.True(t, tc.want.RawEquals(got), "got %#v", got)
+		})
+	}
+}
+
 func TestUnitPathsFromStackDirEvaluatesWithFactoryVariables(t *testing.T) {
 	t.Parallel()
 
@@ -1359,14 +1395,15 @@ func pathFuncs() map[string]function.Function {
 	}
 }
 
-// pathVars returns the variables of a stack file in stackDir that reads path.stack.
+// pathVars returns the variables of a stack file in stackDir that reads stack.path.
 func pathVars(stackDir string) map[string]cty.Value {
 	return map[string]cty.Value{
-		"path": cty.ObjectVal(map[string]cty.Value{"stack": cty.StringVal(stackDir)}),
+		"path":  cty.EmptyObjectVal,
+		"stack": cty.ObjectVal(map[string]cty.Value{"path": cty.StringVal(stackDir)}),
 	}
 }
 
-// pathVarsFor is the variable factory of a stack file that reads path.stack.
+// pathVarsFor is the variable factory of a stack file that reads stack.path.
 func pathVarsFor(stackDir string) (map[string]cty.Value, error) {
 	return pathVars(stackDir), nil
 }

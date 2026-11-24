@@ -7,5 +7,5 @@ dependency "local" {
 }
 
 inputs = {
-  module = path.module
+  module = path.download
 }

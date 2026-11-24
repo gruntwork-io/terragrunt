@@ -1471,7 +1471,7 @@ func ReadStackConfigFile(
 	stackPctx := pctx.Clone()
 	stackPctx.TerragruntConfigPath = filePath
 	stackPctx.OriginalTerragruntConfigPath = filePath
-	stackPctx.Path = nil
+	stackPctx.PathVars = nil
 
 	file, err := stackPctx.NewParser(l, v).
 		ParseFromFile(v.FS, filePath)
@@ -1714,7 +1714,7 @@ func setStackComponentRefVars(
 	}
 
 	evalCtx.Variables[inthclparse.VarUnit] = unitRefs
-	evalCtx.Variables[inthclparse.VarStack] = stackRefs
+	evalCtx.Variables[inthclparse.VarStack] = inthclparse.WithStackPath(evalCtx.Variables[inthclparse.VarStack], stackRefs)
 
 	return nil
 }
@@ -2415,7 +2415,7 @@ func ReadValues(
 		return nil, err
 	}
 
-	pctx, err = withValuesPathVariable(ctx, l, v, s, pctx, file, directory)
+	pctx, err = withValuesPathVariables(ctx, l, v, s, pctx, file, directory)
 	if err != nil {
 		return nil, err
 	}

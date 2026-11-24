@@ -1,4 +1,4 @@
 inputs = {
-  unit  = path.unit
-  stack = path.stack
+  unit  = unit.path
+  stack = stack.path
 }

@@ -304,7 +304,7 @@ terraform {
 }
 
 inputs = {
-  module = path.module
+  module = path.download
 }
 `,
 		}),
@@ -335,7 +335,7 @@ terraform {
 }
 
 inputs = {
-  module = path.module
+  module = path.download
 }
 `
 		include = `
@@ -513,11 +513,10 @@ func TestPathVariableAsWholeObject(t *testing.T) {
 	t.Parallel()
 
 	v, root := pathFixture(t)
-	unitDir := filepath.Join(root, "module", "local")
+	inputs := parsePathUnit(t, v, filepath.Join(root, "module", "local"))
 
-	inputs := parsePathUnit(t, v, unitDir)
-
-	assert.Equal(t, map[string]any{"unit": unitDir, "module": inputs["working_dir"]}, inputs["whole"])
+	require.NotEmpty(t, inputs["working_dir"])
+	assert.Equal(t, map[string]any{"download": inputs["working_dir"]}, inputs["whole"])
 }
 
 func TestPathVariableInValuesFile(t *testing.T) {
@@ -578,6 +577,101 @@ func TestPathVariableInStackFile(t *testing.T) {
 		"unit_in_stack":   "no-unit",
 		"module_in_stack": "no-module",
 	}, values)
+}
+
+func TestPathVariableStackPathBesideStackBlocks(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		want map[string]string
+		name string
+		dir  string
+	}{
+		{
+			name: "stack block with another name",
+			dir:  "live",
+			want: map[string]string{"stack_dir": "", "net_dir": filepath.Join(config.StackDir, "net")},
+		},
+		{
+			name: "stack block with the name path",
+			dir:  "named",
+			want: map[string]string{"named_dir": filepath.Join(config.StackDir, "named"), "stack_dir": ""},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v, root := pathFixture(t)
+			stackDir := filepath.Join(root, "stack-refs", tc.dir)
+			stackPath := filepath.Join(stackDir, config.DefaultStackFile)
+
+			ctx, pctx := newPathParsingContext(t, stackPath)
+
+			stack, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, stackPath, nil)
+			require.NoError(t, err)
+			require.Len(t, stack.Units, 1)
+			require.NotNil(t, stack.Units[0].Values)
+
+			values, err := ctyhelper.ParseCtyValueToMap(*stack.Units[0].Values)
+			require.NoError(t, err)
+
+			want := map[string]any{}
+			for name, dir := range tc.want {
+				want[name] = filepath.Join(stackDir, dir)
+			}
+
+			assert.Equal(t, want, values)
+		})
+	}
+}
+
+func TestPathVariableUnitPathInStackLocalsNamesTheExperimentOnlyWhenDisabled(t *testing.T) {
+	t.Parallel()
+
+	const stackFile = `
+locals {
+  unit_dir = unit.path
+}
+
+unit "app" {
+  source = "../units/app"
+  path   = "app"
+}
+`
+
+	testCases := []struct {
+		name        string
+		experiments []string
+		hint        bool
+	}{
+		{name: "experiment disabled", hint: true},
+		{name: "experiment enabled", experiments: []string{experiment.PathVariable}},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := venvtest.Root("/fixture")
+			stackPath := filepath.Join(root, config.DefaultStackFile)
+			v := venv.MemVenv().WithFS(memFS(root, map[string]string{config.DefaultStackFile: stackFile})(t))
+
+			ctx, pctx := newTestParsingContext(t, stackPath)
+
+			for _, name := range tc.experiments {
+				require.NoError(t, pctx.Experiments.EnableExperiment(name))
+			}
+
+			_, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, stackPath, nil)
+
+			var diags hcl.Diagnostics
+
+			require.ErrorAs(t, err, &diags)
+			assert.Equal(t, tc.hint, namesPathExperiment(diags))
+		})
+	}
 }
 
 func TestPathVariableInStackFileReadFromUnit(t *testing.T) {
@@ -803,7 +897,8 @@ func TestPathVariableInStackFileEvalVariables(t *testing.T) {
 			name:        "experiment enabled",
 			experiments: []string{experiment.PathVariable},
 			want: map[string]cty.Value{
-				config.MetadataPath: cty.ObjectVal(map[string]cty.Value{"stack": cty.StringVal(stackDir)}),
+				config.MetadataPath:  cty.EmptyObjectVal,
+				config.MetadataStack: cty.ObjectVal(map[string]cty.Value{"path": cty.StringVal(stackDir)}),
 			},
 		},
 	}
@@ -909,6 +1004,8 @@ func TestPathVariableErrorNamesTheExperimentWhenDisabled(t *testing.T) {
 		{name: "inputs", config: filepath.Join("module", "remote", config.DefaultTerragruntConfigPath)},
 		{name: "values file", config: filepath.Join("values", "app", config.DefaultTerragruntConfigPath)},
 		{name: "JSON config", config: filepath.Join("live", "json", config.DefaultTerragruntJSONConfigPath)},
+		{name: "unit.path in locals", config: filepath.Join("all", "app", config.DefaultTerragruntConfigPath)},
+		{name: "stack.path in a unit", config: filepath.Join("stack", "live", "manual", config.DefaultTerragruntConfigPath)},
 	}
 
 	for _, tc := range testCases {
@@ -951,7 +1048,7 @@ func newPathParsingContext(t *testing.T, cfgPath string) (context.Context, *conf
 	return ctx, pctx
 }
 
-// unitPathParsingContext returns the parsing context of the unit in unitDir with its `path` value set.
+// unitPathParsingContext returns the parsing context of the unit in unitDir with its path variables set.
 func unitPathParsingContext(t *testing.T, v *venv.Venv, unitDir string) (context.Context, *config.ParsingContext) {
 	t.Helper()
 
@@ -962,9 +1059,9 @@ func unitPathParsingContext(t *testing.T, v *venv.Venv, unitDir string) (context
 	file, err := pctx.NewParser(l, v).ParseFromFile(v.FS, cfgPath)
 	require.NoError(t, err)
 
-	pctx.Path, err = config.PathVariable(ctx, l, v, new(config.Store), pctx, file, nil)
+	pctx.PathVars, err = config.PathVariables(ctx, l, v, new(config.Store), pctx, file, nil)
 	require.NoError(t, err)
-	require.NotNil(t, pctx.Path)
+	require.NotNil(t, pctx.PathVars)
 
 	return ctx, pctx
 }

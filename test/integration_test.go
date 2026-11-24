@@ -161,7 +161,7 @@ func TestHclvalidateDiagnostic(t *testing.T) {
 
 	localsVariables := "local, include, feature, values"
 	if helpers.IsExperimentMode(t) {
-		localsVariables += ", path"
+		localsVariables += ", path, stack, unit"
 	}
 
 	localsDetail := "Locals can only reference these variables: " + localsVariables +

@@ -63,8 +63,8 @@ type ParsingContext struct {
 	// Locals is the `local` value expressions in the file read.
 	Locals *cty.Value
 
-	// Path is the `path` value of the file being parsed.
-	Path *cty.Value
+	// PathVars holds the `unit`, `stack` and `path` variables of the file being parsed.
+	PathVars map[string]cty.Value
 
 	// dependencyOutputEnvKeys records environment keys set for dependency output resolution through
 	// extra_arguments.env_vars. Inherited process values stay eligible for direct state reads until
@@ -474,7 +474,7 @@ func (ctx *ParsingContext) WithConfigPath(
 
 	c.TerragruntConfigPath = cfgPath
 	c.WorkingDir = workingDir
-	c.Path = nil
+	c.PathVars = nil
 
 	return l, c, nil
 }

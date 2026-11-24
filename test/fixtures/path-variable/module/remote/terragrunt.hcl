@@ -3,6 +3,6 @@ terraform {
 }
 
 inputs = {
-  module      = path.module
+  module      = path.download
   working_dir = get_working_dir()
 }

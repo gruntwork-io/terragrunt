@@ -5,5 +5,5 @@ dependency "local" {
 download_dir = dependency.local.outputs.module
 
 inputs = {
-  module = path.module
+  module = path.download
 }

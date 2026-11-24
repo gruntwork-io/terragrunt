@@ -282,7 +282,8 @@ func TestStackDirArgsScopesVariablesToStackDir(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, map[string]cty.Value{
-		config.MetadataPath: cty.ObjectVal(map[string]cty.Value{"stack": cty.StringVal(stackDir)}),
+		config.MetadataPath:  cty.EmptyObjectVal,
+		config.MetadataStack: cty.ObjectVal(map[string]cty.Value{"path": cty.StringVal(stackDir)}),
 	}, vars)
 }
 

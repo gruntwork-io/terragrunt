@@ -340,11 +340,17 @@ var localsRoots = []string{MetadataLocal, MetadataInclude, MetadataFeatureFlag, 
 
 // localsRootsFor returns the variables a locals block parsed with pctx can reference.
 func localsRootsFor(pctx *ParsingContext) []string {
-	if pctx.Experiments.Evaluate(experiment.PathVariable) {
-		return append(slices.Clone(localsRoots), MetadataPath)
+	if !pctx.Experiments.Evaluate(experiment.PathVariable) {
+		return localsRoots
 	}
 
-	return localsRoots
+	roots := append(slices.Clone(localsRoots), MetadataPath, MetadataStack)
+
+	if isStackConfigFile(pctx.TerragruntConfigPath) {
+		return roots
+	}
+
+	return append(roots, MetadataUnit)
 }
 
 // localReference classifies a variable referenced from a locals block. It returns the name of the local the reference
@@ -360,7 +366,7 @@ func localReference(localVar hcl.Traversal, roots []string) (localName, detail s
 			rootName,
 		)
 
-		if rootName == MetadataPath {
+		if !slices.Contains(roots, MetadataPath) && readsPathValue(localVar) {
 			detail += pathExperimentHint
 		}
 

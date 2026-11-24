@@ -101,7 +101,7 @@ func (ctx *ParsingContext) withFile(file *ParsingContext) *ParsingContext {
 	c.include = file.include
 	c.includes = file.includes
 	c.Values = file.Values
-	c.Path = file.Path
+	c.PathVars = file.PathVars
 	c.Features = file.Features
 	c.Locals = file.Locals
 	c.DecodedDependencies = file.DecodedDependencies
@@ -146,10 +146,10 @@ func (ctx *ParsingContext) withUnitValues(values *cty.Value) *ParsingContext {
 	return c
 }
 
-// withPath returns a copy of ctx with the file's `path` value.
-func (ctx *ParsingContext) withPath(path *cty.Value) *ParsingContext {
+// withPathVars returns a copy of ctx with the path variables of the file.
+func (ctx *ParsingContext) withPathVars(vars map[string]cty.Value) *ParsingContext {
 	c := ctx.derive()
-	c.Path = path
+	c.PathVars = vars
 
 	return c
 }

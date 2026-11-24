@@ -41,6 +41,8 @@ const (
 
 	// pathAttrInclude names `path.include`, the path of the included stack file.
 	pathAttrInclude = "include"
+	// selfPathAttr names the attribute of `unit.path` and `stack.path`.
+	selfPathAttr = "path"
 )
 
 const (
@@ -73,7 +75,7 @@ type ParseStackFileInput struct {
 	// OverrideSrc is the optional sibling terragrunt.autoinclude.stack.hcl. Its unit and stack blocks
 	// replace same-name base blocks wholesale, including their paths and autoinclude blocks.
 	OverrideSrc []byte
-	// UnitRoots are the variable roots a unit autoinclude keeps verbatim for the generated unit to resolve.
+	// UnitRoots are the roots, and the references such as `unit.path`, that a unit autoinclude keeps verbatim.
 	UnitRoots []string
 }
 
@@ -256,6 +258,10 @@ func buildBaseEvalContext(input *ParseStackFileInput) *hcl.EvalContext {
 	maps.DeleteFunc(evalCtx.Variables, func(name string, _ cty.Value) bool {
 		return name == varLocal || name == VarUnit || name == VarStack || name == varValues
 	})
+
+	if self, found := stackPath(input.Variables[VarStack]); found {
+		evalCtx.Variables[VarStack] = cty.ObjectVal(map[string]cty.Value{selfPathAttr: self})
+	}
 
 	if input.Values != nil {
 		evalCtx.Variables[varValues] = *input.Values

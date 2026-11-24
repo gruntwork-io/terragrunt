@@ -1,5 +1,5 @@
 inputs = {
-  auto_unit   = path.unit
-  auto_module = path.module
-  auto_stack  = try(path.stack, "no-stack")
+  auto_unit   = unit.path
+  auto_module = path.download
+  auto_stack  = try(stack.path, "no-stack")
 }

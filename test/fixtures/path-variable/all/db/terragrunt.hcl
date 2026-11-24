@@ -1,15 +1,15 @@
 locals {
-  module = file("${path.unit}/main.tf")
+  module = file("${unit.path}/main.tf")
 }
 
 remote_state {
   backend = "local"
 
   config = {
-    path = "${path.unit}/terraform.tfstate"
+    path = "${unit.path}/terraform.tfstate"
   }
 }
 
 inputs = {
-  unit = path.unit
+  unit = unit.path
 }

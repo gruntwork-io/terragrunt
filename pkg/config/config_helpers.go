@@ -392,7 +392,7 @@ func evalVariablesWithoutIncludes(ctx context.Context, pctx *ParsingContext) map
 	vars := map[string]cty.Value{}
 
 	if pctx.Experiments.Evaluate(experiment.PathVariable) {
-		vars[MetadataPath] = evalPathVariable(ctx, pctx)
+		maps.Copy(vars, evalPathVariables(ctx, pctx))
 	}
 
 	if pctx.Locals != nil {

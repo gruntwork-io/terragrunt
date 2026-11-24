@@ -717,7 +717,7 @@ unit "app" {
 func TestGenerateAutoIncludeFileKeepsUnitRoots(t *testing.T) {
 	t.Parallel()
 
-	fsys, resolved := resolvePathAutoInclude(t, []string{"path"})
+	fsys, resolved := resolvePathAutoInclude(t, []string{"path", "unit.path"})
 
 	err := hclparse.GenerateAutoIncludeFile(fsys, resolved, testGenDir, resolved.SourceBytes, resolved.EvalCtx)
 	require.NoError(t, err)
@@ -725,11 +725,13 @@ func TestGenerateAutoIncludeFileKeepsUnitRoots(t *testing.T) {
 	generated, err := vfs.ReadFile(fsys, filepath.Join(testGenDir, hclparse.AutoIncludeFile))
 	require.NoError(t, err)
 
+	stackDir := resolved.EvalCtx.Variables["stack"].GetAttr("path").AsString()
+
 	content := string(generated)
-	assert.Contains(t, content, "consumer = path.unit")
-	assert.Contains(t, content, "= path.module")
-	assert.Contains(t, content, "= path.stack")
-	assert.Contains(t, content, `"live:${path.unit}"`)
+	assert.Contains(t, content, "consumer = unit.path")
+	assert.Contains(t, content, "= path.download")
+	assert.Contains(t, content, "auto_stack  = "+strconv.Quote(stackDir))
+	assert.Contains(t, content, `"live:${unit.path}"`)
 	assert.NotContains(t, content, "local.env")
 }
 
@@ -766,12 +768,89 @@ func TestIncludeEvalContext(t *testing.T) {
 		assert.Same(t, base, scoped.Parent())
 		assert.Equal(t, map[string]cty.Value{
 			"path": cty.ObjectVal(map[string]cty.Value{
-				"stack":   cty.StringVal("/live"),
 				"include": cty.StringVal(filepath.FromSlash("/catalog/components.hcl")),
 			}),
 		}, scoped.Variables)
 		assert.Equal(t, pathVars("/live"), base.Variables)
 	})
+}
+
+func TestParseStackFileKeepsStackPathBesideStackBlocks(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		want map[string]string
+		name string
+		src  string
+	}{
+		{
+			name: "stack block with another name",
+			src: `
+stack "net" {
+  source = "../catalog/stacks/net"
+  path   = "net"
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+
+  values = {
+    stack_dir = stack.path
+    net_dir   = stack.net.path
+  }
+}
+`,
+			want: map[string]string{"stack_dir": "", "net_dir": filepath.Join(hclparse.StackDir, "net")},
+		},
+		{
+			name: "stack block with the name path",
+			src: `
+locals {
+  stack_dir = stack.path
+}
+
+stack "path" {
+  source = "../catalog/stacks/path"
+  path   = "named"
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+
+  values = {
+    named_dir = stack.path.path
+    stack_dir = local.stack_dir
+  }
+}
+`,
+			want: map[string]string{"named_dir": filepath.Join(hclparse.StackDir, "named"), "stack_dir": ""},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			result, err := hclparse.ParseStackFile(t.Context(), vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{
+				Src:       []byte(tc.src),
+				Filename:  "terragrunt.stack.hcl",
+				StackDir:  testStackDir,
+				Variables: pathVars(testStackDir),
+			})
+			require.NoError(t, err)
+			require.Len(t, result.Units, 1)
+			require.NotNil(t, result.Units[0].Values)
+
+			want := map[string]cty.Value{}
+			for name, dir := range tc.want {
+				want[name] = cty.StringVal(filepath.Join(testStackDir, dir))
+			}
+
+			assert.Equal(t, want, result.Units[0].Values.AsValueMap())
+		})
+	}
 }
 
 func TestParseStackFileScopesPathIncludeToIncludedFile(t *testing.T) {
@@ -791,7 +870,7 @@ func TestParseStackFileScopesPathIncludeToIncludedFile(t *testing.T) {
 		StackDir:  stackDir,
 		Variables: pathVars(stackDir),
 		Functions: pathFuncs(),
-		UnitRoots: []string{"path"},
+		UnitRoots: []string{"path", "unit.path"},
 	})
 	require.NoError(t, err)
 	require.Len(t, result.Units, 2)
@@ -825,7 +904,7 @@ func TestParseStackFileScopesPathIncludeToIncludedFile(t *testing.T) {
 	assert.Contains(t, content, "auto_include = "+strconv.Quote(includePath))
 	assert.Contains(t, content, "auto_index   = "+strconv.Quote(includePath))
 	assert.Contains(t, content, `auto_guard   = "components.hcl"`)
-	assert.Contains(t, content, `"components.hcl:${path.unit}"`)
+	assert.Contains(t, content, `"components.hcl:${unit.path}"`)
 }
 
 // TestGenerateAutoIncludeFile_MockOutputsResolvesLocal pins that a dependency's mock_outputs resolves

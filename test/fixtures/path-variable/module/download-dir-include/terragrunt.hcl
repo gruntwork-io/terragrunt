@@ -3,5 +3,5 @@ include "download" {
 }
 
 inputs = {
-  module = path.module
+  module = path.download
 }

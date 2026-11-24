@@ -255,6 +255,31 @@ func BuildComponentRefMap(root string, refs []ComponentRef) (cty.Value, error) {
 	return cty.ObjectVal(refMap), nil
 }
 
+// WithStackPath returns refs with the `stack.path` that current holds, unless a stack block has the name "path".
+func WithStackPath(current, refs cty.Value) cty.Value {
+	self, found := stackPath(current)
+	if !found || refs.Type().HasAttribute(selfPathAttr) {
+		return refs
+	}
+
+	attrs := map[string]cty.Value{selfPathAttr: self}
+	maps.Copy(attrs, refs.AsValueMap())
+
+	return cty.ObjectVal(attrs)
+}
+
+// stackPath returns the string `path` attribute of value, and false when value has none.
+func stackPath(value cty.Value) (cty.Value, bool) {
+	valueType := value.Type()
+	if !valueType.IsObjectType() || !value.IsKnown() || value.IsNull() || !valueType.HasAttribute(selfPathAttr) {
+		return cty.NilVal, false
+	}
+
+	self := value.GetAttr(selfPathAttr)
+
+	return self, self.Type() == cty.String
+}
+
 // GeneratedComponentPath returns the on-disk path a unit or stack block in a
 // terragrunt.stack.hcl generates to. stackDir is the directory containing the
 // stack file, path is the block's path attribute, and noStack reports whether the
@@ -873,7 +898,7 @@ func setComponentRefVars(
 	}
 
 	evalCtx.Variables[VarUnit] = unitRefs
-	evalCtx.Variables[VarStack] = stackRefs
+	evalCtx.Variables[VarStack] = WithStackPath(evalCtx.Variables[VarStack], stackRefs)
 
 	return nil
 }
