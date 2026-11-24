@@ -97,6 +97,8 @@ func findMatchingUnitsInPath(
 	}
 
 	cfgOpts.OriginalTerragruntConfigPath = opts.OriginalTerragruntConfigPath
+	// Building the stack checks each unit's terragrunt_version_constraint against this.
+	cfgOpts.TerragruntVersion = opts.TerragruntVersion
 	cfgOpts.TofuCommand = opts.TofuCommand
 	cfgOpts.TerraformCliArgs = opts.TerraformCliArgs
 	cfgOpts.CheckDependentUnits = opts.CheckDependentUnits
