@@ -3,6 +3,7 @@ package config_test
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -31,6 +32,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/worker"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -516,7 +518,7 @@ func TestGenerateStackHTTPArchiveChecksumFileNeverAnsweredOffline(t *testing.T) 
 func TestGenerateStackGitMutableControlsWriteBits(t *testing.T) {
 	t.Parallel()
 
-	repoURL := catalogGitURL(t)
+	repoURL := catalogGitURL(t, casCatalogFiles)
 
 	testCases := []struct {
 		name         string
@@ -607,7 +609,7 @@ func TestGenerateStackOCIMutableControlsWriteBits(t *testing.T) {
 func TestGenerateStackBareGitURLClonesWithGit(t *testing.T) {
 	t.Parallel()
 
-	repoURL := catalogGitURL(t)
+	repoURL := catalogGitURL(t, casCatalogFiles)
 
 	testCases := []struct {
 		name string
@@ -635,6 +637,63 @@ func TestGenerateStackBareGitURLClonesWithGit(t *testing.T) {
 			assert.Regexp(t, `"cas::sha1:[a-f0-9]{40}"`, string(content))
 		})
 	}
+}
+
+// TestGenerateStackGitProbeFailure: when the CAS cannot probe a git source, a component that sets
+// update_source_with_cas fails, and one that does not falls back to the standard getter.
+func TestGenerateStackGitProbeFailure(t *testing.T) {
+	t.Parallel()
+
+	catalog := maps.Clone(casCatalogFiles)
+	catalog["units/plain/terragrunt.hcl"] = "terraform {\n  source = \"../..//modules/vpc\"\n}\n"
+
+	repoURL := catalogGitURL(t, catalog)
+
+	testCases := []struct {
+		name    string
+		kind    string
+		subdir  string
+		wantErr bool
+	}{
+		{name: "stack with update_source_with_cas", kind: "stack", subdir: "stacks/svc", wantErr: true},
+		{name: "unit without update_source_with_cas", kind: "unit", subdir: "units/plain"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v := casCatalogVenv(t).WithExec(lsRemoteFailingExec{Exec: vexec.NewOSExec()})
+			stackPath := catalogLiveStack(t, v, tc.kind, "git::"+repoURL+"//"+tc.subdir+"?ref=main")
+
+			err := generateCatalogStack(t, v, stackPath)
+			if !tc.wantErr {
+				require.NoError(t, err)
+
+				return
+			}
+
+			var rewriteErr config.CASRewriteRequiredError
+			require.ErrorAs(t, err, &rewriteErr)
+		})
+	}
+}
+
+// lsRemoteFailingExec runs every command through Exec except `git ls-remote`, which fails.
+type lsRemoteFailingExec struct {
+	vexec.Exec
+}
+
+func (e lsRemoteFailingExec) Command(ctx context.Context, name string, args ...string) vexec.Cmd {
+	if len(args) == 0 || args[0] != "ls-remote" {
+		return e.Exec.Command(ctx, name, args...)
+	}
+
+	failing := vexec.NewMemExec(func(context.Context, vexec.Invocation) vexec.Result {
+		return vexec.Result{ExitCode: 128}
+	})
+
+	return failing.Command(ctx, name, args...)
 }
 
 // TestGenerateStackOCICatalogNestedUnitGenerates: the second wave materializes the unit the first wave rewrote.
@@ -944,8 +1003,8 @@ func ociCatalogLayer(t *testing.T, registry *ociregistry.Registry) ociv1.Descrip
 	return manifest.Layers[0]
 }
 
-// catalogGitURL serves casCatalogFiles from a git repository and returns its clone URL.
-func catalogGitURL(t *testing.T) string {
+// catalogGitURL serves catalog from a git repository and returns its clone URL.
+func catalogGitURL(t *testing.T, catalog map[string]string) string {
 	t.Helper()
 
 	srv, err := git.NewServer()
@@ -953,8 +1012,8 @@ func catalogGitURL(t *testing.T) string {
 
 	t.Cleanup(func() { require.NoError(t, srv.Close()) })
 
-	files := make(map[string][]byte, len(casCatalogFiles))
-	for name, content := range casCatalogFiles {
+	files := make(map[string][]byte, len(catalog))
+	for name, content := range catalog {
 		files[name] = []byte(content)
 	}
 
