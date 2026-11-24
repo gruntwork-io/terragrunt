@@ -37,7 +37,7 @@ func TestMarkGlobAsRead(t *testing.T) {
 	// "**" does not collapse the surrounding separators.
 	hcl := `locals { matched = mark_glob_as_read("{*.tf,**/*.tf}") }`
 
-	out, err := config.ParseConfigString(ctx, l, v, pctx, configPath, hcl, nil)
+	out, err := resolveRunConfigString(t, ctx, l, v, new(config.Store), pctx, configPath, hcl)
 	require.NoError(t, err)
 	require.NotNil(t, out)
 
@@ -75,7 +75,7 @@ func TestMarkGlobAsReadEscapesMetacharacter(t *testing.T) {
 	// engine reads as a literal 'a*b.tf'.
 	hcl := `locals { matched = mark_glob_as_read("a\\*b.tf") }`
 
-	out, err := config.ParseConfigString(ctx, l, v, pctx, configPath, hcl, nil)
+	out, err := resolveRunConfigString(t, ctx, l, v, new(config.Store), pctx, configPath, hcl)
 	require.NoError(t, err)
 	require.NotNil(t, out)
 
@@ -107,7 +107,7 @@ func TestMarkGlobAsReadBoundaryFlag(t *testing.T) {
 
 	hcl := `locals { matched = mark_glob_as_read("--terragrunt-boundary=.", "{*.yaml}") }`
 
-	out, err := config.ParseConfigString(ctx, l, v, pctx, configPath, hcl, nil)
+	out, err := resolveRunConfigString(t, ctx, l, v, new(config.Store), pctx, configPath, hcl)
 	require.NoError(t, err)
 	require.NotNil(t, out)
 
@@ -150,7 +150,7 @@ func TestMarkGlobAsReadGitRootBoundary(t *testing.T) {
 			root,
 		) + `/{*.yaml}") }`
 
-		_, err := config.ParseConfigString(ctx, l, v, pctx, configPath, hcl, nil)
+		_, err := resolveRunConfigString(t, ctx, l, v, new(config.Store), pctx, configPath, hcl)
 		require.Error(t, err)
 	})
 
@@ -167,7 +167,7 @@ func TestMarkGlobAsReadGitRootBoundary(t *testing.T) {
   matched = local.d != "" ? sort(try(mark_glob_as_read("${local.d}/{*.yaml}"), [])) : []
 }`
 
-		out, err := config.ParseConfigString(ctx, l, v, pctx, configPath, hcl, nil)
+		out, err := resolveRunConfigString(t, ctx, l, v, new(config.Store), pctx, configPath, hcl)
 		require.NoError(t, err)
 		require.NotNil(t, out)
 		assert.Empty(t, pctx.FilesRead.Paths())
@@ -203,7 +203,7 @@ func TestMarkManyAsReadMarksModuleSourceFilesByDefault(t *testing.T) {
 	pctx = pctx.WithFileReadTracking()
 	pctx.WorkingDir = unitDir
 
-	out, err := config.ParseConfigString(ctx, l, v, pctx, configPath, hcl, nil)
+	out, err := resolveRunConfigString(t, ctx, l, v, new(config.Store), pctx, configPath, hcl)
 	require.NoError(t, err)
 	require.NotNil(t, out)
 	require.NotNil(t, pctx.FilesRead)
@@ -264,7 +264,9 @@ func TestMarkManyAsReadIncludedRelativeSourceResolvesFromUnit(t *testing.T) {
 				ctx, pctx := newTestParsingContext(t, unitPath)
 				pctx = pctx.WithFileReadTracking()
 
-				out, err := config.ParseConfigFile(ctx, l, v, pctx, unitPath, nil)
+				s := new(config.Store)
+
+				out, err := s.ResolveRunConfig(ctx, l, v, pctx, unitPath)
 				require.NoError(t, err)
 				require.NotNil(t, out)
 
@@ -281,7 +283,9 @@ func TestMarkManyAsReadIncludedRelativeSourceResolvesFromUnit(t *testing.T) {
 				ctx, pctx := newTestParsingContext(t, unitPath)
 				pctx = pctx.WithDecodeList(config.TerraformSource).WithFileReadTracking()
 
-				out, err := config.PartialParseConfigFile(ctx, l, v, pctx, unitPath, nil)
+				s := new(config.Store)
+
+				out, err := s.ResolvePartialConfig(ctx, l, v, pctx, unitPath)
 				require.NoError(t, err)
 				require.NotNil(t, out)
 
@@ -320,7 +324,9 @@ func TestMarkManyAsReadReadConfigRelativeSourceResolvesFromReadFile(t *testing.T
 		ctx, pctx := newTestParsingContext(t, unitPath)
 		pctx = pctx.WithFileReadTracking()
 
-		out, err := config.ParseConfigFile(ctx, l, v, pctx, unitPath, nil)
+		s := new(config.Store)
+
+		out, err := s.ResolveRunConfig(ctx, l, v, pctx, unitPath)
 		require.NoError(t, err)
 		require.NotNil(t, out)
 
@@ -337,7 +343,9 @@ func TestMarkManyAsReadReadConfigRelativeSourceResolvesFromReadFile(t *testing.T
 		ctx, pctx := newTestParsingContext(t, unitPath)
 		pctx = pctx.WithDecodeList(config.TerraformSource).WithFileReadTracking()
 
-		out, err := config.PartialParseConfigFile(ctx, l, v, pctx, unitPath, nil)
+		s := new(config.Store)
+
+		out, err := s.ResolvePartialConfig(ctx, l, v, pctx, unitPath)
 		require.NoError(t, err)
 		require.NotNil(t, out)
 
@@ -372,7 +380,7 @@ func TestMarkManyAsReadPartialParseSource(t *testing.T) {
 			pctx.WorkingDir = unitDir
 			pctx = pctx.WithDecodeList(decode).WithFileReadTracking()
 
-			out, err := config.PartialParseConfigString(ctx, l, v, pctx, configPath, hcl, nil)
+			out, err := resolvePartialConfigString(t, ctx, l, v, new(config.Store), pctx, configPath, hcl)
 			require.NoError(t, err)
 			require.NotNil(t, out)
 			require.NotNil(t, pctx.FilesRead)
@@ -385,10 +393,9 @@ func TestMarkManyAsReadPartialParseSource(t *testing.T) {
 	}
 }
 
-// TestMarkManyAsReadPartialParseIncludedSource pins that the partial-parse hook
-// still fires when the terraform source comes from an included parent rather
-// than the leaf unit itself. The check runs after handleInclude, so
-// output.Terraform is populated from the merged parent by the time the hook runs.
+// TestMarkManyAsReadPartialParseIncludedSource pins that a partial parse marks
+// the files of a local module source as read when the terraform source comes
+// from an included parent rather than the leaf unit itself.
 func TestMarkManyAsReadPartialParseIncludedSource(t *testing.T) {
 	t.Parallel()
 
@@ -418,7 +425,9 @@ func TestMarkManyAsReadPartialParseIncludedSource(t *testing.T) {
 			pctx.WorkingDir = unitDir
 			pctx = pctx.WithDecodeList(decode).WithFileReadTracking()
 
-			out, err := config.PartialParseConfigFile(ctx, l, v, pctx, childPath, nil)
+			s := new(config.Store)
+
+			out, err := s.ResolvePartialConfig(ctx, l, v, pctx, childPath)
 			require.NoError(t, err)
 			require.NotNil(t, out)
 			require.NotNil(t, pctx.FilesRead)
@@ -453,7 +462,7 @@ func TestMarkManyAsReadUntrackedByDefault(t *testing.T) {
 	pctx.WorkingDir = unitDir
 	pctx = pctx.WithDecodeList(config.TerraformSource)
 
-	out, err := config.PartialParseConfigString(ctx, l, v, pctx, configPath, hcl, nil)
+	out, err := resolvePartialConfigString(t, ctx, l, v, new(config.Store), pctx, configPath, hcl)
 	require.NoError(t, err)
 	require.NotNil(t, out)
 	require.NotNil(t, out.Terraform)

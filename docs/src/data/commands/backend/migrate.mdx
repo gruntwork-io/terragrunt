@@ -23,6 +23,7 @@ flags:
 ---
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
+import StatefulTabs from '@components/StatefulTabs.astro';
 
 This command will migrate the OpenTofu/Terraform state backend from one unit to another.
 
@@ -37,6 +38,9 @@ For example, given the following filesystem structure:
 - root.hcl
 
 </FileTree>
+
+<StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure', 'GCP']}>
+<Fragment slot="aws">
 
 ```hcl
 # root.hcl
@@ -56,6 +60,52 @@ remote_state {
   }
 }
 ```
+
+</Fragment>
+<Fragment slot="azure">
+
+```hcl
+# root.hcl
+
+remote_state {
+  backend = "azurerm"
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite"
+  }
+  config = {
+    resource_group_name  = "my-tofu-state"
+    storage_account_name = "mytofustate"
+    container_name       = "tfstate"
+    key                  = "${path_relative_to_include()}/tofu.tfstate"
+    use_azuread_auth     = true
+  }
+}
+```
+
+</Fragment>
+<Fragment slot="gcp">
+
+```hcl
+# root.hcl
+
+remote_state {
+  backend = "gcs"
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite"
+  }
+  config = {
+    project  = "my-project"
+    location = "us-central1"
+    bucket   = "my-tofu-state"
+    prefix   = path_relative_to_include()
+  }
+}
+```
+
+</Fragment>
+</StatefulTabs>
 
 ```hcl
 # old-unit-name/terragrunt.hcl
@@ -79,5 +129,10 @@ This will migrate the backend state from the `old-unit-name` unit to the `new-un
 
 Terragrunt performs migrations in one of two ways, depending on the level of support for the backends being migrated, and the state of configuration between the two units.
 
-1. If the backend source for both the source and destination units are the same (both are S3 or GCS), Terragrunt will use the AWS/GCP SDK to move state between the two units transparently without interacting with OpenTofu/Terraform. This is the preferred method, when possible.
+1. When both units use the same supported backend (S3, GCS, or Azure Storage), Terragrunt uses the cloud provider's SDK to move the state. For Azure Storage, both units must use the same storage account. `backend migrate` refuses cross-account moves and does not fall back to the OpenTofu/Terraform CLI.
+
+   For a cross-account move, stop writes to both units and back up the source state. Initialize each backend, then copy the state with `state pull` and `state push`. Verify the destination state before deleting the source blob and retiring the old unit. Otherwise, later runs can update separate copies of the state.
+
+   For GCS, Terragrunt moves the state of the `default` workspace, `<prefix>/default.tfstate`, and leaves other workspaces under the prefix in place. The two units can use different buckets, but Terragrunt makes the move with the source unit's credentials, so those credentials need access to both buckets.
+
 2. If either backend source isn't supported by Terragrunt, or the state of configuration between the two units is different, Terragrunt will instead use the OpenTofu/Terraform CLI to move the state between the two units. This is the fallback method, and will generally be slower. Terragrunt also won't be able to delete the existing state from the source unit in this case, so you'll need to handle that yourself.

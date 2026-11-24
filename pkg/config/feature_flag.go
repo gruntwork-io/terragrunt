@@ -56,7 +56,10 @@ func deepMergeFeatureBlocks(
 }
 
 // mergeFeatureBlocks merges feature flags by name using the given merge function.
-func mergeFeatureBlocks(targetFeatureFlags, sourceFeatureFlags []*FeatureFlag, mergeFlag func(*FeatureFlag, *FeatureFlag) error) ([]*FeatureFlag, error) {
+func mergeFeatureBlocks(
+	targetFeatureFlags, sourceFeatureFlags []*FeatureFlag,
+	mergeFlag func(*FeatureFlag, *FeatureFlag) error,
+) ([]*FeatureFlag, error) {
 	if sourceFeatureFlags == nil && targetFeatureFlags == nil {
 		return nil, nil
 	}

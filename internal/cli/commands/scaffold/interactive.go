@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
 	"github.com/gruntwork-io/terragrunt/internal/view/tui/form"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -24,10 +25,11 @@ func RunInteractive(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	moduleURL, templateURL string,
 ) error {
-	plan, err := Prepare(ctx, l, v, opts, moduleURL, templateURL)
+	plan, err := Prepare(ctx, l, v, s, opts, moduleURL, templateURL)
 	if err != nil {
 		return err
 	}

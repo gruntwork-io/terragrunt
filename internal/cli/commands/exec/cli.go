@@ -5,20 +5,27 @@ package exec
 import (
 	"context"
 
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/providercaching"
+
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 const (
+	// CommandName is the name of the `terragrunt exec` command.
 	CommandName = "exec"
 
+	// InDownloadDirFlagName is the name of the flag that runs the command in
+	// the unit's download directory after init.
 	InDownloadDirFlagName = "in-download-dir"
 )
 
+// NewFlags returns the flags of `terragrunt exec`, bound to opts and cmdOpts.
 func NewFlags(
 	l log.Logger,
 	opts *options.TerragruntOptions,
@@ -51,7 +58,10 @@ func NewFlags(
 	)
 }
 
-func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *clihelper.Command {
+// NewCommand returns the `terragrunt exec` command. It runs the arguments
+// after `--` as the command, or every argument when `--` is absent, and prints
+// help when there are none.
+func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *config.Store) *clihelper.Command {
 	cmdOpts := NewOptions()
 
 	return &clihelper.Command{
@@ -64,7 +74,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *cl
 			"# Inspect `main.tf` file of module for Unit\nterragrunt exec --in-download-dir -- cat main.tf",
 		},
 		Flags: NewFlags(l, opts, cmdOpts, nil),
-		Action: func(ctx context.Context, cliCtx *clihelper.Context) error {
+		Action: providercaching.Wrap(l, opts, v, func(ctx context.Context, cliCtx *clihelper.Context) error {
 			tgArgs, cmdArgs := cliCtx.Args().Split(clihelper.BuiltinCmdSep)
 
 			// Use unspecified arguments from the terragrunt command if the user
@@ -77,7 +87,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *cl
 				return clihelper.ShowCommandHelp(ctx, cliCtx)
 			}
 
-			return Run(ctx, l, v, opts, cmdOpts, cmdArgs)
-		},
+			return Run(ctx, l, v, s, opts, cmdOpts, cmdArgs)
+		}),
 	}
 }

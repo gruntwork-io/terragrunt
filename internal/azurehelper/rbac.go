@@ -182,7 +182,9 @@ func (c *RBACClient) AssignRole(ctx context.Context, l log.Logger, in AssignRole
 
 // HasRoleAssignment reports whether principalID already holds roleDefinitionID at scope.
 func (c *RBACClient) HasRoleAssignment(ctx context.Context, scope, principalID, roleDefinitionID string) (bool, error) {
-	if err := validateAssignRoleInput(AssignRoleInput{Scope: scope, PrincipalID: principalID, RoleDefinitionID: roleDefinitionID}); err != nil {
+	if err := validateAssignRoleInput(
+		AssignRoleInput{Scope: scope, PrincipalID: principalID, RoleDefinitionID: roleDefinitionID},
+	); err != nil {
 		return false, err
 	}
 
@@ -247,7 +249,9 @@ func (c *RBACClient) AssignRoleIfMissing(ctx context.Context, l log.Logger, in A
 
 // RemoveRole removes every matching assignment; removing an absent one is a no-op.
 func (c *RBACClient) RemoveRole(ctx context.Context, l log.Logger, scope, principalID, roleDefinitionID string) error {
-	if err := validateAssignRoleInput(AssignRoleInput{Scope: scope, PrincipalID: principalID, RoleDefinitionID: roleDefinitionID}); err != nil {
+	if err := validateAssignRoleInput(
+		AssignRoleInput{Scope: scope, PrincipalID: principalID, RoleDefinitionID: roleDefinitionID},
+	); err != nil {
 		return err
 	}
 

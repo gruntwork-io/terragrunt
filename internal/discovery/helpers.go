@@ -40,9 +40,30 @@ const (
 )
 
 // DefaultConfigFilenames are the default Terragrunt config filenames used in discovery.
-var DefaultConfigFilenames = []string{config.DefaultTerragruntConfigPath, config.DefaultStackFile}
+var DefaultConfigFilenames = []string{
+	config.DefaultTerragruntConfigPath,
+	config.DefaultTerragruntJSONConfigPath,
+	config.DefaultStackFile,
+}
 
-// walkDirFunc returns the tree walk the discovery phases use, bound to the
+// ConfigFilenames returns the config filenames discovery looks for under opts.
+//
+// A filename supplied via `--config` replaces the default unit filenames, so no other filename
+// names a unit configuration while it is set. The stack filename is always included.
+func ConfigFilenames(opts *options.TerragruntOptions) []string {
+	if !opts.TerragruntConfigPathExplicitlySet {
+		return slices.Clone(DefaultConfigFilenames)
+	}
+
+	name := filepath.Base(opts.TerragruntConfigPath)
+	if name == config.DefaultStackFile {
+		return slices.Clone(DefaultConfigFilenames)
+	}
+
+	return []string{name, config.DefaultStackFile}
+}
+
+// walkDirFunc returns the tree walk discovery uses, bound to the
 // venv filesystem so discovery only sees what the venv exposes. The symlinks
 // experiment swaps in the walk that descends into symlinked directories.
 func walkDirFunc(
@@ -93,16 +114,6 @@ func (s *stringSet) LoadOrStore(key string) (loaded bool) {
 	s.m[key] = struct{}{}
 
 	return false
-}
-
-// Load returns whether the key exists in the set.
-func (s *stringSet) Load(key string) bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	_, ok := s.m[key]
-
-	return ok
 }
 
 // RelPathForComponent renders target through [RelPathOrAbs], relative to the
@@ -156,12 +167,18 @@ func isExternal(fsys vfs.FS, workingDir string, componentPath string) bool {
 // componentFromDependencyPath returns a component for a dependency path. If the path already
 // exists in the thread-safe components, it returns that. If the path contains a stack file,
 // it creates a stack. Otherwise, it creates a unit.
+//
+// A dependency path reaches here (rather than via createComponentFromPath) when it wasn't
+// already registered by the filesystem walk, e.g. an external dependency outside the discovery
+// boundary. The new unit's config file is probed on disk rather than left at Unit's
+// terragrunt.hcl default, so a JSON-only dependency (terragrunt.hcl.json, no terragrunt.hcl)
+// doesn't get parsed against a config file that doesn't exist.
 func componentFromDependencyPath(
 	fsys vfs.FS,
 	path string,
 	components *component.ThreadSafeComponents,
 ) component.Component {
-	if existing := components.FindByPath(fsys, path); existing != nil {
+	if existing := components.FindByPath(path); existing != nil {
 		return existing
 	}
 
@@ -169,7 +186,24 @@ func componentFromDependencyPath(
 		return component.NewStack(path)
 	}
 
-	return component.NewUnit(path)
+	unit := component.NewUnit(path)
+	unit.SetConfigFile(unitConfigFilename(fsys, path))
+
+	return unit
+}
+
+// unitConfigFilename returns the unit config filename that exists in dir, preferring
+// terragrunt.hcl and falling back to terragrunt.hcl.json, mirroring the unit-relevant entries
+// in DefaultConfigFilenames. Returns the terragrunt.hcl default if neither exists, e.g. because
+// dir doesn't exist yet, matching Unit's own default.
+func unitConfigFilename(fsys vfs.FS, dir string) string {
+	for _, fname := range []string{config.DefaultTerragruntConfigPath, config.DefaultTerragruntJSONConfigPath} {
+		if _, err := fsys.Stat(filepath.Join(dir, fname)); err == nil {
+			return fname
+		}
+	}
+
+	return config.DefaultTerragruntConfigPath
 }
 
 // createComponentFromPath creates a component from a file path if it matches one of the config filenames.
@@ -231,6 +265,18 @@ func validateNoCoexistence(results []DiscoveryResult) error {
 	return nil
 }
 
+// shadowedUnitConfig reports whether path, one of filenames, is a terragrunt.hcl.json that discovery skips because
+// filenames holds terragrunt.hcl and its directory has one. The unit there is read from terragrunt.hcl, as
+// [config.GetDefaultConfigPath] reads it.
+func shadowedUnitConfig(fsys vfs.FS, path string, filenames []string) bool {
+	if filepath.Base(path) != config.DefaultTerragruntJSONConfigPath ||
+		!slices.Contains(filenames, config.DefaultTerragruntConfigPath) {
+		return false
+	}
+
+	return vfs.IsFile(fsys, filepath.Join(filepath.Dir(path), config.DefaultTerragruntConfigPath))
+}
+
 // deduplicateResults removes duplicate components from results by path.
 func deduplicateResults(results []DiscoveryResult) []DiscoveryResult {
 	seen := make(map[string]struct{}, len(results))
@@ -274,9 +320,13 @@ func sanitizeReadFiles(files []string) []string {
 }
 
 // extractDependencyPaths extracts all dependency paths from a Terragrunt
-// configuration, sorted and deduplicated.
+// configuration, sorted and deduplicated. A relative path is resolved against
+// the directory that holds the config file of c.
+//
+// Returns the error of ctx when ctx ends before every path is resolved.
 func extractDependencyPaths(
-	fsys vfs.FS,
+	ctx context.Context,
+	paths *vfs.PathResolver,
 	cfg *config.TerragruntConfig,
 	c component.Component,
 ) ([]string, error) {
@@ -284,60 +334,49 @@ func extractDependencyPaths(
 		return nil, nil
 	}
 
-	maxDedupLen := len(cfg.TerragruntDependencies)
-	if cfg.Dependencies != nil {
-		maxDedupLen += len(cfg.Dependencies.Paths)
+	configPaths, unresolved := cfg.DependencyPaths()
+
+	depPaths := make([]string, 0, len(configPaths))
+
+	dir := c.Path()
+	if unit, ok := c.(*component.Unit); ok {
+		dir = unit.ConfigDir()
 	}
 
-	depPaths := make([]string, 0, maxDedupLen)
-
-	errs := make([]error, 0, maxDedupLen)
-
-	for _, dependency := range cfg.TerragruntDependencies {
-		if dependency.Enabled != nil && !*dependency.Enabled {
-			continue
+	for _, depPath := range configPaths {
+		if err := ctx.Err(); err != nil {
+			return nil, err
 		}
 
-		if !config.IsValidConfigPath(dependency.ConfigPath) {
-			errs = append(errs, fmt.Errorf(
-				"skipping dependency %q in %q: "+
-					"config_path could not be resolved",
-				dependency.Name, c.Path()))
-
-			continue
-		}
-
-		depPath := dependency.ConfigPath.AsString()
 		if !filepath.IsAbs(depPath) {
-			depPath = filepath.Clean(filepath.Join(c.Path(), depPath))
+			depPath = filepath.Clean(filepath.Join(dir, depPath))
 		}
 
-		depPaths = append(depPaths, vfs.ResolveForCompare(fsys, depPath))
-	}
-
-	if cfg.Dependencies != nil {
-		for _, dependency := range cfg.Dependencies.Paths {
-			if !filepath.IsAbs(dependency) {
-				dependency = filepath.Clean(filepath.Join(c.Path(), dependency))
-			}
-
-			depPaths = append(depPaths, vfs.ResolveForCompare(fsys, dependency))
-		}
+		depPaths = append(depPaths, paths.Resolve(depPath))
 	}
 
 	slices.Sort(depPaths)
 
 	depPaths = slices.Compact(depPaths)
 
-	if len(errs) > 0 {
-		return depPaths, errors.Join(errs...)
+	if len(unresolved) == 0 {
+		return depPaths, nil
 	}
 
-	return depPaths, nil
+	errs := make([]error, 0, len(unresolved))
+
+	for _, name := range unresolved {
+		errs = append(errs, fmt.Errorf(
+			"skipping dependency %q in %q: "+
+				"config_path could not be resolved",
+			name, c.Path()))
+	}
+
+	return depPaths, errors.Join(errs...)
 }
 
 // storeStackConfigs parses each discovered stack's config file and stores the
-// result on the stack component. The parse phase only stores unit configs, so
+// result on the stack component. The pipeline only stores unit configs, so
 // this runs as a separate pass over the final component set. Parsing is
 // best-effort: a stack that fails to parse is left without config and
 // consumers simply omit those details.
@@ -345,6 +384,7 @@ func storeStackConfigs(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	components component.Components,
 ) {
@@ -366,14 +406,14 @@ func storeStackConfigs(
 		// values (and shows its definitions in consumers like browse).
 		pctx := configbridge.NewParsingContext(opts)
 
-		values, err := config.ReadValues(ctx, l, v, pctx, stackDir)
+		values, err := config.ReadValues(ctx, l, v, s, pctx, stackDir)
 		if err != nil {
 			l.Debugf("Skipping stack config %s: %v", stackFile, err)
 
 			continue
 		}
 
-		cfg, err := config.ReadStackConfigFile(ctx, l, v, pctx, stackFile, values)
+		cfg, err := config.ReadStackConfigFile(ctx, l, v, s, pctx, stackFile, values)
 		if err != nil {
 			l.Debugf("Skipping stack config %s: %v", stackFile, err)
 
@@ -387,10 +427,13 @@ func storeStackConfigs(
 // stackDependencyPaths expands stack directory dependency paths into their constituent unit paths.
 // Autoinclude-declared dependencies are already folded into the parsed config by the partial-parse
 // merge (which honors enabled/disabled and same-name override), so they arrive via depPaths here.
+//
+// Returns the error of ctx when ctx ends before every path is expanded.
 func stackDependencyPaths(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	depPaths []string,
 ) ([]string, error) {
@@ -399,7 +442,7 @@ func stackDependencyPaths(
 	// Factory builds the dir-scoped function map for each stack dir visited during expansion.
 	funcsFor := inthclparse.StackFuncFactory(
 		func(stackDir string) (map[string]function.Function, error) {
-			return config.EarlyStackParseFunctions(ctx, l, v, pctx, stackDir)
+			return config.EarlyStackParseFunctions(ctx, l, v, s, pctx, stackDir)
 		},
 	)
 
@@ -407,6 +450,10 @@ func stackDependencyPaths(
 	expanded := make([]string, 0, len(depPaths))
 
 	for _, depPath := range depPaths {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+
 		// Stat upfront so a non-directory dep path (e.g. another-name.hcl) is preserved instead of
 		// being passed to the parser, which would reject it as ENOTDIR. The duplication of work is
 		// intentional.
@@ -518,32 +565,36 @@ func (d *Discovery) potentialDependentsOutsideBoundary(
 	outside := make(map[string]struct{})
 
 	for _, candidate := range candidates {
-		if candidate.Reason != filter.CandidacyReasonPotentialDependent {
-			continue
+		if outsideDependentBoundaries(fsys, boundaries, candidate) {
+			outside[candidate.Component.Path()] = struct{}{}
 		}
-
-		c := candidate.Component
-
-		// Worktree components live outside the working tree by construction.
-		if dctx := c.DiscoveryContext(); dctx != nil && dctx.Ref != "" {
-			continue
-		}
-
-		if slices.ContainsFunc(boundaries, func(boundary string) bool {
-			return !isExternal(fsys, boundary, c.Path())
-		}) {
-			continue
-		}
-
-		outside[c.Path()] = struct{}{}
 	}
 
 	return outside
 }
 
+// outsideDependentBoundaries reports whether candidate is a potential dependent outside every one of boundaries,
+// which no dependent traversal can reach. No boundaries means the traversals are unbounded, and nothing is outside.
+func outsideDependentBoundaries(fsys vfs.FS, boundaries []string, candidate DiscoveryResult) bool {
+	if len(boundaries) == 0 || candidate.Reason != filter.CandidacyReasonPotentialDependent {
+		return false
+	}
+
+	c := candidate.Component
+
+	// Worktree components live outside the working tree by construction.
+	if dctx := c.DiscoveryContext(); dctx != nil && dctx.Ref != "" {
+		return false
+	}
+
+	return !slices.ContainsFunc(boundaries, func(boundary string) bool {
+		return !isExternal(fsys, boundary, c.Path())
+	})
+}
+
 // evaluationContext hands filter evaluation the settings its graph traversal
 // has to honor. Discover resolves the boundary and the working directory before
-// any phase runs, so this carries absolute paths rather than raw user input.
+// the pipeline runs, so this carries absolute paths rather than raw user input.
 func (d *Discovery) evaluationContext() filter.EvaluationContext {
 	return filter.EvaluationContext{
 		WorkingDir:         d.workingDir,

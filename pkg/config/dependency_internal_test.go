@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
@@ -318,7 +319,7 @@ func TestGCSCredentialFileDirectStateReadSupported(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			v := venvtest.New()
+			v := venv.MemVenv()
 			require.NoError(t, vfs.WriteFile(v.FS, credentialPath, []byte(testCase.contents), 0o600))
 
 			assert.Equal(t, testCase.want, gcsCredentialFileDirectStateReadSupported(v, credentialPath))
@@ -330,7 +331,7 @@ func TestGCSCredentialFileDirectStateReadSupported(t *testing.T) {
 func TestGCSCredentialFileDirectStateReadSupportedMissingFile(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 
 	assert.True(t, gcsCredentialFileDirectStateReadSupported(v, ""), "an unset credential path is not a divergence")
 	assert.False(t, gcsCredentialFileDirectStateReadSupported(v, "/config/absent.json"))

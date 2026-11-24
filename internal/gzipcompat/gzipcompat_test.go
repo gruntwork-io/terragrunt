@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"io"
 	"strings"
 	"testing"
@@ -13,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/gzipcompat"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zclconf/go-cty/cty"
 )
 
 func TestEncodeMatchesV113(t *testing.T) {
@@ -113,6 +115,38 @@ func TestEncodeMatchesV113(t *testing.T) {
 			assert.Equal(t, tc.input, string(decoded))
 		})
 	}
+}
+
+func TestFunc_EncodesThroughHCLFunction(t *testing.T) {
+	t.Parallel()
+
+	var uses int
+
+	fn := gzipcompat.Func(func() error {
+		uses++
+
+		return nil
+	})
+
+	got, err := fn.Call([]cty.Value{cty.StringVal("test")})
+	require.NoError(t, err)
+
+	want, err := gzipcompat.Encode("test")
+	require.NoError(t, err)
+
+	assert.Equal(t, cty.StringVal(want), got, "the HCL function should return what Encode returns")
+	assert.Equal(t, 1, uses, "onUse should run once per call")
+}
+
+func TestFunc_OnUseErrorFailsTheCall(t *testing.T) {
+	t.Parallel()
+
+	errGated := errors.New("experiment not enabled")
+
+	fn := gzipcompat.Func(func() error { return errGated })
+
+	_, err := fn.Call([]cty.Value{cty.StringVal("test")})
+	require.ErrorIs(t, err, errGated, "an onUse error should fail the call")
 }
 
 func pseudoRandomASCII(size int) string {

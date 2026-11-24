@@ -27,15 +27,21 @@ func MapJoin[M ~map[K]V, K comparable, V any](m M, entrySep, kvSep string) strin
 var _ Flag = new(MapFlag[string, string])
 
 var (
+	// MapFlagEnvVarSep separates the entries of a [MapFlag] env var value when the flag sets no
+	// EnvVarSep.
 	MapFlagEnvVarSep = ","
+	// MapFlagKeyValSep separates a [MapFlag] entry's key from its value when the flag sets no
+	// KeyValSep.
 	MapFlagKeyValSep = "="
 	flatPatsCount    = 2
 )
 
+// MapFlagKeyType is the set of key types a [MapFlag] can parse.
 type MapFlagKeyType interface {
 	GenericType
 }
 
+// MapFlagValueType is the set of value types a [MapFlag] can parse.
 type MapFlagValueType interface {
 	GenericType | bool
 }

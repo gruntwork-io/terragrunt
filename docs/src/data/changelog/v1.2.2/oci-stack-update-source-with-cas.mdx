@@ -1,0 +1,30 @@
+---
+version: "v1.2.2"
+category: "bug-fixes"
+---
+
+#### `update_source_with_cas` works in stacks sourced from OCI registries and HTTP archives
+
+For a `unit` or `stack` block sourced from an OCI registry, such as `source = "oci://ghcr.io/acme/catalog//stacks/svc?tag=v1"`, or from an archive at an HTTP URL, Terragrunt copied only the selected directory of the package. Relative sources in that directory that set `update_source_with_cas = true` stayed as written, so generating the nested stack failed:
+
+```text
+ERROR  failed to fetch unit a
+  Source:      ../..//units/a
+  Destination: .terragrunt-stack/svc/.terragrunt-stack/a
+...
+Original error: ... relative paths require a module with a pwd
+```
+
+The same catalog served from Git or a local path generated fine.
+
+Stack generation now fetches the whole HTTP archive or OCI module package into the [CAS](/features/caching/cas) and rewrites nested `update_source_with_cas` sources to `cas::` references. An OCI package is keyed by its manifest digest, so a repeat generation with the same digest links the stored copy without a download.
+
+A literal `checksum=` pin keys an HTTP archive the same way, and with the `offline-cas` experiment [`--cas-offline`](/reference/cli/commands/run#cas-offline) resolves it from the store; a `checksum=file:` reference is not answered offline.
+
+As with other CAS-backed sources, the generated files are read-only unless the block sets `mutable = true`. `--no-cas` keeps the standard downloader, which copies only the selected directory.
+
+The same `checksum=` keying applies to every CAS-backed HTTP source, not only stack generation: a `terraform.source` HTTP URL pinned with `checksum=` now goes through the CAS too, and a mismatch fails once instead of being downloaded a second time by the standard getter.
+
+For every CAS-backed catalog, Git included, a nested `update_source_with_cas` source that cannot be rewritten now fails generation instead of falling back to a copy with the relative source left in place.
+
+Under the `offline-cas` experiment, `--cas-offline` no longer fetches a source whose recorded probe came from a download that failed. For Git catalogs, the rewritten stack and unit files are now read-only by default like the rest of the tree, and `mutable = true` makes the copy writable.

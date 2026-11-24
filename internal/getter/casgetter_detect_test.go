@@ -22,8 +22,6 @@ import (
 func TestCASGetterDetect_GitForcedPrefix(t *testing.T) {
 	t.Parallel()
 
-	g := newCASGetterForDetect(t)
-
 	tests := []struct {
 		name      string
 		src       string
@@ -47,6 +45,8 @@ func TestCASGetterDetect_GitForcedPrefix(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			g := newCASGetterForDetect(t)
+
 			req := &gogetter.Request{Src: tt.src, Forced: tt.reqForced}
 
 			ok, err := g.Detect(req)
@@ -59,8 +59,6 @@ func TestCASGetterDetect_GitForcedPrefix(t *testing.T) {
 
 func TestCASGetterDetect_GenericForcedPrefixes(t *testing.T) {
 	t.Parallel()
-
-	g := newCASGetterForDetect(t)
 
 	tests := []struct {
 		forced string
@@ -77,6 +75,8 @@ func TestCASGetterDetect_GenericForcedPrefixes(t *testing.T) {
 	for _, tt := range tests {
 		t.Run("forced "+tt.forced, func(t *testing.T) {
 			t.Parallel()
+
+			g := newCASGetterForDetect(t)
 
 			req := &gogetter.Request{Src: tt.src, Forced: tt.forced}
 
@@ -103,8 +103,6 @@ func TestCASGetterDetect_GenericForcedPrefixes(t *testing.T) {
 func TestCASGetterDetect_SchemeDetectionByURL(t *testing.T) {
 	t.Parallel()
 
-	g := newCASGetterForDetect(t)
-
 	claimed := []struct {
 		name   string
 		src    string
@@ -117,6 +115,8 @@ func TestCASGetterDetect_SchemeDetectionByURL(t *testing.T) {
 	for _, tt := range claimed {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
+			g := newCASGetterForDetect(t)
 
 			req := &gogetter.Request{Src: tt.src}
 
@@ -139,6 +139,8 @@ func TestCASGetterDetect_SchemeDetectionByURL(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			g := newCASGetterForDetect(t)
+
 			req := &gogetter.Request{Src: tt.src}
 
 			ok, _ := g.Detect(req)
@@ -159,8 +161,6 @@ func TestCASGetterDetect_SchemeDetectionByURL(t *testing.T) {
 // the plain HTTPS fetcher and silently fail for private buckets.
 func TestCASGetterDetect_AWSS3HTTPSRoutesToS3Fetcher(t *testing.T) {
 	t.Parallel()
-
-	g := newCASGetterForDetect(t)
 
 	tests := []struct {
 		name    string
@@ -207,6 +207,8 @@ func TestCASGetterDetect_AWSS3HTTPSRoutesToS3Fetcher(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
+			g := newCASGetterForDetect(t)
 
 			req := &gogetter.Request{Src: tt.src}
 
@@ -269,8 +271,6 @@ func TestCASGetterDetect_AWSS3HTTPSPreservesQueryAndVersion(t *testing.T) {
 func TestCASGetterDetect_NonS3AmazonAWSHostFallsThroughToHTTPS(t *testing.T) {
 	t.Parallel()
 
-	g := newCASGetterForDetect(t)
-
 	tests := []string{
 		"https://iam.amazonaws.com/bucket/key.tgz",
 		"https://sts.amazonaws.com/bucket/key.tgz",
@@ -280,6 +280,8 @@ func TestCASGetterDetect_NonS3AmazonAWSHostFallsThroughToHTTPS(t *testing.T) {
 	for _, src := range tests {
 		t.Run(src, func(t *testing.T) {
 			t.Parallel()
+
+			g := newCASGetterForDetect(t)
 
 			req := &gogetter.Request{Src: src}
 
@@ -445,34 +447,44 @@ func TestCASGetterDetect_PanicsOnNilVenvFS(t *testing.T) {
 	})
 }
 
+// TestCASGetterDetect_PreservesExistingArchiveQueryValue: an explicit archive=false reads archive=false after Detect.
 func TestCASGetterDetect_PreservesExistingArchiveQueryValue(t *testing.T) {
 	t.Parallel()
 
 	g := newCASGetterForDetect(t)
+	req := &gogetter.Request{Src: "https://example.com/mod.tar.gz?archive=false"}
 
-	// If the URL already carries archive=true, Detect must not
-	// overwrite it. Same for archive=false (which is what Detect
-	// would have added anyway).
+	ok, err := g.Detect(req)
+	require.NoError(t, err)
+	require.True(t, ok)
+
+	u, err := url.Parse(req.Src)
+	require.NoError(t, err)
+	assert.Equal(t, "false", u.Query().Get("archive"))
+}
+
+// TestCASGetterDetect_MovesArchiveAndChecksumOffOuterURL: the outer client must neither extract nor verify.
+func TestCASGetterDetect_MovesArchiveAndChecksumOffOuterURL(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		src  string
-		want string
 	}{
+		{name: "archive=true", src: "https://example.com/mod.tar.gz?archive=true"},
+		{name: "archive format", src: "https://example.com/mod?archive=tar.gz"},
 		{
-			name: "preserve archive=true",
-			src:  "https://example.com/mod.tar.gz?archive=true",
-			want: "true",
-		},
-		{
-			name: "preserve archive=false",
-			src:  "https://example.com/mod.tar.gz?archive=false",
-			want: "false",
+			name: "checksum",
+			src: "https://example.com/mod.tar.gz?checksum=sha256:" +
+				"0000000000000000000000000000000000000000000000000000000000000000",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
+			g := newCASGetterForDetect(t)
 
 			req := &gogetter.Request{Src: tt.src}
 
@@ -482,7 +494,8 @@ func TestCASGetterDetect_PreservesExistingArchiveQueryValue(t *testing.T) {
 
 			u, parseErr := url.Parse(req.Src)
 			require.NoError(t, parseErr)
-			assert.Equal(t, tt.want, u.Query().Get("archive"))
+			assert.Equal(t, "false", u.Query().Get("archive"))
+			assert.Empty(t, u.Query().Get("checksum"))
 		})
 	}
 }

@@ -1,0 +1,291 @@
+package discovery_test
+
+import (
+	"slices"
+	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+)
+
+// rewriteCorpus is a repository whose units use what discovery reads from a parse: includes with locals, a local
+// module source, dependency and dependencies blocks, exclude and errors blocks, feature flags, version
+// constraints, engine blocks, a dependency that reads files and one reached through an include, a stack file, and a
+// unit that does not parse.
+var rewriteCorpus = map[string]string{
+	"root.hcl": `
+locals {
+  env    = "dev"
+  common = yamldecode(file("common.yaml"))
+}
+
+feature "canary" {
+  default = false
+}
+
+terraform {
+  source = "${get_parent_terragrunt_dir()}/modules/app"
+}
+
+inputs = {
+  env    = local.env
+  region = local.common.region
+}
+`,
+	"common.yaml":         "region: us-east-1\n",
+	"modules/app/main.tf": `resource "null_resource" "app" {}` + "\n",
+	"apps/web/terragrunt.hcl": `
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+
+dependency "db" {
+  config_path = "../db"
+}
+
+exclude {
+  if      = true
+  actions = ["plan"]
+}
+
+errors {
+  retry "transient" {
+    retryable_errors   = [".*timeout.*"]
+    max_attempts       = 3
+    sleep_interval_sec = 1
+  }
+
+  ignore "known" {
+    ignorable_errors = [".*known.*"]
+    message          = "ignored"
+  }
+}
+
+inputs = {
+  db_id = dependency.db.outputs.id
+}
+`,
+	"apps/db/terragrunt.hcl": `
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+
+dependencies {
+  paths = ["../../infra/vpc"]
+}
+
+terragrunt_version_constraint = ">= 0.1.0"
+
+engine {
+  source  = "github.com/example/engine"
+  version = "v1.0.0"
+  type    = "rpc"
+  meta = {
+    region = "us-east-1"
+  }
+}
+`,
+	"apps/worker/terragrunt.hcl": `
+dependency "db" {
+  config_path = "../db"
+}
+
+engine {
+  source = "github.com/example/engine"
+  meta = {
+    db_id = dependency.db.outputs.id
+  }
+}
+`,
+	"db-dependency.hcl": `
+dependency "db" {
+  config_path = "${get_terragrunt_dir()}/../db"
+}
+`,
+	"apps/job/terragrunt.hcl": `
+include "db" {
+  path = find_in_parent_folders("db-dependency.hcl")
+}
+`,
+	"engine.hcl": `
+engine {
+  source = "github.com/example/inherited"
+  meta = {
+    tier = "shared"
+  }
+}
+`,
+	"apps/inherits-engine/terragrunt.hcl": `
+include "engine" {
+  path = find_in_parent_folders("engine.hcl")
+}
+`,
+	"infra/vpc/terragrunt.hcl": `
+terraform {
+  source = "git::https://example.com/vpc.git//vpc?ref=v1"
+}
+
+feature "wide" {
+  default = "no"
+}
+`,
+	"apps/broken/terragrunt.hcl": "locals {\n",
+	"stacks/live/terragrunt.stack.hcl": `
+unit "web" {
+  source = "../../apps/web"
+  path   = "web"
+}
+`,
+}
+
+// componentView is the parts of a discovered component the parity test compares.
+type componentView struct {
+	Exclude      *config.ExcludeConfig
+	Errors       *config.ErrorsConfig
+	Engine       *config.EngineConfig
+	Source       *string
+	Constraint   string
+	Path         string
+	Kind         component.Kind
+	FeatureFlags config.FeatureFlags
+	Dependencies []string
+	Reading      []string
+	External     bool
+	Excluded     bool
+}
+
+// corpusVenv returns an in-memory venv holding rewriteCorpus.
+func corpusVenv(t *testing.T) *venv.Venv {
+	t.Helper()
+
+	v := memRepoRootVenv(t, corpusRepoRoot)
+	writeFixture(t, v, prefixPaths(rewriteCorpus))
+
+	return v
+}
+
+// discoverCorpus runs discovery over the corpus v holds, parsing through store, and returns what it found in path
+// order.
+func discoverCorpus(t *testing.T, store *config.Store, v *venv.Venv) []componentView {
+	t.Helper()
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = corpusRepoRoot
+	opts.RootWorkingDir = corpusRepoRoot
+
+	l := logger.CreateLogger()
+
+	d := discovery.NewDiscovery(corpusRepoRoot).
+		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: corpusRepoRoot}).
+		WithGitRoot(corpusRepoRoot).
+		WithRequiresParse().
+		WithRelationships().
+		WithParseExclude().
+		WithTrackReads().
+		WithSuppressParseErrors()
+
+	components, err := d.Discover(config.WithCaches(t.Context()), l, v, store, opts)
+	require.NoError(t, err)
+
+	return componentViews(components)
+}
+
+// componentViews returns the view of each of components, in path order.
+func componentViews(components component.Components) []componentView {
+	views := make([]componentView, 0, len(components))
+
+	for _, c := range components {
+		view := componentView{
+			Path:     c.Path(),
+			Kind:     c.Kind(),
+			External: c.External(),
+			Reading:  slices.Sorted(slices.Values(c.Reading())),
+		}
+
+		unit, ok := c.(*component.Unit)
+		if !ok {
+			views = append(views, view)
+
+			continue
+		}
+
+		view.Excluded = unit.Excluded()
+		view.Dependencies = slices.Sorted(slices.Values(unit.Dependencies().Paths()))
+
+		if cfg := unit.Config(); cfg != nil {
+			view.Exclude = cfg.Exclude
+			view.Errors = cfg.Errors
+			view.Engine = cfg.Engine
+			view.Constraint = cfg.TerragruntVersionConstraint
+			view.FeatureFlags = cfg.FeatureFlags
+
+			if cfg.Terraform != nil {
+				view.Source = cfg.Terraform.Source
+			}
+		}
+
+		views = append(views, view)
+	}
+
+	slices.SortFunc(views, func(a, b componentView) int {
+		return strings.Compare(a.Path, b.Path)
+	})
+
+	return views
+}
+
+func TestDiscoveryReusesTheTreesOfAnEarlierDiscovery(t *testing.T) {
+	t.Parallel()
+
+	store := new(config.Store)
+	v := corpusVenv(t)
+
+	want := discoverCorpus(t, store, v)
+
+	dependencies := map[string][]string{}
+
+	for _, view := range want {
+		if view.Kind == component.UnitKind {
+			dependencies[view.Path] = view.Dependencies
+		}
+	}
+
+	assert.Equal(t, map[string][]string{
+		repoPath("apps/broken"):          nil,
+		repoPath("apps/db"):              {repoPath("infra/vpc")},
+		repoPath("apps/inherits-engine"): nil,
+		repoPath("apps/job"):             {repoPath("apps/db")},
+		repoPath("apps/web"):             {repoPath("apps/db")},
+		repoPath("apps/worker"):          {repoPath("apps/db")},
+		repoPath("infra/vpc"):            nil,
+	}, dependencies)
+
+	misses := store.Stats().Misses
+	require.Positive(t, misses, "the discovery parsed through the store")
+
+	hits := store.Stats().Hits
+
+	again := discoverCorpus(t, store, v)
+	assert.Equal(t, want, again)
+	assert.Less(t, store.Stats().Misses-misses, misses, "the second discovery parsed no syntax tree again")
+	assert.Greater(t, store.Stats().Hits-hits, hits, "the second discovery was served every syntax tree")
+}
+
+// prefixPaths returns files with each path joined onto the corpus repo root.
+func prefixPaths(files map[string]string) map[string]string {
+	prefixed := make(map[string]string, len(files))
+
+	for path, contents := range files {
+		prefixed[repoPath(path)] = contents
+	}
+
+	return prefixed
+}

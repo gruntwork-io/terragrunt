@@ -75,27 +75,11 @@ func newStackOutputsContext(
 ) (context.Context, *venv.Venv, *config.ParsingContext) {
 	t.Helper()
 
-	v := venvtest.New().WithFS(venvtest.NewFS(t, stackUnitOutputsRoot, files))
+	v := venv.MemVenv().WithFS(venvtest.NewFS(t, stackUnitOutputsRoot, files))
 
 	ctx, pctx := newTestParsingContext(t, filepath.Join(stackUnitOutputsRoot, "terragrunt.hcl"))
 
-	// The caches the fetch path reads live on the context, and only WithConfigValues puts
-	// them there. Without it every lookup below builds a throwaway cache and misses.
-	ctx = config.WithConfigValues(ctx)
-
-	// Priming the fetch cache is what keeps this off a real tofu binary: the venv's exec is
-	// fail-closed, so a cache miss would surface as an error rather than a shell-out.
 	jsonCache := cache.ContextCache[[]byte](ctx, config.JSONOutputCacheContextKey)
-
-	// ContextCache hands back a detached instance when the key is absent, so dropping the call
-	// above would leave every Put below invisible to the fetch path and quietly send this test
-	// looking for a real tofu binary. Two lookups agreeing on one pointer prove it is installed.
-	require.Same(
-		t,
-		jsonCache,
-		cache.ContextCache[[]byte](ctx, config.JSONOutputCacheContextKey),
-		"the output cache is not on the context, so priming it below would do nothing",
-	)
 
 	for configPath, out := range outputs {
 		jsonCache.Put(ctx, filepath.Join(stackUnitOutputsRoot, configPath), []byte(out))
@@ -143,6 +127,7 @@ func TestCollectStackOutputsNestsExpandedElements(t *testing.T) {
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx,
 		stackUnitOutputsRoot,
 		&config.StackConfig{
@@ -163,7 +148,6 @@ func TestCollectStackOutputsNestsExpandedElements(t *testing.T) {
 	assert.Equal(t, "web", requireAttr(t, requireAttr(t, aurora, "web"), "role").AsString())
 	assert.Equal(t, "api", requireAttr(t, requireAttr(t, aurora, "api"), "role").AsString())
 
-	// A unit with no expansion keeps the flat address it always had.
 	require.Contains(t, collected, "vpc")
 	assert.Equal(t, "vpc", requireAttr(t, collected["vpc"], "role").AsString())
 }
@@ -190,6 +174,7 @@ func TestCollectStackOutputsNestsNestedStackUnits(t *testing.T) {
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx,
 		stackUnitOutputsRoot,
 		&config.StackConfig{
@@ -241,6 +226,7 @@ func TestCollectStackOutputsMocksNestedStackUnits(t *testing.T) {
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx,
 		stackUnitOutputsRoot,
 		&config.StackConfig{
@@ -282,6 +268,7 @@ func TestCollectStackOutputsRejectsUnitAndStackSharingAName(t *testing.T) {
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx,
 		stackUnitOutputsRoot,
 		&config.StackConfig{
@@ -324,6 +311,7 @@ stack "loop" {
 		ctx,
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		pctx,
 		stackUnitOutputsRoot,
 		&config.StackConfig{

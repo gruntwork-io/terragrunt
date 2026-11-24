@@ -56,7 +56,7 @@ $ terragrunt apply
 # tofu apply -lock-timeout=20m
 ```
 
-You can even use built-in functions such as [`get_terraform_commands_that_need_locking`](/reference/hcl/functions/#get_terraform_commands_that_need_locking) to conveniently populate the list of OpenTofu/Terraform commands that need locking:
+You can even use built-in functions such as [`get_terraform_commands_that_need_locking`](/reference/hcl/functions/get_terraform_commands_that_need_locking) to conveniently populate the list of OpenTofu/Terraform commands that need locking:
 
 ``` hcl
 # terragrunt.hcl
@@ -72,10 +72,10 @@ terraform {
 
 Terragrunt provides four similar helper functions for populating the `commands` list:
 
-- [`get_terraform_commands_that_need_locking`](/reference/hcl/functions/#get_terraform_commands_that_need_locking)
-- [`get_terraform_commands_that_need_vars`](/reference/hcl/functions/#get_terraform_commands_that_need_vars)
-- [`get_terraform_commands_that_need_input`](/reference/hcl/functions/#get_terraform_commands_that_need_input)
-- [`get_terraform_commands_that_need_parallelism`](/reference/hcl/functions/#get_terraform_commands_that_need_parallelism)
+- [`get_terraform_commands_that_need_locking`](/reference/hcl/functions/get_terraform_commands_that_need_locking)
+- [`get_terraform_commands_that_need_vars`](/reference/hcl/functions/get_terraform_commands_that_need_vars)
+- [`get_terraform_commands_that_need_input`](/reference/hcl/functions/get_terraform_commands_that_need_input)
+- [`get_terraform_commands_that_need_parallelism`](/reference/hcl/functions/get_terraform_commands_that_need_parallelism)
 
 ## Multiple extra_arguments blocks
 
@@ -207,7 +207,7 @@ terraform {
 }
 ```
 
-See the [`get_terragrunt_dir()`](/reference/hcl/functions/#get_terragrunt_dir) and [`get_parent_terragrunt_dir()`](/reference/hcl/functions/#get_parent_terragrunt_dir) documentation for more details.
+See the [`get_terragrunt_dir()`](/reference/hcl/functions/get_terragrunt_dir) and [`get_parent_terragrunt_dir()`](/reference/hcl/functions/get_parent_terragrunt_dir) documentation for more details.
 
 With the configuration above, when you run `terragrunt run --all apply`, Terragrunt will call OpenTofu/Terraform as follows:
 
@@ -258,6 +258,6 @@ $ terragrunt apply
 
 ## Further reading
 
-- [`extra_arguments` block reference](/reference/hcl/blocks/#terraform)
+- [`extra_arguments` block reference](/reference/hcl/blocks/terraform/)
 - [Helper functions reference](/reference/hcl/functions/) — includes the `get_terraform_commands_that_need_*` family
 - [Auto-Init feature](/features/units/auto-init) — how Terragrunt automatically runs `init`

@@ -1,0 +1,65 @@
+name: Nightly Benchmarks
+
+on:
+  schedule:
+    # Every day at 04:17 UTC
+    - cron: '17 4 * * *'
+  workflow_dispatch:
+    inputs:
+      base_ref:
+        description: 'Base ref (branch, tag, or commit SHA) to compare the selected branch against'
+        required: true
+        default: 'main'
+      suite:
+        description: 'Benchmarks to run'
+        required: true
+        default: 'fast'
+        type: choice
+        options:
+          - fast
+          - integration
+      notify_slack:
+        description: 'Send results to Slack'
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: benchmark-nightly-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # Every merge to main is already compared with the tip before it, in ci.yml.
+  # This run adds what that one leaves out: the change since the latest
+  # release, which many small changes can add up to, and the suite that is too
+  # slow to run on every merge.
+  benchmark:
+    strategy:
+      fail-fast: false
+      matrix:
+        # See .github/scripts/benchmark/resolve-refs.sh for what each compares.
+        comparison: ${{ github.event_name == 'schedule' && fromJSON('["release", "self"]') || fromJSON('["custom"]') }}
+        suite: ${{ github.event_name == 'schedule' && fromJSON('["fast", "integration"]') || fromJSON(format('["{0}"]', inputs.suite)) }}
+        exclude:
+          # self measures runner noise, which the fast suite is enough for.
+          - comparison: self
+            suite: integration
+    uses: ./.github/workflows/benchmark.yml
+    with:
+      comparison: ${{ matrix.comparison }}
+      suite: ${{ matrix.suite }}
+      base_ref: ${{ inputs.base_ref }}
+      # One pass of the integration suite takes about ten minutes a side.
+      go_count: ${{ matrix.suite == 'integration' && '4' || '6' }}
+      time_threshold_pct: ${{ vars.BENCH_TIME_THRESHOLD_PCT || '5' }}
+      memory_threshold_pct: ${{ vars.BENCH_MEMORY_THRESHOLD_PCT || '10' }}
+      alloc_threshold_pct: ${{ vars.BENCH_ALLOC_THRESHOLD_PCT || '2' }}
+      # self is never sent to Slack.
+      notify_slack: ${{ matrix.comparison != 'self' && (inputs.notify_slack || (github.event_name == 'schedule' && vars.BENCH_NOTIFY_SLACK == 'true')) }}
+    permissions:
+      contents: read
+    secrets:
+      COVERAGE_SLACK_WEBHOOK_URL: ${{ secrets.COVERAGE_SLACK_WEBHOOK_URL }}

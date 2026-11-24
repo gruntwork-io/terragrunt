@@ -18,27 +18,51 @@ import (
 const ColorOptionName = "color"
 
 const (
+	// NoneColor leaves the text as it is. It has no name in a format string.
 	NoneColor ColorValue = iota + 255
+	// DisableColor, `color=disable`, strips every ANSI escape sequence from the
+	// text, including those in tofu output.
 	DisableColor
+	// GradientColor, `color=gradient`, gives each distinct text the next color
+	// from a fixed rotation and keeps that color for it.
 	GradientColor
+	// PresetColor, `color=preset`, uses the color the placeholder picks for the
+	// entry, such as the color of its level. Text in a placeholder without a
+	// preset stays uncolored.
 	PresetColor
 
+	// BlackColor, `color=black`, is ANSI color 0.
 	BlackColor
+	// RedColor, `color=red`, is ANSI color 1.
 	RedColor
+	// WhiteColor, `color=white`, is ANSI color 7.
 	WhiteColor
+	// YellowColor, `color=yellow`, is ANSI color 3.
 	YellowColor
+	// GreenColor, `color=green`, is ANSI color 2.
 	GreenColor
+	// BlueColor, `color=blue`, is ANSI color 4.
 	BlueColor
+	// CyanColor, `color=cyan`, is ANSI color 6.
 	CyanColor
+	// MagentaColor, `color=magenta`, is ANSI color 5.
 	MagentaColor
 
+	// LightBlueColor, `color=light-blue`, is ANSI color 12, bright blue.
 	LightBlueColor
+	// LightBlackColor, `color=light-black`, is ANSI color 8, gray.
 	LightBlackColor
+	// LightRedColor, `color=light-red`, is ANSI color 9, bright red.
 	LightRedColor
+	// LightGreenColor, `color=light-green`, is ANSI color 10, bright green.
 	LightGreenColor
+	// LightYellowColor, `color=light-yellow`, is ANSI color 11, bright yellow.
 	LightYellowColor
+	// LightMagentaColor, `color=light-magenta`, is ANSI color 13, bright magenta.
 	LightMagentaColor
+	// LightCyanColor, `color=light-cyan`, is ANSI color 14, bright cyan.
 	LightCyanColor
+	// LightWhiteColor, `color=light-white`, is ANSI color 15, bright white.
 	LightWhiteColor
 )
 
@@ -87,20 +111,28 @@ var (
 	}
 )
 
+// ColorList is the value of [ColorOption]: a color name or a 256-color palette
+// index from 0 to 255.
 type ColorList struct {
 	MapValue[ColorValue]
 }
 
+// NewColorList returns a [ColorList] that accepts the names in list, each
+// selecting its key, and any palette index.
 func NewColorList(list map[ColorValue]string) ColorList {
 	return ColorList{
 		MapValue: NewMapValue(list),
 	}
 }
 
+// Set returns a copy of val that selects v.
 func (val *ColorList) Set(v ColorValue) *ColorList {
 	return &ColorList{MapValue: *val.MapValue.Set(v)}
 }
 
+// Parse selects the palette index str, or the color named str.
+//
+// Returns an error listing the accepted values when str is neither.
 func (val *ColorList) Parse(str string) error {
 	if num, err := strconv.Atoi(str); err == nil && num >= 0 && num <= 255 {
 		val.value = ColorValue(byte(num))
@@ -118,8 +150,11 @@ func (val *ColorList) Parse(str string) error {
 	return nil
 }
 
+// ColorScheme maps each named [ColorValue] to the style it renders with.
 type ColorScheme map[ColorValue]ColorStyle
 
+// ColorStyle is a style spec in the syntax [ColorStyle.ColorFunc] parses, such as
+// `blue+h`.
 type ColorStyle string
 
 // ColorFunc parses the style spec and returns a function that wraps text in
@@ -200,8 +235,12 @@ func parseColorStyle(spec string) lipgloss.Style {
 	return style.Foreground(lipgloss.Color(strconv.Itoa(base)))
 }
 
+// ColorFunc returns its argument wrapped in ANSI escape sequences.
 type ColorFunc func(string) string
 
+// ColorValue is a color [ColorOption] applies. Values from 0 to 254 are
+// 256-color palette indices. [NoneColor] and the values after it are the named
+// colors and modes.
 type ColorValue int
 
 // ColorReset ends a styled run. One SGR reset clears every attribute, so lipgloss
@@ -241,6 +280,9 @@ func renderSeq(style ColorStyle) ColorSeq {
 	return ColorSeq{Prefix: prefix, Suffix: suffix}
 }
 
+// ColorOption is the `color` option. It wraps the text in the ANSI escape
+// sequences of its color, or strips every escape sequence from the text when
+// colors are disabled.
 type ColorOption struct {
 	*CommonOption[ColorValue]
 	gradientColor *gradientColor

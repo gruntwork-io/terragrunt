@@ -1,0 +1,31 @@
+---
+name: get_terraform_command
+description: Returns the OpenTofu/Terraform command Terragrunt is running, e.g. `plan`.
+configs: [unit, stack]
+params: []
+returns: string
+examples:
+  - description: During `terragrunt run -- plan`.
+    code: |
+      # terragrunt.hcl
+
+      inputs = {
+        command = get_terraform_command() # "plan"
+      }
+---
+
+`get_terraform_command` returns the OpenTofu/Terraform command Terragrunt is running. For `apply -destroy`, it returns `destroy`. Under a Terragrunt command that doesn't run OpenTofu/Terraform, it returns that command's name, e.g. `render`.
+
+```hcl
+# terragrunt.hcl
+
+locals {
+  destroying = get_terraform_command() == "destroy"
+}
+
+inputs = {
+  deletion_protection = !local.destroying
+}
+```
+
+For the arguments too, use [`get_terraform_cli_args`](/reference/hcl/functions/get_terraform_cli_args).

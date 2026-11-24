@@ -80,7 +80,7 @@ func TestFlagZeroValueStringDoesNotPanic(t *testing.T) {
 			registered := set.Lookup("foo")
 			require.NotNil(t, registered)
 
-			zero, ok := reflect.New(reflect.TypeOf(registered.Value).Elem()).Interface().(libflag.Value)
+			zero, ok := reflect.TypeAssert[libflag.Value](reflect.New(reflect.TypeOf(registered.Value).Elem()))
 			require.True(t, ok)
 
 			assert.NotPanics(t, func() { assert.Empty(t, zero.String()) })

@@ -7,12 +7,14 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 )
 
 const (
+	// UnitKind is the [Kind] of a [Unit].
 	UnitKind Kind = "unit"
 )
 
@@ -22,6 +24,7 @@ type Unit struct {
 	discoveryContext *DiscoveryContext
 	path             string
 	configFile       string
+	configDir        string
 	reading          []string
 	dependencies     Components
 	dependents       Components
@@ -105,6 +108,35 @@ func (u *Unit) ConfigFile() string {
 // SetConfigFile sets the discovered config filename for this unit.
 func (u *Unit) SetConfigFile(filename string) {
 	u.configFile = filename
+}
+
+// ConfigDir returns the directory that holds the config file of this unit: its path, unless [Unit.SetConfigDir]
+// set another.
+//
+// It exists only for a deprecated behavior. Until the dependency-config-path-file strict control is the default, a
+// dependency block can set its config_path to an HCL file, and the unit for that dependency has the file as its
+// path. Its directory can hold other HCL files that are dependencies too, each a unit of its own. Once that
+// behavior is removed, the path of every unit is a directory and callers can read it in place of this.
+func (u *Unit) ConfigDir() string {
+	u.lock()
+	defer u.unlock()
+
+	if u.configDir != "" {
+		return u.configDir
+	}
+
+	return u.path
+}
+
+// SetConfigDir sets the directory that holds the config file of this unit, for a unit whose path names that file.
+//
+// Like [Unit.ConfigDir], it exists only while a dependency block can set its config_path to an HCL file, and goes
+// away with that deprecated behavior.
+func (u *Unit) SetConfigDir(dir string) {
+	u.lock()
+	defer u.unlock()
+
+	u.configDir = dir
 }
 
 // Kind returns the kind of component (always Unit for Unit).
@@ -335,6 +367,9 @@ func (u *Unit) OutputJSONFile(rootWorkingDir, jsonOutputFolder string) string {
 }
 
 // planFilePath computes the path for plan output files.
+//
+// A unit discovered at a Git reference goes under a directory named for the
+// reference, such as @HEAD_1.
 func (u *Unit) planFilePath(rootWorkingDir, outputFolder, fileName string) string {
 	if outputFolder == "" {
 		return ""
@@ -346,6 +381,10 @@ func (u *Unit) planFilePath(rootWorkingDir, outputFolder, fileName string) strin
 	relPath, err := filepath.Rel(u.discoveryContext.WorkingDir, u.path)
 	if err != nil {
 		relPath = u.path
+	}
+
+	if ref := u.discoveryContext.Ref; ref != "" {
+		relPath = filepath.Join("@"+git.SanitizeRef(ref), relPath)
 	}
 
 	dir := filepath.Join(outputFolder, relPath)

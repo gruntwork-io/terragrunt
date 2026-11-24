@@ -17,7 +17,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -381,9 +380,9 @@ func TestStackDepsDAGExpandsStackToUnits(t *testing.T) {
 	)
 
 	l := logger.CreateLogger()
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 	v := venv.OSVenv()
-	pctx := configbridge.NewParsingContext(options.NewTerragruntOptions(vexec.NewOSExec()))
+	pctx := configbridge.NewParsingContext(options.NewTerragruntOptions())
 
 	unitPaths, err := inthclparse.UnitPathsFromStackDir(
 		ctx,
@@ -427,9 +426,9 @@ func TestStackDepsUnitPathsFromNestedOnlyStack(t *testing.T) {
 	)
 
 	l := logger.CreateLogger()
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 	v := venv.OSVenv()
-	pctx := configbridge.NewParsingContext(options.NewTerragruntOptions(vexec.NewOSExec()))
+	pctx := configbridge.NewParsingContext(options.NewTerragruntOptions())
 
 	unitPaths, err := inthclparse.UnitPathsFromStackDir(
 		ctx,
@@ -456,9 +455,9 @@ func TestStackDepsUnitPathsFromMissingStackFile(t *testing.T) {
 	root := helpers.TmpDirWOSymlinks(t)
 
 	l := logger.CreateLogger()
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 	v := venv.OSVenv()
-	pctx := configbridge.NewParsingContext(options.NewTerragruntOptions(vexec.NewOSExec()))
+	pctx := configbridge.NewParsingContext(options.NewTerragruntOptions())
 
 	unitPaths, err := inthclparse.UnitPathsFromStackDir(
 		ctx,
@@ -1361,7 +1360,9 @@ func TestStackDepsAutoIncludeArbitraryRetryBlock(t *testing.T) {
 	l := logger.CreateLogger()
 	ctx, v, pctx := newStackDepsParsingContext(t, l, unitConfigPath)
 
-	parsed, err := config.ParseConfigFile(ctx, l, v, pctx, unitConfigPath, nil)
+	s := new(config.Store)
+
+	parsed, err := s.ResolveRunConfig(ctx, l, v, pctx, unitConfigPath)
 	require.NoError(
 		t,
 		err,
@@ -1416,7 +1417,9 @@ func TestStackDepsAutoIncludeFeatureBlock(t *testing.T) {
 	l := logger.CreateLogger()
 	ctx, v, pctx := newStackDepsParsingContext(t, l, unitConfigPath)
 
-	parsed, err := config.ParseConfigFile(ctx, l, v, pctx, unitConfigPath, nil)
+	s := new(config.Store)
+
+	parsed, err := s.ResolveRunConfig(ctx, l, v, pctx, unitConfigPath)
 	require.NoError(
 		t,
 		err,
@@ -1475,7 +1478,9 @@ func TestStackDepsAutoIncludeIgnoreBlock(t *testing.T) {
 	l := logger.CreateLogger()
 	ctx, v, pctx := newStackDepsParsingContext(t, l, unitConfigPath)
 
-	parsed, err := config.ParseConfigFile(ctx, l, v, pctx, unitConfigPath, nil)
+	s := new(config.Store)
+
+	parsed, err := s.ResolveRunConfig(ctx, l, v, pctx, unitConfigPath)
 	require.NoError(
 		t,
 		err,
@@ -1983,11 +1988,11 @@ func newStackDepsParsingContext(
 ) (context.Context, *venv.Venv, *config.ParsingContext) {
 	t.Helper()
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	require.NoError(t, opts.Experiments.EnableExperiment(experiment.StackDependencies))
 	opts.TerragruntConfigPath = configPath
 
-	return t.Context(), venv.OSVenv(), configbridge.NewParsingContext(opts)
+	return config.WithCaches(t.Context()), venv.OSVenv(), configbridge.NewParsingContext(opts)
 }
 
 // partialParseDiscovery partial parses a unit config the way discovery does, with the
@@ -2000,7 +2005,9 @@ func partialParseDiscovery(t *testing.T, l log.Logger, configPath string) *confi
 	pctx = pctx.WithDecodeList(config.FeatureFlagsBlock, config.ErrorsBlock).
 		WithSkipOutputsResolution()
 
-	parsed, err := config.PartialParseConfigFile(ctx, l, v, pctx, configPath, nil)
+	s := new(config.Store)
+
+	parsed, err := s.ResolvePartialConfig(ctx, l, v, pctx, configPath)
 	require.NoError(t, err, "discovery-style partial parse of the merged unit config must succeed")
 
 	return parsed
@@ -2014,7 +2021,7 @@ func stackDepsFuncsFor(
 	pctx *config.ParsingContext,
 ) inthclparse.StackFuncFactory {
 	return func(dir string) (map[string]function.Function, error) {
-		return config.EarlyStackParseFunctions(ctx, l, v, pctx, dir)
+		return config.EarlyStackParseFunctions(ctx, l, v, new(config.Store), pctx, dir)
 	}
 }
 

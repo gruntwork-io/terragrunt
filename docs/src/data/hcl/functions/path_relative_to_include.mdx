@@ -1,0 +1,80 @@
+---
+name: path_relative_to_include
+description: Returns the path from an included file's directory to the unit's directory.
+configs: [unit, stack]
+params:
+  - name: name
+    type: string
+    optional: true
+    description: The label of the `include` block to measure from. A unit with more than one `include` block needs it. In the included file, it has no effect.
+returns: string
+examples:
+  - description: When `prod/mysql/terragrunt.hcl` includes this file.
+    code: |
+      # root.hcl
+
+      locals {
+        unit_path = path_relative_to_include() # "prod/mysql"
+      }
+---
+
+import FileTree from '@components/vendored/starlight/FileTree.astro';
+
+A file that many units include can use `path_relative_to_include` to give each unit its own state key:
+
+```hcl
+# root.hcl
+
+remote_state {
+  backend = "s3"
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite_terragrunt"
+  }
+  config = {
+    bucket = "my-tofu-state"
+    key    = "${path_relative_to_include()}/tofu.tfstate"
+    region = "us-east-1"
+  }
+}
+```
+
+```hcl
+# prod/mysql/terragrunt.hcl
+
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+```
+
+<FileTree>
+
+- root.hcl
+- prod
+  - mysql
+    - terragrunt.hcl
+- stage
+  - mysql
+    - terragrunt.hcl
+
+</FileTree>
+
+The `key` is `prod/mysql/tofu.tfstate` for `prod/mysql` and `stage/mysql/tofu.tfstate` for `stage/mysql`. Without an `include` block, the function returns `.`.
+
+A unit with more than one `include` block passes the label of the one to measure from:
+
+```hcl
+# prod/mysql/terragrunt.hcl
+
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+
+include "region" {
+  path = find_in_parent_folders("region.hcl")
+}
+
+inputs = {
+  name = replace(path_relative_to_include("root"), "/", "-")
+}
+```

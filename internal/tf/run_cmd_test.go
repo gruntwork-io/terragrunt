@@ -12,15 +12,15 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -86,7 +86,7 @@ func testCommandOutput(
 	l := logger.CreateLogger()
 	l = withLogger(l)
 
-	v := venvtest.New().
+	v := venv.MemVenv().
 		WithExec(vexec.NewOSExec()).
 		WithWriter(&allOutputBuffer).
 		WithErrWriter(&allOutputBuffer)
@@ -95,7 +95,7 @@ func testCommandOutput(
 		t.Context(),
 		l,
 		v,
-		configbridge.TFRunOptsFromOpts(map[string]string{}, terragruntOptions),
+		configbridge.TFRunOptsFromOpts(vexec.NewOSExec(), map[string]string{}, terragruntOptions, tfimpl.Unknown),
 		"same",
 	)
 

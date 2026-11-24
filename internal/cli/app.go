@@ -30,6 +30,7 @@ import (
 )
 
 const (
+	// AppName is the program name shown in help and version output.
 	AppName = "terragrunt"
 )
 
@@ -39,6 +40,7 @@ func init() {
 	clihelper.CommandHelpTemplate = CommandHelpTemplate
 }
 
+// App is the Terragrunt CLI app, built by [NewApp].
 type App struct {
 	*clihelper.App
 	opts *options.TerragruntOptions
@@ -49,8 +51,11 @@ type App struct {
 // constructors and captured by their Action closures rather than held on
 // the App, so virtualized handlers stay function parameters. Its environment
 // map is what env-var-backed flags resolve against.
+//
+// Every command of the App shares one [config.Store], so a file parsed for one discovery is not parsed again for
+// the next.
 func NewApp(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *App {
-	terragruntCommands := commands.New(l, opts, v)
+	terragruntCommands := commands.New(l, opts, v, new(config.Store))
 
 	app := clihelper.NewApp(v.Env)
 	app.Name = AppName
@@ -72,6 +77,7 @@ func NewApp(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *App {
 	return &App{app, opts}
 }
 
+// Run runs [App.RunContext] with a background context.
 func (app *App) Run(l log.Logger, v *venv.Venv, args []string) error {
 	return app.RunContext(context.Background(), l, v, args)
 }
@@ -98,6 +104,11 @@ func (app *App) registerGracefullyShutdown(ctx context.Context, l log.Logger, v 
 	return ctx
 }
 
+// RunContext parses args and runs the matching command under ctx, with the
+// config caches, engine state, and module version resolver attached. An
+// interrupt signal cancels ctx.
+//
+// Returns nil when the run ends in [context.Canceled].
 func (app *App) RunContext(
 	ctx context.Context,
 	l log.Logger,
@@ -109,11 +120,10 @@ func (app *App) RunContext(
 
 	ctx = app.registerGracefullyShutdown(ctx, l, v)
 
-	ctx = config.WithConfigValues(ctx)
+	ctx = config.WithCaches(ctx)
 	// configure engine context
 	ctx = engine.WithEngineValues(ctx)
 
-	ctx = run.WithRunVersionCache(ctx)
 	ctx = run.WithModuleVersionResolver(ctx, v)
 
 	args = RemoveNoColorFlagDuplicates(args)

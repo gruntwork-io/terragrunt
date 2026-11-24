@@ -23,6 +23,7 @@ func TestOSVenvProvidesPlatformHandles(t *testing.T) {
 	assert.Equal(t, runtime.GOARCH, v.Platform.GOARCH)
 	assert.NotNil(t, v.Platform.UserHomeDir)
 	assert.NotNil(t, v.Platform.UserConfigDir)
+	assert.Equal(t, os.Getuid(), v.Platform.GetUID())
 }
 
 func TestVenvPlatformBuilders(t *testing.T) {
@@ -75,6 +76,9 @@ func TestVenvPlatformBuildersRequireAPlatform(t *testing.T) {
 	assert.PanicsWithValue(t, venv.ErrVenvPlatformUnset, func() {
 		(&venv.Venv{}).WithReplaceEnviron(func(map[string]string) error { return nil })
 	})
+	assert.PanicsWithValue(t, venv.ErrVenvPlatformUnset, func() {
+		(&venv.Venv{}).WithGetUID(func() int { return 0 })
+	})
 }
 
 // TestVenvCacheTempAndEnvironBuilders checks each builder sets its handle on a copy, not the original.
@@ -87,7 +91,8 @@ func TestVenvCacheTempAndEnvironBuilders(t *testing.T) {
 	got := original.
 		WithUserCacheDir(func() (string, error) { return "/cache", nil }).
 		WithTempDir(func() string { return "/scratch" }).
-		WithReplaceEnviron(func(map[string]string) error { return wantReplaceErr })
+		WithReplaceEnviron(func(map[string]string) error { return wantReplaceErr }).
+		WithGetUID(func() int { return 1000 })
 
 	require.NotNil(t, got.Platform)
 	require.NotSame(t, original.Platform, got.Platform)
@@ -97,12 +102,14 @@ func TestVenvCacheTempAndEnvironBuilders(t *testing.T) {
 	assert.Equal(t, "/cache", cacheDir)
 	assert.Equal(t, "/scratch", got.Platform.TempDir())
 	require.ErrorIs(t, got.Platform.ReplaceEnviron(map[string]string{}), wantReplaceErr)
+	assert.Equal(t, 1000, got.Platform.GetUID())
 	assert.Equal(t, "plan9", got.Platform.GOOS)
 	assert.Equal(t, "mips", got.Platform.GOARCH)
 
 	assert.Nil(t, original.Platform.UserCacheDir)
 	assert.Nil(t, original.Platform.TempDir)
 	assert.Nil(t, original.Platform.ReplaceEnviron)
+	assert.Nil(t, original.Platform.GetUID)
 }
 
 // TestOSVenvReplaceEnviron replaces the process environment, so it is not parallel and restores it on cleanup.

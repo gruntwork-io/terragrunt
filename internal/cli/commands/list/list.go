@@ -19,8 +19,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/view/dag"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -28,7 +30,7 @@ import (
 )
 
 // Run runs the list command.
-func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
+func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *config.Store, opts *Options) error {
 	d, err := discovery.NewForDiscoveryCommand(l, v.FS, &discovery.DiscoveryCommandOptions{
 		WorkingDir:        opts.WorkingDir,
 		QueueConstructAs:  opts.QueueConstructAs,
@@ -42,7 +44,7 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
 		return err
 	}
 
-	d, cleanupWorktrees, err := discoverysetup.Worktrees(ctx, l, v, opts.TerragruntOptions, d)
+	d, cleanupWorktrees, err := discoverysetup.Worktrees(ctx, l, v, s, opts.TerragruntOptions, d)
 
 	defer cleanupWorktrees(ctx)
 
@@ -61,7 +63,16 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
 		"no_hidden":    opts.NoHidden,
 		"dependencies": opts.Dependencies || opts.Mode == ModeDAG,
 	}, func(ctx context.Context, l log.Logger) error {
-		components, discoverErr = d.Discover(ctx, l, v, opts.TerragruntOptions)
+		discoverErr = spinner.ShowAfter(ctx, l, spinner.Messages{
+			Working: "Discovering units...",
+			Done:    "Discovered units",
+		}, func() error {
+			var err error
+
+			components, err = d.Discover(ctx, l, v, s, opts.TerragruntOptions)
+
+			return err
+		})
 
 		if span := trace.SpanFromContext(ctx); span.IsRecording() {
 			span.SetAttributes(attribute.Int("component_count", len(components)))
@@ -70,6 +81,12 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
 		return discoverErr
 	})
 	if err != nil {
+		// Discover returns no components with this error, so logging it
+		// and carrying on would print an empty result.
+		if coexistenceErr, ok := errors.AsType[discovery.CoexistenceError](err); ok {
+			return coexistenceErr
+		}
+
 		l.Debugf("Errors encountered while discovering components:\n%s", err)
 	}
 

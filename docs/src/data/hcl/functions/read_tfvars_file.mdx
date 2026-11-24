@@ -1,0 +1,34 @@
+---
+name: read_tfvars_file
+description: Returns the variables in a `.tfvars` or `.tfvars.json` file, encoded as JSON.
+configs: [unit, stack]
+params:
+  - name: file_path
+    type: string
+    description: The file to read. A relative path resolves from the unit's directory, even in an included file. A path ending in `json` is read as JSON, any other as a `.tfvars` file.
+returns: string
+examples:
+  - code: |
+      # prod/app/terragrunt.hcl
+
+      locals {
+        tfvars = read_tfvars_file("common.tfvars")
+        # "{\"region\":\"us-east-1\"}"
+      }
+---
+
+`read_tfvars_file` returns a JSON string, so decode it with `jsondecode` to use the variables:
+
+```hcl
+# terragrunt.hcl
+
+locals {
+  common = jsondecode(read_tfvars_file("common.tfvars"))
+}
+
+inputs = merge(local.common, {
+  instance_type = "t3.micro"
+})
+```
+
+It fails when the file doesn't exist. Terragrunt records the file as read, so [`--queue-include-units-reading`](/reference/cli/commands/run#queue-include-units-reading) and `reading=` filters find the unit.

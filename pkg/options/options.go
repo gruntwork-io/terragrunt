@@ -24,41 +24,39 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
-	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/tips"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 )
 
+// ContextKey is the context key under which [TerragruntOptions.OptionsFromContext] looks for options.
 const ContextKey ctxKey = iota
 
 const (
+	// DefaultMaxFoldersToCheck is the default number of parent directories searches such as
+	// `find_in_parent_folders` walk before giving up.
 	DefaultMaxFoldersToCheck = 100
 
-	// no limits on parallelism by default (limited by GOPROCS)
+	// DefaultParallelism sets no limit on parallelism.
 	DefaultParallelism = math.MaxInt32
 
-	// TofuDefaultPath command to run tofu
-	TofuDefaultPath = "tofu"
-
-	// TerraformDefaultPath just takes terraform from the path
-	TerraformDefaultPath = "terraform"
-
-	// Default to naming it `terragrunt_rendered.json` in the terragrunt config directory.
+	// DefaultJSONOutName is the default name of the rendered JSON file written to the terragrunt config directory.
 	DefaultJSONOutName = "terragrunt_rendered.json"
 
+	// DefaultSignalsFile is the file, in the working directory, that an ignored error writes the `signals` of its
+	// `ignore` block to.
 	DefaultSignalsFile = "error-signals.json"
 
+	// DefaultTFDataDir is the data directory OpenTofu/Terraform uses when `TF_DATA_DIR` is unset.
 	DefaultTFDataDir = ".terraform"
 
 	defaultExcludesFile = ".terragrunt-excludes"
 	defaultFiltersFile  = ".terragrunt-filters"
 
+	// DefaultLogLevel is the log level when none is set.
 	DefaultLogLevel = log.InfoLevel
 )
 
@@ -87,8 +85,6 @@ type TerragruntOptions struct {
 	Telemetry *telemetry.Options
 	// Attributes to override in AWS provider nested within modules as part of the aws-provider-patch command.
 	AwsProviderPatchOverrides map[string]string
-	// Version of terraform (obtained by running 'terraform version')
-	TerraformVersion *semver.Version `clone:"shadowcopy"`
 	// Errors is a configuration for error handling.
 	Errors *errorconfig.Config
 	// Map to replace terraform source locations.
@@ -99,8 +95,8 @@ type TerragruntOptions struct {
 	IAMRoleOptions iam.RoleOptions
 	// IAM Role options set from command line.
 	OriginalIAMRoleOptions iam.RoleOptions
-	// Current Terraform command being executed by Terragrunt
-	TerraformCommand string
+	// Current tofu command being executed by Terragrunt
+	TofuCommand string
 	// StackOutputFormat format how the stack output is rendered.
 	StackOutputFormat         string
 	TerragruntStackConfigPath string
@@ -113,14 +109,13 @@ type TerragruntOptions struct {
 	Source string
 	// The working directory in which to run Terraform
 	WorkingDir string
-	// Location (or name) of the OpenTofu/Terraform binary
+	// Location (or name) of the OpenTofu/Terraform binary that --tf-path or a unit's terraform_binary named.
+	// Empty when neither did, and the binary is then the default detected on PATH.
 	TFPath string
 	// Download Terraform configurations specified in the Source parameter into this folder
 	DownloadDir string
-	// Original Terraform command being executed by Terragrunt.
-	OriginalTerraformCommand string
-	// Terraform implementation tool (e.g. terraform, tofu) that terragrunt is wrapping
-	TofuImplementation tfimpl.Type
+	// Original tofu command being executed by Terragrunt.
+	OriginalTofuCommand string
 	// The file path that terragrunt should use when rendering the terragrunt.hcl config as json.
 	JSONOut string
 	// The command and arguments that can be used to fetch authentication configurations.
@@ -217,8 +212,6 @@ type TerragruntOptions struct {
 	ScaffoldNoIncludeRoot bool
 	// Enable check mode, by default it's disabled.
 	Check bool
-	// Enables caching of includes during partial parsing operations.
-	UsePartialParseConfigCache bool
 	// True if is required to show dependent units and confirm action
 	CheckDependentUnits bool
 	// True if is required to check for dependent modules during destroy operations
@@ -230,7 +223,7 @@ type TerragruntOptions struct {
 	// Whether we should automatically run terraform init if necessary when executing other commands
 	AutoInit bool
 	// When false (set via --no-discovery-auth-provider-cmd), skip running the
-	// auth provider command during the discovery parse phase. Requires the
+	// auth provider command during discovery parsing. Requires the
 	// opt-out-auth experiment. Default true preserves existing behavior.
 	DiscoveryAuthProviderCmd bool
 	// Allows to skip the output of all dependencies.
@@ -253,6 +246,8 @@ type TerragruntOptions struct {
 	HCLValidateStrict bool
 	// HCLValidateInputs checks if the terragrunt configured inputs align with the terraform defined variables.
 	HCLValidateInputs bool
+	// HCLValidateOutputs checks the outputs each unit declares against its module and what its dependents read.
+	HCLValidateOutputs bool
 	// HCLValidateShowConfigPath shows the paths of the hcl invalid configs.
 	HCLValidateShowConfigPath bool
 	// HCLValidateJSONOutput outputs the hcl validate result as a JSON string.
@@ -300,6 +295,9 @@ type TerragruntOptions struct {
 	NoRunHooks bool
 	// TFPathExplicitlySet is set to true if the user has explicitly set the TFPath via the --tf-path flag.
 	TFPathExplicitlySet bool
+	// TerragruntConfigPathExplicitlySet is set to true if the user has explicitly set TerragruntConfigPath via
+	// the --config flag.
+	TerragruntConfigPathExplicitlySet bool
 	// FailFast is a flag to stop execution on the first error in apply of units.
 	FailFast bool
 	// NoDependencyPrompt disables prompt requiring confirmation for base
@@ -337,9 +335,8 @@ func WithIAMWebIdentityToken(token string) TerragruntOptionsFunc {
 
 // NewTerragruntOptions creates a new TerragruntOptions object with
 // reasonable defaults for real usage.
-func NewTerragruntOptions(e vexec.Exec) *TerragruntOptions {
+func NewTerragruntOptions() *TerragruntOptions {
 	return &TerragruntOptions{
-		TFPath:                   IdentifyDefaultWrappedExecutable(e),
 		ExcludesFile:             defaultExcludesFile,
 		FiltersFile:              defaultFiltersFile,
 		AutoInit:                 true,
@@ -351,7 +348,6 @@ func NewTerragruntOptions(e vexec.Exec) *TerragruntOptions {
 		AutoRetry:                true,
 		Parallelism:              DefaultParallelism,
 		JSONOut:                  DefaultJSONOutName,
-		TofuImplementation:       tfimpl.Unknown,
 		ProviderCacheOptions: pcoptions.ProviderCacheOptions{
 			RegistryNames: pcoptions.DefaultRegistryNames,
 		},
@@ -367,11 +363,11 @@ func NewTerragruntOptions(e vexec.Exec) *TerragruntOptions {
 	}
 }
 
-func NewTerragruntOptionsWithConfigPath(
-	e vexec.Exec,
-	terragruntConfigPath string,
-) (*TerragruntOptions, error) {
-	opts := NewTerragruntOptions(e)
+// NewTerragruntOptionsWithConfigPath returns [NewTerragruntOptions] set up for the config at terragruntConfigPath,
+// made absolute. The working directory is the config's directory, and the download directory is the
+// `.terragrunt-cache` inside it. An empty terragruntConfigPath stays empty.
+func NewTerragruntOptionsWithConfigPath(terragruntConfigPath string) (*TerragruntOptions, error) {
+	opts := NewTerragruntOptions()
 
 	// Ensure config path is absolute so downstream code can rely on it.
 	// Skip resolution for empty paths (sentinel meaning "not set").
@@ -411,7 +407,7 @@ func NewTerragruntOptionsForTest(
 	formatter := format.NewFormatter(format.NewKeyValueFormatPlaceholders())
 	formatter.SetDisabledColors(true)
 
-	opts, err := NewTerragruntOptionsWithConfigPath(venv.OSVenv().Exec, terragruntConfigPath)
+	opts, err := NewTerragruntOptionsWithConfigPath(terragruntConfigPath)
 	if err != nil {
 		log.WithOptions(log.WithLevel(log.DebugLevel), log.WithFormatter(formatter)).
 			Errorf("%v\n", err)
@@ -437,6 +433,16 @@ func (opts *TerragruntOptions) OptionsFromContext(ctx context.Context) *Terragru
 	}
 
 	return opts
+}
+
+// SetTFPathFromConfig sets TFPath to terraformBinary, the value of a config's `terraform_binary` attribute.
+// It leaves TFPath alone when terraformBinary is empty or TFPathExplicitlySet is true.
+func (opts *TerragruntOptions) SetTFPathFromConfig(terraformBinary string) {
+	if opts.TFPathExplicitlySet || terraformBinary == "" {
+		return
+	}
+
+	opts.TFPath = terraformBinary
 }
 
 // Clone performs a deep copy of `opts` with shadow copies of: interfaces, and funcs.
@@ -577,20 +583,6 @@ func (opts *TerragruntOptions) DataDir(env map[string]string) string {
 	}
 
 	return filepath.Join(opts.WorkingDir, tfDataDir)
-}
-
-// IdentifyDefaultWrappedExecutable returns the IaC binary Terragrunt wraps by
-// default, preferring OpenTofu and falling back to Terraform.
-//
-// Every command resolves this during startup, so the choice comes from a PATH
-// lookup alone. Spawning the candidate to confirm it runs costs more than the
-// rest of startup combined, and commands that never wrap it would pay too.
-func IdentifyDefaultWrappedExecutable(e vexec.Exec) string {
-	if _, err := e.LookPath(TofuDefaultPath); err == nil {
-		return TofuDefaultPath
-	}
-
-	return TerraformDefaultPath
 }
 
 // RunWithErrorHandling runs the given operation and handles any errors according to the configuration.

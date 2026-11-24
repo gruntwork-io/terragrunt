@@ -187,6 +187,8 @@ func (app *App) VisibleCommands() Commands {
 	return app.Commands.Sort().VisibleCommands()
 }
 
+// NewRootCommand returns the root [Command] of the app's command tree, built from the app's
+// actions, flags, and commands.
 func (app *App) NewRootCommand() *Command {
 	return &Command{
 		Name:                           app.Name,

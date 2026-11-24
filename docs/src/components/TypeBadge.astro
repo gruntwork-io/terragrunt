@@ -1,0 +1,51 @@
+---
+import { Badge } from '@astrojs/starlight/components';
+import { typeBadgeLabel, typeBadgeVariant } from '@lib/type-badge';
+
+interface Props {
+	type: string;
+	optional?: boolean;
+	defaultVal?: string | undefined;
+}
+
+const { type, optional = false, defaultVal } = Astro.props;
+---
+
+<Badge
+	class="type-badge"
+	text={typeBadgeLabel(type, optional, defaultVal)}
+	variant={typeBadgeVariant(type)}
+	size="small"
+	style={{ fontWeight: 'bold' }}
+/>
+
+<style>
+	.type-badge {
+		margin-inline-start: auto;
+		--sl-color-border-badge: hsl(var(--type-hue) 35% 42%);
+		--sl-color-bg-badge: hsl(var(--type-hue) 25% 18%);
+		--sl-color-text-badge: hsl(var(--type-hue) 60% 84%);
+	}
+
+	:global([data-theme='light']) .type-badge {
+		--sl-color-border-badge: hsl(var(--type-hue) 40% 62%);
+		--sl-color-bg-badge: hsl(var(--type-hue) 60% 95%);
+		--sl-color-text-badge: hsl(var(--type-hue) 55% 30%);
+	}
+
+	.type-badge.tip {
+		--type-hue: var(--sl-hue-purple);
+	}
+
+	.type-badge.success {
+		--type-hue: var(--sl-hue-green);
+	}
+
+	.type-badge.note {
+		--type-hue: var(--sl-hue-blue);
+	}
+
+	.type-badge.default {
+		--type-hue: 249;
+	}
+</style>

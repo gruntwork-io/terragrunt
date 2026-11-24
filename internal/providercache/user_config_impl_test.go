@@ -14,13 +14,13 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -49,7 +49,7 @@ func TestInitReadsImplementationConfigFiles(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			v := venvtest.New().
+			v := venv.MemVenv().
 				WithGOOS("linux").
 				WithUserHomeDir(func() (string, error) { return home, nil })
 
@@ -107,9 +107,24 @@ func TestImplementationMismatchWarning(t *testing.T) {
 		{name: "unknown server with tofu run reads the same files", serverImpl: tfimpl.Unknown, runImpl: tfimpl.OpenTofu},
 		{name: "unknown run never warns", serverImpl: tfimpl.Terraform, runImpl: tfimpl.Unknown},
 		{name: "empty run never warns", serverImpl: tfimpl.OpenTofu, runImpl: ""},
-		{name: "terraform run against tofu server warns", serverImpl: tfimpl.OpenTofu, runImpl: tfimpl.Terraform, wantWarn: true},
-		{name: "terraform run against unknown server warns", serverImpl: tfimpl.Unknown, runImpl: tfimpl.Terraform, wantWarn: true},
-		{name: "tofu run against terraform server warns", serverImpl: tfimpl.Terraform, runImpl: tfimpl.OpenTofu, wantWarn: true},
+		{
+			name:       "terraform run against tofu server warns",
+			serverImpl: tfimpl.OpenTofu,
+			runImpl:    tfimpl.Terraform,
+			wantWarn:   true,
+		},
+		{
+			name:       "terraform run against unknown server warns",
+			serverImpl: tfimpl.Unknown,
+			runImpl:    tfimpl.Terraform,
+			wantWarn:   true,
+		},
+		{
+			name:       "tofu run against terraform server warns",
+			serverImpl: tfimpl.Terraform,
+			runImpl:    tfimpl.OpenTofu,
+			wantWarn:   true,
+		},
 	}
 
 	for _, tt := range tc {
@@ -142,7 +157,7 @@ func TestTerraformCommandHookBypassesCacheOnImplementationMismatch(t *testing.T)
 
 	var invocations []vexec.Invocation
 
-	v := venvtest.New().
+	v := venv.MemVenv().
 		WithGOOS("linux").
 		WithUserHomeDir(func() (string, error) { return home, nil }).
 		WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
@@ -204,7 +219,7 @@ func TestTerraformCommandHookUsesCacheWhenImplementationsShareConfig(t *testing.
 
 	var invocations []vexec.Invocation
 
-	v := venvtest.New().
+	v := venv.MemVenv().
 		WithGOOS("linux").
 		WithUserHomeDir(func() (string, error) { return "/virtual/home", nil }).
 		WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {

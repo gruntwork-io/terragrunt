@@ -791,79 +791,6 @@ func TestFilterFlagWithSource(t *testing.T) {
 func TestFilterFlagWithFindGitFilter(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := helpers.TmpDirWOSymlinks(t)
-
-	runner := helpers.InitTestGitRunner(t, tmpDir)
-
-	// Create three units initially
-	unitToBeModifiedDir := filepath.Join(tmpDir, "unit-to-be-modified")
-	unitToBeRemovedDir := filepath.Join(tmpDir, "unit-to-be-removed")
-	unitToBeUntouchedDir := filepath.Join(tmpDir, "unit-to-be-untouched")
-
-	err := os.MkdirAll(unitToBeModifiedDir, 0755)
-	require.NoError(t, err)
-
-	err = os.MkdirAll(unitToBeRemovedDir, 0755)
-	require.NoError(t, err)
-
-	err = os.MkdirAll(unitToBeUntouchedDir, 0755)
-	require.NoError(t, err)
-
-	// Create minimal terragrunt.hcl files for each unit
-	unitToBeModifiedHCLPath := filepath.Join(unitToBeModifiedDir, "terragrunt.hcl")
-	err = os.WriteFile(unitToBeModifiedHCLPath, []byte(`# Unit to be modified`), 0644)
-	require.NoError(t, err)
-
-	unitToBeRemovedHCLPath := filepath.Join(unitToBeRemovedDir, "terragrunt.hcl")
-	err = os.WriteFile(unitToBeRemovedHCLPath, []byte(`# Unit to be removed`), 0644)
-	require.NoError(t, err)
-
-	unitToBeUntouchedHCLPath := filepath.Join(unitToBeUntouchedDir, "terragrunt.hcl")
-	err = os.WriteFile(unitToBeUntouchedHCLPath, []byte(`# Unit to be untouched`), 0644)
-	require.NoError(t, err)
-
-	// Initial commit
-	require.NoError(t, runner.Add(t.Context(), "."))
-	require.NoError(t, runner.Commit(t.Context(), "Initial commit"))
-
-	// If users don't have a default branch set, we'll make sure that the `main` branch exists
-	b, err := runner.Config(t.Context(), "init.defaultBranch")
-	if err != nil || b != "main" {
-		require.NoError(t, runner.Checkout(t.Context(), "main", true))
-	}
-
-	// We'll checkout a new branch so that we can compare against main in the filter-affected flag test
-	require.NoError(t, runner.Checkout(t.Context(), "filter-affected-test", true))
-
-	// Modify the unit to be modified
-	err = os.WriteFile(unitToBeModifiedHCLPath, []byte(`# Unit modified`), 0644)
-	require.NoError(t, err)
-
-	// Remove the unit to be removed (delete the directory)
-	err = os.RemoveAll(unitToBeRemovedDir)
-	require.NoError(t, err)
-
-	// Add a unit to be created
-	unitToBeCreatedDir := filepath.Join(tmpDir, "unit-to-be-created")
-	err = os.MkdirAll(unitToBeCreatedDir, 0755)
-	require.NoError(t, err)
-
-	err = os.WriteFile(
-		filepath.Join(unitToBeCreatedDir, "terragrunt.hcl"),
-		[]byte(`# Unit created`),
-		0644,
-	)
-	require.NoError(t, err)
-
-	// Do nothing to the unit to be untouched
-
-	// Commit the modification and removal in a single commit
-	require.NoError(t, runner.Add(t.Context(), "."))
-	require.NoError(t, runner.Commit(t.Context(), "Create, modify, and remove units"))
-
-	// Clean up terraform folders before running
-	helpers.CleanupTerraformFolder(t, tmpDir)
-
 	testCases := []struct {
 		name                  string
 		filterQuery           string
@@ -896,7 +823,8 @@ func TestFilterFlagWithFindGitFilter(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			helpers.CleanupTerraformFolder(t, tmpDir)
+
+			tmpDir := setupFindGitFilterRepo(t)
 
 			cmd := "terragrunt find --no-color --working-dir " + tmpDir
 			if tc.useFilterAffectedFlag {
@@ -915,6 +843,8 @@ func TestFilterFlagWithFindGitFilter(t *testing.T) {
 
 				return
 			}
+
+			require.NoError(t, err)
 
 			results := strings.Split(strings.TrimSpace(stdout), "\n")
 			assert.ElementsMatch(t, tc.expectedUnits, results)
@@ -1439,11 +1369,91 @@ func TestFilterFlagWithRunAllGitFilterDeletedDependency(t *testing.T) {
 		assert.ElementsMatch(t, []string{"consumer", "dep"}, strings.Fields(stdout), cmd)
 	}
 
-	_, _, err = helpers.RunTerragruntCommandWithOutput(
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		"terragrunt hcl validate --no-color --working-dir "+tmpDir,
 	)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), `dependency "dep"`)
-	assert.Contains(t, err.Error(), "does not exist")
+	assert.Contains(t, stdout, "error: Missing dependency")
+	assert.Contains(t, stdout, " --> "+filepath.Join("consumer", "terragrunt.hcl")+":2:")
+	assert.Contains(t, stdout, "This directory does not exist.")
+}
+
+// setupFindGitFilterRepo creates a Git repository whose last commit creates,
+// modifies, and removes a unit on a branch cut from `main`, and returns its
+// path.
+func setupFindGitFilterRepo(t *testing.T) string {
+	t.Helper()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+
+	runner := helpers.InitTestGitRunner(t, tmpDir)
+
+	// Create three units initially
+	unitToBeModifiedDir := filepath.Join(tmpDir, "unit-to-be-modified")
+	unitToBeRemovedDir := filepath.Join(tmpDir, "unit-to-be-removed")
+	unitToBeUntouchedDir := filepath.Join(tmpDir, "unit-to-be-untouched")
+
+	err := os.MkdirAll(unitToBeModifiedDir, 0755)
+	require.NoError(t, err)
+
+	err = os.MkdirAll(unitToBeRemovedDir, 0755)
+	require.NoError(t, err)
+
+	err = os.MkdirAll(unitToBeUntouchedDir, 0755)
+	require.NoError(t, err)
+
+	// Create minimal terragrunt.hcl files for each unit
+	unitToBeModifiedHCLPath := filepath.Join(unitToBeModifiedDir, "terragrunt.hcl")
+	err = os.WriteFile(unitToBeModifiedHCLPath, []byte(`# Unit to be modified`), 0644)
+	require.NoError(t, err)
+
+	unitToBeRemovedHCLPath := filepath.Join(unitToBeRemovedDir, "terragrunt.hcl")
+	err = os.WriteFile(unitToBeRemovedHCLPath, []byte(`# Unit to be removed`), 0644)
+	require.NoError(t, err)
+
+	unitToBeUntouchedHCLPath := filepath.Join(unitToBeUntouchedDir, "terragrunt.hcl")
+	err = os.WriteFile(unitToBeUntouchedHCLPath, []byte(`# Unit to be untouched`), 0644)
+	require.NoError(t, err)
+
+	// Initial commit
+	require.NoError(t, runner.Add(t.Context(), "."))
+	require.NoError(t, runner.Commit(t.Context(), "Initial commit"))
+
+	// If users don't have a default branch set, we'll make sure that the `main` branch exists
+	b, err := runner.Config(t.Context(), "init.defaultBranch")
+	if err != nil || b != "main" {
+		require.NoError(t, runner.Checkout(t.Context(), "main", true))
+	}
+
+	// We'll checkout a new branch so that we can compare against main in the filter-affected flag test
+	require.NoError(t, runner.Checkout(t.Context(), "filter-affected-test", true))
+
+	// Modify the unit to be modified
+	err = os.WriteFile(unitToBeModifiedHCLPath, []byte(`# Unit modified`), 0644)
+	require.NoError(t, err)
+
+	// Remove the unit to be removed (delete the directory)
+	err = os.RemoveAll(unitToBeRemovedDir)
+	require.NoError(t, err)
+
+	// Add a unit to be created
+	unitToBeCreatedDir := filepath.Join(tmpDir, "unit-to-be-created")
+	err = os.MkdirAll(unitToBeCreatedDir, 0755)
+	require.NoError(t, err)
+
+	err = os.WriteFile(
+		filepath.Join(unitToBeCreatedDir, "terragrunt.hcl"),
+		[]byte(`# Unit created`),
+		0644,
+	)
+	require.NoError(t, err)
+
+	// Do nothing to the unit to be untouched
+
+	// Commit the modification and removal in a single commit
+	require.NoError(t, runner.Add(t.Context(), "."))
+	require.NoError(t, runner.Commit(t.Context(), "Create, modify, and remove units"))
+
+	return tmpDir
 }

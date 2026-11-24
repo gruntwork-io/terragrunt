@@ -2,10 +2,12 @@ package validate
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"slices"
 
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/view/diagnostic"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -14,16 +16,40 @@ import (
 	"github.com/hashicorp/hcl/v2"
 )
 
+const summaryUnsupportedAttribute = "Unsupported attribute"
+
 // DiagnosticsCollector gathers the diagnostics a parse reports, for a caller
 // that answers with them rather than letting the parser's default diagnostics
 // writer print them.
 type DiagnosticsCollector struct {
+	// missingDependencyUnits has the directory of each unit that has a diagnostic for a missing dependency.
+	missingDependencyUnits map[string]struct{}
+	// owners maps each diagnostic to the directory of the component whose validation collected it.
+	owners map[*diagnostic.Diagnostic]string
+	// diags are the diagnostics collected so far, without repeats.
 	diags diagnostic.Diagnostics
 }
 
 // Diagnostics returns what the parses collected so far.
 func (c *DiagnosticsCollector) Diagnostics() diagnostic.Diagnostics {
 	return c.diags
+}
+
+// owner returns the directory of the component whose validation collected diag.
+func (c *DiagnosticsCollector) owner(diag *diagnostic.Diagnostic) string {
+	return c.owners[diag]
+}
+
+// attribute records dir as the owner of every diagnostic collected since the collector held from
+// of them. A repeat that [DiagnosticsCollector.add] dropped keeps the owner of the first.
+func (c *DiagnosticsCollector) attribute(from int, dir string) {
+	if c.owners == nil {
+		c.owners = make(map[*diagnostic.Diagnostic]string)
+	}
+
+	for _, diag := range c.diags[from:] {
+		c.owners[diag] = dir
+	}
 }
 
 // collect keeps the diagnostics raised for the file being parsed. It reports
@@ -33,24 +59,81 @@ func (c *DiagnosticsCollector) collect(
 	file *hcl.File,
 	hclDiags hcl.Diagnostics,
 ) (hcl.Diagnostics, error) {
+	return nil, c.keep(file, hclDiags)
+}
+
+// keep collects the diagnostics of hclDiags that point at file, one per source range.
+func (c *DiagnosticsCollector) keep(file *hcl.File, hclDiags hcl.Diagnostics) error {
+	return c.keepWith(file, hclDiags, c.add)
+}
+
+// keepDistinct collects the diagnostics of hclDiags that point at file, one per source range and text.
+func (c *DiagnosticsCollector) keepDistinct(file *hcl.File, hclDiags hcl.Diagnostics) error {
+	return c.keepWith(file, hclDiags, c.addDistinct)
+}
+
+// keepWith converts the diagnostics of hclDiags that point at file and hands each to add.
+func (c *DiagnosticsCollector) keepWith(
+	file *hcl.File,
+	hclDiags hcl.Diagnostics,
+	add func(diag *diagnostic.Diagnostic),
+) error {
+	errs := make([]error, 0, len(hclDiags))
+
 	for _, hclDiag := range hclDiags {
 		if raisedElsewhere(file, hclDiag) {
 			continue
 		}
 
-		c.add(diagnostic.NewDiagnostic(file, hclDiag))
+		diag, err := diagnostic.NewDiagnostic(file, hclDiag)
+		if err != nil {
+			errs = append(errs, err)
+
+			continue
+		}
+
+		add(diag)
 	}
 
-	return nil, nil
+	return errors.Join(errs...)
 }
 
-// add keeps diag unless an equivalent one is already collected.
+// add keeps diag unless one is already collected at its range.
 func (c *DiagnosticsCollector) add(diag *diagnostic.Diagnostic) {
 	if c.has(diag) {
 		return
 	}
 
 	c.diags = append(c.diags, diag)
+}
+
+// addDistinct keeps diag unless one with its summary and detail is already collected at its range.
+func (c *DiagnosticsCollector) addDistinct(diag *diagnostic.Diagnostic) {
+	if c.hasDistinct(diag) {
+		return
+	}
+
+	c.diags = append(c.diags, diag)
+}
+
+// dropEvaluationDiagnostics removes the unattributed unsupported-attribute diagnostics inside a subject of hclDiags.
+func (c *DiagnosticsCollector) dropEvaluationDiagnostics(hclDiags hcl.Diagnostics) {
+	c.diags = slices.DeleteFunc(c.diags, func(have *diagnostic.Diagnostic) bool {
+		if _, owned := c.owners[have]; owned || have.Range == nil || have.Summary != summaryUnsupportedAttribute {
+			return false
+		}
+
+		return slices.ContainsFunc(hclDiags, func(diag *hcl.Diagnostic) bool {
+			return diag.Subject != nil && within(*have.Range, *diag.Subject)
+		})
+	})
+}
+
+// within reports whether rng lies inside subject, in the same file.
+func within(rng diagnostic.Range, subject hcl.Range) bool {
+	return rng.Filename == subject.Filename &&
+		rng.Start.Byte >= subject.Start.Byte &&
+		rng.End.Byte <= subject.End.Byte
 }
 
 // has reports whether diag is already collected.
@@ -68,9 +151,28 @@ func (c *DiagnosticsCollector) has(diag *diagnostic.Diagnostic) bool {
 	})
 }
 
+// hasDistinct reports whether a diagnostic with diag's summary and detail is already collected at its range.
+func (c *DiagnosticsCollector) hasDistinct(diag *diagnostic.Diagnostic) bool {
+	return slices.ContainsFunc(c.diags, func(have *diagnostic.Diagnostic) bool {
+		return sameRange(have.Range, diag.Range) && have.Summary == diag.Summary && have.Detail == diag.Detail
+	})
+}
+
+// sameRange reports whether a and b are both absent or both the same source range.
+func sameRange(a, b *diagnostic.Range) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+
+	return a.String() == b.String()
+}
+
 // raisedElsewhere reports whether diag points at a file other than the one
 // being parsed. A parse raises what its dependencies and includes report too,
 // and those belong to whichever file declared them.
+//
+// A diagnostic with a Subject and no file is not dismissed here, so that
+// [diagnostic.NewDiagnostic] rejects it.
 func raisedElsewhere(file *hcl.File, diag *hcl.Diagnostic) bool {
 	if diag.Subject == nil || file == nil {
 		return false
@@ -98,30 +200,57 @@ const (
 // each reports into Collector.
 type ComponentParser struct {
 	Collector *DiagnosticsCollector
+	Store     *config.Store
 	Options   ParserOptions
 }
 
-// Unit parses the unit configuration in unitDir.
+// Unit parses the unit configuration named configFile in unitDir.
 func (p ComponentParser) Unit(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	unitDir string,
+	configFile string,
 ) error {
+	from := len(p.Collector.diags)
+	defer p.Collector.attribute(from, unitDir)
+
 	parseOpts := opts.Clone()
 	parseOpts.WorkingDir = unitDir
-	parseOpts.TerragruntConfigPath = filepath.Join(unitDir, unitConfigFilename(opts))
+	parseOpts.TerragruntConfigPath = filepath.Join(unitDir, configFile)
 	parseOpts.OriginalTerragruntConfigPath = parseOpts.TerragruntConfigPath
+
+	_, rootDownloadDir := util.DefaultWorkingAndDownloadDirs(opts.TerragruntConfigPath)
+	if opts.DownloadDir == "" || opts.DownloadDir == rootDownloadDir {
+		_, parseOpts.DownloadDir = util.DefaultWorkingAndDownloadDirs(parseOpts.TerragruntConfigPath)
+	}
 
 	pctx := configbridge.NewParsingContext(parseOpts)
 
-	cfg, err := config.ReadTerragruntConfig(ctx, l, v, pctx.WithParserSettings(p.parserSettings(pctx.Parser)))
+	configPath := parseOpts.TerragruntConfigPath
+
+	pctx = pctx.WithParserSettings(p.parserSettings(pctx.Parser))
+
+	cfg, err := s.ReadTerragruntConfig(ctx, l, v, pctx)
 	if err != nil {
-		return err
+		err = p.pointAtOutputsErrors(l, v, pctx, err)
+
+		return p.Collector.pointAtDependencyErrors(v.FS, unitDir, []string{configPath}, err)
 	}
 
-	return config.ValidateDependencyConfigPaths(v.FS, cfg, parseOpts.TerragruntConfigPath)
+	contractErr := p.pointAtOutputsErrors(l, v, pctx, p.validateOutputsContracts(ctx, l, v, parseOpts, pctx, cfg))
+
+	return errors.Join(
+		contractErr,
+		p.Collector.pointAtDependencyErrors(
+			v.FS,
+			unitDir,
+			dependencyConfigPaths(configPath, cfg),
+			config.ValidateDependencyConfigPaths(v.FS, cfg, configPath),
+		),
+	)
 }
 
 // Stack parses the stack configuration in stackDir, returning every error the
@@ -130,9 +259,13 @@ func (p ComponentParser) Stack(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	stackDir string,
 ) []error {
+	from := len(p.Collector.diags)
+	defer p.Collector.attribute(from, stackDir)
+
 	stackFilePath := filepath.Join(stackDir, config.DefaultStackFile)
 
 	parseOpts := opts.Clone()
@@ -143,7 +276,7 @@ func (p ComponentParser) Stack(
 
 	var parseErrs []error
 
-	values, err := config.ReadValues(ctx, l, v, parser, stackDir)
+	values, err := config.ReadValues(ctx, l, v, s, parser, stackDir)
 	if err != nil {
 		parseErrs = append(parseErrs, err)
 	}
@@ -158,7 +291,7 @@ func (p ComponentParser) Stack(
 		return append(parseErrs, err)
 	}
 
-	stackCfg, err := config.ParseStackConfig(ctx, l, v, parser, file, values)
+	stackCfg, err := config.ParseStackConfig(ctx, l, v, s, parser, file, values)
 	if err != nil {
 		return append(parseErrs, err)
 	}
@@ -167,8 +300,8 @@ func (p ComponentParser) Stack(
 	// run the strict autoinclude parse `stack generate` uses. It no-ops unless
 	// the stack-dependencies experiment is enabled and the config declares
 	// autoinclude.
-	autoIncludeErr := config.ValidateStackAutoIncludes(
-		ctx, l, v, parser, stackFilePath, stackCfg, values,
+	_, autoIncludeErr := config.StackAutoIncludes(
+		ctx, l, v, s, parser, stackFilePath, stackCfg, values,
 	)
 	if autoIncludeErr != nil {
 		parseErrs = append(parseErrs, autoIncludeErr)

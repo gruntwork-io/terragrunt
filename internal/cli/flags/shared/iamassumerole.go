@@ -9,9 +9,17 @@ import (
 )
 
 const (
-	IAMAssumeRoleFlagName                 = "iam-assume-role"
-	IAMAssumeRoleDurationFlagName         = "iam-assume-role-duration"
-	IAMAssumeRoleSessionNameFlagName      = "iam-assume-role-session-name"
+	// IAMAssumeRoleFlagName is the flag name for `--iam-assume-role`, the ARN of the IAM role to assume
+	// before running tofu.
+	IAMAssumeRoleFlagName = "iam-assume-role"
+	// IAMAssumeRoleDurationFlagName is the flag name for `--iam-assume-role-duration`, the session duration
+	// in seconds.
+	IAMAssumeRoleDurationFlagName = "iam-assume-role-duration"
+	// IAMAssumeRoleSessionNameFlagName is the flag name for `--iam-assume-role-session-name`, the name of
+	// the assumed role session.
+	IAMAssumeRoleSessionNameFlagName = "iam-assume-role-session-name"
+	// IAMAssumeRoleWebIdentityTokenFlagName is the flag name for `--iam-assume-role-web-identity-token`,
+	// the token Terragrunt passes to AssumeRoleWithWebIdentity.
 	IAMAssumeRoleWebIdentityTokenFlagName = "iam-assume-role-web-identity-token"
 )
 

@@ -1,6 +1,5 @@
 //go:build aws || awsgcp
 
-// Package helpers provides helper functions for tests.
 package helpers
 
 import (
@@ -18,7 +17,7 @@ func GetS3BucketLoggingTarget(t *testing.T, region, bucket string) string {
 	client := CreateS3ClientForTest(t, region)
 
 	resp, err := client.GetBucketLogging(t.Context(), &s3.GetBucketLoggingInput{
-		Bucket: aws.String(bucket),
+		Bucket: new(bucket),
 	})
 	require.NoError(t, err)
 
@@ -36,7 +35,7 @@ func GetS3BucketLoggingTargetPrefix(t *testing.T, region, bucket string) string 
 	client := CreateS3ClientForTest(t, region)
 
 	resp, err := client.GetBucketLogging(t.Context(), &s3.GetBucketLoggingInput{
-		Bucket: aws.String(bucket),
+		Bucket: new(bucket),
 	})
 	require.NoError(t, err)
 

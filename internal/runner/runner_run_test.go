@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,13 +23,13 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	thlogger "github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 // remoteStateErr is the unit output that makes the runner summarize remote state hints after a plan.
@@ -51,7 +53,7 @@ func TestRunnerRun_ExcludedUnitsAreReported(t *testing.T) {
 	l := thlogger.CreateLogger()
 
 	rnr, err := runner.NewFromComponents(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		l,
 		opts,
 		component.Components{vpc, app},
@@ -60,7 +62,7 @@ func TestRunnerRun_ExcludedUnitsAreReported(t *testing.T) {
 
 	r := report.NewReport().WithWorkingDir(memRoot)
 
-	require.NoError(t, rnr.Run(t.Context(), l, v, opts, r))
+	require.NoError(t, rnr.Run(config.WithCaches(t.Context()), l, v, new(config.Store), opts, r))
 
 	for _, unit := range []*component.Unit{vpc, app} {
 		run, err := r.GetRun(unit.Path())
@@ -91,7 +93,7 @@ func TestRunnerRun_ReportsFailureAndAncestorEarlyExit(t *testing.T) {
 	l := thlogger.CreateLogger()
 
 	rnr, err := runner.NewFromComponents(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		l,
 		opts,
 		component.Components{vpc, db, app},
@@ -100,7 +102,7 @@ func TestRunnerRun_ReportsFailureAndAncestorEarlyExit(t *testing.T) {
 
 	r := report.NewReport().WithWorkingDir(memRoot)
 
-	require.Error(t, rnr.Run(t.Context(), l, v, opts, r))
+	require.Error(t, rnr.Run(config.WithCaches(t.Context()), l, v, new(config.Store), opts, r))
 
 	vpcRun, err := r.GetRun(vpc.Path())
 	require.NoError(t, err)
@@ -121,7 +123,8 @@ func TestRunnerRun_ReportsFailureAndAncestorEarlyExit(t *testing.T) {
 	}
 }
 
-// TestRunnerRun_FailedUnitWithFailedDependencyIsEarlyExit pins that a failure behind a failed dependency is an early exit.
+// TestRunnerRun_FailedUnitWithFailedDependencyIsEarlyExit pins that a failure
+// behind a failed dependency is an early exit.
 func TestRunnerRun_FailedUnitWithFailedDependencyIsEarlyExit(t *testing.T) {
 	t.Parallel()
 
@@ -136,12 +139,12 @@ func TestRunnerRun_FailedUnitWithFailedDependencyIsEarlyExit(t *testing.T) {
 
 	l := thlogger.CreateLogger()
 
-	rnr, err := runner.NewFromComponents(t.Context(), l, opts, component.Components{vpc, app})
+	rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, component.Components{vpc, app})
 	require.NoError(t, err)
 
 	r := report.NewReport().WithWorkingDir(memRoot)
 
-	require.Error(t, rnr.Run(t.Context(), l, v, opts, r))
+	require.Error(t, rnr.Run(config.WithCaches(t.Context()), l, v, new(config.Store), opts, r))
 
 	appRun, err := r.GetRun(app.Path())
 	require.NoError(t, err)
@@ -162,10 +165,10 @@ func TestRunnerRun_WithoutReport(t *testing.T) {
 
 	l := thlogger.CreateLogger()
 
-	rnr, err := runner.NewFromComponents(t.Context(), l, opts, component.Components{vpc})
+	rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, component.Components{vpc})
 	require.NoError(t, err)
 
-	require.Error(t, rnr.Run(t.Context(), l, v, opts, nil))
+	require.Error(t, rnr.Run(config.WithCaches(t.Context()), l, v, new(config.Store), opts, nil))
 	assert.Contains(
 		t,
 		opts.TerraformCliArgs.Slice(),
@@ -180,7 +183,7 @@ func TestRunnerRun_AuthProviderFailureFailsUnit(t *testing.T) {
 
 	const authProviderCmd = "no-such-auth-provider"
 
-	v := venvtest.New().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+	v := venv.MemVenv().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
 		if inv.Name == authProviderCmd {
 			return vexec.Result{Err: vexec.ErrNoSpawn}
 		}
@@ -195,27 +198,27 @@ func TestRunnerRun_AuthProviderFailureFailsUnit(t *testing.T) {
 
 	l := thlogger.CreateLogger()
 
-	rnr, err := runner.NewFromComponents(t.Context(), l, opts, component.Components{vpc})
+	rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, component.Components{vpc})
 	require.NoError(t, err)
 
-	require.ErrorIs(t, rnr.Run(t.Context(), l, v, opts, nil), vexec.ErrNoSpawn)
+	require.ErrorIs(t, rnr.Run(config.WithCaches(t.Context()), l, v, new(config.Store), opts, nil), vexec.ErrNoSpawn)
 }
 
 // TestRunnerRun_UnitRunFailsWithoutBinary pins the error a parsed unit hits when no binary may be spawned.
 func TestRunnerRun_UnitRunFailsWithoutBinary(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	vpc := newTestUnit(t, v, memRoot, "vpc", "")
 
 	opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
 
 	l := thlogger.CreateLogger()
 
-	rnr, err := runner.NewFromComponents(t.Context(), l, opts, component.Components{vpc})
+	rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, component.Components{vpc})
 	require.NoError(t, err)
 
-	require.ErrorIs(t, rnr.Run(t.Context(), l, v, opts, nil), vexec.ErrNoSpawn)
+	require.ErrorIs(t, rnr.Run(config.WithCaches(t.Context()), l, v, new(config.Store), opts, nil), vexec.ErrNoSpawn)
 }
 
 // TestRunnerRun_UnitTerraformBinaryOverride pins that the unit run spawns a unit's terraform_binary.
@@ -229,9 +232,9 @@ func TestRunnerRun_UnitTerraformBinaryOverride(t *testing.T) {
 
 	l := thlogger.CreateLogger()
 
-	rnr, err := runner.NewFromComponents(t.Context(), l, opts, component.Components{vpc})
+	rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, component.Components{vpc})
 	require.NoError(t, err)
-	require.NoError(t, rnr.Run(t.Context(), l, v, opts, nil))
+	require.NoError(t, rnr.Run(config.WithCaches(t.Context()), l, v, new(config.Store), opts, nil))
 
 	plan := commandInvocation(t, invocations(), tf.CommandNamePlan)
 	assert.Equal(t, "custom-tofu", plan.Name, "the plan runs the unit's terraform_binary")
@@ -246,12 +249,12 @@ func TestRunnerRun_EmptyStack(t *testing.T) {
 
 	l := thlogger.CreateLogger()
 
-	rnr, err := runner.NewFromComponents(t.Context(), l, opts, component.Components{})
+	rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, component.Components{})
 	require.NoError(t, err)
 
 	require.NoError(
 		t,
-		rnr.Run(t.Context(), l, v, opts, report.NewReport().WithWorkingDir(memRoot)),
+		rnr.Run(config.WithCaches(t.Context()), l, v, new(config.Store), opts, report.NewReport().WithWorkingDir(memRoot)),
 	)
 }
 
@@ -348,13 +351,13 @@ func TestRunnerRun_SyncsUnitCliArgs(t *testing.T) {
 			l := thlogger.CreateLogger()
 
 			rnr, err := runner.NewFromComponents(
-				t.Context(),
+				config.WithCaches(t.Context()),
 				l,
 				opts,
 				component.Components{vpc},
 			)
 			require.NoError(t, err)
-			require.NoError(t, rnr.Run(t.Context(), l, v, opts, nil))
+			require.NoError(t, rnr.Run(config.WithCaches(t.Context()), l, v, new(config.Store), opts, nil))
 
 			if tc.jsonOutput {
 				exists, err := vfs.FileExists(v.FS, vpc.OutputJSONFile(memRoot, opts.JSONOutputFolder))
@@ -436,9 +439,9 @@ func TestRunnerRun_PlanWithRemoteStateErrors(t *testing.T) {
 
 			l := thlogger.CreateLogger()
 
-			rnr, err := runner.NewFromComponents(t.Context(), l, opts, components)
+			rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, components)
 			require.NoError(t, err)
-			require.NoError(t, rnr.Run(t.Context(), l, v, opts, nil))
+			require.NoError(t, rnr.Run(config.WithCaches(t.Context()), l, v, new(config.Store), opts, nil))
 		})
 	}
 }
@@ -451,16 +454,26 @@ func TestRunnerRun_ReportsUnitOutcome(t *testing.T) {
 		name       string
 		wantResult report.Result
 		exitCode   int
+		wantCode   int
 		wantErr    bool
 	}{
 		{
 			name:       "plan with changes",
 			exitCode:   tf.DetailedExitCodeChanges,
+			wantCode:   tf.DetailedExitCodeChanges,
 			wantResult: report.ResultSucceeded,
 		},
 		{
 			name:       "plan that fails",
 			exitCode:   tf.DetailedExitCodeError,
+			wantCode:   tf.DetailedExitCodeError,
+			wantResult: report.ResultFailed,
+			wantErr:    true,
+		},
+		{
+			name:       "plan killed by a signal",
+			exitCode:   signaledExitStatus,
+			wantCode:   tf.DetailedExitCodeError,
 			wantResult: report.ResultFailed,
 			wantErr:    true,
 		},
@@ -470,7 +483,7 @@ func TestRunnerRun_ReportsUnitOutcome(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			v := venvtest.New().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+			v := venv.MemVenv().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
 				if slices.Contains(inv.Args, tf.FlagNameDetailedExitCode) {
 					return vexec.Result{Err: exitStatusErr{code: tc.exitCode}}
 				}
@@ -485,22 +498,247 @@ func TestRunnerRun_ReportsUnitOutcome(t *testing.T) {
 
 			l := thlogger.CreateLogger()
 
-			rnr, err := runner.NewFromComponents(t.Context(), l, opts, component.Components{vpc})
+			rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, component.Components{vpc})
 			require.NoError(t, err)
 
 			exitCodes := tf.NewDetailedExitCodeMap()
-			ctx := tf.ContextWithDetailedExitCode(t.Context(), exitCodes)
+			ctx := tf.ContextWithDetailedExitCode(config.WithCaches(t.Context()), exitCodes)
 			r := report.NewReport().WithWorkingDir(memRoot)
 
-			err = rnr.Run(ctx, l, v, opts, r)
+			err = rnr.Run(ctx, l, v, new(config.Store), opts, r)
 			assert.Equal(t, tc.wantErr, err != nil, "run error: %v", err)
 
 			run, err := r.GetRun(vpc.Path())
 			require.NoError(t, err)
 			assert.Equal(t, tc.wantResult, run.Result)
-			assert.Equal(t, tc.exitCode, exitCodes.Get(vpc.Path()), "the unit exit code reaches the caller")
+			assert.Equal(t, tc.wantCode, exitCodes.Get(vpc.Path()), "the unit exit code reaches the caller")
 		})
 	}
+}
+
+// TestRunnerRun_IgnoredErrorDetailedExitCode pins the aggregate `-detailed-exitcode` exit code when an `errors`
+// block ignores a unit's error.
+func TestRunnerRun_IgnoredErrorDetailedExitCode(t *testing.T) {
+	t.Parallel()
+
+	const (
+		failingHook   = "failing-hook"
+		knownSafeErr  = "Error: Known safe error\n"
+		ignoredUnit   = "ignored"
+		changedUnit   = "changed"
+		hookErrorUnit = "hook-error"
+	)
+
+	const ignoreKnownSafe = `
+errors {
+  ignore "known_safe" {
+    ignorable_errors = [".*Known safe error.*"]
+  }
+}
+`
+
+	const ignoreFailingHook = `
+terraform {
+  after_hook "fail" {
+    commands = ["plan"]
+    execute  = ["` + failingHook + `"]
+  }
+}
+
+errors {
+  ignore "hook_failure" {
+    ignorable_errors = [".*"]
+  }
+}
+`
+
+	testCases := []struct {
+		units     map[string]string
+		planCodes map[string]int
+		name      string
+		want      int
+	}{
+		{
+			name:      "ignored plan error",
+			units:     map[string]string{ignoredUnit: ignoreKnownSafe},
+			planCodes: map[string]int{ignoredUnit: tf.DetailedExitCodeError},
+			want:      tf.DetailedExitCodeSuccess,
+		},
+		{
+			name: "ignored plan error beside a unit with changes",
+			units: map[string]string{
+				ignoredUnit: ignoreKnownSafe,
+				changedUnit: "",
+			},
+			planCodes: map[string]int{
+				ignoredUnit: tf.DetailedExitCodeError,
+				changedUnit: tf.DetailedExitCodeChanges,
+			},
+			want: tf.DetailedExitCodeChanges,
+		},
+		{
+			name:      "ignored hook error after a plan with changes",
+			units:     map[string]string{hookErrorUnit: ignoreFailingHook},
+			planCodes: map[string]int{hookErrorUnit: tf.DetailedExitCodeChanges},
+			want:      tf.DetailedExitCodeChanges,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v := venv.MemVenv().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+				if inv.Name == failingHook {
+					return vexec.Result{Err: exitStatusErr{code: 1}}
+				}
+
+				if !slices.Contains(inv.Args, tf.FlagNameDetailedExitCode) {
+					return vexec.Result{Stdout: []byte(tfVersionOutput + "\n")}
+				}
+
+				for name, code := range tc.planCodes {
+					if !strings.HasPrefix(inv.Dir, filepath.Join(memRoot, name)) {
+						continue
+					}
+
+					if code == tf.DetailedExitCodeError {
+						return vexec.Result{Stderr: []byte(knownSafeErr), Err: exitStatusErr{code: code}}
+					}
+
+					return vexec.Result{Err: exitStatusErr{code: code}}
+				}
+
+				return vexec.Result{Err: errors.New("plan ran outside the test units, in " + inv.Dir)}
+			})
+
+			units := make(component.Components, 0, len(tc.units))
+
+			for name, hcl := range tc.units {
+				units = append(units, newTestUnit(t, v, memRoot, name, hcl))
+			}
+
+			opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
+			opts.TerraformCliArgs = iacargs.New(tf.CommandNamePlan, tf.FlagNameDetailedExitCode)
+
+			l := thlogger.CreateLogger()
+
+			rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, units)
+			require.NoError(t, err)
+
+			exitCodes := tf.NewDetailedExitCodeMap()
+			ctx := tf.ContextWithDetailedExitCode(config.WithCaches(t.Context()), exitCodes)
+			r := report.NewReport().WithWorkingDir(memRoot)
+
+			require.NoError(t, rnr.Run(ctx, l, v, new(config.Store), opts, r))
+			assert.Equal(t, tc.want, exitCodes.GetFinalDetailedExitCode())
+		})
+	}
+}
+
+// TestRunnerRun_SplitsUnitOutput pins that a venv writer implementing
+// [runner.UnitOutputSplitter] receives each unit's stdout on the writer it
+// gave that unit, and none of it on the shared stream, and that the runner
+// closes each unit's writer.
+func TestRunnerRun_SplitsUnitOutput(t *testing.T) {
+	t.Parallel()
+
+	v := venv.MemVenv().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+		switch inv.Args[0] {
+		case tf.CommandNamePlan:
+			return vexec.Result{Stdout: []byte("planned in " + inv.Dir + "\n")}
+		case tf.CommandNameInit:
+			return vexec.Result{}
+		}
+
+		return vexec.Result{Stdout: []byte(tfVersionOutput + "\n")}
+	})
+
+	vpc := newTestUnit(t, v, memRoot, "vpc", "")
+	app := newTestUnit(t, v, memRoot, "app", "")
+
+	opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
+	opts.ForwardTFStdout = true
+
+	l := thlogger.CreateLogger()
+
+	rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, component.Components{vpc, app})
+	require.NoError(t, err)
+
+	splitter := &recordingSplitter{units: map[string]*bytes.Buffer{}, closed: map[string]struct{}{}}
+
+	require.NoError(t, rnr.Run(config.WithCaches(t.Context()), l, v.WithWriter(splitter), new(config.Store), opts, nil))
+
+	assert.Empty(t, splitter.shared.String(), "unit output must not reach the shared stream")
+
+	for _, unit := range []*component.Unit{vpc, app} {
+		require.Contains(t, splitter.units, unit.Path())
+		assert.Contains(t, splitter.closed, unit.Path(), "%s's writer is closed", unit.Path())
+		assert.True(
+			t,
+			strings.HasPrefix(
+				splitter.units[unit.Path()].String(),
+				"planned in "+unit.Path()+string(filepath.Separator),
+			),
+			"%s got %q",
+			unit.Path(),
+			splitter.units[unit.Path()].String(),
+		)
+	}
+}
+
+// TestRunnerRun_DependencyOutputFetchWaitsForUnitRunWithRacing pins that fetching a dependency's outputs never runs
+// OpenTofu in the dependency's directory while the dependency's own run does, even when the queue starts both at once.
+func TestRunnerRun_DependencyOutputFetchWaitsForUnitRunWithRacing(t *testing.T) {
+	t.Parallel()
+
+	const hold = 100 * time.Millisecond
+
+	calls := &dirCalls{inFlight: map[string]int{}, peak: map[string]int{}, commands: map[string][]string{}}
+
+	v := venv.MemVenv().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+		if slices.Contains(inv.Args, "-version") {
+			return vexec.Result{Stdout: []byte(tfVersionOutput + "\n")}
+		}
+
+		calls.enter(inv.Dir, inv.Args[0])
+		time.Sleep(hold)
+		calls.exit(inv.Dir)
+
+		if inv.Args[0] == tf.CommandNameOutput {
+			return vexec.Result{Stdout: []byte(`{"value":{"sensitive":false,"type":"string","value":"dep"}}`)}
+		}
+
+		return vexec.Result{}
+	})
+
+	dep := newTestUnit(t, v, memRoot, "dep", "")
+	app := newTestUnit(t, v, memRoot, "app", dependencyBlock("../dep")+`
+inputs = {
+  value = dependency.dep.outputs.value
+}`)
+	app.AddDependency(dep)
+
+	opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
+	opts.IgnoreDependencyOrder = true
+
+	l := thlogger.CreateLogger()
+
+	rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, component.Components{dep, app})
+	require.NoError(t, err)
+
+	require.NoError(t, rnr.Run(config.WithCaches(t.Context()), l, v, new(config.Store), opts, nil))
+
+	depDirs := calls.dirsUnder(dep.Path())
+	require.Len(t, depDirs, 1, "the dependency's plan and the fetch of its outputs share one working directory")
+
+	assert.Subset(
+		t,
+		calls.commands[depDirs[0]],
+		[]string{tf.CommandNamePlan, tf.CommandNameOutput},
+		"both the dependency's plan and the fetch of its outputs ran in its working directory",
+	)
+	assert.Equal(t, 1, calls.peak[depDirs[0]], "OpenTofu ran twice at once in the dependency's working directory")
 }
 
 func TestRunnerRun_OutputFolderCannotBeCreated(t *testing.T) {
@@ -514,13 +752,13 @@ func TestRunnerRun_OutputFolderCannotBeCreated(t *testing.T) {
 
 	l := thlogger.CreateLogger()
 
-	rnr, err := runner.NewFromComponents(t.Context(), l, opts, component.Components{vpc})
+	rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, component.Components{vpc})
 	require.NoError(t, err)
 
 	faulty := *v
 	faulty.FS = &faultFS{FS: v.FS, op: faultMkdirAll, under: opts.OutputFolder}
 
-	require.ErrorIs(t, rnr.Run(t.Context(), l, &faulty, opts, nil), errInjected)
+	require.ErrorIs(t, rnr.Run(config.WithCaches(t.Context()), l, &faulty, new(config.Store), opts, nil), errInjected)
 }
 
 // The report refuses relative paths, so those units are left out and the run goes on.
@@ -542,7 +780,7 @@ func TestRunnerRun_RelativeUnitPathsAreLeftOutOfTheReport(t *testing.T) {
 	l := thlogger.CreateLogger()
 
 	rnr, err := runner.NewFromComponents(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		l,
 		opts,
 		component.Components{reported, excluded, failing},
@@ -551,7 +789,11 @@ func TestRunnerRun_RelativeUnitPathsAreLeftOutOfTheReport(t *testing.T) {
 
 	r := report.NewReport().WithWorkingDir(memRoot)
 
-	require.Error(t, rnr.Run(t.Context(), l, v, opts, r), "the unit without a config file fails")
+	require.Error(
+		t,
+		rnr.Run(config.WithCaches(t.Context()), l, v, new(config.Store), opts, r),
+		"the unit without a config file fails",
+	)
 
 	require.Len(t, r.Runs, 1, "the report only records absolute unit paths")
 	assert.Equal(t, reported.Path(), r.Runs[0].Path)
@@ -572,12 +814,12 @@ func TestRunnerRun_UnitOptionsCannotBeBuilt(t *testing.T) {
 
 	l := thlogger.CreateLogger()
 
-	rnr, err := runner.NewFromComponents(t.Context(), l, opts, component.Components{vpc})
+	rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, component.Components{vpc})
 	require.NoError(t, err)
 
 	var target config.ParsingModulePathError
 
-	require.ErrorAs(t, rnr.Run(t.Context(), l, v, opts, nil), &target)
+	require.ErrorAs(t, rnr.Run(config.WithCaches(t.Context()), l, v, new(config.Store), opts, nil), &target)
 }
 
 // Two units run in each case, so a warning given per unit instead of per run would be counted twice.
@@ -654,9 +896,9 @@ func TestRunnerRun_WarnsOnLocalStateWithGitRef(t *testing.T) {
 
 			l := thlogger.CreateLogger().WithOptions(log.WithOutput(&out))
 
-			rnr, err := runner.NewFromComponents(t.Context(), l, opts, units)
+			rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, units)
 			require.NoError(t, err)
-			require.NoError(t, rnr.Run(t.Context(), l, v, opts, nil))
+			require.NoError(t, rnr.Run(config.WithCaches(t.Context()), l, v, new(config.Store), opts, nil))
 
 			assert.Equal(
 				t,
@@ -682,10 +924,10 @@ func TestRunnerRun_EngineShutdownFailureKeepsUnitResult(t *testing.T) {
 
 	l := thlogger.CreateLogger().WithOptions(log.WithOutput(&out))
 
-	rnr, err := runner.NewFromComponents(t.Context(), l, opts, component.Components{vpc})
+	rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, component.Components{vpc})
 	require.NoError(t, err)
 
-	require.NoError(t, rnr.Run(t.Context(), l, v, opts, nil))
+	require.NoError(t, rnr.Run(config.WithCaches(t.Context()), l, v, new(config.Store), opts, nil))
 	assert.Contains(t, out.String(), "Error shutting down engine for unit", "no engine clients were set up to release")
 }
 
@@ -695,7 +937,7 @@ func TestRunnerRun_OutputFlushFailureFailsUnit(t *testing.T) {
 
 	writeErr := errors.New("write failed")
 
-	v := venvtest.New().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+	v := venv.MemVenv().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
 		if slices.Contains(inv.Args, "-version") {
 			return vexec.Result{Stdout: []byte(tfVersionOutput + "\n")}
 		}
@@ -709,10 +951,10 @@ func TestRunnerRun_OutputFlushFailureFailsUnit(t *testing.T) {
 
 	l := thlogger.CreateLogger()
 
-	rnr, err := runner.NewFromComponents(t.Context(), l, opts, component.Components{vpc})
+	rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, component.Components{vpc})
 	require.NoError(t, err)
 
-	require.ErrorIs(t, rnr.Run(t.Context(), l, v, opts, nil), writeErr)
+	require.ErrorIs(t, rnr.Run(config.WithCaches(t.Context()), l, v, new(config.Store), opts, nil), writeErr)
 }
 
 func TestRunnerRun_RecordsTaskOutcomeOnSpan(t *testing.T) {
@@ -726,13 +968,13 @@ func TestRunnerRun_RecordsTaskOutcomeOnSpan(t *testing.T) {
 
 	l := thlogger.CreateLogger()
 
-	rnr, err := runner.NewFromComponents(t.Context(), l, opts, component.Components{vpc, app})
+	rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, component.Components{vpc, app})
 	require.NoError(t, err)
 
 	buf, tlm := newConsoleTelemeter(t)
-	ctx := telemetry.ContextWithTelemeter(t.Context(), tlm)
+	ctx := telemetry.ContextWithTelemeter(config.WithCaches(t.Context()), tlm)
 
-	require.Error(t, rnr.Run(ctx, l, v, opts, nil))
+	require.Error(t, rnr.Run(ctx, l, v, new(config.Store), opts, nil))
 	require.NoError(t, tlm.Shutdown(ctx))
 
 	outcomes := map[any]any{}
@@ -754,13 +996,13 @@ func TestRunnerRun_JSONOutputCannotBeWritten(t *testing.T) {
 
 	l := thlogger.CreateLogger()
 
-	rnr, err := runner.NewFromComponents(t.Context(), l, opts, component.Components{vpc})
+	rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, component.Components{vpc})
 	require.NoError(t, err)
 
 	faulty := *v
 	faulty.FS = &faultFS{FS: v.FS, op: faultMkdirAll, under: opts.JSONOutputFolder}
 
-	require.ErrorIs(t, rnr.Run(t.Context(), l, &faulty, opts, nil), errInjected)
+	require.ErrorIs(t, rnr.Run(config.WithCaches(t.Context()), l, &faulty, new(config.Store), opts, nil), errInjected)
 }
 
 func TestUnitRunnerRun_WithoutOptions(t *testing.T) {
@@ -768,7 +1010,19 @@ func TestUnitRunnerRun_WithoutOptions(t *testing.T) {
 
 	unitRunner := runner.NewUnitRunner(component.NewUnit(memRoot))
 
-	require.NoError(t, unitRunner.Run(t.Context(), thlogger.CreateLogger(), venvtest.New(), nil, nil, nil, nil))
+	require.NoError(
+		t,
+		unitRunner.Run(
+			config.WithCaches(t.Context()),
+			thlogger.CreateLogger(),
+			venv.MemVenv(),
+			nil,
+			tfimpl.Unknown,
+			nil,
+			nil,
+			nil,
+		),
+	)
 	assert.Equal(t, runner.Running, unitRunner.Status)
 }
 
@@ -784,13 +1038,18 @@ func newTestUnit(t *testing.T, v *venv.Venv, root, name, hcl string) *component.
 }
 
 // recordingVenv returns an in-memory venv answering every invocation with stdout and stderr, and its recording.
+// A version probe gets an OpenTofu version instead, and is not recorded.
 func recordingVenv(stdout, stderr string) (*venv.Venv, func() []vexec.Invocation) {
 	var (
 		mu       sync.Mutex
 		recorded []vexec.Invocation
 	)
 
-	v := venvtest.New().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+	v := venv.MemVenv().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+		if slices.Contains(inv.Args, tf.FlagNameVersion) {
+			return vexec.Result{Stdout: []byte("OpenTofu v1.10.0\n")}
+		}
+
 		mu.Lock()
 		defer mu.Unlock()
 
@@ -807,6 +1066,49 @@ func recordingVenv(stdout, stderr string) (*venv.Venv, func() []vexec.Invocation
 	}
 }
 
+// dirCalls records, per working directory, the commands a fake OpenTofu ran there and the most it ran at once.
+type dirCalls struct {
+	inFlight map[string]int
+	peak     map[string]int
+	commands map[string][]string
+	mu       sync.Mutex
+}
+
+func (c *dirCalls) enter(dir, command string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.inFlight[dir]++
+	c.peak[dir] = max(c.peak[dir], c.inFlight[dir])
+	c.commands[dir] = append(c.commands[dir], command)
+}
+
+func (c *dirCalls) exit(dir string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.inFlight[dir]--
+}
+
+// dirsUnder returns the recorded working directories inside dir, such as the unit's .terragrunt-cache copies.
+func (c *dirCalls) dirsUnder(dir string) []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	var dirs []string
+
+	for d := range c.commands {
+		if d == dir || strings.HasPrefix(d, dir+string(filepath.Separator)) {
+			dirs = append(dirs, d)
+		}
+	}
+
+	return dirs
+}
+
+// signaledExitStatus is the exit status [syscall.WaitStatus.ExitStatus] reports for a process a signal killed.
+const signaledExitStatus = -1
+
 // exitStatusErr fails a fake OpenTofu/Terraform process with code, as an exited process does.
 type exitStatusErr struct {
 	code int
@@ -815,6 +1117,54 @@ type exitStatusErr struct {
 func (e exitStatusErr) Error() string { return "exit status " + strconv.Itoa(e.code) }
 
 func (e exitStatusErr) ExitStatus() (int, error) { return e.code, nil }
+
+// recordingSplitter is a [runner.UnitOutputSplitter] that records what each
+// unit writes, and what reaches the shared stream, in memory.
+type recordingSplitter struct {
+	units  map[string]*bytes.Buffer
+	closed map[string]struct{}
+	shared bytes.Buffer
+	mu     sync.Mutex
+}
+
+func (s *recordingSplitter) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.shared.Write(p)
+}
+
+func (s *recordingSplitter) ForUnit(_ vfs.FS, unitPath string) io.WriteCloser {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	buf := &bytes.Buffer{}
+	s.units[unitPath] = buf
+
+	return &lockedWriter{w: buf, s: s, unitPath: unitPath}
+}
+
+type lockedWriter struct {
+	w        io.Writer
+	s        *recordingSplitter
+	unitPath string
+}
+
+func (w *lockedWriter) Write(p []byte) (int, error) {
+	w.s.mu.Lock()
+	defer w.s.mu.Unlock()
+
+	return w.w.Write(p)
+}
+
+func (w *lockedWriter) Close() error {
+	w.s.mu.Lock()
+	defer w.s.mu.Unlock()
+
+	w.s.closed[w.unitPath] = struct{}{}
+
+	return nil
+}
 
 // commandInvocation returns the first invocation of command.
 func commandInvocation(t *testing.T, invocations []vexec.Invocation, command string) vexec.Invocation {

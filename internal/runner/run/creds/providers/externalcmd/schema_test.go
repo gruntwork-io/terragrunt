@@ -33,6 +33,36 @@ func TestValidateResponse(t *testing.T) {
 			expectError: false,
 		},
 		{
+			name: "valid cache",
+			input: `{
+				"cache": {"root": "repo", "globs": ["dev/**"], "ttl": 900}
+			}`,
+			expectError: false,
+		},
+		{
+			name: "valid preflight cache",
+			input: `{
+				"cache": {"root": "repo", "globs": ["dev/**"], "ttl": -1}
+			}`,
+			expectError: false,
+		},
+		{
+			name: "cache with a ttl over a day",
+			input: `{
+				"cache": {"root": "repo", "globs": ["dev/**"], "ttl": 86401}
+			}`,
+			expectError: true,
+			errorCount:  1,
+		},
+		{
+			name: "cache with unknown root, no globs, and no ttl",
+			input: `{
+				"cache": {"root": "workspace", "globs": []}
+			}`,
+			expectError: true,
+			errorCount:  3,
+		},
+		{
 			name: "valid awsCredentials with session token",
 			input: `{
 				"awsCredentials": {
@@ -238,7 +268,7 @@ func TestValidateResponse_NoSensitiveDataInErrors(t *testing.T) {
 		"fake-secret-key",
 		"fake-session-token",
 		"fake-web-identity-token",
-		"super-secret-env-value-12345",
+		"fake-env-value",
 	}
 
 	tests := []struct {
@@ -297,21 +327,21 @@ func TestValidateResponse_NoSensitiveDataInErrors(t *testing.T) {
 				"awsCredentials": {
 					"ACCESS_KEY_ID": "fake-access-key-id",
 					"SECRET_ACCESS_KEY": "fake-secret-key",
-					"SUPER_SECRET_FIELD": "super-secret-env-value-12345"
+					"SUPER_SECRET_FIELD": "fake-env-value"
 				}
 			}`,
 		},
 		{
 			name: "additional property at root with sensitive value should not leak",
 			input: `{
-				"secretField": "super-secret-env-value-12345"
+				"secretField": "fake-env-value"
 			}`,
 		},
 		{
 			name: "wrong type for envs value should not leak",
 			input: `{
 				"envs": {
-					"SECRET_VAR": {"secret": "super-secret-env-value-12345"}
+					"SECRET_VAR": {"secret": "fake-env-value"}
 				}
 			}`,
 		},

@@ -278,7 +278,7 @@ func TestRegistryGetterUsesInjectedVenvForCLIConfig(t *testing.T) {
 	serverURL, err := url.Parse(server.URL)
 	require.NoError(t, err)
 
-	v := venvtest.New().
+	v := venv.MemVenv().
 		WithGOOS("linux").
 		WithHTTP(server.Client()).
 		WithUserHomeDir(func() (string, error) { return homeDir, nil })

@@ -22,6 +22,7 @@ type FunctionParam struct {
 	Type json.RawMessage `json:"type"`
 }
 
+// DescribeFunctionParam returns the [FunctionParam] for p. A type that fails to marshal is reported as "dynamic".
 func DescribeFunctionParam(p *function.Parameter) FunctionParam {
 	ret := FunctionParam{
 		Name: p.Name,
@@ -98,6 +99,8 @@ type FunctionCall struct {
 	CalledAs string `json:"called_as"`
 }
 
+// DescribeFunctionCall returns the function call hclDiag reports, with the function's signature when the evaluation
+// context defines it. It returns nil when hclDiag is not about a function call.
 func DescribeFunctionCall(hclDiag *hcl.Diagnostic) *FunctionCall {
 	callInfo := ExtraInfo[hclsyntax.FunctionCallDiagExtra](hclDiag)
 	if callInfo == nil || callInfo.CalledFunctionName() == "" {
@@ -113,8 +116,11 @@ func DescribeFunctionCall(hclDiag *hcl.Diagnostic) *FunctionCall {
 
 	var signature *Function
 
-	if f, ok := hclDiag.EvalContext.Functions[calledAs]; ok {
-		signature = DescribeFunction(baseName, f)
+	for evalCtx := hclDiag.EvalContext; evalCtx != nil; evalCtx = evalCtx.Parent() {
+		if f, ok := evalCtx.Functions[calledAs]; ok {
+			signature = DescribeFunction(baseName, f)
+			break
+		}
 	}
 
 	return &FunctionCall{

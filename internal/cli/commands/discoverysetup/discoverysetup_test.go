@@ -8,7 +8,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/discoverysetup"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/worktrees"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -24,7 +25,7 @@ func TestWorktreesNoGitFilters(t *testing.T) {
 	v := venvtest.NewOSWithEmptyEnv()
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = tmpDir
 
 	d, err := discovery.NewForDiscoveryCommand(l, v.FS, &discovery.DiscoveryCommandOptions{
@@ -32,7 +33,7 @@ func TestWorktreesNoGitFilters(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	got, cleanup, err := discoverysetup.Worktrees(t.Context(), l, v, opts, d)
+	got, cleanup, err := discoverysetup.Worktrees(t.Context(), l, v, new(config.Store), opts, d)
 	require.NoError(t, err)
 	require.NotNil(t, got)
 	require.NotNil(t, cleanup)
@@ -52,7 +53,7 @@ func TestWorktreesCreationFailure(t *testing.T) {
 	filters, err := filter.ParseFilterQueries(l, []string{"[main...HEAD]"})
 	require.NoError(t, err)
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = tmpDir
 	opts.Filters = filters
 
@@ -62,7 +63,7 @@ func TestWorktreesCreationFailure(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	got, cleanup, err := discoverysetup.Worktrees(t.Context(), l, v, opts, d)
+	got, cleanup, err := discoverysetup.Worktrees(t.Context(), l, v, new(config.Store), opts, d)
 	require.Error(t, err)
 	assert.Same(t, d, got, "failed setup must not attach worktrees to the discovery")
 	require.NotNil(t, cleanup)
@@ -96,7 +97,7 @@ func TestWorktreesStackGenerationFailure(t *testing.T) {
 	filters, err := filter.ParseFilterQueries(l, []string{"[HEAD~1...HEAD]"})
 	require.NoError(t, err)
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = tmpDir
 	opts.Filters = filters
 
@@ -106,7 +107,7 @@ func TestWorktreesStackGenerationFailure(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	got, cleanup, err := discoverysetup.Worktrees(t.Context(), l, v, opts, d)
+	got, cleanup, err := discoverysetup.Worktrees(t.Context(), l, v, new(config.Store), opts, d)
 	require.Error(t, err)
 	assert.Same(t, d, got, "failed setup must not attach worktrees to the discovery")
 	require.NotNil(t, cleanup)
@@ -115,42 +116,49 @@ func TestWorktreesStackGenerationFailure(t *testing.T) {
 	cleanup(t.Context())
 }
 
-func TestFilteredPathsOnly(t *testing.T) {
+func TestDiscoveryCheckout(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		name    string
-		queries []string
-		want    bool
+		name          string
+		queries       []string
+		want          worktrees.Checkout
+		requiresParse bool
 	}{
 		{
 			name:    "a Git expression alone",
 			queries: []string{"[main...HEAD]"},
-			want:    true,
+			want:    worktrees.CheckoutFilteredPaths,
+		},
+		{
+			name:          "a Git expression for a discovery that parses configurations",
+			queries:       []string{"[main...HEAD]"},
+			requiresParse: true,
+			want:          worktrees.CheckoutEverything,
 		},
 		{
 			name:    "several Git expressions",
 			queries: []string{"[main...HEAD]", "[HEAD~1...HEAD]"},
-			want:    true,
+			want:    worktrees.CheckoutFilteredPaths,
 		},
 		{
 			// The second query reaches the worktree discovery as well, and
 			// names a component the Git expression never mentions.
 			name:    "a Git expression beside a path query",
 			queries: []string{"[main...HEAD]", "stable"},
-			want:    false,
+			want:    worktrees.CheckoutEverything,
 		},
 		{
 			name:    "a query that has to know what a unit reads",
 			queries: []string{"[main...HEAD]", "reading=root.hcl"},
-			want:    false,
+			want:    worktrees.CheckoutEverything,
 		},
 		{
 			// The whole query holds a Git expression, so nothing extra reaches
 			// the worktree discovery.
 			name:    "a path query joined to a Git expression",
 			queries: []string{"[main...HEAD] | stable"},
-			want:    true,
+			want:    worktrees.CheckoutFilteredPaths,
 		},
 	}
 
@@ -165,12 +173,13 @@ func TestFilteredPathsOnly(t *testing.T) {
 
 			d, err := discovery.NewForDiscoveryCommand(l, venvtest.NewOSWithEmptyEnv().FS,
 				&discovery.DiscoveryCommandOptions{
-					WorkingDir: helpers.TmpDirWOSymlinks(t),
-					Filters:    filters,
+					WorkingDir:        helpers.TmpDirWOSymlinks(t),
+					Filters:           filters,
+					WithRequiresParse: tc.requiresParse,
 				})
 			require.NoError(t, err)
 
-			assert.Equal(t, tc.want, discoverysetup.FilteredPathsOnly(d, filters))
+			assert.Equal(t, tc.want, discoverysetup.DiscoveryCheckout(d, filters))
 		})
 	}
 }

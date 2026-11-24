@@ -10,10 +10,12 @@ import (
 // GenericFlag implements Flag
 var _ Flag = new(GenericFlag[string])
 
+// GenericType is the set of value types a [GenericFlag] can parse.
 type GenericType interface {
 	string | int | int64 | uint
 }
 
+// GenericFlag is a [Flag] that takes a single string or integer value.
 type GenericFlag[T GenericType] struct {
 	flag
 

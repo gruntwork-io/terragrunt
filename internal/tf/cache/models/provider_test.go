@@ -174,7 +174,7 @@ func TestFilenameFromURL(t *testing.T) {
 		},
 		{
 			name:     "signed S3 URL with query string",
-			input:    "https://s3.amazonaws.com/bucket/terraform-provider-aws_5.0.0_linux_amd64.zip?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAIOSFODNN7EXAMPLE%2F20130524%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20130524T000000Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=aeeed9bbccd4d02ee5c0109b86d86835f995330da4c265957d157751f604d404",
+			input:    "https://s3.amazonaws.com/bucket/terraform-provider-aws_5.0.0_linux_amd64.zip?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=fake-access-key-id%2F20130524%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20130524T000000Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=fake-signature",
 			expected: "terraform-provider-aws_5.0.0_linux_amd64.zip",
 		},
 		{
@@ -233,7 +233,7 @@ func TestResolveRelativeReferences(t *testing.T) {
 		expectedResolved models.ResponseBody
 	}{
 		{
-			baseURL: "https://releases.hashicorp.com/terraform-provider-local/2.5.1",
+			baseURL: "https://releases.hashicorp.com/terraform-provider-local/2.5.1/",
 			body: models.ResponseBody{
 				DownloadURL:            "terraform-provider-local_2.5.1_darwin_amd64.zip",
 				SHA256SumsURL:          "terraform-provider-local_2.5.1_SHA256SUMS",
@@ -279,9 +279,9 @@ func TestResolveRelativeReferences(t *testing.T) {
 				SHA256SumsSignatureURL: "terraform-provider_SHA256SUMS.sig#anchor",
 			},
 			expectedResolved: models.ResponseBody{
-				DownloadURL:            "https://registry.company.com/v1/providers/ns/name/1.0/download/linux/amd64/terraform-provider.zip?X-Amz-Signature=abc123&X-Amz-Expires=86400",
-				SHA256SumsURL:          "https://registry.company.com/v1/providers/ns/name/1.0/download/linux/amd64/terraform-provider_SHA256SUMS?X-Amz-Signature=def456",
-				SHA256SumsSignatureURL: "https://registry.company.com/v1/providers/ns/name/1.0/download/linux/amd64/terraform-provider_SHA256SUMS.sig#anchor",
+				DownloadURL:            "https://registry.company.com/v1/providers/ns/name/1.0/download/linux/terraform-provider.zip?X-Amz-Signature=abc123&X-Amz-Expires=86400",
+				SHA256SumsURL:          "https://registry.company.com/v1/providers/ns/name/1.0/download/linux/terraform-provider_SHA256SUMS?X-Amz-Signature=def456",
+				SHA256SumsSignatureURL: "https://registry.company.com/v1/providers/ns/name/1.0/download/linux/terraform-provider_SHA256SUMS.sig#anchor",
 			},
 		},
 		{
@@ -308,4 +308,313 @@ func TestResolveRelativeReferences(t *testing.T) {
 			assert.Equal(t, tc.expectedResolved, *actualResolved)
 		})
 	}
+}
+
+func TestResolveRelativeReference(t *testing.T) {
+	t.Parallel()
+
+	const (
+		registry    = "https://registry.example.com"
+		platformDir = registry + "/v1/providers/ns/name/1.0/download/linux"
+		platform    = platformDir + "/amd64"
+	)
+
+	testCases := []struct {
+		name string
+		base string
+		link string
+		want string
+	}{
+		{name: "file name", base: platform, link: "example.zip", want: platformDir + "/example.zip"},
+		{
+			name: "URL in the query",
+			base: platform,
+			link: "example.zip?redirect=https://mirror.example.com/example.zip",
+			want: platformDir + "/example.zip?redirect=https://mirror.example.com/example.zip",
+		},
+		{
+			name: "escaped slash",
+			base: platform,
+			link: "group%2Fproject/example.zip",
+			want: platformDir + "/group%2Fproject/example.zip",
+		},
+		{name: "repeated slashes", base: platform, link: "files//example.zip", want: platformDir + "/files//example.zip"},
+		{name: "trailing slash", base: platform, link: "files/", want: platformDir + "/files/"},
+		{
+			name: "parent directory",
+			base: platform,
+			link: "../SHA256SUMS",
+			want: registry + "/v1/providers/ns/name/1.0/download/SHA256SUMS",
+		},
+		{name: "absolute path", base: platform, link: "/sums/SHA256SUMS", want: registry + "/sums/SHA256SUMS"},
+		{name: "query only", base: platform, link: "?sig=1", want: platform + "?sig=1"},
+		{
+			name: "network path",
+			base: platform,
+			link: "//mirror.example.com/example.zip",
+			want: "https://mirror.example.com/example.zip",
+		},
+		{
+			name: "absolute URL",
+			base: platform,
+			link: "https://mirror.example.com/a//b/../example.zip",
+			want: "https://mirror.example.com/a//b/../example.zip",
+		},
+		{
+			name: "base ending in a slash",
+			base: "https://mirror.example.com/api/",
+			link: "example.zip",
+			want: "https://mirror.example.com/api/example.zip",
+		},
+		{
+			name: "base with an escaped slash",
+			base: "https://mirror.example.com/group%2Fmirror/",
+			link: "example.zip",
+			want: "https://mirror.example.com/group%2Fmirror/example.zip",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			base, err := url.Parse(tc.base)
+			require.NoError(t, err)
+
+			got, err := models.ResolveRelativeReference(base, tc.link)
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got.String())
+		})
+	}
+}
+
+func TestParseProvider(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name  string
+		input string
+		want  models.Provider
+	}{
+		{
+			name:  "registry namespace and name",
+			input: "registry.terraform.io/hashicorp/aws",
+			want:  models.Provider{RegistryName: "registry.terraform.io", Namespace: "hashicorp", Name: "aws"},
+		},
+		{
+			name:  "namespace and name",
+			input: "hashicorp/aws",
+			want:  models.Provider{Namespace: "hashicorp", Name: "aws"},
+		},
+		{
+			name:  "registry only",
+			input: "registry.terraform.io",
+			want:  models.Provider{RegistryName: "registry.terraform.io"},
+		},
+		{
+			name:  "wildcard parts become empty",
+			input: "registry.terraform.io/*/*",
+			want:  models.Provider{RegistryName: "registry.terraform.io"},
+		},
+		{
+			name:  "extra parts are ignored",
+			input: "registry.terraform.io/hashicorp/aws/extra",
+			want:  models.Provider{RegistryName: "registry.terraform.io", Namespace: "hashicorp", Name: "aws"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := models.ParseProvider(tc.input)
+			require.NotNil(t, got)
+			assert.Equal(t, tc.want, *got, "parsed provider should match the address parts")
+		})
+	}
+}
+
+func TestParseProviders(t *testing.T) {
+	t.Parallel()
+
+	got := models.ParseProviders("registry.terraform.io/hashicorp/aws", "hashicorp/null")
+
+	require.Len(t, got, 2)
+	assert.Equal(t, "registry.terraform.io/hashicorp/aws", got[0].Address())
+	assert.Equal(t, "hashicorp/null", got[1].Address())
+	assert.Empty(t, models.ParseProviders(), "no input should give no providers")
+}
+
+func TestProvidersFind(t *testing.T) {
+	t.Parallel()
+
+	providers := models.ParseProviders("registry.terraform.io/hashicorp/aws", "registry.terraform.io/hashicorp/null")
+
+	found := providers.Find(models.ParseProvider("registry.terraform.io/hashicorp/null"))
+	require.NotNil(t, found, "matching provider should be found")
+	assert.Equal(t, "null", found.Name)
+
+	assert.Nil(
+		t,
+		providers.Find(models.ParseProvider("registry.terraform.io/hashicorp/random")),
+		"unknown provider should not be found",
+	)
+}
+
+func TestProviderMatch(t *testing.T) {
+	t.Parallel()
+
+	full := &models.Provider{
+		ResponseBody: &models.ResponseBody{DownloadURL: "https://example.com/aws.zip"},
+		RegistryName: "registry.terraform.io",
+		Namespace:    "hashicorp",
+		Name:         "aws",
+		OS:           "linux",
+		Arch:         "amd64",
+	}
+
+	testCases := []struct {
+		provider *models.Provider
+		target   *models.Provider
+		name     string
+		want     bool
+	}{
+		{
+			name:     "identical providers",
+			provider: full,
+			target:   full,
+			want:     true,
+		},
+		{
+			name:     "empty provider matches anything",
+			provider: &models.Provider{},
+			target:   full,
+			want:     true,
+		},
+		{
+			name:     "empty target matches anything",
+			provider: full,
+			target:   &models.Provider{ResponseBody: &models.ResponseBody{}},
+			want:     true,
+		},
+		{
+			name:     "different registry",
+			provider: full,
+			target:   &models.Provider{ResponseBody: &models.ResponseBody{}, RegistryName: "registry.opentofu.org"},
+		},
+		{
+			name:     "different namespace",
+			provider: full,
+			target:   &models.Provider{ResponseBody: &models.ResponseBody{}, Namespace: "opentofu"},
+		},
+		{
+			name:     "different name",
+			provider: full,
+			target:   &models.Provider{ResponseBody: &models.ResponseBody{}, Name: "null"},
+		},
+		{
+			name:     "different os",
+			provider: full,
+			target:   &models.Provider{ResponseBody: &models.ResponseBody{}, OS: "darwin"},
+		},
+		{
+			name:     "different arch",
+			provider: full,
+			target:   &models.Provider{ResponseBody: &models.ResponseBody{}, Arch: "arm64"},
+		},
+		{
+			name:     "different download url",
+			provider: full,
+			target:   &models.Provider{ResponseBody: &models.ResponseBody{DownloadURL: "https://example.com/other.zip"}},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tc.want, tc.provider.Match(tc.target), "match should require every set property to be equal")
+		})
+	}
+}
+
+func TestProviderStrings(t *testing.T) {
+	t.Parallel()
+
+	provider := &models.Provider{
+		RegistryName:        "registry.terraform.io",
+		Namespace:           "hashicorp",
+		Name:                "aws",
+		OS:                  "linux",
+		Arch:                "amd64",
+		OriginalConstraints: ">= 5.0",
+	}
+
+	assert.Equal(
+		t,
+		"registry.terraform.io/hashicorp/aws",
+		provider.String(),
+		"unversioned provider should omit the version",
+	)
+	assert.Equal(t, "registry.terraform.io/hashicorp/aws", provider.Address())
+	assert.Equal(t, "linux_amd64", provider.Platform())
+	assert.Equal(t, ">= 5.0", provider.Constraints())
+
+	provider.Version = "5.31.0"
+
+	assert.Equal(
+		t,
+		"registry.terraform.io/hashicorp/aws v5.31.0",
+		provider.String(),
+		"versioned provider should show the version",
+	)
+}
+
+func TestVersionAndPlatformString(t *testing.T) {
+	t.Parallel()
+
+	platform := models.Platform{OS: "linux", Arch: "amd64"}
+	assert.Equal(t, "linux/amd64", platform.String())
+
+	version := models.Version{
+		Version:   "5.31.0",
+		Protocols: []string{"5.0"},
+		Platforms: models.Platforms{&platform},
+	}
+	assert.Equal(t, "5.31.0/[5.0]/[linux/amd64]", version.String())
+}
+
+func TestSigningKeyListKeys(t *testing.T) {
+	t.Parallel()
+
+	list := models.SigningKeyList{
+		GPGPublicKeys: []*models.SigningKey{
+			{ASCIIArmor: "armor-a", TrustSignature: "sig-a"},
+			{ASCIIArmor: "armor-b"},
+		},
+	}
+
+	assert.Equal(
+		t,
+		map[string]string{"armor-a": "sig-a", "armor-b": ""},
+		list.Keys(),
+		"keys should map armor to trust signature",
+	)
+	assert.Empty(t, models.SigningKeyList{}.Keys(), "no keys should give an empty map")
+}
+
+func TestResolveRelativeReferencesUnparsableLinkIsKept(t *testing.T) {
+	t.Parallel()
+
+	base, err := url.Parse("https://registry.example.com/v1")
+	require.NoError(t, err)
+
+	body := models.ResponseBody{DownloadURL: "%zz.zip"}
+
+	assert.Equal(
+		t,
+		"%zz.zip",
+		body.ResolveRelativeReferences(base).DownloadURL,
+		"a link that does not parse should be returned unchanged",
+	)
 }

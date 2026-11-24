@@ -6,6 +6,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 
@@ -29,13 +30,17 @@ var (
 	}
 )
 
+// NewShortcutsCommands returns top-level commands such as `terragrunt plan`
+// that run the matching `terragrunt run` subcommand with the flags of
+// `terragrunt run`.
 func NewShortcutsCommands(
 	l log.Logger,
 	opts *options.TerragruntOptions,
 	v *venv.Venv,
+	s *config.Store,
 ) clihelper.Commands {
 	var (
-		runCmd = run.NewCommand(l, opts, v)
+		runCmd = run.NewCommand(l, opts, v, s)
 		cmds   = make(clihelper.Commands, 0, len(runCmd.Subcommands))
 	)
 

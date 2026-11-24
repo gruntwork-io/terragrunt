@@ -1,0 +1,64 @@
+---
+name: outputs-block
+since: "v1.2.3"
+---
+
+Support for the `outputs` block on units, which declares the outputs a unit emits along with the mock value and mocking strategy its dependents use while its state has no outputs.
+
+This experiment is ongoing and disabled by default. Declaring the block without the experiment enabled returns an error. It becomes generally available once every item in the stabilization criteria below is met.
+
+### `outputs-block` - What it does
+
+Without the block, every `dependency` block that reads a unit sets its own `mock_outputs`, so ten dependents of a VPC unit repeat the same mock values ten times. With this experiment enabled, the VPC unit declares its outputs once:
+
+```hcl
+# vpc/terragrunt.hcl
+outputs {
+  mock_strategy {
+    allowed_commands = ["validate", "plan"]
+  }
+
+  output "vpc_id" {
+    mock_value = "vpc-mock-id"
+  }
+
+  output "subnet_ids" {
+    mock_value = ["subnet-mock-1", "subnet-mock-2"]
+  }
+}
+```
+
+Dependents read them through their `dependency` blocks without setting `mock_outputs`:
+
+```hcl
+# eks/terragrunt.hcl
+dependency "vpc" {
+  config_path = "../vpc"
+}
+
+inputs = {
+  vpc_id     = dependency.vpc.outputs.vpc_id
+  subnet_ids = dependency.vpc.outputs.subnet_ids
+}
+```
+
+```bash
+terragrunt run --all --experiment outputs-block -- plan
+```
+
+A dependent that needs a different mock still sets `mock_outputs`, which wins key by key. `mock_outputs_allowed_terraform_commands` and `mock_outputs_merge_strategy_with_state` on the `dependency` block win over `mock_strategy` when set.
+
+`terragrunt hcl validate --outputs` checks that every declared output exists in the OpenTofu/Terraform module the unit runs, and that every `dependency.<name>.outputs.<output>` reference names an output the dependency declares. See the [`outputs` block reference](/reference/hcl/blocks/outputs/).
+
+### `outputs-block` - How to provide feedback
+
+Provide your feedback on the [`outputs-block` GitHub discussion](https://github.com/gruntwork-io/terragrunt/discussions/7322).
+
+### `outputs-block` - Criteria for stabilization
+
+To transition the `outputs-block` feature to a stable release, the following must be addressed:
+
+- [ ] Decide whether a `type` attribute on `output` blocks adds value over the types the module declares.
+- [ ] Decide whether `mock_strategy` is also allowed inside individual `output` blocks.
+- [ ] Support `outputs` blocks on the units of a stack that a `dependency` block points at.
+- [ ] Decide how a `mock_outputs` key that the dependency does not declare is reported.

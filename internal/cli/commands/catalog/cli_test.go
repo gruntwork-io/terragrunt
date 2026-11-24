@@ -12,11 +12,11 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 // ignoreFileName is the fixture written for the ignore-file flag cases.
@@ -28,7 +28,8 @@ func TestNewCommandExposesTheCatalogFlags(t *testing.T) {
 	t.Parallel()
 
 	cmd := catalog.NewCommand(
-		logger.CreateLogger(), options.NewTerragruntOptions(vexec.NewOSExec()), venvtest.New(),
+		logger.CreateLogger(), options.NewTerragruntOptions(), venv.MemVenv(),
+		new(config.Store),
 	)
 
 	assert.Equal(t, catalog.CommandName, cmd.Name)
@@ -58,7 +59,8 @@ func TestNewCommandBeforeValidatesTheFormat(t *testing.T) {
 			t.Parallel()
 
 			cmd := catalog.NewCommand(
-				logger.CreateLogger(), options.NewTerragruntOptions(vexec.NewOSExec()), venvtest.New(),
+				logger.CreateLogger(), options.NewTerragruntOptions(), venv.MemVenv(),
+				new(config.Store),
 			)
 			require.NoError(
 				t,
@@ -88,12 +90,12 @@ func TestNewCommandActionLoadsThePositionalSource(t *testing.T) {
 
 	var buf strings.Builder
 
-	v := venvtest.New().WithWriter(&buf)
+	v := venv.MemVenv().WithWriter(&buf)
 	repoDir := "/catalog-positional/repo"
 
 	writeLocalRepo(t, v, repoDir)
 
-	cmd := catalog.NewCommand(logger.CreateLogger(), options.NewTerragruntOptions(vexec.NewOSExec()), v)
+	cmd := catalog.NewCommand(logger.CreateLogger(), options.NewTerragruntOptions(), v, new(config.Store))
 
 	require.NoError(t, cmd.Flags.Parse(
 		clihelper.Args{"--" + catalog.FormatFlagName, catalog.FormatJSONL},
@@ -115,12 +117,12 @@ func TestNewCommandDefaultsToJSONLWithoutATerminal(t *testing.T) {
 
 	var buf strings.Builder
 
-	v := venvtest.New().WithWriter(&buf)
+	v := venv.MemVenv().WithWriter(&buf)
 	repoDir := "/catalog-default-format/repo"
 
 	writeLocalRepo(t, v, repoDir)
 
-	cmd := catalog.NewCommand(logger.CreateLogger(), options.NewTerragruntOptions(vexec.NewOSExec()), v)
+	cmd := catalog.NewCommand(logger.CreateLogger(), options.NewTerragruntOptions(), v, new(config.Store))
 
 	require.NoError(t, cmd.Flags.Parse(clihelper.Args{}, map[string]string{}))
 	require.NoError(t, cmd.Before(t.Context(), &clihelper.Context{}))
@@ -186,7 +188,7 @@ func TestNewFlagsIgnoreFileAction(t *testing.T) {
 				os.WriteFile(filepath.Join(dir, ignoreFileName), []byte("vendor\n"), 0o644),
 			)
 
-			opts := catalog.NewOptions(options.NewTerragruntOptions(vexec.NewOSExec()))
+			opts := catalog.NewOptions(options.NewTerragruntOptions())
 			opts.RootWorkingDir = dir
 
 			if !tc.noWorkingDir {

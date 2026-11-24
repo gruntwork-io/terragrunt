@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zclconf/go-cty/cty"
 )
 
 // expandedEnvironmentStack declares an unexpanded repo unit and an environment unit expanded by
@@ -255,6 +256,57 @@ func TestParseStackFileResolvesExpandedAutoIncludeDependency(t *testing.T) {
 			assert.Equal(t, want, components)
 		})
 	}
+}
+
+// TestGenerateAutoIncludeFileWritesExpandedDependencyKeyedByFor pins that the generated file of a dependency
+// expanded over a "for" key evaluates to the same for_each collection and config_path.
+func TestGenerateAutoIncludeFileWritesExpandedDependencyKeyedByFor(t *testing.T) {
+	t.Parallel()
+
+	src := renderStackTemplate(t, expandedDependencyStack, dependencyStackFields{
+		Expansion:  `for_each = { "for" = "dev" }`,
+		ConfigPath: `unit[each.value].path`,
+	})
+
+	fs := vfs.NewMemMapFS()
+
+	result, err := hclparse.ParseStackFile(t.Context(), fs, &hclparse.ParseStackFileInput{
+		Src:      []byte(src),
+		Filename: "terragrunt.stack.hcl",
+		StackDir: testStackDir,
+	})
+	require.NoError(t, err)
+
+	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey(hclparse.KindUnit, "consumer")]
+	require.True(t, ok)
+
+	unitDir := filepath.Join(testStackDir, hclparse.StackDir, "consumer")
+	require.NoError(t, hclparse.GenerateAutoIncludeFile(fs, resolved, unitDir, resolved.SourceBytes, resolved.EvalCtx))
+
+	content, err := vfs.ReadFile(fs, filepath.Join(unitDir, hclparse.AutoIncludeFile))
+	require.NoError(t, err)
+
+	file, diags := hclsyntax.ParseConfig(content, hclparse.AutoIncludeFile, hcl.InitialPos)
+	require.False(t, diags.HasErrors(), "%s\n%s", diags, content)
+
+	body, ok := file.Body.(*hclsyntax.Body)
+	require.True(t, ok)
+	require.Len(t, body.Blocks, 1)
+
+	dependency := body.Blocks[0].Body
+	require.Len(t, dependency.Blocks, 1)
+
+	forEach, diags := dependency.Blocks[0].Body.Attributes["for_each"].Expr.Value(nil)
+	require.False(t, diags.HasErrors(), "%s", diags)
+	assert.True(t, cty.ObjectVal(map[string]cty.Value{"for": cty.StringVal("dev")}).RawEquals(forEach), "%s", content)
+
+	configPath, diags := dependency.Attributes["config_path"].Expr.Value(&hcl.EvalContext{
+		Variables: map[string]cty.Value{
+			"each": cty.ObjectVal(map[string]cty.Value{"key": cty.StringVal("for")}),
+		},
+	})
+	require.False(t, diags.HasErrors(), "%s", diags)
+	assert.Equal(t, filepath.Join("..", "dev"), configPath.AsString())
 }
 
 // TestParseStackFileReportsEveryFailingExpandedDependencyElement pins that an expanded autoinclude

@@ -27,11 +27,22 @@ func TestBlobClient_CopyBlob_StreamsThroughClient(t *testing.T) {
 	}}
 	c := newRoutedBlobClient(t, rt)
 
-	require.NoError(t, c.Container("srcc").CopyBlob(t.Context(), log.New(), "src.tfstate", c.Container("dstc"), "dst.tfstate"))
+	require.NoError(
+		t,
+		c.Container("srcc").CopyBlob(t.Context(), log.New(), "src.tfstate", c.Container("dstc"), "dst.tfstate"),
+	)
 
 	assert.True(t, rt.sawMethodOnPath(http.MethodGet, "/srcc/src.tfstate"), "source must be downloaded through the client")
-	assert.True(t, rt.sawMethodOnPath(http.MethodPut, "/dstc/dst.tfstate"), "destination must be uploaded through the client")
-	assert.True(t, rt.sawBodyOnPath(http.MethodPut, "/dstc/dst.tfstate", "state-bytes"), "upload must carry the downloaded payload")
+	assert.True(
+		t,
+		rt.sawMethodOnPath(http.MethodPut, "/dstc/dst.tfstate"),
+		"destination must be uploaded through the client",
+	)
+	assert.True(
+		t,
+		rt.sawBodyOnPath(http.MethodPut, "/dstc/dst.tfstate", "state-bytes"),
+		"upload must carry the downloaded payload",
+	)
 
 	// No x-ms-copy-source means no server-side copy, so private containers work.
 	for _, r := range rt.requests() {
@@ -60,7 +71,10 @@ func TestBlobClient_MoveBlobIfNecessary_NoopWhenSourceAbsent(t *testing.T) {
 	}}
 	c := newRoutedBlobClient(t, rt)
 
-	require.NoError(t, c.Container("srcc").MoveBlobIfNecessary(t.Context(), log.New(), "src.tfstate", c.Container("dstc"), "dst.tfstate"))
+	require.NoError(
+		t,
+		c.Container("srcc").MoveBlobIfNecessary(t.Context(), log.New(), "src.tfstate", c.Container("dstc"), "dst.tfstate"),
+	)
 
 	assert.False(t, rt.sawMethodOnPath(http.MethodGet, ""), "absent source must not be downloaded")
 	assert.False(t, rt.sawMethodOnPath(http.MethodPut, ""), "absent source must not trigger an upload")
@@ -78,7 +92,8 @@ func TestBlobClient_MoveBlobIfNecessary_RefusesExistingDestination(t *testing.T)
 	}}
 	c := newRoutedBlobClient(t, rt)
 
-	err := c.Container("srcc").MoveBlobIfNecessary(t.Context(), log.New(), "src.tfstate", c.Container("dstc"), "dst.tfstate")
+	err := c.Container("srcc").
+		MoveBlobIfNecessary(t.Context(), log.New(), "src.tfstate", c.Container("dstc"), "dst.tfstate")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "already exists")
 
@@ -96,7 +111,10 @@ func TestBlobClient_MoveBlobIfNecessary_MovesThenDeletesSource(t *testing.T) {
 	}}
 	c := newRoutedBlobClient(t, rt)
 
-	require.NoError(t, c.Container("srcc").MoveBlobIfNecessary(t.Context(), log.New(), "src.tfstate", c.Container("dstc"), "dst.tfstate"))
+	require.NoError(
+		t,
+		c.Container("srcc").MoveBlobIfNecessary(t.Context(), log.New(), "src.tfstate", c.Container("dstc"), "dst.tfstate"),
+	)
 
 	getIdx := rt.firstIndexOf(http.MethodGet, "/srcc/src.tfstate")
 	putIdx := rt.firstIndexOf(http.MethodPut, "/dstc/dst.tfstate")
@@ -124,7 +142,10 @@ func TestBlobClient_MoveBlobIfNecessary_KeepsSourceWhenCopyFails(t *testing.T) {
 	}}
 	c := newRoutedBlobClient(t, rt)
 
-	require.Error(t, c.Container("srcc").MoveBlobIfNecessary(t.Context(), log.New(), "src.tfstate", c.Container("dstc"), "dst.tfstate"))
+	require.Error(
+		t,
+		c.Container("srcc").MoveBlobIfNecessary(t.Context(), log.New(), "src.tfstate", c.Container("dstc"), "dst.tfstate"),
+	)
 	assert.False(t, rt.sawMethodOnPath(http.MethodDelete, ""), "source must survive a failed copy")
 }
 
@@ -427,7 +448,10 @@ func TestBlobClient_CopyBlob_ToleratesSourceCloseFailure(t *testing.T) {
 	c, err := azurehelper.NewBlobClient(cfgWithTransport(closeErrOnGetTransport{routeTransport: rt}))
 	require.NoError(t, err)
 
-	require.NoError(t, c.Container("srcc").CopyBlob(t.Context(), log.New(), "src.tfstate", c.Container("dstc"), "dst.tfstate"))
+	require.NoError(
+		t,
+		c.Container("srcc").CopyBlob(t.Context(), log.New(), "src.tfstate", c.Container("dstc"), "dst.tfstate"),
+	)
 	assert.True(t, rt.sawBodyOnPath(http.MethodPut, "/dstc/dst.tfstate", "state-bytes"))
 }
 

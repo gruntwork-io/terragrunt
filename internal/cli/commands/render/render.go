@@ -3,16 +3,14 @@ package render
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"path/filepath"
 
 	"errors"
 
-	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/discoverysetup"
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
-	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -22,16 +20,19 @@ import (
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 )
 
-func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
+// Run renders the fully resolved config of the unit at opts.TerragruntConfigPath
+// in opts.Format, to stdout or, with opts.Write set, to opts.OutputPath. With
+// opts.RunAll set, it renders every discovered unit that opts.Filters selects.
+func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *config.Store, opts *Options) error {
 	if err := opts.Validate(); err != nil {
 		return err
 	}
 
 	if opts.RunAll {
-		return runAll(ctx, l, v, opts)
+		return runAll(ctx, l, v, s, opts)
 	}
 
-	prepared, err := prepare.PrepareConfig(ctx, l, v, opts.TerragruntOptions)
+	prepared, err := prepare.PrepareConfig(ctx, l, v, s, opts.TerragruntOptions)
 	if err != nil {
 		return err
 	}
@@ -39,15 +40,14 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
 	return runRender(l, v, opts, prepared.Cfg)
 }
 
-func runAll(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
-	d := discovery.NewDiscovery(opts.WorkingDir)
+func runAll(ctx context.Context, l log.Logger, v *venv.Venv, s *config.Store, opts *Options) error {
+	units, cleanupWorktrees, err := discoverysetup.Units(ctx, l, v, s, opts.TerragruntOptions)
 
-	components, err := d.Discover(ctx, l, v, opts.TerragruntOptions)
+	defer cleanupWorktrees(ctx)
+
 	if err != nil {
 		return err
 	}
-
-	units := components.Filter(component.UnitKind).Sort()
 
 	var errs []error
 
@@ -55,18 +55,13 @@ func runAll(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) erro
 		unitOpts := opts.Clone()
 		unitOpts.WorkingDir = unit.Path()
 
-		configFilename := config.DefaultTerragruntConfigPath
-		if len(opts.TerragruntConfigPath) > 0 {
-			configFilename = filepath.Base(opts.TerragruntConfigPath)
-		}
-
-		unitOpts.TerragruntConfigPath = filepath.Join(unit.Path(), configFilename)
+		unitOpts.TerragruntConfigPath = filepath.Join(unit.Path(), unit.ConfigFile())
 
 		// Preparation writes obtained credentials into the env, so each
 		// unit gets its own clone to keep them from leaking to siblings.
 		unitV := v.WithEnvCloned()
 
-		prepared, err := prepare.PrepareConfig(ctx, l, unitV, unitOpts.TerragruntOptions)
+		prepared, err := prepare.PrepareConfig(ctx, l, unitV, s, unitOpts.TerragruntOptions)
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -196,26 +191,16 @@ func writeRendered(
 	return vfs.StreamFileAtomic(fsys, outPath, ownerReadWritePerms, render)
 }
 
-// marshalCtyValueJSONWithoutType marshals the given cty.Value object into a JSON object that does not have the type.
-// Using ctyjson directly would render a json object with two attributes, "value" and "type", and this function returns
-// just the "value".
-// NOTE: We have to do two marshalling passes so that we can extract just the value.
+// marshalCtyValueJSONWithoutType marshals ctyVal to JSON without the "type" attribute that ctyjson adds when
+// marshaling as cty.DynamicPseudoType.
 func marshalCtyValueJSONWithoutType(ctyVal cty.Value) ([]byte, error) {
+	ctyVal, _ = ctyVal.UnmarkDeep()
+
 	if err := ctyhelper.ValidateNumberRanges(ctyVal); err != nil {
 		return nil, err
 	}
 
-	jsonBytesIntermediate, err := ctyjson.Marshal(ctyVal, cty.DynamicPseudoType)
-	if err != nil {
-		return nil, err
-	}
-
-	var ctyJSONOutput ctyhelper.CtyJSONOutput
-	if err = json.Unmarshal(jsonBytesIntermediate, &ctyJSONOutput); err != nil {
-		return nil, err
-	}
-
-	jsonBytes, err := json.Marshal(ctyJSONOutput.Value)
+	jsonBytes, err := ctyjson.Marshal(ctyVal, ctyVal.Type())
 	if err != nil {
 		return nil, err
 	}

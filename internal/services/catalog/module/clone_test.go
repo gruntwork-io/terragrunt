@@ -1,15 +1,20 @@
 package module_test
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"path/filepath"
 	"testing"
 	"testing/synctest"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -81,4 +86,68 @@ func TestCloneReportsAGitRemoteThatNeverAnswers(t *testing.T) {
 		})
 		require.Error(t, err)
 	})
+}
+
+// TestCloneProgress checks that a slow clone is drawn with a reporter.
+func TestCloneProgress(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		reported bool
+	}{
+		{name: "reporter on the context", reported: true},
+		{name: "plain context"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpDir := helpers.TmpDirWOSymlinks(t)
+
+			synctest.Test(t, func(t *testing.T) {
+				hangGit := func(ctx context.Context, _ vexec.Invocation) vexec.Result {
+					<-ctx.Done()
+
+					return vexec.Result{Err: ctx.Err()}
+				}
+
+				v := venvtest.NewWithOSFS().
+					WithExec(vexec.NewMemExec(hangGit)).
+					WithUserCacheDir(func() (string, error) { return filepath.Join(tmpDir, "cache"), nil })
+
+				term := new(bytes.Buffer)
+
+				ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
+				defer cancel()
+
+				if tc.reported {
+					ctx = spinner.ContextWithReporter(ctx, drawingReporter(term))
+				}
+
+				_, err := module.NewRepo(ctx, logger.CreateLogger(), v, &module.RepoOpts{
+					CloneURL:      absentRepoURL(tmpDir),
+					Path:          filepath.Join(tmpDir, "slow-repo"),
+					AllowCAS:      true,
+					CASCloneDepth: 1,
+				})
+				require.Error(t, err)
+
+				if tc.reported {
+					assert.NotEmpty(t, term.String())
+				}
+			})
+		})
+	}
+}
+
+// drawingReporter returns a reporter that draws its progress line on term from the start.
+func drawingReporter(term io.Writer) *spinner.Reporter {
+	v := venv.MemVenv().WithErrWriter(term).WithEnv(map[string]string{"TERM": "xterm"}).WithGOOS("linux")
+	v.Terminal.StderrIsTTY = func() bool { return true }
+	v.Terminal.StderrHandlesEscapes = func() bool { return true }
+	v.Terminal.ErrWidth = func() int { return 120 }
+
+	return spinner.New(v, spinner.Options{LogsForHumans: true})
 }

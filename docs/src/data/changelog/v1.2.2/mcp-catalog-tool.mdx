@@ -1,0 +1,10 @@
+---
+version: "v1.2.2"
+category: "experiments-updated"
+---
+
+#### `mcp-command` — `terragrunt mcp` serves a `catalog` tool
+
+The [`mcp`](/reference/cli/commands/mcp) command serves a new `catalog` tool. It returns the components [`terragrunt catalog`](/reference/cli/commands/catalog) returns, each in the shape `terragrunt catalog --format=jsonl` prints. Its `component_source` is the value a `terraform` block's `source` takes.
+
+`limit` caps how many components come back, and `include_docs` adds each component's README. A repository that fails to load is listed in `failures`, and the components of the others still come back. Cloning a remote repository runs `git`, which needs `--allow=exec`. A local directory needs no capability.

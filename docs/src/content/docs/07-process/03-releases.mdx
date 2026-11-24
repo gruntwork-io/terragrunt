@@ -32,37 +32,36 @@ While Terragrunt is still pre-1.0, maintainers will cut a new release whenever a
 
 To release a new version of Terragrunt:
 
-1. Go to the [Releases Page](https://github.com/gruntwork-io/terragrunt/releases) and click **Draft a new release**.
+1. Merge the [changelog](/process/changelog) entries for the version. The workflow builds the release notes from them and fails if the version has none.
 
-2. In the **Choose a tag** field, enter the version (e.g., `v1.0.2`). Select **Create new tag: v1.0.2 on publish**.
-
-3. **Set the target to an explicit commit SHA**, not a branch name. This prevents new commits from being pulled into the release between draft creation and publishing. You can find the commit SHA from the tip of the branch you want to release (e.g., `main`).
-
-4. Set the release title to the version tag (e.g., `v1.0.2`).
-
-5. Click **Save draft**.
-
-6. Trigger the [Release workflow](https://github.com/gruntwork-io/terragrunt/actions/workflows/release.yml) via **Run workflow**, providing the version string you just drafted (e.g., `v1.0.2`). The workflow looks up the draft release, reads its target commit SHA, and will:
-   - Validate the tag is a valid semantic version
+2. Trigger the [Release workflow](https://github.com/gruntwork-io/terragrunt/actions/workflows/release.yml) via **Run workflow** on the branch you want to release (e.g., `main`), providing the version (e.g., `v1.0.2`). The workflow will:
+   - Validate the version is a valid semantic version
+   - Create a draft release for the version if none exists, targeting the head commit of that branch
    - Verify the target is a commit SHA (not a branch name)
    - Build binaries for every supported OS and architecture
    - Sign macOS and Windows binaries
    - Generate checksums and cryptographic signatures
    - Upload all assets to the draft release
 
-7. Once the workflow succeeds, go back to the draft release and verify the assets are present and downloadable.
+   A version with a pre-release suffix (e.g., `v1.1.0-rc1`) is drafted as a pre-release, with the release notes of the version it leads to (`v1.1.0`).
 
-8. Write or finalize the release notes.
+3. Once the workflow succeeds, go to the draft release on the [Releases Page](https://github.com/gruntwork-io/terragrunt/releases) and verify the assets are present and downloadable.
+
+4. Review the release notes.
 
 <Aside type="note" title="Re-running after edits">
   If you edit the draft (for example, to retarget a new commit SHA), re-run the Release workflow with the same version to rebuild and overwrite the assets. Editing the draft does not automatically trigger a rebuild.
 </Aside>
 
-9. When ready:
+<Aside type="note" title="Releasing another commit">
+  To release a commit that is not the head of a branch, draft the release yourself before running the workflow: set the tag and title to the version and the target to the full commit SHA. The workflow builds an existing draft as it is.
+</Aside>
+
+5. When ready:
    - For stable releases: uncheck **Set as a pre-release** and check **Set as the latest release**.
    - For pre-releases: check **Set as a pre-release**.
 
-10. Click **Publish release**. This creates the git tag at the pinned commit, makes the release immutable, and triggers the release announcement.
+6. Click **Publish release**. This creates the git tag at the pinned commit, makes the release immutable, and triggers the release announcement.
 
 ### Retrying a Failed Build
 
@@ -178,5 +177,7 @@ Tip builds are signed using the same process as official releases. Each build in
 ## Test Builds
 
 Maintainers can manually trigger a test build from any branch using the [`test-build.yml`](https://github.com/gruntwork-io/terragrunt/actions/workflows/test-build.yml) workflow via `workflow_dispatch`. Test builds are versioned as `test-{commit_sha}` and uploaded under the `test` prefix (or `tip` if triggered from `main`).
+
+To build a pull request, including one from a fork, run the workflow from `main` and set `pr_number`. The workflow builds the head commit of the pull request, then comments on the pull request with the install command for that build.
 
 This is useful for giving stakeholders a binary to test before a feature branch is merged.

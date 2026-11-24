@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/component"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -82,6 +83,7 @@ func TestModelStreamingInsertsSortedWithRacing(t *testing.T) {
 			t.Context(),
 			l,
 			venvtest.NewOSWithEmptyEnv(),
+			new(config.Store),
 			opts,
 			components[len(components)-1],
 			componentCh,
@@ -155,6 +157,7 @@ func TestModelTabsFilterByKindWithRacing(t *testing.T) {
 			t.Context(),
 			l,
 			venvtest.NewOSWithEmptyEnv(),
+			new(config.Store),
 			opts,
 			components[0],
 			componentCh,
@@ -201,6 +204,7 @@ func TestModelTabShiftTabCyclesWithRacing(t *testing.T) {
 			t.Context(),
 			l,
 			venvtest.NewOSWithEmptyEnv(),
+			new(config.Store),
 			opts,
 			components[0],
 			componentCh,
@@ -267,6 +271,7 @@ func TestModelInteractiveScaffoldTransitionsToFormStateWithRacing(t *testing.T) 
 			t.Context(),
 			logger.CreateLogger(),
 			venvtest.NewOSWithEmptyEnv(),
+			new(config.Store),
 			opts,
 			entry,
 			componentCh,
@@ -323,6 +328,7 @@ func TestModelEnterOnPagerLaunchesInteractiveFormWithRacing(t *testing.T) {
 			t.Context(),
 			logger.CreateLogger(),
 			venvtest.NewOSWithEmptyEnv(),
+			new(config.Store),
 			opts,
 			entry,
 			componentCh,
@@ -379,6 +385,7 @@ func TestModelCtrlDOnPagerScaffoldsImmediatelyWithRacing(t *testing.T) {
 			t.Context(),
 			logger.CreateLogger(),
 			venvtest.NewOSWithEmptyEnv(),
+			new(config.Store),
 			opts,
 			entry,
 			componentCh,
@@ -417,6 +424,7 @@ func TestModelStreamingDeduplicatesWithRacing(t *testing.T) {
 			t.Context(),
 			l,
 			venvtest.NewOSWithEmptyEnv(),
+			new(config.Store),
 			opts,
 			components[0],
 			componentCh,
@@ -456,7 +464,16 @@ func TestModelCopyFinishedWritesValuesExitMessage(t *testing.T) {
 	componentCh := make(chan *tui.ComponentEntry)
 	close(componentCh)
 
-	m := tui.NewModelStreaming(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, components[0], componentCh, nil)
+	m := tui.NewModelStreaming(
+		t.Context(),
+		l,
+		venvtest.NewOSWithEmptyEnv(),
+		new(config.Store),
+		opts,
+		components[0],
+		componentCh,
+		nil,
+	)
 
 	// Copy-written: 2 required TODOs (exercises the plural "entries" branch)
 	// and 1 optional (exercises the singular "default" branch).
@@ -500,7 +517,16 @@ func TestModelCopyFinishedSkippedValuesExitMessage(t *testing.T) {
 	componentCh := make(chan *tui.ComponentEntry)
 	close(componentCh)
 
-	m := tui.NewModelStreaming(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, components[0], componentCh, nil)
+	m := tui.NewModelStreaming(
+		t.Context(),
+		l,
+		venvtest.NewOSWithEmptyEnv(),
+		new(config.Store),
+		opts,
+		components[0],
+		componentCh,
+		nil,
+	)
 
 	msg := copyFinishedFromNames(workingDir,
 		[]string{"zeta"},
@@ -539,7 +565,16 @@ func TestModelCopyFinishedEmptyReferencesLeavesNoExitMessage(t *testing.T) {
 	componentCh := make(chan *tui.ComponentEntry)
 	close(componentCh)
 
-	m := tui.NewModelStreaming(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, components[0], componentCh, nil)
+	m := tui.NewModelStreaming(
+		t.Context(),
+		l,
+		venvtest.NewOSWithEmptyEnv(),
+		new(config.Store),
+		opts,
+		components[0],
+		componentCh,
+		nil,
+	)
 
 	msg := copyFinishedFromNames(opts.WorkingDir, nil, nil, false, false)
 
@@ -567,7 +602,16 @@ func TestModelScaffoldFinishedSetsExitMessage(t *testing.T) {
 	componentCh := make(chan *tui.ComponentEntry)
 	close(componentCh)
 
-	m := tui.NewModelStreaming(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, components[0], componentCh, nil)
+	m := tui.NewModelStreaming(
+		t.Context(),
+		l,
+		venvtest.NewOSWithEmptyEnv(),
+		new(config.Store),
+		opts,
+		components[0],
+		componentCh,
+		nil,
+	)
 
 	updated, _ := m.Update(tui.ScaffoldFinishedMsg{})
 	finalModel := updated.(tui.Model)
@@ -638,7 +682,16 @@ func TestModelScaffoldFinishedWithFilesListsGeneratedFiles(t *testing.T) {
 			componentCh := make(chan *tui.ComponentEntry)
 			close(componentCh)
 
-			m := tui.NewModelStreaming(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, components[0], componentCh, nil)
+			m := tui.NewModelStreaming(
+				t.Context(),
+				l,
+				venvtest.NewOSWithEmptyEnv(),
+				new(config.Store),
+				opts,
+				components[0],
+				componentCh,
+				nil,
+			)
 
 			updated, _ := m.Update(tui.ScaffoldFinishedMsg{Files: tt.files})
 			finalModel := updated.(tui.Model)
@@ -672,7 +725,16 @@ func TestModelScaffoldFinishedEmptyOutputDirHasNoExitMessage(t *testing.T) {
 	componentCh := make(chan *tui.ComponentEntry)
 	close(componentCh)
 
-	m := tui.NewModelStreaming(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, components[0], componentCh, nil)
+	m := tui.NewModelStreaming(
+		t.Context(),
+		l,
+		venvtest.NewOSWithEmptyEnv(),
+		new(config.Store),
+		opts,
+		components[0],
+		componentCh,
+		nil,
+	)
 
 	updated, _ := m.Update(tui.ScaffoldFinishedMsg{})
 	finalModel := updated.(tui.Model)
@@ -712,7 +774,16 @@ func TestModelCopyFinishedDisplayPathEscapesBaseDir(t *testing.T) {
 	componentCh := make(chan *tui.ComponentEntry)
 	close(componentCh)
 
-	m := tui.NewModelStreaming(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, components[0], componentCh, nil)
+	m := tui.NewModelStreaming(
+		t.Context(),
+		l,
+		venvtest.NewOSWithEmptyEnv(),
+		new(config.Store),
+		opts,
+		components[0],
+		componentCh,
+		nil,
+	)
 
 	msg := copyFinishedFromNames(baseTmp, []string{"a"}, nil, true, false)
 
@@ -743,7 +814,16 @@ func TestModelScaffoldFailureQuitsWithError(t *testing.T) {
 	componentCh := make(chan *tui.ComponentEntry)
 	close(componentCh)
 
-	m := tui.NewModelStreaming(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, components[0], componentCh, nil)
+	m := tui.NewModelStreaming(
+		t.Context(),
+		l,
+		venvtest.NewOSWithEmptyEnv(),
+		new(config.Store),
+		opts,
+		components[0],
+		componentCh,
+		nil,
+	)
 
 	scaffoldErr := errors.New("generate failed")
 
@@ -780,7 +860,16 @@ func TestModelCopyFailureQuitsWithError(t *testing.T) {
 	componentCh := make(chan *tui.ComponentEntry)
 	close(componentCh)
 
-	m := tui.NewModelStreaming(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, components[0], componentCh, nil)
+	m := tui.NewModelStreaming(
+		t.Context(),
+		l,
+		venvtest.NewOSWithEmptyEnv(),
+		new(config.Store),
+		opts,
+		components[0],
+		componentCh,
+		nil,
+	)
 
 	copyErr := errors.New("destination exists")
 
@@ -813,6 +902,7 @@ func TestModelCleanQuitHasNoErrorWithRacing(t *testing.T) {
 			t.Context(),
 			l,
 			venvtest.NewOSWithEmptyEnv(),
+			new(config.Store),
 			opts,
 			components[0],
 			componentCh,
@@ -842,7 +932,16 @@ func TestModelRendererErrMsgSetsViewportAndPagerState(t *testing.T) {
 	componentCh := make(chan *tui.ComponentEntry)
 	close(componentCh)
 
-	m := tui.NewModelStreaming(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, components[0], componentCh, nil)
+	m := tui.NewModelStreaming(
+		t.Context(),
+		l,
+		venvtest.NewOSWithEmptyEnv(),
+		new(config.Store),
+		opts,
+		components[0],
+		componentCh,
+		nil,
+	)
 
 	// Seed the viewport with a WindowSizeMsg so it has a positive size,
 	// otherwise the pager view will produce a degenerate string.
@@ -888,7 +987,16 @@ func TestModelPagerViewRendersAfterEnterWithRacing(t *testing.T) {
 		componentCh := make(chan *tui.ComponentEntry)
 		close(componentCh)
 
-		m := tui.NewModelStreaming(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, entry, componentCh, nil)
+		m := tui.NewModelStreaming(
+			t.Context(),
+			l,
+			venvtest.NewOSWithEmptyEnv(),
+			new(config.Store),
+			opts,
+			entry,
+			componentCh,
+			nil,
+		)
 
 		msgs := []tea.Msg{
 			tea.KeyPressMsg{Code: tea.KeyEnter},
@@ -931,7 +1039,16 @@ func TestModelPagerWToggleFlipsSoftWrapWithRacing(t *testing.T) {
 		componentCh := make(chan *tui.ComponentEntry)
 		close(componentCh)
 
-		m := tui.NewModelStreaming(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts, entry, componentCh, nil)
+		m := tui.NewModelStreaming(
+			t.Context(),
+			l,
+			venvtest.NewOSWithEmptyEnv(),
+			new(config.Store),
+			opts,
+			entry,
+			componentCh,
+			nil,
+		)
 
 		// Enter pager, then toggle `w` twice. driveModel runs the
 		// messages through Update in order and returns the final model.

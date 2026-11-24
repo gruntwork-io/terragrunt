@@ -27,6 +27,7 @@ func Run(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	srcPath, dstPath string,
 	opts *options.TerragruntOptions,
 ) error {
@@ -46,7 +47,7 @@ func Run(
 
 	l.Debugf("Destination unit path %s", dstPath)
 
-	rnr, err := runner.New(ctx, l, v, opts)
+	rnr, err := runner.New(ctx, l, v, s, opts)
 	if err != nil {
 		return err
 	}
@@ -80,7 +81,7 @@ func Run(
 
 	srcPctx := configbridge.NewParsingContext(srcOpts)
 
-	srcRemoteState, err := config.ParseRemoteState(ctx, l, srcV, srcPctx)
+	srcRemoteState, err := config.ParseRemoteState(ctx, l, srcV, s, srcPctx)
 	if err != nil {
 		return err
 	}
@@ -96,7 +97,7 @@ func Run(
 
 	dstPctx := configbridge.NewParsingContext(dstOpts)
 
-	dstRemoteState, err := config.ParseRemoteState(ctx, l, dstV, dstPctx)
+	dstRemoteState, err := config.ParseRemoteState(ctx, l, dstV, s, dstPctx)
 	if err != nil {
 		return err
 	}
@@ -113,7 +114,7 @@ func Run(
 			ctx,
 			l,
 			srcV,
-			configbridge.RemoteStateOptsFromOpts(v.Env, srcOpts),
+			configbridge.RemoteStateOptsFromOpts(v.Exec, v.Env, srcOpts),
 		)
 		if err != nil && !errors.As(err, new(backend.BucketDoesNotExistError)) {
 			return err
@@ -130,8 +131,8 @@ func Run(
 	return srcRemoteState.Migrate(
 		ctx, l,
 		srcV, dstV,
-		configbridge.RemoteStateOptsFromOpts(v.Env, srcOpts),
-		configbridge.RemoteStateOptsFromOpts(v.Env, dstOpts),
+		configbridge.RemoteStateOptsFromOpts(v.Exec, v.Env, srcOpts),
+		configbridge.RemoteStateOptsFromOpts(v.Exec, v.Env, dstOpts),
 		dstRemoteState,
 	)
 }

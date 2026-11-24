@@ -309,7 +309,7 @@ func TestFetchSource_IncludedGitFilesWithoutRecordsFails(t *testing.T) {
 		IncludedGitFiles: []string{"HEAD"},
 	}
 
-	err := c.FetchSource(t.Context(), l, v, opts, cas.SourceRequest{
+	_, err := c.FetchSource(t.Context(), l, v, opts, cas.SourceRequest{
 		Scheme: "http",
 		URL:    redact.NewURL("https://example.com/mod.tgz"),
 		Fetch:  fetch,

@@ -6,8 +6,6 @@ sidebar:
   order: 4
 ---
 
-import Before from '@components/Before.astro';
-import Since from '@components/Since.astro';
 
 Infrastructure as Code (IaC) tooling necessarily requires a lot of terminology to describe various concepts and features due to the breadth of the domain.
 
@@ -45,7 +43,7 @@ Units typically represent a minimal useful piece of infrastructure that should b
 
 e.g. A unit might represent a single VPC, a single database, or a single server.
 
-While not a requirement, a general tendency experienced when working with Terragrunt is that units tend to decrease in size. This is because Terragrunt makes it easy to segment pieces of infrastructure into their own state, and to have them interact with each other through the use of [dependency blocks](/reference/hcl/blocks#dependency). Smaller units are quicker to update, easier to reason about and safer to work with.
+While not a requirement, a general tendency experienced when working with Terragrunt is that units tend to decrease in size. This is because Terragrunt makes it easy to segment pieces of infrastructure into their own state, and to have them interact with each other through the use of [dependency blocks](/reference/hcl/blocks/dependency). Smaller units are quicker to update, easier to reason about and safer to work with.
 
 A common pattern used in the repository structure for Terragrunt projects is to have a single `root.hcl` file located at the root of the repository, and multiple subdirectories each containing their own `terragrunt.hcl` file. This is typically done to promote code-reuse, as it allows for any configuration common to all units to be defined in the `root.hcl` file, and for unit-specific configuration to be defined in child directories. In this pattern, the `root.hcl` file is not considered a unit, while all the child directories containing `terragrunt.hcl` files are.
 
@@ -87,7 +85,7 @@ e.g. A module might represent a generic pattern for a VPC, a database, or a serv
 
 Modules can be located either in the local filesystem, in a remote repository, or in any of [these supported locations](https://opentofu.org/docs/language/modules/sources/).
 
-To integrate a module into a Terragrunt unit, reference the module using the `source` attribute of the [terraform block](/reference/hcl/blocks#terraform).
+To integrate a module into a Terragrunt unit, reference the module using the `source` attribute of the [terraform block](/reference/hcl/blocks/terraform/).
 
 Terragrunt users typically spend a good deal of time authoring modules, as they are the primary way of defining the infrastructure patterns that Terragrunt is going to be orchestrating. Using tooling like [Terratest](https://github.com/gruntwork-io/terratest) can help to ensure that modules are well-tested and reliable.
 
@@ -165,7 +163,7 @@ In the simplest case, a run in a unit with an empty `terragrunt.hcl` file will b
 
 An execution is a single command run by Terragrunt, which does not necessarily have anything to do with OpenTofu/Terraform.
 
-Ways in which Terragrunt can perform executions are limited to features like [hooks](/features/units/hooks/), [run_cmd](/reference/hcl/functions#run_cmd), etc.
+Ways in which Terragrunt can perform executions are limited to features like [hooks](/features/units/hooks/), [run_cmd](/reference/hcl/functions/run_cmd), etc.
 
 These utilities are part of what makes Terragrunt so powerful, as they allow users to move infrastructure management complexity out of modules.
 
@@ -191,7 +189,7 @@ Units are only considered "running" when they are in the Runner Pool.
 
 A dependency is a relationship between two units in a stack that results in data being passed from the dependency to the dependent unit. A unit can also depend on a whole stack, in which case it receives the outputs of every unit in that stack. See [Depending on a stack](/features/stacks/stack-operations#depending-on-a-stack).
 
-Dependencies are defined in Terragrunt configuration files using the [dependency block](/reference/hcl/blocks#dependency).
+Dependencies are defined in Terragrunt configuration files using the [dependency block](/reference/hcl/blocks/dependency).
 
 Dependencies are important for resolving the DAG, and the DAG is one of the most important properties to understand with Terragrunt. In an effort to avoid confusing users, Terragrunt maintainers attempt to overload the term "dependency" as little as possible. Other relationships may be described as "reading" or "including" to avoid any ambiguity as to what is relevant to the DAG.
 
@@ -199,7 +197,7 @@ Dependencies are important for resolving the DAG, and the DAG is one of the most
 
 The term "include" is used in two different contexts in Terragrunt.
 
-1. **Include in configuration**: This is when one configuration file is included as partial configuration in another configuration file. This is done using the [include block](/reference/hcl/blocks#include) in Terragrunt configuration files.
+1. **Include in configuration**: This is when one configuration file is included as partial configuration in another configuration file. This is done using the [include block](/reference/hcl/blocks/include) in Terragrunt configuration files.
 2. **Include in the Run Queue**: This is when a unit is included in the Run Queue. There are multiple ways for a unit to be included in the Run Queue.
 
 ### Exclude
@@ -216,17 +214,17 @@ To avoid ambiguity, Terragrunt maintainers try to avoid using the term "variable
 
 An input is a value configured in Terragrunt configurations to set the value of OpenTofu/Terraform variables.
 
-Inputs are defined in Terragrunt configuration files using the [inputs attribute](/reference/hcl/attributes#inputs). Under the hood, these inputs result in `TF_VAR_` prefixed environment variables being populated before initiating a run.
+Inputs are defined in Terragrunt configuration files using the [inputs attribute](/reference/hcl/attributes/inputs/). Under the hood, these inputs result in `TF_VAR_` prefixed environment variables being populated before initiating a run.
 
 ### Output
 
 An output is a value that is returned by OpenTofu/Terraform after a run is completed.
 
-By default, Terragrunt will interact with OpenTofu/Terraform in order to retrieve these outputs via [dependency blocks](/reference/hcl/blocks#dependency).
+By default, Terragrunt will interact with OpenTofu/Terraform in order to retrieve these outputs via [dependency blocks](/reference/hcl/blocks/dependency).
 
 Terragrunt does have the ability to mock outputs, which is useful when dependencies do not yet have outputs to be consumed (e.g. during the run of a unit with a dependency that has not been applied).
 
-Terragrunt also has the ability to fetch outputs without interacting with OpenTofu/Terraform via [--dependency-fetch-output-from-state](/reference/cli/commands/run#dependency-fetch-output-from-state) for dependencies using a supported remote-state backend. <Before version="v1.2.0">This is an experimental feature, and more tooling is planned to make this easier to use.</Before><Since version="v1.2.0">Terragrunt does this by default for supported backends. Pass `--no-dependency-fetch-output-from-state` to read outputs through OpenTofu/Terraform instead.</Since>
+Terragrunt also has the ability to fetch outputs without interacting with OpenTofu/Terraform via [--dependency-fetch-output-from-state](/reference/cli/commands/run#dependency-fetch-output-from-state) for dependencies using a supported remote-state backend. Terragrunt does this by default for supported backends. Pass `--no-dependency-fetch-output-from-state` to read outputs through OpenTofu/Terraform instead.
 
 ### Feature
 
@@ -234,7 +232,7 @@ A [feature](/reference/cli/commands/run#feature) is a configuration that can be 
 
 They operate very similarly to variables, but are designed to be used to dynamically adjust the behavior of Terragrunt configurations, rather than OpenTofu/Terraform configurations.
 
-Features can be adjusted using feature flags, which are set in Terragrunt configurations using the [feature block](/reference/hcl/blocks#feature) and the [feature flag](/reference/cli/commands/run#feature) attribute.
+Features can be adjusted using feature flags, which are set in Terragrunt configurations using the [feature block](/reference/hcl/blocks/feature) and the [feature flag](/reference/cli/commands/run#feature) attribute.
 
 Like all good feature flags, you are encouraged to use them with good judgement and to avoid using them as a crutch to avoid making decisions about permanent adjustments to your infrastructure.
 

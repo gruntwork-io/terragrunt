@@ -8,9 +8,8 @@ import (
 
 	"errors"
 
-	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/discoverysetup"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
-	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -18,23 +17,30 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
-func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
+// Run deletes the state that the remote_state block of the unit at
+// opts.TerragruntConfigPath points to, or of every discovered unit when
+// opts.RunAll is set. A unit without a remote_state block is skipped.
+//
+// Returns an error when the bucket has versioning disabled and
+// opts.ForceBackendDelete is unset, or when opts.DeleteBucket is set.
+func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *config.Store, opts *options.TerragruntOptions) error {
 	if opts.RunAll {
-		return runAll(ctx, l, v, opts)
+		return runAll(ctx, l, v, s, opts)
 	}
 
-	return runDelete(ctx, l, v, opts)
+	return runDelete(ctx, l, v, s, opts)
 }
 
 func runDelete(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 ) error {
 	pctx := configbridge.NewParsingContext(opts)
 
-	remoteState, err := config.ParseRemoteState(ctx, l, v, pctx)
+	remoteState, err := config.ParseRemoteState(ctx, l, v, s, pctx)
 	if err != nil || remoteState == nil {
 		return err
 	}
@@ -44,7 +50,7 @@ func runDelete(
 			ctx,
 			l,
 			v,
-			configbridge.RemoteStateOptsFromOpts(v.Env, opts),
+			configbridge.RemoteStateOptsFromOpts(v.Exec, v.Env, opts),
 		)
 		if err != nil && !errors.As(err, new(backend.BucketDoesNotExistError)) {
 			return err
@@ -63,23 +69,23 @@ func runDelete(
 		return fmt.Errorf("flag -%s is not supported yet", BucketFlagName)
 	}
 
-	return remoteState.Delete(ctx, l, v, configbridge.RemoteStateOptsFromOpts(v.Env, opts))
+	return remoteState.Delete(ctx, l, v, configbridge.RemoteStateOptsFromOpts(v.Exec, v.Env, opts))
 }
 
 func runAll(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 ) error {
-	d := discovery.NewDiscovery(opts.WorkingDir)
+	units, cleanupWorktrees, err := discoverysetup.Units(ctx, l, v, s, opts)
 
-	components, err := d.Discover(ctx, l, v, opts)
+	defer cleanupWorktrees(ctx)
+
 	if err != nil {
 		return err
 	}
-
-	units := components.Filter(component.UnitKind).Sort()
 
 	var errs []error
 
@@ -87,17 +93,12 @@ func runAll(
 		unitOpts := opts.Clone()
 		unitOpts.WorkingDir = unit.Path()
 
-		configFilename := config.DefaultTerragruntConfigPath
-		if len(opts.TerragruntConfigPath) > 0 {
-			configFilename = filepath.Base(opts.TerragruntConfigPath)
-		}
-
-		unitOpts.TerragruntConfigPath = filepath.Join(unit.Path(), configFilename)
+		unitOpts.TerragruntConfigPath = filepath.Join(unit.Path(), unit.ConfigFile())
 
 		// Parsing can write obtained credentials into the env, so each
 		// unit gets its own clone to keep them from leaking to siblings.
 		unitV := v.WithEnvCloned()
-		if err := runDelete(ctx, l, unitV, unitOpts); err != nil {
+		if err := runDelete(ctx, l, unitV, s, unitOpts); err != nil {
 			if opts.FailFast {
 				return err
 			}

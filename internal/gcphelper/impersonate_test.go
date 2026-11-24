@@ -10,8 +10,8 @@ import (
 
 	"cloud.google.com/go/storage"
 	"github.com/gruntwork-io/terragrunt/internal/gcphelper"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -98,7 +98,7 @@ func TestGCPConfigImpersonationScopes(t *testing.T) {
 
 			gcsClient, err := gcphelper.NewGCPConfigBuilder().
 				WithSessionConfig(gcpCfg).
-				BuildGCSClient(ctx, venvtest.New().WithEnv(map[string]string{}).WithHTTP(client))
+				BuildGCSClient(ctx, venv.MemVenv().WithEnv(map[string]string{}).WithHTTP(client))
 			require.NoError(t, err)
 
 			t.Cleanup(func() { require.NoError(t, gcsClient.Close()) })

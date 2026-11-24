@@ -22,11 +22,11 @@ import (
 
 // signedQuery mimics the pre-signed parameters an S3-backed mirror hands back.
 const signedQuery = "X-Amz-Algorithm=AWS4-HMAC-SHA256" +
-	"&X-Amz-Credential=AKIAIOSFODNN7EXAMPLE%2F20130524%2Fus-east-1%2Fs3%2Faws4_request" +
+	"&X-Amz-Credential=fake-access-key-id%2F20130524%2Fus-east-1%2Fs3%2Faws4_request" +
 	"&X-Amz-Date=20130524T000000Z" +
 	"&X-Amz-Expires=86400" +
 	"&X-Amz-SignedHeaders=host" +
-	"&X-Amz-Signature=aeeed9bbccd4d02ee5c0109b86d86835f995330da4c265957d157751f604d404"
+	"&X-Amz-Signature=fake-signature"
 
 // TestNetworkMirrorSignedURLFilename reproduces issue #6670: a network mirror
 // returning a signed S3 download URL must produce a clean Filename without query parameters.

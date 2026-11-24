@@ -8,9 +8,8 @@ import (
 
 	"errors"
 
-	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/discoverysetup"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
-	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -18,18 +17,22 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
-func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
+// Run creates the backend resources declared in the remote_state block of the
+// unit at opts.TerragruntConfigPath, or of every discovered unit when
+// opts.RunAll is set. A unit without a remote_state block is skipped.
+func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *config.Store, opts *options.TerragruntOptions) error {
 	if opts.RunAll {
-		return runAll(ctx, l, v, opts)
+		return runAll(ctx, l, v, s, opts)
 	}
 
-	return runBootstrap(ctx, l, v, opts)
+	return runBootstrap(ctx, l, v, s, opts)
 }
 
 func runBootstrap(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 ) error {
 	return telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "backend_bootstrap", map[string]any{
@@ -38,12 +41,12 @@ func runBootstrap(
 	}, func(ctx context.Context, l log.Logger) error {
 		pctx := configbridge.NewParsingContext(opts)
 
-		remoteState, err := config.ParseRemoteState(ctx, l, v, pctx)
+		remoteState, err := config.ParseRemoteState(ctx, l, v, s, pctx)
 		if err != nil || remoteState == nil {
 			return err
 		}
 
-		return remoteState.Bootstrap(ctx, l, v, configbridge.RemoteStateOptsFromOpts(v.Env, opts))
+		return remoteState.Bootstrap(ctx, l, v, configbridge.RemoteStateOptsFromOpts(v.Exec, v.Env, opts))
 	})
 }
 
@@ -51,16 +54,16 @@ func runAll(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 ) error {
-	d := discovery.NewDiscovery(opts.WorkingDir)
+	units, cleanupWorktrees, err := discoverysetup.Units(ctx, l, v, s, opts)
 
-	components, err := d.Discover(ctx, l, v, opts)
+	defer cleanupWorktrees(ctx)
+
 	if err != nil {
 		return err
 	}
-
-	units := components.Filter(component.UnitKind).Sort()
 
 	return telemetry.TelemeterFromContext(ctx).
 		Collect(ctx, l, "backend_bootstrap_all", map[string]any{
@@ -74,18 +77,13 @@ func runAll(
 				unitOpts := opts.Clone()
 				unitOpts.WorkingDir = unit.Path()
 
-				configFilename := config.DefaultTerragruntConfigPath
-				if len(opts.TerragruntConfigPath) > 0 {
-					configFilename = filepath.Base(opts.TerragruntConfigPath)
-				}
-
-				unitOpts.TerragruntConfigPath = filepath.Join(unit.Path(), configFilename)
+				unitOpts.TerragruntConfigPath = filepath.Join(unit.Path(), unit.ConfigFile())
 				unitOpts.OriginalTerragruntConfigPath = unitOpts.TerragruntConfigPath
 
 				// Parsing can write obtained credentials into the env, so each
 				// unit gets its own clone to keep them from leaking to siblings.
 				unitV := v.WithEnvCloned()
-				if err := runBootstrap(ctx, l, unitV, unitOpts); err != nil {
+				if err := runBootstrap(ctx, l, unitV, s, unitOpts); err != nil {
 					if opts.FailFast {
 						return err
 					}

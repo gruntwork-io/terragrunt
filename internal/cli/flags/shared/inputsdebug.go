@@ -7,6 +7,8 @@ import (
 )
 
 const (
+	// InputsDebugFlagName is the flag name for `--inputs-debug`, which writes the unit's inputs to a
+	// `terragrunt-debug.tfvars.json` file in the working directory.
 	InputsDebugFlagName = "inputs-debug"
 )
 

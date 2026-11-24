@@ -1,0 +1,18 @@
+---
+version: "v1.2.3"
+category: "experiments-added"
+---
+
+#### `empty-dependency-outputs` experiment allows a `dependency` block on a unit with no outputs
+
+A `dependency` block fails with `detected no outputs` when its unit has no outputs, or has not been applied, and no `mock_outputs` apply. Enable the [`empty-dependency-outputs`](/reference/experiments/active#empty-dependency-outputs) experiment to resolve `dependency.<name>.outputs` to an empty object in that case.
+
+```hcl
+dependency "vpc" {
+  config_path = "../vpc"
+}
+```
+
+```bash
+terragrunt run --experiment empty-dependency-outputs -- plan
+```

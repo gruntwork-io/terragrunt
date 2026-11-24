@@ -1,36 +1,50 @@
-// Package render provides the command to render the final terragrunt config in various formats.
 package render
 
 import (
 	"context"
 
-	runcmd "github.com/gruntwork-io/terragrunt/internal/cli/commands/run"
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/providercaching"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 const (
+	// CommandName is the name of the `terragrunt render` command.
 	CommandName = "render"
 
-	FormatFlagName                  = "format"
-	JSONFlagName                    = "json"
-	WriteFlagName                   = "write"
-	WriteAliasFlagName              = "w"
-	OutFlagName                     = "out"
-	WithMetadataFlagName            = "with-metadata"
+	// FormatFlagName is the name of the flag that selects the output format:
+	// [FormatHCL] or [FormatJSON].
+	FormatFlagName = "format"
+	// JSONFlagName is the name of the flag that is shorthand for --format=json.
+	JSONFlagName = "json"
+	// WriteFlagName is the name of the flag that writes the rendered config to
+	// a file in place of stdout.
+	WriteFlagName = "write"
+	// WriteAliasFlagName is the short alias of the --write flag.
+	WriteAliasFlagName = "w"
+	// OutFlagName is the name of the flag that sets the file --write writes to,
+	// relative to the unit's config directory.
+	OutFlagName = "out"
+	// WithMetadataFlagName is the name of the flag that records, in JSON
+	// output, the file that set each value.
+	WithMetadataFlagName = "with-metadata"
+	// DisableDependentModulesFlagName is the name of the hidden, deprecated flag
+	// that has no effect. Setting it evaluates its strict control.
 	DisableDependentModulesFlagName = "disable-dependent-modules"
 )
 
-func NewFlags(opts *Options, prefix flags.Prefix) clihelper.Flags {
-	tgPrefix := prefix.Prepend(flags.TgPrefix)
+// NewFlags returns the flags of `terragrunt render`, bound to opts.
+func NewFlags(l log.Logger, opts *Options, v *venv.Venv) clihelper.Flags {
+	tgPrefix := flags.Prefix{flags.TgPrefix}
 	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
 
-	return clihelper.Flags{
+	renderFlags := clihelper.Flags{
 		flags.NewFlag(&clihelper.GenericFlag[string]{
 			Name:        FormatFlagName,
 			EnvVars:     tgPrefix.EnvVars(FormatFlagName),
@@ -122,30 +136,65 @@ func NewFlags(opts *Options, prefix flags.Prefix) clihelper.Flags {
 				opts.StrictControls,
 			), // `TERRAGRUNT_JSON_DISABLE_DEPENDENT_MODULES`
 		),
+		shared.NewAllFlag(opts.TerragruntOptions, nil),
 	}
+
+	flags.DeprecateEnvVarPrefix(renderFlags, flags.Prefix{flags.TgPrefix, CommandName}, opts.StrictControls)
+
+	return append(newSharedFlags(l, opts.TerragruntOptions, v), renderFlags...)
 }
 
-func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *clihelper.Command {
-	prefix := flags.Prefix{CommandName}
+// NewCommand returns the `terragrunt render` command.
+func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *config.Store) *clihelper.Command {
 	renderOpts := NewOptions(opts)
-
-	cmdFlags := append(runcmd.NewFlags(l, opts, v, nil), NewFlags(renderOpts, prefix)...)
-	cmdFlags = append(cmdFlags, shared.NewAllFlag(opts, prefix))
 
 	cmd := &clihelper.Command{
 		Name:        CommandName,
 		Usage:       "Render the final terragrunt config, with all variables, includes, and functions resolved, in the specified format.",
 		Description: "This is useful for enforcing policies using static analysis tools like Open Policy Agent, or for debugging your terragrunt config.",
-		Flags:       cmdFlags,
-		Action: func(ctx context.Context, _ *clihelper.Context) error {
+		Flags:       NewFlags(l, renderOpts, v),
+		Action: providercaching.Wrap(l, opts, v, func(ctx context.Context, _ *clihelper.Context) error {
 			tgOpts := opts.OptionsFromContext(ctx)
 
 			clonedOpts := renderOpts.Clone()
 			clonedOpts.TerragruntOptions = tgOpts
 
-			return Run(ctx, l, v, clonedOpts)
-		},
+			return Run(ctx, l, v, s, clonedOpts)
+		}),
 	}
 
 	return cmd
+}
+
+// newSharedFlags returns the flags `terragrunt render` takes from the shared
+// package: the ones that reach config parsing, and the ones that select units
+// for --all.
+func newSharedFlags(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.Flags {
+	sharedFlags := clihelper.Flags{
+		shared.NewConfigFlag(opts, nil),
+		shared.NewDownloadDirFlag(opts, nil),
+		shared.NewTFPathFlag(opts),
+		shared.NewTFForwardStdoutFlag(opts),
+		shared.NewVersionManagerFileNameFlag(opts),
+		shared.NewNoAutoInitFlag(opts, nil),
+		shared.NewSourceFlag(opts, nil),
+		shared.NewSourceMapFlag(opts, nil),
+		shared.NewInputsDebugFlag(opts, nil),
+		shared.NewUsePartialParseConfigCacheFlag(opts),
+		shared.NewAuthProviderCmdFlag(opts, nil),
+		shared.NewNoDiscoveryAuthProviderCmdFlag(opts, nil),
+		shared.NewFailFastFlag(opts),
+		shared.NewParallelismFlag(opts),
+	}
+
+	sharedFlags = sharedFlags.Add(shared.NewDependencyOutputFlags(opts)...)
+	sharedFlags = sharedFlags.Add(shared.NewProviderCacheFlags(opts)...)
+	sharedFlags = sharedFlags.Add(shared.NewEngineFlags(opts)...)
+	sharedFlags = sharedFlags.Add(shared.NewBackendFlags(opts, nil)...)
+	sharedFlags = sharedFlags.Add(shared.NewFeatureFlags(opts, nil)...)
+	sharedFlags = sharedFlags.Add(shared.NewIAMAssumeRoleFlags(opts, nil)...)
+	sharedFlags = sharedFlags.Add(shared.NewSelectionFlags(l, opts, v)...)
+	sharedFlags = sharedFlags.Add(shared.NewCASFlags(opts, nil)...)
+
+	return sharedFlags.Sort()
 }

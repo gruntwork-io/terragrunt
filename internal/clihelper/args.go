@@ -8,11 +8,15 @@ import (
 
 const (
 	tailMinArgsLen = 2
-	BuiltinCmdSep  = "--"
+	// BuiltinCmdSep is the `--` argument that ends flag parsing. Arguments after it pass through
+	// to the wrapped command as written.
+	BuiltinCmdSep = "--"
 )
 
 const (
+	// SingleDashFlag makes [Args.Normalize] rewrite `--flag` as `-flag`.
 	SingleDashFlag NormalizeActsType = iota
+	// DoubleDashFlag makes [Args.Normalize] rewrite `-flag` as `--flag`.
 	DoubleDashFlag
 )
 
@@ -21,6 +25,7 @@ var (
 	doubleDashRegexp = regexp.MustCompile(`^--([^-]|$)`)
 )
 
+// NormalizeActsType selects how [Args.Normalize] rewrites the dashes of flag arguments.
 type NormalizeActsType byte
 
 // Args provides convenient access to CLI arguments.
@@ -40,6 +45,7 @@ func (args Args) Split(sep string) (Args, Args) {
 	return args, nil
 }
 
+// WithoutBuiltinCmdSep returns a copy of args with the first [BuiltinCmdSep] removed.
 func (args Args) WithoutBuiltinCmdSep() Args {
 	flags, nonFlags := args.Split(BuiltinCmdSep)
 

@@ -35,7 +35,7 @@ func TestTerragruntConfigCacheOperation(t *testing.T) {
 	assert.Empty(t, actualResult)
 
 	stubTerragruntConfig := config.TerragruntConfig{
-		IsPartial: true, // Any random property will be sufficient
+		DownloadDir: "download-dir",
 	}
 
 	cache.Put(ctx, testCacheKey, stubTerragruntConfig)

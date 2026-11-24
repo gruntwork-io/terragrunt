@@ -7,9 +7,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 // parseTrackingReads parses hcl against files and returns the paths the parse
@@ -18,12 +18,12 @@ func parseTrackingReads(t *testing.T, files map[string]string, hcl string) []str
 	t.Helper()
 
 	l := logger.CreateLogger()
-	v := venvtest.New().WithFS(memUnitFS(t, files))
+	v := venv.MemVenv().WithFS(memUnitFS(t, files))
 	ctx, pctx := newTestParsingContext(t, memConfigPath)
-	ctx = config.WithConfigValues(ctx)
+	ctx = config.WithCaches(ctx)
 	pctx.FilesRead = config.NewFilesRead()
 
-	_, err := config.ParseConfigString(ctx, l, v, pctx, memConfigPath, hcl, nil)
+	_, err := resolveRunConfigString(t, ctx, l, v, new(config.Store), pctx, memConfigPath, hcl)
 	require.NoError(t, err)
 
 	return pctx.FilesRead.Paths()
@@ -117,15 +117,15 @@ func TestHCLFileReadsAreUnrecordedWithoutTracking(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	v := venvtest.New().WithFS(memUnitFS(t, map[string]string{"data.txt": "contents\n"}))
+	v := venv.MemVenv().WithFS(memUnitFS(t, map[string]string{"data.txt": "contents\n"}))
 	ctx, pctx := newTestParsingContext(t, memConfigPath)
-	ctx = config.WithConfigValues(ctx)
+	ctx = config.WithCaches(ctx)
 
 	const hcl = `locals {
   data = file("data.txt")
 }`
 
-	out, err := config.ParseConfigString(ctx, l, v, pctx, memConfigPath, hcl, nil)
+	out, err := resolveRunConfigString(t, ctx, l, v, new(config.Store), pctx, memConfigPath, hcl)
 	require.NoError(t, err)
 	require.NotNil(t, out.Locals)
 	assert.Equal(t, "contents\n", out.Locals["data"])

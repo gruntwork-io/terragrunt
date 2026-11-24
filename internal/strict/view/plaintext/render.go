@@ -41,10 +41,12 @@ type tabFlusher interface {
 	Flush() error
 }
 
+// Render formats strict controls as plain text with tab-aligned columns.
 type Render struct {
 	newTabFlusher func(w io.Writer) tabFlusher
 }
 
+// NewRender returns a [Render] that aligns columns with a [tabwriter.Writer].
 func NewRender() *Render {
 	return &Render{
 		newTabFlusher: func(w io.Writer) tabFlusher {

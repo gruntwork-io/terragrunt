@@ -22,9 +22,15 @@ import (
 )
 
 const (
+	// VerifiedChecksum means the package matched its published checksum, with no signature check.
 	VerifiedChecksum PackageAuthenticationResult = iota
+	// OfficialProvider means the package checksums are signed by the HashiCorp key.
 	OfficialProvider
+	// PartnerProvider means the package checksums are signed by a key that the HashiCorp partners
+	// key has trust-signed.
 	PartnerProvider
+	// CommunityProvider means the package checksums are signed by a registry-supplied key with no
+	// HashiCorp trust signature.
 	CommunityProvider
 )
 
@@ -351,7 +357,7 @@ func (auth signatureAuthentication) findSigningKey() (string, string, error) {
 			bytes.NewReader(auth.Signature),
 			nil,
 		); err != nil {
-			// If the signature issuer does not match the the key, keep trying the rest of the provided keys.
+			// If the signature issuer does not match the key, keep trying the rest of the provided keys.
 			if errors.Is(err, openpgpErrors.ErrUnknownIssuer) {
 				continue
 			}

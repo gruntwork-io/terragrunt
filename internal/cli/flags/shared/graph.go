@@ -9,6 +9,8 @@ import (
 )
 
 const (
+	// GraphFlagName is the flag name for `--graph`, which runs the command on the unit and its dependents
+	// in dependency order.
 	GraphFlagName = "graph"
 )
 

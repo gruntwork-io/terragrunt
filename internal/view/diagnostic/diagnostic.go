@@ -3,9 +3,22 @@
 package diagnostic
 
 import (
+	"fmt"
+
 	"github.com/hashicorp/hcl/v2"
 )
 
+// MissingSourceError reports an HCL diagnostic that points at a position in Filename, built without
+// the file it points into.
+type MissingSourceError struct {
+	Filename string
+}
+
+func (err MissingSourceError) Error() string {
+	return fmt.Sprintf("diagnostic points into %s but has no parsed file to read its source from", err.Filename)
+}
+
+// Diagnostics is a list of diagnostics in their JSON form.
 type Diagnostics []*Diagnostic
 
 // Contains reports whether diags holds a diagnostic with the same source range as find.
@@ -20,6 +33,8 @@ func (diags *Diagnostics) Contains(find *Diagnostic) bool {
 	return false
 }
 
+// Diagnostic is the JSON form of an HCL diagnostic: its severity and messages, and the source range and snippet it
+// points at.
 type Diagnostic struct {
 	Range    *Range             `json:"range,omitempty"`
 	Snippet  *Snippet           `json:"snippet,omitempty"`
@@ -28,7 +43,15 @@ type Diagnostic struct {
 	Severity DiagnosticSeverity `json:"severity"`
 }
 
-func NewDiagnostic(file *hcl.File, hclDiag *hcl.Diagnostic) *Diagnostic {
+// NewDiagnostic converts hclDiag, read from file, into a Diagnostic. A Diagnostic it returns has a
+// Range exactly when it has a Snippet, and file is needed only for an hclDiag with a Subject.
+//
+// Returns [MissingSourceError] when hclDiag has a Subject and file is nil.
+func NewDiagnostic(file *hcl.File, hclDiag *hcl.Diagnostic) (*Diagnostic, error) {
+	if hclDiag.Subject != nil && file == nil {
+		return nil, MissingSourceError{Filename: hclDiag.Subject.Filename}
+	}
+
 	diag := &Diagnostic{
 		Severity: DiagnosticSeverity(hclDiag.Severity),
 		Summary:  hclDiag.Summary,
@@ -36,7 +59,7 @@ func NewDiagnostic(file *hcl.File, hclDiag *hcl.Diagnostic) *Diagnostic {
 	}
 
 	if hclDiag.Subject == nil {
-		return diag
+		return diag, nil
 	}
 
 	highlightRange := *hclDiag.Subject
@@ -61,5 +84,5 @@ func NewDiagnostic(file *hcl.File, hclDiag *hcl.Diagnostic) *Diagnostic {
 		},
 	}
 
-	return diag
+	return diag, nil
 }

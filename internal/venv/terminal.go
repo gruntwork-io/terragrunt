@@ -11,10 +11,12 @@ import (
 // Width reports 0 when no width is available, which callers read as "do not
 // wrap" or replace with a default of their own.
 type Terminal struct {
-	StdinIsTTY  func() bool
-	StdoutIsTTY func() bool
-	StderrIsTTY func() bool
-	Width       func() int
+	StdinIsTTY           func() bool
+	StdoutIsTTY          func() bool
+	StderrIsTTY          func() bool
+	StderrHandlesEscapes func() bool
+	Width                func() int
+	ErrWidth             func() int
 }
 
 // RequireTerminal panics with [ErrVenvTerminalUnset] when Terminal is nil.
@@ -32,6 +34,16 @@ func (v *Venv) RequireTerminal() {
 // substitute their own default for the 0.
 func osTerminalWidth() int {
 	width, _, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil {
+		return 0
+	}
+
+	return width
+}
+
+// osTerminalErrWidth returns the width of stderr, or 0 if it is not a terminal.
+func osTerminalErrWidth() int {
+	width, _, err := term.GetSize(int(os.Stderr.Fd()))
 	if err != nil {
 		return 0
 	}

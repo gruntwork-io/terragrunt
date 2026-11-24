@@ -260,6 +260,10 @@ func (f Filters) RestrictToStacks() Filters {
 // and subtracting it would drop that restriction and let components matching neither operand
 // through.
 //
+// A graph expression in a selecting filter takes as targets only the components discovery found,
+// not those it reached by following the dependency graph from another target. The right operand
+// of "|" and a negated expression can take any component they are evaluated against.
+//
 // If logger is provided, it will be used for logging warnings during evaluation.
 func (f Filters) Evaluate(
 	l log.Logger,
@@ -429,6 +433,8 @@ func initialComponents(
 	}
 
 	seen := make(map[string]component.Component, len(components))
+
+	evalCtx.targets = foundGraphTargets
 
 	for _, filter := range positiveFilters {
 		result, err := filter.Evaluate(l, evalCtx, components)

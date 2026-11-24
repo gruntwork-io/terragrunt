@@ -390,7 +390,12 @@ func TestStackGenerateFlagNarrowsNonGraphFilters(t *testing.T) {
 
 	tmpDir, _ := setupBoundaryStackRepo(t)
 
-	_, stderr, err := runBoundaryStackCommand(t, tmpDir, "stack generate", "--discovery-boundary ./live --filter './live/**'")
+	_, stderr, err := runBoundaryStackCommand(
+		t,
+		tmpDir,
+		"stack generate",
+		"--discovery-boundary ./live --filter './live/**'",
+	)
 	require.NoError(t, err, "stderr: %s", stderr)
 
 	assert.DirExists(t, filepath.Join(tmpDir, filepath.FromSlash(boundaryStackRolesUnitDir)))

@@ -1,0 +1,27 @@
+---
+name: get_repo_root
+description: Returns the absolute path of the root of the Git repository.
+configs: [unit, stack]
+params: []
+returns: string
+examples:
+  - description: In a repository checked out at `/home/me/infra`.
+    code: |
+      # prod/mysql/terragrunt.hcl
+
+      locals {
+        repo_root = get_repo_root() # "/home/me/infra"
+      }
+---
+
+`get_repo_root` returns the absolute path of the root of the Git repository, e.g. `/home/me/infra`. It fails when the unit or stack file is not in a Git repository.
+
+Use it to build paths that don't change with the depth of the unit:
+
+```hcl
+# prod/mysql/terragrunt.hcl
+
+inputs = {
+  config_file = "${get_repo_root()}/config/mysql.yaml"
+}
+```

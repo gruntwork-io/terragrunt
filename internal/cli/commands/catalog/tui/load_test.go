@@ -10,6 +10,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -52,7 +53,7 @@ func TestCreateCatalogTempPathResolvesSymlinkedTmpDir(t *testing.T) {
 func TestCreateCatalogTempPathUsesFreshDirectory(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	fsys := v.FS
 	repoURL := "github.com/gruntwork-io/terragrunt-scale-catalog"
 

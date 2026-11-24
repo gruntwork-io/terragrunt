@@ -20,7 +20,7 @@ func unitsVenv(t *testing.T, files map[string]string) (*venv.Venv, string) {
 
 	root := filepath.Join(venvtest.Root("/units"), t.Name())
 
-	return venvtest.New().WithFS(venvtest.NewFS(t, root, files)), root
+	return venv.MemVenv().WithFS(venvtest.NewFS(t, root, files)), root
 }
 
 // unitPairVenv builds a venv over a `bar` unit and a `foo` unit beside it, and returns it with the
@@ -62,7 +62,7 @@ inputs = {
 	l := createLogger()
 	ctx, pctx := newTestParsingContext(t, fooPath)
 
-	remoteState, err := config.ParseRemoteState(ctx, l, v, pctx)
+	remoteState, err := config.ParseRemoteState(ctx, l, v, new(config.Store), pctx)
 	require.NoError(t, err)
 	require.NotNil(t, remoteState)
 
@@ -97,7 +97,7 @@ remote_state {
 	l := createLogger()
 	ctx, pctx := newTestParsingContext(t, fooPath)
 
-	remoteState, err := config.ParseRemoteState(ctx, l, v, pctx)
+	remoteState, err := config.ParseRemoteState(ctx, l, v, new(config.Store), pctx)
 	require.NoError(t, err)
 	require.NotNil(t, remoteState)
 
@@ -130,7 +130,7 @@ inputs = {
 	l := createLogger()
 	ctx, pctx := newTestParsingContext(t, fooPath)
 
-	remoteState, err := config.ParseRemoteState(ctx, l, v, pctx)
+	remoteState, err := config.ParseRemoteState(ctx, l, v, new(config.Store), pctx)
 	require.NoError(t, err)
 	require.NotNil(t, remoteState)
 
@@ -158,7 +158,7 @@ func TestParseRemoteStateFromJSONConfig(t *testing.T) {
 	l := createLogger()
 	ctx, pctx := newTestParsingContext(t, filepath.Join(root, config.DefaultTerragruntJSONConfigPath))
 
-	remoteState, err := config.ParseRemoteState(ctx, l, v, pctx)
+	remoteState, err := config.ParseRemoteState(ctx, l, v, new(config.Store), pctx)
 	require.NoError(t, err)
 	require.NotNil(t, remoteState)
 
@@ -196,7 +196,7 @@ remote_state {
 	l := createLogger()
 	ctx, pctx := newTestParsingContext(t, filepath.Join(root, "foo", config.DefaultTerragruntConfigPath))
 
-	remoteState, err := config.ParseRemoteState(ctx, l, v, pctx)
+	remoteState, err := config.ParseRemoteState(ctx, l, v, new(config.Store), pctx)
 	require.NoError(t, err)
 	require.NotNil(t, remoteState)
 
@@ -238,7 +238,7 @@ dependency "bar" {
 	l := createLogger()
 	ctx, pctx := newTestParsingContext(t, filepath.Join(root, "foo", config.DefaultTerragruntConfigPath))
 
-	remoteState, err := config.ParseRemoteState(ctx, l, v, pctx)
+	remoteState, err := config.ParseRemoteState(ctx, l, v, new(config.Store), pctx)
 	require.NoError(t, err)
 	require.NotNil(t, remoteState)
 
@@ -283,7 +283,7 @@ inputs = {
 	l := createLogger()
 	ctx, pctx := newTestParsingContext(t, filepath.Join(root, "foo", config.DefaultTerragruntConfigPath))
 
-	remoteState, err := config.ParseRemoteState(ctx, l, v, pctx)
+	remoteState, err := config.ParseRemoteState(ctx, l, v, new(config.Store), pctx)
 	require.NoError(t, err)
 	require.NotNil(t, remoteState)
 

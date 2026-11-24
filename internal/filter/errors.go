@@ -8,16 +8,27 @@ import (
 type ErrorCode int
 
 const (
+	// ErrorCodeUnknown marks a parse error with no specific hint.
 	ErrorCodeUnknown ErrorCode = iota
+	// ErrorCodeUnexpectedToken marks a token that cannot appear at its position.
 	ErrorCodeUnexpectedToken
+	// ErrorCodeUnexpectedEOF marks a query that ends where an expression is expected.
 	ErrorCodeUnexpectedEOF
+	// ErrorCodeEmptyExpression marks an empty braced path "{}" or an empty graph boundary "()".
 	ErrorCodeEmptyExpression
+	// ErrorCodeMissingClosingBracket marks a Git filter with no closing ']'.
 	ErrorCodeMissingClosingBracket
+	// ErrorCodeMissingClosingBrace marks a braced path with no closing '}'.
 	ErrorCodeMissingClosingBrace
+	// ErrorCodeIllegalToken marks a character the lexer does not recognize.
 	ErrorCodeIllegalToken
+	// ErrorCodeMissingOperand marks an operator with no operand.
 	ErrorCodeMissingOperand
+	// ErrorCodeEmptyGitFilter marks a Git filter with no references, "[]".
 	ErrorCodeEmptyGitFilter
+	// ErrorCodeMissingGitRef marks a Git filter where a reference is expected but absent, such as "[main...]".
 	ErrorCodeMissingGitRef
+	// ErrorCodeInvalidGlob marks a glob pattern that fails to compile.
 	ErrorCodeInvalidGlob
 )
 

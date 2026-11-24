@@ -1,12 +1,12 @@
 //go:build azure
 
-// Package test_test contains the Azure end-to-end backend tests.
-//
-// These tests create and destroy real Azure resources behind the `azure` build tag.
+// The Azure end-to-end backend tests in this file create and destroy real
+// Azure resources behind the `azure` build tag.
 //
 // Unlike the hermetic tests, these fail loudly when credentials are absent
 // instead of calling t.Skip. A silently skipped live test reports success and
 // hides the fact that nothing was verified against Azure.
+
 package test_test
 
 import (
@@ -547,7 +547,11 @@ func azureFixtureForAccount(t *testing.T, account, resourceGroup string, assignR
 }
 
 // azureTestConfigForAccount resolves credentials bound to an explicit account.
-func azureTestConfigForAccount(ctx context.Context, t *testing.T, account, resourceGroup string) *azurehelper.AzureConfig {
+func azureTestConfigForAccount(
+	ctx context.Context,
+	t *testing.T,
+	account, resourceGroup string,
+) *azurehelper.AzureConfig {
 	t.Helper()
 
 	cfg, err := azurehelper.NewAzureConfigBuilder().
@@ -566,7 +570,13 @@ func azureTestConfigForAccount(ctx context.Context, t *testing.T, account, resou
 // waitForRoleAssignment blocks until the assignment reaches want, because Azure
 // applies role assignment changes asynchronously and a read straight after a
 // create or delete still reports the previous state.
-func waitForRoleAssignment(ctx context.Context, t *testing.T, c *azurehelper.RBACClient, scope, principalID string, want bool) {
+func waitForRoleAssignment(
+	ctx context.Context,
+	t *testing.T,
+	c *azurehelper.RBACClient,
+	scope, principalID string,
+	want bool,
+) {
 	t.Helper()
 
 	deadline := time.Now().Add(azureRBACPropagationTimeout)

@@ -7,14 +7,19 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -129,6 +134,187 @@ func TestTFAutoInitSkippedWhenOnlyUncopiedFilesChange(t *testing.T) {
 		"has been successfully initialized!",
 		"second plan should not re-run init when only a file the copy skips changed",
 	)
+}
+
+// Regression test for https://github.com/gruntwork-io/terragrunt/issues/7220
+func TestTFAutoInitRunsOnceWhenOnlyASubdirectoryCallsModules(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAutoInitModuleBlockInSubdir)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureAutoInitModuleBlockInSubdir)
+
+	recorder := helpers.NewExecRecorder(vexec.NewOSExec())
+	v := helpers.RunVenv(t).WithExec(recorder)
+
+	ranInit := make([]bool, 0, 3)
+
+	for range 3 {
+		ranInit = append(
+			ranInit,
+			planRunsInit(t, v, recorder, "terragrunt plan --non-interactive --working-dir "+rootPath),
+		)
+	}
+
+	assert.Equal(t, []bool{true, false, false}, ranInit)
+}
+
+func TestTFAutoInitRunsOnceWhenTheUnitUsesNoProvider(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAutoInitNoProviders)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureAutoInitNoProviders)
+
+	recorder := helpers.NewExecRecorder(vexec.NewOSExec())
+	v := helpers.RunVenv(t).WithExec(recorder)
+
+	ranInit := make([]bool, 0, 3)
+
+	for range 3 {
+		ranInit = append(
+			ranInit,
+			planRunsInit(t, v, recorder, "terragrunt plan --non-interactive --working-dir "+rootPath),
+		)
+	}
+
+	assert.Equal(t, []bool{true, false, false}, ranInit)
+}
+
+func TestTFAutoInitRunsAgainWhenAModuleOutsideTheUnitChangesInPlace(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAutoInitInPlaceModuleOutsideUnit)
+	fixturePath := filepath.Join(tmpEnvPath, testFixtureAutoInitInPlaceModuleOutsideUnit)
+	unitPath := filepath.Join(fixturePath, "unit")
+	outsideModule := filepath.Join(fixturePath, "modules", "outside", "main.tf")
+
+	recorder := helpers.NewExecRecorder(vexec.NewOSExec())
+	v := helpers.RunVenv(t).WithExec(recorder)
+
+	plan := func() bool {
+		t.Helper()
+
+		return planRunsInit(
+			t,
+			v,
+			recorder,
+			"terragrunt plan --non-interactive --experiment no-dot-terragrunt-cache --working-dir "+unitPath,
+		)
+	}
+
+	ranInit := make([]bool, 0, 4)
+	ranInit = append(ranInit, plan(), plan())
+
+	randomProvider := `
+terraform {
+  required_providers {
+    random = {
+      source  = "registry.opentofu.org/hashicorp/random"
+      version = "~> 3.6"
+    }
+  }
+}
+
+resource "random_pet" "this" {}
+`
+	outsideModuleFile, err := os.OpenFile(outsideModule, os.O_APPEND|os.O_WRONLY, 0o644)
+	require.NoError(t, err)
+
+	_, err = outsideModuleFile.WriteString(randomProvider)
+	require.NoError(t, err)
+	require.NoError(t, outsideModuleFile.Close())
+
+	ranInit = append(ranInit, plan(), plan())
+
+	assert.Equal(t, []bool{true, false, true, false}, ranInit)
+}
+
+func TestTFAutoInitRunsOnlyWhenGeneratedContentInitReadsChanges(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAutoInitGeneratedContent)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureAutoInitGeneratedContent)
+
+	recorder := helpers.NewExecRecorder(vexec.NewOSExec())
+	v := helpers.RunVenv(t).WithExec(recorder)
+	command := "terragrunt plan --non-interactive --working-dir " + rootPath
+
+	ranInit := make([]bool, 0, 4)
+	ranInit = append(ranInit, planRunsInit(t, v, recorder, command), planRunsInit(t, v, recorder, command))
+
+	env := maps.Clone(v.Env)
+	env["TG_TEST_AUTO_INIT_MODULE"] = "b"
+	v = v.WithEnv(env)
+
+	ranInit = append(ranInit, planRunsInit(t, v, recorder, command), planRunsInit(t, v, recorder, command))
+
+	assert.Equal(t, []bool{true, false, true, false}, ranInit)
+}
+
+func TestTFAutoInitRunsWhenAVariableAModuleSourceReadsChanges(t *testing.T) {
+	t.Parallel()
+
+	if helpers.IsTerraform(t.Context()) {
+		t.Skip("Terraform evaluates only const variables in module sources")
+		return
+	}
+
+	testCases := []struct {
+		name string
+		unit string
+	}{
+		{name: "variable set through inputs", unit: "inputs"},
+		{name: "variable default read from a .tf.json file", unit: "json"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAutoInitStaticVariables)
+			unitPath := filepath.Join(tmpEnvPath, testFixtureAutoInitStaticVariables, tc.unit)
+
+			recorder := helpers.NewExecRecorder(vexec.NewOSExec())
+
+			plan := func(module, other string) bool {
+				t.Helper()
+
+				v := helpers.RunVenv(t).WithExec(recorder)
+				env := maps.Clone(v.Env)
+				env["TG_TEST_AUTO_INIT_MODULE"] = module
+				env["TG_TEST_AUTO_INIT_OTHER"] = other
+
+				return planRunsInit(
+					t,
+					v.WithEnv(env),
+					recorder,
+					"terragrunt plan --non-interactive --working-dir "+unitPath,
+				)
+			}
+
+			ranInit := []bool{plan("a", "1"), plan("a", "2"), plan("b", "2"), plan("b", "3")}
+
+			assert.Equal(t, []bool{true, false, true, false}, ranInit)
+		})
+	}
+}
+
+// planRunsInit runs command against v and reports whether the run executed `init`.
+//
+// With the provider cache server enabled, one auto-init executes `init` twice.
+func planRunsInit(t *testing.T, v *venv.Venv, recorder *helpers.ExecRecorder, command string) bool {
+	t.Helper()
+
+	recordedBefore := len(recorder.Commands())
+
+	_, _, err := helpers.RunTerragruntCommandWithOutputWithVenv(t, v, command)
+	require.NoError(t, err)
+
+	return slices.ContainsFunc(recorder.Commands()[recordedBefore:], func(c helpers.RecordedCommand) bool {
+		name := filepath.Base(c.Name)
+
+		return (name == helpers.TofuBinary || name == helpers.TerraformBinary) &&
+			len(c.Args) > 0 && c.Args[0] == tf.CommandNameInit
+	})
 }
 
 // Test case for yamldecode bug: https://github.com/gruntwork-io/terragrunt/issues/834
@@ -783,6 +969,8 @@ func TestTFChainedDepsExposedIncludeNoErrorLog(t *testing.T) {
 // otherwise location-less errors (e.g. "unsuitable value: a bool is required") are impossible to debug.
 func TestTFExposedIncludeErrorIdentifiesIncludeBlock(t *testing.T) {
 	t.Parallel()
+
+	helpers.SkipInExperimentMode(t, experiment.EmptyDependencyOutputs)
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureExposedIncludePartialParseError)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureExposedIncludePartialParseError)

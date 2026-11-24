@@ -1,11 +1,9 @@
 package config_test
 
 import (
-	"context"
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
@@ -21,7 +19,8 @@ import (
 // tfInitCommand is the terraform command these autoinclude tests resolve dependency mock outputs against.
 const tfInitCommand = "init"
 
-// A malformed sibling autoinclude makes the merge helper return an error; ParseConfigFile must surface that error without nil-panicking in handleInclude.
+// TestMergeAutoInclude_MalformedSiblingDoesNotPanic pins that a full parse reports the error of a malformed sibling
+// autoinclude instead of panicking.
 func TestMergeAutoInclude_MalformedSiblingDoesNotPanic(t *testing.T) {
 	t.Parallel()
 
@@ -36,7 +35,7 @@ inputs = {
 }
 `), 0644))
 
-	// A unit with a resolvable include so TrackInclude is set and the post-merge handleInclude branch dereferences config on a shallow merge.
+	// The unit has a resolvable include, so the autoinclude merges into a config that merged an include.
 	require.NoError(t, vfs.WriteFile(v.FS, cfgPath, []byte(`
 include "root" {
   path           = "`+filepath.ToSlash(filepath.Join(parentDir, "root.hcl"))+`"
@@ -63,7 +62,9 @@ inputs = {
 
 	// The call must return the parse error, never panic on a nil config.
 	require.NotPanics(t, func() {
-		_, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+		s := new(config.Store)
+
+		_, err := s.ResolveRunConfig(ctx, l, v, pctx, cfgPath)
 		require.Error(t, err, "a malformed sibling autoinclude must surface as an error")
 	})
 }
@@ -121,11 +122,13 @@ dependency "foo" {
 
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
-	pctx.OriginalTerraformCommand = tfInitCommand
+	pctx.OriginalTofuCommand = tfInitCommand
 
 	l := logger.CreateLogger()
 
-	parsed, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+	s := new(config.Store)
+
+	parsed, err := s.ResolveRunConfig(ctx, l, v, pctx, cfgPath)
 	require.NoError(
 		t,
 		err,
@@ -138,8 +141,8 @@ dependency "foo" {
 	assert.Equal(t, marker, parsed.RemoteState.BackendConfig["path"])
 }
 
-// TestFoldSiblingAutoIncludeDeps_FoldsIncludeInheritedDeps pins that foldSiblingAutoIncludeDeps folds in
-// dependency blocks the autoinclude inherits through its OWN include blocks, not only blocks declared
+// TestFoldSiblingAutoIncludeDeps_FoldsIncludeInheritedDeps pins that a unit's dependency blocks fold in the
+// dependency blocks its sibling autoinclude inherits through its OWN include blocks, not only blocks declared
 // directly in the autoinclude file. The autoinclude declares no dependency of its own; it inherits "foo"
 // from an included base.hcl via merge_strategy = "deep". Without that fold the unit's remote_state
 // reference to dependency.foo would not resolve.
@@ -199,11 +202,13 @@ include "base" {
 
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
-	pctx.OriginalTerraformCommand = tfInitCommand
+	pctx.OriginalTofuCommand = tfInitCommand
 
 	l := logger.CreateLogger()
 
-	parsed, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+	s := new(config.Store)
+
+	parsed, err := s.ResolveRunConfig(ctx, l, v, pctx, cfgPath)
 	require.NoError(
 		t,
 		err,
@@ -254,7 +259,9 @@ include "common" {
 	l := logger.CreateLogger()
 
 	require.NotPanics(t, func() {
-		parsed, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+		s := new(config.Store)
+
+		parsed, err := s.ResolveRunConfig(ctx, l, v, pctx, cfgPath)
 		require.NoError(t, err, "a same-dir autoinclude include must terminate, not recurse")
 		require.NotNil(t, parsed)
 		// The included sibling's inputs still flow through the autoinclude into the unit.
@@ -329,9 +336,11 @@ dependency "leak" {
 
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
-	pctx.OriginalTerraformCommand = tfInitCommand
+	pctx.OriginalTofuCommand = tfInitCommand
 
-	parsed, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, cfgPath, nil)
+	s := new(config.Store)
+
+	parsed, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, cfgPath)
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
 
@@ -383,7 +392,9 @@ exclude {
 	ctxFull, pctxFull := newTestParsingContext(t, cfgPath)
 	pctxFull.Experiments.EnableExperiment(experiment.StackDependencies)
 
-	parsedFull, err := config.ParseConfigFile(ctxFull, l, v, pctxFull, cfgPath, nil)
+	s := new(config.Store)
+
+	parsedFull, err := s.ResolveRunConfig(ctxFull, l, v, pctxFull, cfgPath)
 	require.NoError(t, err)
 	require.NotNil(t, parsedFull)
 	require.NotNil(t, parsedFull.Exclude)
@@ -398,7 +409,7 @@ exclude {
 	pctxPartial.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctxPartial = pctxPartial.WithDecodeList(config.ExcludeBlock).WithSkipOutputsResolution()
 
-	parsedPartial, err := config.PartialParseConfigFile(ctxPartial, l, v, pctxPartial, cfgPath, nil)
+	parsedPartial, err := s.ResolvePartialConfig(ctxPartial, l, v, pctxPartial, cfgPath)
 	require.NoError(t, err)
 	require.NotNil(t, parsedPartial)
 	require.NotNil(t, parsedPartial.Exclude)
@@ -431,7 +442,9 @@ inputs = {
 
 	l := logger.CreateLogger()
 
-	parsed, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+	s := new(config.Store)
+
+	parsed, err := s.ResolveRunConfig(ctx, l, v, pctx, cfgPath)
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
 
@@ -470,7 +483,9 @@ inputs = {
 
 	l := logger.CreateLogger()
 
-	parsed, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+	s := new(config.Store)
+
+	parsed, err := s.ResolveRunConfig(ctx, l, v, pctx, cfgPath)
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
 
@@ -511,7 +526,9 @@ inputs = {
 
 	l := logger.CreateLogger()
 
-	parsed, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+	s := new(config.Store)
+
+	parsed, err := s.ResolveRunConfig(ctx, l, v, pctx, cfgPath)
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
 
@@ -562,7 +579,9 @@ dependency "foo" {
 
 	l := logger.CreateLogger()
 
-	_, err := config.PartialParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+	s := new(config.Store)
+
+	_, err := s.ResolvePartialConfig(ctx, l, v, pctx, cfgPath)
 	require.NoError(t, err)
 }
 
@@ -614,11 +633,13 @@ dependency "foo" {
 
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
-	pctx.OriginalTerraformCommand = tfInitCommand
+	pctx.OriginalTofuCommand = tfInitCommand
 
 	l := logger.CreateLogger()
 
-	parsed, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+	s := new(config.Store)
+
+	parsed, err := s.ResolveRunConfig(ctx, l, v, pctx, cfgPath)
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
 	require.NotNil(t, parsed.RemoteState)
@@ -657,11 +678,13 @@ dependency "foo" {
 
 	ctx, pctx := newTestParsingContext(t, autoIncludePath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
-	pctx.OriginalTerraformCommand = tfInitCommand
+	pctx.OriginalTofuCommand = tfInitCommand
 
 	l := logger.CreateLogger()
 
-	parsed, err := config.ParseConfigFile(ctx, l, v, pctx, autoIncludePath, nil)
+	s := new(config.Store)
+
+	parsed, err := s.ResolveRunConfig(ctx, l, v, pctx, autoIncludePath)
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
 }
@@ -696,7 +719,9 @@ inputs = {
 
 	l := logger.CreateLogger()
 
-	parsed, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+	s := new(config.Store)
+
+	parsed, err := s.ResolveRunConfig(ctx, l, v, pctx, cfgPath)
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
 
@@ -754,7 +779,9 @@ inputs = {
 	ctxFull, pctxFull := newTestParsingContext(t, cfgPath)
 	pctxFull.Experiments.EnableExperiment(experiment.StackDependencies)
 
-	parsedFull, err := config.ParseConfigFile(ctxFull, l, v, pctxFull, cfgPath, nil)
+	s := new(config.Store)
+
+	parsedFull, err := s.ResolveRunConfig(ctxFull, l, v, pctxFull, cfgPath)
 	require.NoError(t, err)
 	require.NotNil(t, parsedFull)
 	assert.Equal(
@@ -776,7 +803,7 @@ inputs = {
 	pctxPartial.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctxPartial = pctxPartial.WithDecodeList(config.TerraformSource).WithSkipOutputsResolution()
 
-	parsedPartial, err := config.PartialParseConfigFile(ctxPartial, l, v, pctxPartial, cfgPath, nil)
+	parsedPartial, err := s.ResolvePartialConfig(ctxPartial, l, v, pctxPartial, cfgPath)
 	require.NoError(t, err)
 	require.NotNil(t, parsedPartial)
 	require.NotNil(t, parsedPartial.Terraform)
@@ -840,7 +867,9 @@ errors {
 
 	l := logger.CreateLogger()
 
-	parsed, err := config.PartialParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+	s := new(config.Store)
+
+	parsed, err := s.ResolvePartialConfig(ctx, l, v, pctx, cfgPath)
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
 
@@ -901,7 +930,9 @@ dependency "foo" {
 
 	l := logger.CreateLogger()
 
-	parsed, err := config.PartialParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+	s := new(config.Store)
+
+	parsed, err := s.ResolvePartialConfig(ctx, l, v, pctx, cfgPath)
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
 
@@ -917,18 +948,6 @@ dependency "foo" {
 		names["foo"],
 		"dependency foo must not be double-counted after autoinclude merge",
 	)
-
-	require.NotNil(t, parsed.Dependencies)
-
-	paths := map[string]int{}
-
-	for _, p := range parsed.Dependencies.Paths {
-		paths[p]++
-	}
-
-	for p, count := range paths {
-		assert.Equal(t, 1, count, "dependency path %s must not be duplicated", p)
-	}
 }
 
 // Recursion guard: partial parsing the autoinclude file directly must return normally instead of recursing back into the autoinclude merge.
@@ -961,13 +980,15 @@ dependency "foo" {
 
 	ctx, pctx := newTestParsingContext(t, autoIncludePath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
-	pctx.OriginalTerraformCommand = tfInitCommand
+	pctx.OriginalTofuCommand = tfInitCommand
 	pctx = pctx.WithDecodeList(config.DependencyBlock, config.RemoteStateBlock).
 		WithSkipOutputsResolution()
 
 	l := logger.CreateLogger()
 
-	parsed, err := config.PartialParseConfigFile(ctx, l, v, pctx, autoIncludePath, nil)
+	s := new(config.Store)
+
+	parsed, err := s.ResolvePartialConfig(ctx, l, v, pctx, autoIncludePath)
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
 }
@@ -998,13 +1019,6 @@ inputs = {
 `), 0644))
 
 	ctx, pctx := newTestParsingContext(t, cfgPath)
-	// A shared config cache so the second parse can see (and would otherwise reuse) the first entry.
-	ctx = context.WithValue(
-		ctx,
-		config.TerragruntConfigCacheContextKey,
-		cache.NewCache[*config.TerragruntConfig]("test-config-cache"),
-	)
-	pctx.UsePartialParseConfigCache = true
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
 	pctx = pctx.WithDecodeList(config.DependencyBlock, config.RemoteStateBlock).
 		WithSkipOutputsResolution()
@@ -1012,7 +1026,9 @@ inputs = {
 	l := logger.CreateLogger()
 
 	// First parse populates the cache while no autoinclude exists.
-	before, err := config.PartialParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+	s := new(config.Store)
+
+	before, err := s.ResolvePartialConfig(ctx, l, v, pctx, cfgPath)
 	require.NoError(t, err)
 	require.NotNil(t, before)
 	assert.Nil(t, before.RemoteState, "no autoinclude yet: no remote_state should be merged")
@@ -1039,7 +1055,7 @@ remote_state {
 `), 0644))
 
 	// Second parse must reflect the freshly created autoinclude, not the stale pre-autoinclude entry.
-	after, err := config.PartialParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+	after, err := s.ResolvePartialConfig(ctx, l, v, pctx, cfgPath)
 	require.NoError(t, err)
 	require.NotNil(t, after)
 	require.NotNil(
@@ -1061,21 +1077,73 @@ remote_state {
 }
 
 // A unit partial-parsed with a present autoinclude, then re-parsed after the autoinclude is EDITED
-// in-process, must reflect the edit rather than the first cached result.
+// in-process at the same mtime, must reflect the edit rather than the first cached result.
 func TestPartialParseAutoIncludeCacheNotStaleOnEdit(t *testing.T) {
 	t.Parallel()
 
-	v, tmpDir := newMemTestDir(t)
-	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
+	testCases := []struct {
+		name   string
+		edited string
+	}{
+		{name: "different size", edited: "second"},
+		{name: "same size", edited: "third"},
+	}
 
-	require.NoError(t, vfs.WriteFile(v.FS, cfgPath, []byte(`
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v, tmpDir := newMemTestDir(t)
+			cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
+
+			require.NoError(t, vfs.WriteFile(v.FS, cfgPath, []byte(`
 inputs = {
   name = "from-unit"
 }
 `), 0644))
 
-	autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
-	require.NoError(t, vfs.WriteFile(v.FS, autoIncludePath, []byte(`
+			autoIncludePath := filepath.Join(tmpDir, config.DefaultAutoIncludeFile)
+			require.NoError(t, vfs.WriteFile(v.FS, autoIncludePath, autoIncludeRemoteStateHCL("first"), 0644))
+
+			ctx, pctx := newTestParsingContext(t, cfgPath)
+			pctx.Experiments.EnableExperiment(experiment.StackDependencies)
+			pctx = pctx.WithDecodeList(config.RemoteStateBlock).WithSkipOutputsResolution()
+
+			l := logger.CreateLogger()
+
+			s := new(config.Store)
+
+			first, err := s.ResolvePartialConfig(ctx, l, v, pctx, cfgPath)
+			require.NoError(t, err)
+			require.NotNil(t, first)
+			require.NotNil(t, first.RemoteState)
+			assert.Equal(t, "first", first.RemoteState.BackendConfig["path"])
+
+			firstInfo, err := v.FS.Stat(autoIncludePath)
+			require.NoError(t, err)
+
+			firstModTime := firstInfo.ModTime()
+
+			require.NoError(t, vfs.WriteFile(v.FS, autoIncludePath, autoIncludeRemoteStateHCL(tc.edited), 0644))
+			require.NoError(t, v.FS.Chtimes(autoIncludePath, firstModTime, firstModTime))
+
+			second, err := s.ResolvePartialConfig(ctx, l, v, pctx, cfgPath)
+			require.NoError(t, err)
+			require.NotNil(t, second)
+			require.NotNil(t, second.RemoteState)
+			assert.Equal(
+				t,
+				tc.edited,
+				second.RemoteState.BackendConfig["path"],
+				"the edited autoinclude must win, not the stale cached result",
+			)
+		})
+	}
+}
+
+// autoIncludeRemoteStateHCL returns an autoinclude whose local remote_state config sets path.
+func autoIncludeRemoteStateHCL(path string) []byte {
+	return []byte(`
 remote_state {
   backend = "local"
   generate = {
@@ -1083,60 +1151,14 @@ remote_state {
     if_exists = "overwrite"
   }
   config = {
-    path = "first"
+    path = "` + path + `"
   }
 }
-`), 0644))
-
-	ctx, pctx := newTestParsingContext(t, cfgPath)
-	// A shared config cache so the second parse can see (and would otherwise reuse) the first entry.
-	ctx = context.WithValue(
-		ctx,
-		config.TerragruntConfigCacheContextKey,
-		cache.NewCache[*config.TerragruntConfig]("test-config-cache"),
-	)
-	pctx.UsePartialParseConfigCache = true
-	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
-	pctx = pctx.WithDecodeList(config.RemoteStateBlock).WithSkipOutputsResolution()
-
-	l := logger.CreateLogger()
-
-	first, err := config.PartialParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
-	require.NoError(t, err)
-	require.NotNil(t, first)
-	require.NotNil(t, first.RemoteState)
-	assert.Equal(t, "first", first.RemoteState.BackendConfig["path"])
-
-	// Edit the autoinclude in-process; the changed content must change the cache key.
-	require.NoError(t, vfs.WriteFile(v.FS, autoIncludePath, []byte(`
-remote_state {
-  backend = "local"
-  generate = {
-    path      = "backend.tf"
-    if_exists = "overwrite"
-  }
-  config = {
-    path = "second"
-  }
-}
-`), 0644))
-
-	second, err := config.PartialParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
-	require.NoError(t, err)
-	require.NotNil(t, second)
-	require.NotNil(t, second.RemoteState)
-	assert.Equal(
-		t,
-		"second",
-		second.RemoteState.BackendConfig["path"],
-		"the edited autoinclude must win, not the stale cached result",
-	)
+`)
 }
 
-// A dependencies block path that overlaps a DISABLED dependency block of the same path must survive a
-// sibling autoinclude merge. The merge rebuilds the block derived path list through
-// dependencyBlocksToModuleDependencies, which skips disabled blocks, so the path is classified as
-// dependencies-block-only and preserved instead of being dropped as if a dependency block still carried it.
+// TestMergeAutoInclude_DependenciesBlockEdgeSurvivesDisabledDependencyOverlap pins that a dependencies block path
+// matching a disabled dependency block survives a sibling autoinclude merge.
 func TestMergeAutoInclude_DependenciesBlockEdgeSurvivesDisabledDependencyOverlap(t *testing.T) {
 	t.Parallel()
 
@@ -1178,7 +1200,9 @@ dependency "bar" {
 
 	l := logger.CreateLogger()
 
-	parsed, err := config.PartialParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+	s := new(config.Store)
+
+	parsed, err := s.ResolvePartialConfig(ctx, l, v, pctx, cfgPath)
 	require.NoError(t, err)
 	require.NotNil(t, parsed.Dependencies)
 	assert.Contains(
@@ -1220,7 +1244,7 @@ stack "networking" {
 
 	l := logger.CreateLogger()
 
-	cfgCty, err := config.ParseTerragruntConfig(ctx, l, v, pctx, autoIncludePath, nil)
+	cfgCty, err := config.ParseTerragruntConfig(ctx, l, v, new(config.Store), pctx, autoIncludePath, nil)
 	require.NoError(
 		t,
 		err,
@@ -1284,11 +1308,11 @@ inputs = {
 	cfgPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
-	pctx.OriginalTerraformCommand = tfInitCommand
+	pctx.OriginalTofuCommand = tfInitCommand
 
 	l := logger.CreateLogger()
 
-	cfgCty, err := config.ParseTerragruntConfig(ctx, l, v, pctx, autoIncludePath, nil)
+	cfgCty, err := config.ParseTerragruntConfig(ctx, l, v, new(config.Store), pctx, autoIncludePath, nil)
 	require.NoError(t, err, "a unit-level autoinclude file must read through the unit-config path")
 
 	cfgMap, err := ctyhelper.ParseCtyValueToMap(cfgCty)
@@ -1306,10 +1330,10 @@ inputs = {
 	assert.Equal(t, "./vpc", vpcDep["config_path"])
 }
 
-// TestValidateStackAutoIncludes_ReportsMalformedAutoInclude pins that the strict autoinclude parse
+// TestStackAutoIncludes_ReportsMalformedAutoInclude pins that the strict autoinclude parse
 // behind `hcl validate` reports a malformed autoinclude block (here a locals block, which is
 // explicitly rejected) that the lenient ParseStackConfig decode lets through into Remain.
-func TestValidateStackAutoIncludes_ReportsMalformedAutoInclude(t *testing.T) {
+func TestStackAutoIncludes_ReportsMalformedAutoInclude(t *testing.T) {
 	t.Parallel()
 
 	v, tmpDir := newMemTestDir(t)
@@ -1333,14 +1357,14 @@ unit "app" {
 
 	l := logger.CreateLogger()
 
-	stackCfg, err := config.ReadStackConfigFile(ctx, l, v, pctx, stackPath, nil)
+	stackCfg, err := config.ReadStackConfigFile(ctx, l, v, new(config.Store), pctx, stackPath, nil)
 	require.NoError(
 		t,
 		err,
 		"the lenient stack decode must keep accepting the malformed autoinclude block",
 	)
 
-	err = config.ValidateStackAutoIncludes(ctx, l, v, pctx, stackPath, stackCfg, nil)
+	_, err = config.StackAutoIncludes(ctx, l, v, new(config.Store), pctx, stackPath, stackCfg, nil)
 	require.Error(t, err, "the strict autoinclude parse must report the locals block")
 
 	var stageErr config.AutoIncludeParserStageError
@@ -1384,7 +1408,9 @@ inputs = {
 
 	l := logger.CreateLogger()
 
-	parsed, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+	s := new(config.Store)
+
+	parsed, err := s.ResolveRunConfig(ctx, l, v, pctx, cfgPath)
 	require.NoError(t, err, "parsing must not fail on values.vpc_id when autoinclude overrides vpc_id")
 	require.NotNil(t, parsed)
 
@@ -1443,7 +1469,7 @@ region = "us-east-1"
 
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
-	pctx.OriginalTerraformCommand = tfInitCommand
+	pctx.OriginalTofuCommand = tfInitCommand
 
 	values := cty.ObjectVal(map[string]cty.Value{
 		"region": cty.StringVal("us-east-1"),
@@ -1452,7 +1478,9 @@ region = "us-east-1"
 
 	l := logger.CreateLogger()
 
-	parsed, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+	s := new(config.Store)
+
+	parsed, err := s.ResolveRunConfig(ctx, l, v, pctx, cfgPath)
 	require.NoError(t, err, "autoinclude dependency override must suppress the unresolvable values.vpc_path")
 	require.NotNil(t, parsed)
 	assert.Equal(t, marker, parsed.Inputs["vpc_id"], "autoinclude's mock output must win")
@@ -1513,7 +1541,7 @@ dependency "vpc" {
 
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
-	pctx.OriginalTerraformCommand = tfInitCommand
+	pctx.OriginalTofuCommand = tfInitCommand
 
 	values := cty.ObjectVal(map[string]cty.Value{
 		"region": cty.StringVal("us-east-1"),
@@ -1522,7 +1550,9 @@ dependency "vpc" {
 
 	l := logger.CreateLogger()
 
-	parsed, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+	s := new(config.Store)
+
+	parsed, err := s.ResolveRunConfig(ctx, l, v, pctx, cfgPath)
 	require.NoError(t, err, "mixed deps must resolve when autoinclude overrides the unresolvable one")
 	require.NotNil(t, parsed)
 	assert.Equal(t, "autoinclude-vpc", parsed.Inputs["vpc_id"], "autoinclude must win for vpc")
@@ -1568,7 +1598,7 @@ dependency "other" {
 
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
-	pctx.OriginalTerraformCommand = tfInitCommand
+	pctx.OriginalTofuCommand = tfInitCommand
 
 	values := cty.ObjectVal(map[string]cty.Value{
 		"region": cty.StringVal("us-east-1"),
@@ -1577,7 +1607,9 @@ dependency "other" {
 
 	l := logger.CreateLogger()
 
-	_, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+	s := new(config.Store)
+
+	_, err := s.ResolveRunConfig(ctx, l, v, pctx, cfgPath)
 	require.Error(t, err, "a non-overridden dep with unresolvable config_path must still fail")
 }
 
@@ -1606,7 +1638,7 @@ inputs = {
 
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
-	pctx.OriginalTerraformCommand = tfInitCommand
+	pctx.OriginalTofuCommand = tfInitCommand
 
 	values := cty.ObjectVal(map[string]cty.Value{
 		"region": cty.StringVal("us-east-1"),
@@ -1615,7 +1647,9 @@ inputs = {
 
 	l := logger.CreateLogger()
 
-	_, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+	s := new(config.Store)
+
+	_, err := s.ResolveRunConfig(ctx, l, v, pctx, cfgPath)
 	require.Error(t, err, "without autoinclude the values.vpc_path error must not be swallowed")
 
 	var diags hcl.Diagnostics
@@ -1670,11 +1704,13 @@ dependency "vpc" {
 
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
-	pctx.OriginalTerraformCommand = tfInitCommand
+	pctx.OriginalTofuCommand = tfInitCommand
 
 	l := logger.CreateLogger()
 
-	parsed, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+	s := new(config.Store)
+
+	parsed, err := s.ResolveRunConfig(ctx, l, v, pctx, cfgPath)
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
 	assert.Equal(t, "from-autoinclude", parsed.Inputs["vpc_id"])
@@ -1728,11 +1764,13 @@ dependency "vpc" {
 
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
-	pctx.OriginalTerraformCommand = tfInitCommand
+	pctx.OriginalTofuCommand = tfInitCommand
 
 	l := logger.CreateLogger()
 
-	_, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+	s := new(config.Store)
+
+	_, err := s.ResolveRunConfig(ctx, l, v, pctx, cfgPath)
 
 	var collision config.DependencyLabelCollisionError
 	require.ErrorAs(t, err, &collision)
@@ -1776,7 +1814,7 @@ dependency "vpc" {
 
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 	pctx.Experiments.EnableExperiment(experiment.StackDependencies)
-	pctx.OriginalTerraformCommand = tfInitCommand
+	pctx.OriginalTofuCommand = tfInitCommand
 
 	values := cty.ObjectVal(map[string]cty.Value{
 		"region": cty.StringVal("us-east-1"),
@@ -1785,6 +1823,8 @@ dependency "vpc" {
 
 	l := logger.CreateLogger()
 
-	_, err := config.ParseConfigFile(ctx, l, v, pctx, cfgPath, nil)
+	s := new(config.Store)
+
+	_, err := s.ResolveRunConfig(ctx, l, v, pctx, cfgPath)
 	require.Error(t, err)
 }

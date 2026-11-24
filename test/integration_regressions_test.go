@@ -11,6 +11,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
@@ -33,6 +34,11 @@ const (
 	testFixtureExposedIncludePartialParseError   = "fixtures/regressions/exposed-include-partial-parse-error"
 	testFixtureDAGQueueDisplay                   = "fixtures/regressions/dag-queue-display"
 	testFixtureAutoInitMarkerCachedModules       = "fixtures/regressions/auto-init-marker-with-cached-modules"
+	testFixtureAutoInitModuleBlockInSubdir       = "fixtures/regressions/auto-init-module-block-in-subdir"
+	testFixtureAutoInitNoProviders               = "fixtures/regressions/auto-init-no-providers"
+	testFixtureAutoInitInPlaceModuleOutsideUnit  = "fixtures/regressions/auto-init-in-place-module-outside-unit"
+	testFixtureAutoInitGeneratedContent          = "fixtures/regressions/auto-init-generated-content"
+	testFixtureAutoInitStaticVariables           = "fixtures/regressions/auto-init-static-variables"
 	testFixtureDependencyExtraArgsEnv            = "fixtures/regressions/dependency-extra-args-env"
 	testFixtureDependencyHookOutput              = "fixtures/regressions/dependency-hook-output"
 	testFixtureDependencyExtraArgsOutput         = "fixtures/regressions/dependency-extra-args-output"
@@ -264,6 +270,8 @@ func TestExposedIncludePartialParseSucceeds(t *testing.T) {
 // This ensures we only swallow include resolution errors during partial parse, not during full parse.
 func TestExposedIncludeFullParseReturnsError(t *testing.T) {
 	t.Parallel()
+
+	helpers.SkipInExperimentMode(t, experiment.EmptyDependencyOutputs)
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureExposedIncludePartialParseError)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureExposedIncludePartialParseError)

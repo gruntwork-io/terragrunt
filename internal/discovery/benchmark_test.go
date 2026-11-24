@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -78,8 +79,8 @@ const (
 type dependentsFixture func(tb testing.TB, dir string) (target string, selected int)
 
 // chainedDependentsFixture builds the shared n-unit layout and targets
-// infra-0000, whose only dependent is infra-0001, so the upstream dependent walk
-// covers the whole fixture to find that one dependent.
+// infra-0000, whose only dependent is infra-0001, so the walk to the dependent
+// boundary covers the whole fixture to find that one dependent.
 func chainedDependentsFixture(n int) dependentsFixture {
 	return func(tb testing.TB, dir string) (string, int) {
 		tb.Helper()
@@ -94,11 +95,14 @@ func chainedDependentsFixture(n int) dependentsFixture {
 // fixture, running from the directory placement names.
 //
 // Both placements are worth measuring, because they cost differently: from the
-// repository root the filesystem phase has already found every dependent, so
-// the upstream walk parses nothing it has not already seen, while from the
-// target's own directory the walk is what finds them, and it re-sweeps the
-// boundary tree once per dependent it finds.
-func benchmarkDependents(b *testing.B, placement dependentsPlacement, fixture dependentsFixture) {
+// repository root the walk of the working directory has already found every
+// dependent, while from the target's own directory a second walk, up to the
+// dependent boundary, is what finds them.
+func benchmarkDependents(
+	b *testing.B,
+	placement dependentsPlacement,
+	fixture dependentsFixture,
+) {
 	b.Helper()
 
 	tmpDir := b.TempDir()
@@ -126,7 +130,7 @@ func benchmarkDependents(b *testing.B, placement dependentsPlacement, fixture de
 			WithFilters(filterQueries).
 			WithSuppressParseErrors()
 
-		components, err := d.Discover(b.Context(), l, v, opts)
+		components, err := d.Discover(config.WithCaches(b.Context()), l, v, new(config.Store), opts)
 		require.NoError(b, err)
 		require.Len(b, components, selected)
 	}
@@ -157,7 +161,7 @@ func benchmarkPathExpression(b *testing.B, n int) {
 			WithFilters(filterQueries).
 			WithSuppressParseErrors()
 
-		components, err := d.Discover(b.Context(), l, v, opts)
+		components, err := d.Discover(config.WithCaches(b.Context()), l, v, new(config.Store), opts)
 		require.NoError(b, err)
 		require.Len(b, components, 2)
 	}
@@ -185,7 +189,7 @@ func benchmarkGraphExpression(b *testing.B, n int) {
 			WithFilters(filterQueries).
 			WithSuppressParseErrors()
 
-		components, err := d.Discover(b.Context(), l, v, opts)
+		components, err := d.Discover(config.WithCaches(b.Context()), l, v, new(config.Store), opts)
 		require.NoError(b, err)
 		require.Len(b, components, 2)
 	}
@@ -216,7 +220,7 @@ func benchmarkPathAndGraphExpression(b *testing.B, n int) {
 			WithFilters(filterQueries).
 			WithSuppressParseErrors()
 
-		components, err := d.Discover(b.Context(), l, v, opts)
+		components, err := d.Discover(config.WithCaches(b.Context()), l, v, new(config.Store), opts)
 		require.NoError(b, err)
 		require.Len(b, components, 4)
 	}

@@ -11,8 +11,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -46,7 +46,7 @@ dependency "db" {
 `,
 	})
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 
@@ -58,9 +58,10 @@ dependency "db" {
 		WithGraphTarget(vpcDir)
 
 	configs, err := d.Discover(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		opts,
 	)
 	require.NoError(t, err)
@@ -96,7 +97,7 @@ dependency "db" {
 `,
 	})
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 
@@ -113,14 +114,14 @@ dependency "db" {
 	configsA, err := discovery.NewDiscovery(tmpDir).
 		WithFilters(depsFilters).
 		WithFilters(filters).
-		Discover(t.Context(), logger.CreateLogger(), v, opts)
+		Discover(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(config.Store), opts)
 	require.NoError(t, err)
 
 	// Path B: graph target marker
 	configsB, err := discovery.NewDiscovery(tmpDir).
 		WithFilters(depsFilters).
 		WithGraphTarget(vpcDir).
-		Discover(t.Context(), logger.CreateLogger(), v, opts)
+		Discover(config.WithCaches(t.Context()), logger.CreateLogger(), v, new(config.Store), opts)
 	require.NoError(t, err)
 
 	assert.ElementsMatch(
@@ -149,7 +150,7 @@ func TestDiscoveryWithGraphTarget_NoDependents(t *testing.T) {
 		appDir: ``,
 	})
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 
@@ -158,9 +159,10 @@ func TestDiscoveryWithGraphTarget_NoDependents(t *testing.T) {
 		WithGraphTarget(vpcDir)
 
 	configs, err := d.Discover(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		opts,
 	)
 	require.NoError(t, err)
@@ -191,7 +193,7 @@ dependency "vpc" {
 `,
 	})
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 
@@ -203,9 +205,10 @@ dependency "vpc" {
 		WithOptions(graphTargetOpt)
 
 	configs, err := d.Discover(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
 		v,
+		new(config.Store),
 		opts,
 	)
 	require.NoError(t, err)
@@ -236,7 +239,7 @@ func writeUnits(t *testing.T, fsys vfs.FS, units map[string]string) {
 func memRepoRootVenv(t *testing.T, repoRoot string) *venv.Venv {
 	t.Helper()
 
-	return venvtest.New().WithFS(venvtest.NewFS(t, repoRoot, map[string]string{
+	return venv.MemVenv().WithFS(venvtest.NewFS(t, repoRoot, map[string]string{
 		".git": "gitdir: /elsewhere/.git\n",
 	}))
 }

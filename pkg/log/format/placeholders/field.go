@@ -5,14 +5,29 @@ import (
 )
 
 const (
-	WorkDirKeyName   = "prefix"
-	TFPathKeyName    = "tf-path"
+	// WorkDirKeyName is the log field and `%prefix` placeholder for the
+	// directory of the unit the entry is about.
+	WorkDirKeyName = "prefix"
+	// TFPathKeyName is the log field and `%tf-path` placeholder for the tofu or
+	// terraform binary that produced the entry.
+	TFPathKeyName = "tf-path"
+	// TFCmdArgsKeyName is the log field and `%tf-command-args` placeholder for
+	// the arguments of the tofu or terraform command that produced the entry.
 	TFCmdArgsKeyName = "tf-command-args"
-	TFCmdKeyName     = "tf-command"
-	UnitPathKeyName  = options.UnitPathFieldName
+	// TFCmdKeyName is the log field and `%tf-command` placeholder for the name
+	// of the tofu or terraform command that produced the entry, such as `plan`.
+	TFCmdKeyName = "tf-command"
+	// UnitPathKeyName is the log field for the path of the unit the entry is
+	// about, used by the `basename` path format of `%prefix`.
+	UnitPathKeyName = options.UnitPathFieldName
 
 	// Terragrunt Provider Cache Server fields.
-	CacheServerURLKeyName    = "url"
+
+	// CacheServerURLKeyName is the log field for the request URI the provider
+	// cache server handled, with download tokens redacted.
+	CacheServerURLKeyName = "url"
+	// CacheServerStatusKeyName is the log field for the HTTP status the provider
+	// cache server answered a request with.
 	CacheServerStatusKeyName = "status"
 )
 

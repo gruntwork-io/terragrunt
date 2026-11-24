@@ -5,6 +5,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -15,10 +16,11 @@ func New(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	runnerOpts ...Option,
 ) (*Runner, error) {
-	discovered, err := discoverWithRetry(ctx, l, v, opts, runnerOpts...)
+	discovered, err := discoverWithRetry(ctx, l, v, s, opts, runnerOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -30,7 +32,7 @@ func New(
 
 	setUnitPathLabels(l, opts, rnr.GetStack().Units)
 
-	if err := checkVersionConstraints(ctx, l, v, opts, rnr.GetStack().Units); err != nil {
+	if err := checkVersionConstraints(ctx, l, v, s, opts, rnr.GetStack().Units); err != nil {
 		return nil, err
 	}
 

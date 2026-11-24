@@ -1,6 +1,7 @@
 package hclparse_test
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
@@ -52,6 +53,39 @@ func TestParseAllowsInRangeNumbers(t *testing.T) {
 	_, err := hclparse.NewParser().
 		ParseFromString("x = 1e4000\ny = -1e-4000\nz = 42", "terragrunt.hcl")
 	require.NoError(t, err)
+}
+
+func TestParseRecordsTheFunctionsAFileCalls(t *testing.T) {
+	t.Parallel()
+
+	const content = `locals {
+  name = upper(lower("A"))
+  env  = "${get_env("HOME")}"
+  dirs = [for d in fileset(".", "*") : basename(d)]
+}`
+
+	file, err := hclparse.NewParser().ParseFromString(content, "terragrunt.hcl")
+	require.NoError(t, err)
+
+	want := []string{"basename", "fileset", "get_env", "lower", "upper"}
+
+	for _, kept := range []*hclparse.File{file, file.WithoutParser(), file.WithoutParser().Rebind(hclparse.NewParser())} {
+		require.True(t, kept.FunctionCalls().Known())
+		assert.Equal(t, want, slices.Sorted(kept.FunctionCalls().All))
+		assert.True(t, kept.FunctionCalls().Calls("get_env"))
+		assert.False(t, kept.FunctionCalls().Calls("get_terragrunt_dir"))
+	}
+}
+
+func TestParseOfJSONMayCallAnyFunction(t *testing.T) {
+	t.Parallel()
+
+	file, err := hclparse.NewParser().
+		ParseFromString(`{"locals": {"env": "${get_env(\"HOME\")}"}}`, "terragrunt.hcl.json")
+	require.NoError(t, err)
+
+	assert.False(t, file.FunctionCalls().Known())
+	assert.True(t, file.FunctionCalls().Calls("get_terragrunt_dir"))
 }
 
 func assertNumberOutOfRange(t *testing.T, err error) {

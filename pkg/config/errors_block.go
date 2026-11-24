@@ -132,73 +132,123 @@ func cloneSignalsMap(signals map[string]cty.Value) map[string]cty.Value {
 	return cloned
 }
 
-// Merges two slices of RetryBlock, prioritizing the second slice
-func mergeRetryBlocks(existing, other []*RetryBlock) []*RetryBlock {
-	retryMap := make(map[string]*RetryBlock, len(existing)+len(other))
-
-	// Add existing retry blocks
-	for _, block := range existing {
-		retryMap[block.Label] = block
+// lastPerLabel returns a copy of c with one retry block and one ignore block for each label: the last block declared
+// with the label, at the position of the first. It returns nil when c is nil.
+func (c *ErrorsConfig) lastPerLabel() *ErrorsConfig {
+	if c == nil {
+		return nil
 	}
 
-	// Merge retry blocks from 'other'
+	return &ErrorsConfig{
+		Retry:  lastBlockPerLabel(c.Retry),
+		Ignore: lastBlockPerLabel(c.Ignore),
+	}
+}
+
+// label returns the label of the retry block.
+func (r *RetryBlock) label() string {
+	return r.Label
+}
+
+// label returns the label of the ignore block.
+func (i *IgnoreBlock) label() string {
+	return i.Label
+}
+
+// mergeRetryBlocks returns the blocks of existing followed by the blocks of other, each in declaration order. A block
+// of other whose label is in existing is not appended: it updates the existing block where that block stands, adding
+// its patterns and replacing max_attempts and sleep_interval_sec when it sets them.
+func mergeRetryBlocks(existing, other []*RetryBlock) []*RetryBlock {
+	merged := slices.Clone(existing)
+	indexByLabel := make(map[string]int, len(existing)+len(other))
+
+	for i, block := range merged {
+		indexByLabel[block.Label] = i
+	}
+
 	for _, otherBlock := range other {
-		if existingBlock, found := retryMap[otherBlock.Label]; found {
-			existingBlock.RetryableErrors = util.MergeSlices(
-				existingBlock.RetryableErrors,
-				otherBlock.RetryableErrors,
-			)
-
-			if otherBlock.MaxAttempts > 0 {
-				existingBlock.MaxAttempts = otherBlock.MaxAttempts
-			}
-
-			if otherBlock.SleepIntervalSec > 0 {
-				existingBlock.SleepIntervalSec = otherBlock.SleepIntervalSec
-			}
+		i, found := indexByLabel[otherBlock.Label]
+		if !found {
+			merged = append(merged, otherBlock)
 
 			continue
 		}
 
-		retryMap[otherBlock.Label] = otherBlock
-	}
+		existingBlock := merged[i]
+		existingBlock.RetryableErrors = util.MergeSlices(
+			existingBlock.RetryableErrors,
+			otherBlock.RetryableErrors,
+		)
 
-	return slices.Collect(maps.Values(retryMap))
-}
+		if otherBlock.MaxAttempts > 0 {
+			existingBlock.MaxAttempts = otherBlock.MaxAttempts
+		}
 
-// Merges two slices of IgnoreBlock, prioritizing the second slice
-func mergeIgnoreBlocks(existing, other []*IgnoreBlock) []*IgnoreBlock {
-	ignoreMap := make(map[string]*IgnoreBlock, len(existing)+len(other))
-
-	// Add existing ignore blocks
-	for _, block := range existing {
-		ignoreMap[block.Label] = block
-	}
-
-	// Merge ignore blocks from 'other'
-	for _, otherBlock := range other {
-		if existingBlock, found := ignoreMap[otherBlock.Label]; found {
-			existingBlock.IgnorableErrors = util.MergeSlices(
-				existingBlock.IgnorableErrors,
-				otherBlock.IgnorableErrors,
-			)
-
-			if otherBlock.Message != "" {
-				existingBlock.Message = otherBlock.Message
-			}
-
-			if otherBlock.Signals != nil {
-				if existingBlock.Signals == nil {
-					existingBlock.Signals = make(map[string]cty.Value, len(otherBlock.Signals))
-				}
-
-				maps.Copy(existingBlock.Signals, otherBlock.Signals)
-			}
-		} else {
-			ignoreMap[otherBlock.Label] = otherBlock
+		if otherBlock.SleepIntervalSec > 0 {
+			existingBlock.SleepIntervalSec = otherBlock.SleepIntervalSec
 		}
 	}
 
-	// Convert map back to slice
-	return slices.Collect(maps.Values(ignoreMap))
+	return merged
+}
+
+// mergeIgnoreBlocks returns the blocks of existing followed by the blocks of other, each in declaration order. A block
+// of other whose label is in existing is not appended: it updates the existing block where that block stands, adding
+// its patterns and signals and replacing message when it sets one.
+func mergeIgnoreBlocks(existing, other []*IgnoreBlock) []*IgnoreBlock {
+	merged := slices.Clone(existing)
+	indexByLabel := make(map[string]int, len(existing)+len(other))
+
+	for i, block := range merged {
+		indexByLabel[block.Label] = i
+	}
+
+	for _, otherBlock := range other {
+		i, found := indexByLabel[otherBlock.Label]
+		if !found {
+			merged = append(merged, otherBlock)
+
+			continue
+		}
+
+		existingBlock := merged[i]
+		existingBlock.IgnorableErrors = util.MergeSlices(
+			existingBlock.IgnorableErrors,
+			otherBlock.IgnorableErrors,
+		)
+
+		if otherBlock.Message != "" {
+			existingBlock.Message = otherBlock.Message
+		}
+
+		if otherBlock.Signals != nil {
+			if existingBlock.Signals == nil {
+				existingBlock.Signals = make(map[string]cty.Value, len(otherBlock.Signals))
+			}
+
+			maps.Copy(existingBlock.Signals, otherBlock.Signals)
+		}
+	}
+
+	return merged
+}
+
+// lastBlockPerLabel returns one block for each label in blocks: the last block declared with the label, at the
+// position of the first.
+func lastBlockPerLabel[B interface{ label() string }](blocks []B) []B {
+	result := make([]B, 0, len(blocks))
+	indexByLabel := make(map[string]int, len(blocks))
+
+	for _, block := range blocks {
+		if i, found := indexByLabel[block.label()]; found {
+			result[i] = block
+
+			continue
+		}
+
+		indexByLabel[block.label()] = len(result)
+		result = append(result, block)
+	}
+
+	return result
 }

@@ -55,8 +55,11 @@ func NewCASFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelper
 			Name:        CASOfflineFlagName,
 			EnvVars:     tgPrefix.EnvVars(CASOfflineFlagName),
 			Destination: &opts.CASOffline,
-			Usage: flags.ExperimentUsage(opts.Experiments, experiment.OfflineCAS,
-				"When using CAS, never contact a Git remote: answer every Git source from the local store and the persisted probe cache, and fail on anything missing. Other sources, such as HTTP or S3, still reach their remote."),
+			Usage: flags.ExperimentUsage(
+				opts.Experiments,
+				experiment.OfflineCAS,
+				"When using CAS, never contact a Git remote: answer every Git source from the local store and the persisted probe cache, and fail on anything missing. Other sources, such as HTTP or S3, still reach their remote.",
+			),
 			Action: func(_ context.Context, _ *clihelper.Context, value bool) error {
 				if !value {
 					return nil
@@ -99,8 +102,11 @@ func NewCASFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelper
 			Name:        CASProbeTTLFlagName,
 			EnvVars:     tgPrefix.EnvVars(CASProbeTTLFlagName),
 			Destination: &probeTTLText,
-			Usage: flags.ExperimentUsage(opts.Experiments, experiment.OfflineCAS,
-				"When using CAS, trust a persisted probe of a branch, HEAD, or non-version tag for this long (for example 10m) before querying the remote again. Defaults to 0, which re-queries on every run. Version tags are trusted for 24h regardless."),
+			Usage: flags.ExperimentUsage(
+				opts.Experiments,
+				experiment.OfflineCAS,
+				"When using CAS, trust a persisted probe of a branch, HEAD, or non-version tag for this long (for example 10m) before querying the remote again. Defaults to 0, which re-queries on every run. Version tags are trusted for 24h regardless.",
+			),
 			Setter: func(value string) error {
 				ttl, err := time.ParseDuration(value)
 				if err != nil {

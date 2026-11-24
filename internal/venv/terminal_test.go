@@ -25,6 +25,7 @@ func TestOSVenvTerminalWithoutTerminal(t *testing.T) {
 	assert.False(t, terminal.StdoutIsTTY())
 	assert.False(t, terminal.StderrIsTTY())
 	assert.Zero(t, terminal.Width())
+	assert.Zero(t, terminal.ErrWidth())
 }
 
 // createStreamFile returns a regular file for the std streams, closed when the test ends.

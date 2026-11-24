@@ -15,8 +15,10 @@ const (
 	defaultShutdownTimeout = time.Second * 30
 )
 
+// Option sets one setting of a [Config].
 type Option func(Config) Config
 
+// WithHostname sets the host the server listens on. An empty hostname keeps `localhost`.
 func WithHostname(hostname string) Option {
 	return func(cfg Config) Config {
 		if hostname != "" {
@@ -27,6 +29,8 @@ func WithHostname(hostname string) Option {
 	}
 }
 
+// WithPort sets the port the server listens on. Zero keeps the current port. With no port set,
+// the OS picks a free one.
 func WithPort(port int) Option {
 	return func(cfg Config) Config {
 		if port != 0 {
@@ -37,6 +41,7 @@ func WithPort(port int) Option {
 	}
 }
 
+// WithToken sets the bearer token every request to the provider and module endpoints must carry.
 func WithToken(token string) Option {
 	return func(cfg Config) Config {
 		cfg.token = token
@@ -44,6 +49,7 @@ func WithToken(token string) Option {
 	}
 }
 
+// WithProviderService sets the service that downloads and caches providers.
 func WithProviderService(service *services.ProviderService) Option {
 	return func(cfg Config) Config {
 		cfg.providerService = service
@@ -51,6 +57,7 @@ func WithProviderService(service *services.ProviderService) Option {
 	}
 }
 
+// WithProviderHandlers sets the handlers that list versions and fetch platforms for cached provider requests.
 func WithProviderHandlers(handlers ...handlers.ProviderHandler) Option {
 	return func(cfg Config) Config {
 		cfg.providerHandlers = handlers
@@ -58,6 +65,7 @@ func WithProviderHandlers(handlers ...handlers.ProviderHandler) Option {
 	}
 }
 
+// WithProxyProviderHandler sets the handler that answers provider requests the server proxies without caching.
 func WithProxyProviderHandler(handler *handlers.ProxyProviderHandler) Option {
 	return func(cfg Config) Config {
 		cfg.proxyProviderHandler = handler
@@ -65,6 +73,8 @@ func WithProxyProviderHandler(handler *handlers.ProxyProviderHandler) Option {
 	}
 }
 
+// WithProxyModuleHandler sets the handler for the module registry endpoints. A nil handler leaves
+// those endpoints unregistered.
 func WithProxyModuleHandler(handler *handlers.ProxyModuleHandler) Option {
 	return func(cfg Config) Config {
 		cfg.proxyModuleHandler = handler
@@ -72,6 +82,8 @@ func WithProxyModuleHandler(handler *handlers.ProxyModuleHandler) Option {
 	}
 }
 
+// WithCacheProviderHTTPStatusCode sets the status the server answers a platform request with
+// after it starts caching that provider.
 func WithCacheProviderHTTPStatusCode(statusCode int) Option {
 	return func(cfg Config) Config {
 		cfg.cacheProviderHTTPStatusCode = statusCode
@@ -79,6 +91,7 @@ func WithCacheProviderHTTPStatusCode(statusCode int) Option {
 	}
 }
 
+// WithLogger sets the logger for requests and server events.
 func WithLogger(logger log.Logger) Option {
 	return func(cfg Config) Config {
 		cfg.logger = logger
@@ -86,6 +99,7 @@ func WithLogger(logger log.Logger) Option {
 	}
 }
 
+// Config is the configuration of the provider cache [Server], built from [Option] values.
 type Config struct {
 	logger                      log.Logger
 	providerService             *services.ProviderService
@@ -99,6 +113,7 @@ type Config struct {
 	cacheProviderHTTPStatusCode int
 }
 
+// NewConfig returns a Config with opts applied over the default `localhost` hostname.
 func NewConfig(opts ...Option) *Config {
 	cfg := &Config{
 		hostname:        defaultHostname,
@@ -109,6 +124,7 @@ func NewConfig(opts ...Option) *Config {
 	return cfg.WithOptions(opts...)
 }
 
+// WithOptions applies opts to cfg in order and returns cfg.
 func (cfg *Config) WithOptions(opts ...Option) *Config {
 	for _, opt := range opts {
 		*cfg = opt(*cfg)
@@ -117,6 +133,7 @@ func (cfg *Config) WithOptions(opts ...Option) *Config {
 	return cfg
 }
 
+// Addr returns the `host:port` address the server listens on.
 func (cfg *Config) Addr() string {
 	return net.JoinHostPort(cfg.hostname, strconv.Itoa(cfg.port))
 }

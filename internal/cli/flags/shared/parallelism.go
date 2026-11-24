@@ -9,6 +9,7 @@ import (
 )
 
 const (
+	// ParallelismFlagName is the flag name for `--parallelism`, the maximum number of units run at once.
 	ParallelismFlagName = "parallelism"
 )
 

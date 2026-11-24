@@ -22,6 +22,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -187,7 +188,7 @@ func terragruntOCIModuleTree(t *testing.T, v *venv.Venv, source string) map[stri
 		l,
 		v,
 		src,
-		configbridge.NewRunOptions(opts),
+		configbridge.NewRunOptions(opts, tfimpl.Unknown),
 		cfg,
 		report.NewReport(),
 	)

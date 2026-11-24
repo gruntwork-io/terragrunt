@@ -14,6 +14,10 @@ var _ = strict.Control(new(Control))
 
 // Control is the simplest implementation of the `strict.Control` interface.
 type Control struct {
+	// warnedDetails holds every detail WarnDetail has logged, so a unit parsed more than once
+	// logs each of its details once.
+	warnedDetails sync.Map
+
 	// Error is the Error that will be returned when the Control is Enabled.
 	Error error
 
@@ -95,6 +99,19 @@ func (ctrl *Control) SuppressWarning() {
 // isSuppressed returns true if warning is suppressed.
 func (ctrl *Control) isSuppressed() bool {
 	return ctrl.suppress.Load() == 1
+}
+
+// WarnDetail implements `strict.Control` interface.
+func (ctrl *Control) WarnDetail(l log.Logger, detail string) {
+	if ctrl.Enabled || ctrl.isSuppressed() {
+		return
+	}
+
+	if _, logged := ctrl.warnedDetails.LoadOrStore(detail, struct{}{}); logged {
+		return
+	}
+
+	l.Warn(detail)
 }
 
 // Evaluate implements `strict.Control` interface.

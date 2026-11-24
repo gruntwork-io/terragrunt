@@ -1,0 +1,28 @@
+---
+name: get_terraform_commands_that_need_vars
+description: Returns the OpenTofu/Terraform commands that accept `-var` and `-var-file`.
+configs: [unit, stack]
+params: []
+returns: list(string)
+examples:
+  - code: |
+      # terragrunt.hcl
+
+      locals {
+        commands = get_terraform_commands_that_need_vars()
+        # ["apply", "console", "destroy", "import", "plan", "push", "refresh"]
+      }
+---
+
+`get_terraform_commands_that_need_vars` returns `apply`, `console`, `destroy`, `import`, `plan`, `push`, and `refresh`. Use it as the `commands` of an [`extra_arguments`](/reference/hcl/blocks/terraform#extra_arguments) block that passes `-var` or `-var-file`:
+
+```hcl
+# terragrunt.hcl
+
+terraform {
+  extra_arguments "common_vars" {
+    commands  = get_terraform_commands_that_need_vars()
+    arguments = ["-var-file=${get_terragrunt_dir()}/../common.tfvars"]
+  }
+}
+```

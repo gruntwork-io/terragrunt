@@ -3,31 +3,28 @@ package commands
 
 import (
 	"context"
-	"fmt"
-	"net"
 	"path/filepath"
 	"runtime/debug"
 	"slices"
 	"strings"
+	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
-	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/panicreport"
-	"github.com/gruntwork-io/terragrunt/internal/providercache"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
-	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
-
-	"errors"
 
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/internal/cli/commands/aws-provider-patch"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/backend"
@@ -50,7 +47,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/os/exec"
-	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	semver "github.com/gruntwork-io/terragrunt/internal/semver"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tips"
@@ -64,6 +60,8 @@ const (
 	MainCommandsCategoryName = "Main commands"
 	// CatalogCommandsCategoryName represents commands for managing Terragrunt catalogs.
 	CatalogCommandsCategoryName = "Catalog commands"
+	// PortalCommandsCategoryName represents commands for the Gruntwork Developer Portal.
+	PortalCommandsCategoryName = "Gruntwork Developer Portal commands"
 	// DiscoveryCommandsCategoryName represents commands for discovering Terragrunt configurations.
 	DiscoveryCommandsCategoryName = "Discovery commands"
 	// ConfigurationCommandsCategoryName represents commands for managing Terragrunt configurations.
@@ -76,18 +74,19 @@ const (
 const (
 	mainCommandsOrder = iota + 1
 	catalogCommandsOrder
+	portalCommandsOrder
 	discoveryCommandsOrder
 	configurationCommandsOrder
 	shortcutsCommandsOrder
 )
 
 // New returns the set of Terragrunt commands, grouped into categories.
-func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.Commands {
+func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *config.Store) clihelper.Commands {
 	mainCommands := clihelper.Commands{
-		runcmd.NewCommand(l, opts, v),  // run
-		stack.NewCommand(l, opts, v),   // stack
-		execcmd.NewCommand(l, opts, v), // exec
-		backend.NewCommand(l, opts, v), // backend
+		runcmd.NewCommand(l, opts, v, s),  // run
+		stack.NewCommand(l, opts, v, s),   // stack
+		execcmd.NewCommand(l, opts, v, s), // exec
+		backend.NewCommand(l, opts, v, s), // backend
 	}.SetCategory(
 		&clihelper.Category{
 			Name:  MainCommandsCategoryName,
@@ -96,9 +95,8 @@ func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.
 	)
 
 	catalogCommands := clihelper.Commands{
-		catalog.NewCommand(l, opts, v),  // catalog
-		scaffold.NewCommand(l, opts, v), // scaffold
-		login.NewCommand(l, opts, v),    // login
+		catalog.NewCommand(l, opts, v, s),  // catalog
+		scaffold.NewCommand(l, opts, v, s), // scaffold
 	}.SetCategory(
 		&clihelper.Category{
 			Name:  CatalogCommandsCategoryName,
@@ -106,10 +104,19 @@ func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.
 		},
 	)
 
+	portalCommands := clihelper.Commands{
+		login.NewCommand(l, opts, v), // login
+	}.SetCategory(
+		&clihelper.Category{
+			Name:  PortalCommandsCategoryName,
+			Order: portalCommandsOrder,
+		},
+	)
+
 	discoveryCommands := clihelper.Commands{
-		find.NewCommand(l, opts, v),   // find
-		list.NewCommand(l, opts, v),   // list
-		browse.NewCommand(l, opts, v), // browse
+		find.NewCommand(l, opts, v, s),   // find
+		list.NewCommand(l, opts, v, s),   // list
+		browse.NewCommand(l, opts, v, s), // browse
 	}.SetCategory(
 		&clihelper.Category{
 			Name:  DiscoveryCommandsCategoryName,
@@ -118,14 +125,14 @@ func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.
 	)
 
 	configurationCommands := clihelper.Commands{
-		hcl.NewCommand(l, opts, v),              // hcl
-		info.NewCommand(l, opts, v),             // info
-		dag.NewCommand(l, opts, v),              // dag
-		render.NewCommand(l, opts, v),           // render
-		mcpcmd.NewCommand(l, opts, v),           // mcp
-		helpcmd.NewCommand(l, opts),             // help (hidden)
-		versioncmd.NewCommand(),                 // version (hidden)
-		awsproviderpatch.NewCommand(l, opts, v), // aws-provider-patch (hidden)
+		hcl.NewCommand(l, opts, v, s),              // hcl
+		info.NewCommand(l, opts, v, s),             // info
+		dag.NewCommand(l, opts, v, s),              // dag
+		render.NewCommand(l, opts, v, s),           // render
+		mcpcmd.NewCommand(l, opts, v),              // mcp
+		helpcmd.NewCommand(l, opts),                // help (hidden)
+		versioncmd.NewCommand(),                    // version (hidden)
+		awsproviderpatch.NewCommand(l, opts, v, s), // aws-provider-patch (hidden)
 	}.SetCategory(
 		&clihelper.Category{
 			Name:  ConfigurationCommandsCategoryName,
@@ -133,7 +140,7 @@ func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.
 		},
 	)
 
-	shortcutsCommands := NewShortcutsCommands(l, opts, v).SetCategory(
+	shortcutsCommands := NewShortcutsCommands(l, opts, v, s).SetCategory(
 		&clihelper.Category{
 			Name:  ShortcutsCommandsCategoryName,
 			Order: shortcutsCommandsOrder,
@@ -142,12 +149,16 @@ func New(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) clihelper.
 
 	allCommands := mainCommands.
 		Merge(catalogCommands...).
+		Merge(portalCommands...).
 		Merge(discoveryCommands...).
 		Merge(configurationCommands...).
 		Merge(shortcutsCommands...)
 
 	return allCommands
 }
+
+// telemetryShutdownTimeout limits how long the telemetry flush can delay exit.
+const telemetryShutdownTimeout = 30 * time.Second
 
 // WrapWithTelemetry wraps CLI command execution with telemetry initialization,
 // context setting and labels. If telemetry is disabled, just runs the command.
@@ -178,22 +189,24 @@ func WrapWithTelemetry(
 			return err
 		}
 
+		// Flush even after an interrupt cancels ctx, but do not wait forever.
 		defer func() {
-			if err := telemeter.Shutdown(ctx); err != nil {
-				_, _ = cliCtx.App.ErrWriter.Write([]byte(err.Error()))
+			shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), telemetryShutdownTimeout)
+			defer cancel()
+
+			if err := telemeter.Shutdown(shutdownCtx); err != nil {
+				if _, writeErr := cliCtx.App.ErrWriter.Write([]byte(err.Error())); writeErr != nil {
+					l.Debugf("Failed to report telemetry shutdown error %v: %v", err, writeErr)
+				}
 			}
 		}()
 
 		ctx = telemetry.ContextWithTelemeter(ctx, telemeter)
 
-		cmdName := fmt.Sprintf(
-			"%s %s", cliCtx.Command.Name, opts.TerraformCommand,
-		)
+		resolveErr := resolveWorkingDir(v, opts)
 
-		return telemeter.Collect(ctx, l, cmdName, map[string]any{
-			"terraformCommand": opts.TerraformCommand,
-			"args":             opts.TerraformCliArgs,
-			"dir":              opts.WorkingDir,
+		return telemeter.Collect(ctx, l, cliCtx.Command.Name, map[string]any{
+			"dir": opts.WorkingDir,
 		}, func(childCtx context.Context, l log.Logger) error {
 			// Engines emit telemetry during shutdown, so stop them while the
 			// command span is still open (and before the telemeter's deferred
@@ -205,13 +218,21 @@ func WrapWithTelemetry(
 					opts.Experiments,
 					opts.EngineOptions.NoEngine,
 				); err != nil {
-					_, _ = cliCtx.App.ErrWriter.Write([]byte(err.Error()))
+					if _, writeErr := cliCtx.App.ErrWriter.Write([]byte(err.Error())); writeErr != nil {
+						l.Debugf("Failed to report engine shutdown error %v: %v", err, writeErr)
+					}
 				}
 			}()
+
+			if resolveErr != nil {
+				return resolveErr
+			}
 
 			if err := initialSetup(cliCtx, l, v, opts); err != nil {
 				return err
 			}
+
+			setCommandSpanAttributes(childCtx, cliCtx, opts)
 
 			if err := RunAction(childCtx, cliCtx, l, opts, v, action); err != nil {
 				opts.Tips.Find(tips.DebuggingDocs).Evaluate(l)
@@ -223,85 +244,8 @@ func WrapWithTelemetry(
 	}
 }
 
-// probeDirPerms is the mode of the throwaway directory the symlink probe creates.
-const probeDirPerms = 0o755
-
-// GiveWindowsSymlinksTip warns Windows users that OpenTofu/Terraform may not create symlinks
-// for provider plugins installed in the local cache directory.
-//
-// We generally don't need to recommend this if:
-//   - The user is not on Windows (this is generally a Windows-only problem)
-//   - The user isn't using the provider cache directory or provider cache server
-//   - We can successfully create a test symlink
-//
-// Note that OpenTofu doesn't want to emit a warning like this for OpenTofu users.
-//
-// See: https://github.com/opentofu/opentofu/issues/3972
-//
-// In the future, this may be less important, as the OpenTofu global provider cache
-// dir might be the default, and no copying/symlinking will happen anyways. At that
-// time, this check may need to have a version gate to avoid warning Windows users
-// on a sufficiently new version of OpenTofu.
-func GiveWindowsSymlinksTip(
-	l log.Logger,
-	fsys vfs.FS,
-	goos string,
-	allTips tips.Tips,
-	envs map[string]string,
-	providerCacheEnabled bool,
-	tfImpl tfimpl.Type,
-	tfVersion *semver.Version,
-) {
-	if goos != "windows" {
-		return
-	}
-
-	if envs[tf.EnvNameTFPluginCacheDir] == "" && !providerCacheEnabled {
-		return
-	}
-
-	tmp, err := vfs.MkdirTemp(fsys, "", "terragrunt-test-symlink")
-	if err != nil {
-		l.Debugf("Failed to create temporary directory for testing symlink: %v", err)
-		return
-	}
-
-	defer func() {
-		if err := fsys.RemoveAll(tmp); err != nil {
-			l.Debugf("Failed to remove temporary directory for testing symlink: %v", err)
-		}
-	}()
-
-	source := filepath.Join(tmp, "source")
-	target := filepath.Join(tmp, "target")
-
-	if err := fsys.Mkdir(source, probeDirPerms); err != nil {
-		l.Debugf("Failed to create source directory for testing symlink: %v", err)
-		return
-	}
-
-	err = vfs.Symlink(fsys, source, target)
-	if err == nil {
-		return
-	}
-
-	tip := allTips.Find(tips.WindowsSymlinkWarning)
-	if tip == nil {
-		return
-	}
-
-	if tfImpl == tfimpl.OpenTofu && tfVersion != nil {
-		minVersion, verErr := semver.Parse("1.12.0")
-		if verErr == nil && !tfVersion.LessThan(minVersion) {
-			tip.Message = tips.WindowsSymlinkWarningOpenTofuMessage
-		}
-	}
-
-	tip.Evaluate(l)
-}
-
-// RunAction wires up cancellation, run-scoped caches, and (when enabled)
-// the provider cache server, then invokes action with the resulting context.
+// RunAction wires up cancellation and run-scoped caches, then invokes action
+// with the resulting context.
 func RunAction(
 	ctx context.Context,
 	cliCtx *clihelper.Context,
@@ -317,73 +261,18 @@ func RunAction(
 
 	// Install run-scoped caches on actionCtx so memoized helpers like
 	// [github.com/gruntwork-io/terragrunt/internal/git.GoRepoRoot] and
-	// the version probes below share state across the whole action.
-	actionCtx := cache.ContextWithCache(ctx)
+	// the version probes share state across the whole action. The
+	// auth provider response cache is shared by discovery, dependency
+	// output fetches, and the run.
+	actionCtx := externalcmd.ContextWithResponseCache(cache.ContextWithCache(ctx))
 
-	// Set up automatic provider caching if enabled
-	if !opts.NoAutoProviderCacheDir {
-		if err := setupAutoProviderCacheDir(actionCtx, l, opts, v); err != nil {
-			l.Debugf("Auto provider cache dir setup failed: %v", err)
+	if opts.Experiments.Evaluate(experiment.SlowTaskReporting) {
+		reporter := newProgressReporter(l, opts, v)
+		actionCtx = spinner.ContextWithReporter(actionCtx, reporter)
+
+		if reporter.Animated() {
+			defer guardTerminal(l, v, reporter)()
 		}
-	}
-
-	// The implementation decides which CLI config files the cache server reads, so resolve it before the tips and the server start; a run the probe leaves mismatched is warned about, and bypasses the cache, in the command hook.
-	if opts.ProviderCacheOptions.Enabled {
-		if err := PopulateTFImplementation(actionCtx, l, opts, v); err != nil {
-			l.Debugf(
-				"Failed to detect the OpenTofu/Terraform implementation; the provider cache server falls back to OpenTofu's CLI config file locations: %v",
-				err,
-			)
-		}
-	}
-
-	v.RequireGOOS()
-
-	GiveWindowsSymlinksTip(
-		l,
-		v.FS,
-		v.Platform.GOOS,
-		opts.Tips,
-		v.Env,
-		opts.ProviderCacheOptions.Enabled,
-		opts.TofuImplementation,
-		opts.TerraformVersion,
-	)
-
-	// Re-enable VT processing after subprocess execution may have reset console mode.
-	// Defense-in-depth on top of RunCommandWithOutput's own save/restore cycle.
-	if !exec.PrepareConsole(l) {
-		l.Formatter().SetDisabledColors(true)
-	}
-
-	// Run provider cache server
-	if opts.ProviderCacheOptions.Enabled {
-		server, err := providercache.InitServer(
-			l,
-			v,
-			opts.TofuImplementation,
-			&opts.ProviderCacheOptions,
-			opts.RootWorkingDir,
-		)
-		if err != nil {
-			return err
-		}
-
-		ln, err := server.Listen(actionCtx, v)
-		if err != nil {
-			return err
-		}
-		defer func() {
-			if err := ln.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
-				l.Debugf("Failed to close the provider cache listener: %v", err)
-			}
-		}()
-
-		actionCtx = tf.ContextWithTerraformCommandHook(actionCtx, server.TerraformCommandHook)
-
-		errGroup.Go(func() error {
-			return server.Run(actionCtx, ln)
-		})
 	}
 
 	// Run command action
@@ -405,122 +294,32 @@ func RunAction(
 	return errGroup.Wait()
 }
 
-// PopulateTFImplementation resolves which OpenTofu/Terraform implementation opts.TFPath names, so
-// callers like the provider cache server can follow that implementation's behavior. It reuses the
-// run version cache and returns without probing when both the implementation and version are known.
-func PopulateTFImplementation(
-	ctx context.Context,
-	l log.Logger,
-	opts *options.TerragruntOptions,
-	v *venv.Venv,
-) error {
-	if opts.TofuImplementation != "" && opts.TofuImplementation != tfimpl.Unknown &&
-		opts.TerraformVersion != nil {
-		return nil
-	}
-
-	_, ver, impl, err := run.PopulateTFVersion(ctx, l, v, run.PopulateTFVersionInput{
-		TFOpts:       configbridge.TFRunOptsFromOpts(v.Env, opts),
-		WorkingDir:   opts.WorkingDir,
-		VersionFiles: opts.VersionManagerFileName,
-	})
-	if err != nil {
-		return err
-	}
-
-	opts.TerraformVersion = ver
-	opts.TofuImplementation = impl
-
-	return nil
-}
-
-const minTofuVersionForAutoProviderCacheDir = "1.10.0"
-
-// setupAutoProviderCacheDir configures native provider caching by setting TF_PLUGIN_CACHE_DIR.
-//
-// Only works with OpenTofu version >= 1.10. Returns error if conditions aren't met.
-//
-// Panics if v.Env is nil, as it mutates it.
-func setupAutoProviderCacheDir(
-	ctx context.Context,
-	l log.Logger,
-	opts *options.TerragruntOptions,
-	v *venv.Venv,
-) error {
-	if v.Env == nil {
-		panic("setupAutoProviderCacheDir: venv environment map is nil")
-	}
-
-	// Set TF_PLUGIN_CACHE_DIR environment variable
-	if v.Env[tf.EnvNameTFPluginCacheDir] != "" {
-		l.Debugf(
-			"TF_PLUGIN_CACHE_DIR already set to %s, skipping auto provider cache dir",
-			v.Env[tf.EnvNameTFPluginCacheDir],
-		)
-
-		return nil
-	}
-
-	if err := PopulateTFImplementation(ctx, l, opts, v); err != nil {
-		return err
-	}
-
-	terraformVersion := opts.TerraformVersion
-	tfImplementation := opts.TofuImplementation
-
-	// Check if OpenTofu is being used
-	if tfImplementation != tfimpl.OpenTofu {
-		return fmt.Errorf(
-			"auto provider cache dir requires OpenTofu, but detected %s",
-			tfImplementation,
-		)
-	}
-
-	// Check OpenTofu version > 1.10
-	if terraformVersion == nil {
-		return errors.New("cannot determine OpenTofu version")
-	}
-
-	requiredVersion, err := semver.Parse(minTofuVersionForAutoProviderCacheDir)
-	if err != nil {
-		return fmt.Errorf("failed to parse required version: %w", err)
-	}
-
-	if terraformVersion.LessThan(requiredVersion) {
-		return fmt.Errorf(
-			"auto provider cache dir requires OpenTofu version >= 1.10, but found %s",
-			terraformVersion,
-		)
-	}
-
-	// Set up the provider cache directory
-	providerCacheDir := opts.ProviderCacheOptions.Dir
-	if providerCacheDir == "" {
-		cacheDir, err := util.EnsureCacheDir(v)
+// resolveWorkingDir makes opts.WorkingDir a clean absolute path, using the
+// current directory when it is unset.
+func resolveWorkingDir(v *venv.Venv, opts *options.TerragruntOptions) error {
+	if opts.WorkingDir == "" {
+		currentDir, err := v.Platform.Getwd()
 		if err != nil {
-			return fmt.Errorf("failed to get cache directory: %w", err)
+			return err
 		}
 
-		providerCacheDir = filepath.Join(cacheDir, "providers")
+		opts.WorkingDir = filepath.Clean(currentDir)
+
+		return nil
 	}
 
-	// Make sure the cache directory is absolute
-	if !filepath.IsAbs(providerCacheDir) {
-		providerCacheDir = filepath.Join(opts.RootWorkingDir, providerCacheDir)
+	if filepath.IsAbs(opts.WorkingDir) {
+		opts.WorkingDir = filepath.Clean(opts.WorkingDir)
+
+		return nil
 	}
 
-	providerCacheDir = filepath.Clean(providerCacheDir)
-
-	const cacheDirMode = 0755
-
-	// Create the cache directory if it doesn't exist
-	if err := v.FS.MkdirAll(providerCacheDir, cacheDirMode); err != nil {
-		return fmt.Errorf("failed to create provider cache directory: %w", err)
+	workingDir, err := filepath.Abs(opts.WorkingDir)
+	if err != nil {
+		return err
 	}
 
-	v.Env[tf.EnvNameTFPluginCacheDir] = providerCacheDir
-
-	l.Debugf("Auto provider cache dir enabled: TF_PLUGIN_CACHE_DIR=%s", providerCacheDir)
+	opts.WorkingDir = filepath.Clean(workingDir)
 
 	return nil
 }
@@ -550,27 +349,8 @@ func initialSetup(
 		args = append(args, tf.FlagNameNoColor)
 	}
 
-	opts.TerraformCommand = cmdName
+	opts.TofuCommand = cmdName
 	opts.TerraformCliArgs = iacargs.New(args...)
-
-	// --- Working Dir
-	if opts.WorkingDir == "" {
-		currentDir, err := v.Platform.Getwd()
-		if err != nil {
-			return err
-		}
-
-		opts.WorkingDir = currentDir
-	} else if !filepath.IsAbs(opts.WorkingDir) {
-		workingDir, err := filepath.Abs(opts.WorkingDir)
-		if err != nil {
-			return err
-		}
-
-		opts.WorkingDir = workingDir
-	}
-
-	opts.WorkingDir = filepath.Clean(opts.WorkingDir)
 
 	l = l.WithField(placeholders.WorkDirKeyName, opts.WorkingDir)
 
@@ -681,7 +461,7 @@ func initialSetup(
 	}
 
 	opts.OriginalTerragruntConfigPath = opts.TerragruntConfigPath
-	opts.OriginalTerraformCommand = opts.TerraformCliArgs.CommandName(opts.TerraformCommand)
+	opts.OriginalTofuCommand = opts.TerraformCliArgs.CommandName(opts.TofuCommand)
 	opts.OriginalIAMRoleOptions = opts.IAMRoleOptions
 
 	if !exec.PrepareConsole(l) {
@@ -690,4 +470,65 @@ func initialSetup(
 	}
 
 	return nil
+}
+
+// newProgressReporter returns a reporter that draws only next to text logs at info level or lower.
+func newProgressReporter(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *spinner.Reporter {
+	textLogs := !opts.JSONLogFormat && !l.Formatter().DisabledOutput()
+
+	return spinner.New(v, spinner.Options{
+		Threshold:     spinner.DefaultThreshold,
+		LogsForHumans: textLogs && l.Level() >= log.InfoLevel,
+	})
+}
+
+// guardTerminal wraps the logger, stderr and stdout around the progress line and returns a function that unwraps them.
+func guardTerminal(l log.Logger, v *venv.Venv, reporter *spinner.Reporter) func() {
+	writers := v.Writers
+	restoreLogger := reporter.GuardLogger(l)
+
+	v.Writers = writers.WithErrWriter(reporter.Guard(writers.ErrWriter))
+	if v.Terminal.StdoutIsTTY() {
+		v.Writers = v.Writers.WithWriter(reporter.Guard(writers.Writer))
+	}
+
+	return func() {
+		v.Writers = writers
+
+		restoreLogger()
+	}
+}
+
+// setCommandSpanAttributes records on the command span the tofu command and
+// arguments that initialSetup resolves, for a command that runs OpenTofu/Terraform.
+func setCommandSpanAttributes(ctx context.Context, cliCtx *clihelper.Context, opts *options.TerragruntOptions) {
+	span := trace.SpanFromContext(ctx)
+	if !span.IsRecording() {
+		return
+	}
+
+	if !runsTofu(cliCtx) || opts.TofuCommand == "" {
+		return
+	}
+
+	span.SetAttributes(
+		attribute.String("tofu_command", opts.TofuCommand),
+		attribute.StringSlice("args", opts.TerraformCliArgs.Slice()),
+	)
+}
+
+// runsTofu reports whether cliCtx is a command that passes its arguments to
+// OpenTofu/Terraform: run, stack run, a subcommand of run, or a shortcut.
+func runsTofu(cliCtx *clihelper.Context) bool {
+	if cliCtx.Command.Name == runcmd.CommandName {
+		return true
+	}
+
+	if cliCtx.Command.Category != nil && cliCtx.Command.Category.Name == ShortcutsCommandsCategoryName {
+		return true
+	}
+
+	parent := cliCtx.Parent().Command
+
+	return parent != nil && parent.Name == runcmd.CommandName
 }

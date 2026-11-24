@@ -17,11 +17,13 @@ const (
 	PATH
 
 	// Operators
+
 	BANG  // negation operator (!)
 	PIPE  // intersection operator (|)
 	EQUAL // attribute assignment (=)
 
 	// Delimiters
+
 	LBRACE   // left brace ({)
 	RBRACE   // right brace (})
 	LBRACKET // left bracket ([)
@@ -30,6 +32,7 @@ const (
 	RPAREN   // right parenthesis ())
 
 	// Graph operators
+
 	ELLIPSIS // ellipsis operator (...)
 	CARET    // caret operator (^)
 )

@@ -31,9 +31,9 @@ jobs:
           fetch-depth: 0
 
       - name: Use mise to install dependencies
-        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
         with:
-          version: 2026.9.12
+          version: 2026.11.0
           cache_save: ${{ github.ref == 'refs/heads/main' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -52,7 +52,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_SHA: ${{ steps.refs.outputs.current_sha }}
           GITHUB_REF: refs/heads/main
-        run: ./.github/scripts/coverage/coverage-report.sh collect current ${WEEKLY_PKGS}
+        run: |
+          read -ra pkgs <<< "$WEEKLY_PKGS"
+          ./.github/scripts/coverage/coverage-report.sh collect current "${pkgs[@]}"
 
       - name: Prepare previous checkout
         if: steps.refs.outputs.same_commit != 'true'
@@ -69,7 +71,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_SHA: ${{ steps.refs.outputs.previous_sha }}
           GITHUB_REF: refs/heads/main
-        run: ${{ github.workspace }}/.github/scripts/coverage/coverage-report.sh collect ${{ github.workspace }}/previous ${WEEKLY_PKGS}
+        run: |
+          read -ra pkgs <<< "$WEEKLY_PKGS"
+          "$GITHUB_WORKSPACE/.github/scripts/coverage/coverage-report.sh" collect "$GITHUB_WORKSPACE/previous" "${pkgs[@]}"
 
       - name: Compare coverage
         # A missing/empty previous summary yields a baseline (current-only) report.
@@ -84,7 +88,7 @@ jobs:
 
       - name: Upload coverage summary (current)
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage-summary-current.json
           path: current/coverage-summary.json
@@ -92,7 +96,7 @@ jobs:
 
       - name: Upload coverage summary (previous)
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage-summary-previous.json
           path: previous/coverage-summary.json
@@ -101,7 +105,7 @@ jobs:
 
       - name: Upload timing summary (current)
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: timing-summary-current.json
           path: current/timing-summary.json
@@ -109,7 +113,7 @@ jobs:
 
       - name: Upload timing summary (previous)
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: timing-summary-previous.json
           path: previous/timing-summary.json
@@ -118,7 +122,7 @@ jobs:
 
       - name: Upload comparison-report.json
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: comparison-report.json
           path: comparison-report.json
@@ -126,7 +130,7 @@ jobs:
 
       - name: Upload comparison-report.html
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: comparison-report.html
           path: comparison-report.html
@@ -134,7 +138,7 @@ jobs:
 
       - name: Upload timing-comparison.json
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: timing-comparison.json
           path: timing-comparison.json

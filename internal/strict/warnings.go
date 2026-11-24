@@ -8,6 +8,7 @@ type CompletedControlsWarning struct {
 	controlNames []string
 }
 
+// NewCompletedControlsWarning returns a [CompletedControlsWarning] that names controlNames.
 func NewCompletedControlsWarning(controlNames []string) *CompletedControlsWarning {
 	return &CompletedControlsWarning{
 		controlNames: controlNames,

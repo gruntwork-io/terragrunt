@@ -10,7 +10,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/worker"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -70,7 +69,9 @@ unit "app" {
 	l := logger.CreateLogger()
 	ctx, pctx := newTestParsingContext(t, unitConfig)
 
-	_, err = config.ParseConfigFile(ctx, l, v, pctx, unitConfig, nil)
+	s := new(config.Store)
+
+	_, err = s.ResolveRunConfig(ctx, l, v, pctx, unitConfig)
 
 	var diags hcl.Diagnostics
 
@@ -163,7 +164,7 @@ unit "lead" {
 func generateLiveStack(t *testing.T, stackFile string, files map[string]string) (*venv.Venv, error) {
 	t.Helper()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 
 	for _, name := range []string{"main.tf", config.DefaultTerragruntConfigPath} {
 		require.NoError(t, vfs.WriteFile(
@@ -191,7 +192,7 @@ func generateLiveStack(t *testing.T, stackFile string, files map[string]string) 
 
 	defer pool.Stop()
 
-	if err := config.GenerateStackFile(ctx, l, v, pctx, pool, stackPath); err != nil {
+	if err := config.GenerateStackFile(ctx, l, v, new(config.Store), pctx, pool, stackPath); err != nil {
 		return v, err
 	}
 

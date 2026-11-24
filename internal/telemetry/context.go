@@ -11,7 +11,8 @@ type contextKey byte
 
 const (
 	telemeterContextKey contextKey = iota
-	TraceParentEnv                 = "TRACEPARENT"
+	// TraceParentEnv is the W3C Trace Context environment variable that passes the current span to child processes.
+	TraceParentEnv = "TRACEPARENT"
 )
 
 // ContextWithTelemeter returns a new context with the provided Telemeter attached.

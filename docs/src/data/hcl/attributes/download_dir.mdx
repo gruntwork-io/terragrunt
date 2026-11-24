@@ -1,0 +1,33 @@
+---
+name: download_dir
+description: Overrides the directory Terragrunt downloads OpenTofu/Terraform modules into.
+configs: [unit]
+type: string
+default: .terragrunt-cache
+examples:
+  - code: |
+      # root.hcl
+
+      download_dir = "/tmp/terragrunt/${path_relative_to_include()}"
+---
+
+import FileTree from '@components/vendored/starlight/FileTree.astro';
+
+The `download_dir` attribute sets the directory Terragrunt downloads OpenTofu/Terraform modules into. By default, Terragrunt creates a `.terragrunt-cache` directory next to the unit's `terragrunt.hcl`:
+
+<FileTree>
+
+- app
+  - terragrunt.hcl
+  - .terragrunt-cache/
+
+</FileTree>
+
+### Precedence
+
+Terragrunt uses the first of these that is set:
+
+1. The [`--download-dir`](/reference/cli/commands/run#download-dir) flag.
+2. The `TG_DOWNLOAD_DIR` environment variable.
+3. `download_dir` in the unit's `terragrunt.hcl`.
+4. `download_dir` in a file the unit includes.

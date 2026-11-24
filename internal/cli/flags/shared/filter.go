@@ -13,12 +13,21 @@ import (
 )
 
 const (
-	FilterFlagName             = "filter"
-	FilterAffectedFlagName     = "filter-affected"
+	// FilterFlagName is the flag name for `--filter`, a query that selects the components to run on.
+	FilterFlagName = "filter"
+	// FilterAffectedFlagName is the flag name for `--filter-affected`, which selects components changed
+	// between the default branch and HEAD.
+	FilterAffectedFlagName = "filter-affected"
+	// FilterAllowDestroyFlagName is the flag name for `--filter-allow-destroy`, which permits destroy runs
+	// under Git-based filters.
 	FilterAllowDestroyFlagName = "filter-allow-destroy"
-	DiscoveryBoundaryFlagName  = "discovery-boundary"
-	FilterFileFlagName         = "filters-file"
-	NoFilterFileFlagName       = "no-filters-file"
+	// DiscoveryBoundaryFlagName is the flag name for `--discovery-boundary`, the directory that bounds
+	// `--filter` discovery in place of the Git root.
+	DiscoveryBoundaryFlagName = "discovery-boundary"
+	// FilterFileFlagName is the flag name for `--filters-file`, a file of filter queries, one per line.
+	FilterFileFlagName = "filters-file"
+	// NoFilterFileFlagName is the flag name for `--no-filters-file`, which skips reading the filters file.
+	NoFilterFileFlagName = "no-filters-file"
 )
 
 // NewFilterFlags creates flags for specifying filter queries.

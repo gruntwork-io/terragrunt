@@ -1,0 +1,58 @@
+---
+name: path_relative_from_include
+description: Returns the path from the unit's directory to an included file's directory.
+configs: [unit, stack]
+params:
+  - name: name
+    type: string
+    optional: true
+    description: The label of the `include` block to measure to. A unit with more than one `include` block needs it. In the included file, it has no effect.
+returns: string
+examples:
+  - description: When `prod/mysql/terragrunt.hcl` includes this file.
+    code: |
+      # root.hcl
+
+      locals {
+        root_path = path_relative_from_include() # "../.."
+      }
+---
+
+import FileTree from '@components/vendored/starlight/FileTree.astro';
+
+`path_relative_from_include` is the reverse of [`path_relative_to_include`](/reference/hcl/functions/path_relative_to_include). Together, they let an included file build a relative path for each unit, e.g. a `source` in a sibling folder:
+
+```hcl
+# terragrunt/root.hcl
+
+locals {
+  to_root = path_relative_from_include()
+  to_unit = path_relative_to_include()
+}
+
+terraform {
+  source = "${local.to_root}/../sources//${local.to_unit}"
+}
+```
+
+<FileTree>
+
+- sources
+  - mysql
+    - main.tf
+  - secrets
+    - mysql
+      - main.tf
+- terragrunt
+  - root.hcl
+  - mysql
+    - terragrunt.hcl
+  - secrets
+    - mysql
+      - terragrunt.hcl
+
+</FileTree>
+
+The `source` is `../../sources//mysql` for `terragrunt/mysql` and `../../../sources//secrets/mysql` for `terragrunt/secrets/mysql`. Without an `include` block, the function returns `.`.
+
+For an absolute path to the included file's directory, use [`get_parent_terragrunt_dir`](/reference/hcl/functions/get_parent_terragrunt_dir).

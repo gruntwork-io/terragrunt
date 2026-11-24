@@ -110,5 +110,9 @@ func TestIsStatusCode(t *testing.T) {
 
 	assert.True(t, isStatusCode(fmt.Errorf("wrapped: %w", notFound), http.StatusNotFound))
 	assert.False(t, isStatusCode(notFound, http.StatusForbidden))
-	assert.False(t, isStatusCode(errors.New("404 not found"), http.StatusNotFound), "only a service response carries a status")
+	assert.False(
+		t,
+		isStatusCode(errors.New("404 not found"), http.StatusNotFound),
+		"only a service response carries a status",
+	)
 }

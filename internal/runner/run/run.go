@@ -20,6 +20,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/redact"
@@ -38,12 +39,19 @@ import (
 )
 
 const (
+	// CommandNameTerragruntReadConfig is the pseudo command set while after hooks run once Terragrunt has read the
+	// config, so a hook whose commands list includes it runs at that point.
 	CommandNameTerragruntReadConfig = "terragrunt-read-config"
-	NullTFVarsFile                  = ".terragrunt-null-vars.auto.tfvars.json"
-	tofuCPUProfileName              = "tofu_cpu.prof"
-	tofuProfileDirMode              = 0o700
+	// NullTFVarsFile is the auto-loaded tfvars file that passes inputs set to null, since TF_VAR_ environment
+	// variables cannot express null.
+	NullTFVarsFile     = ".terragrunt-null-vars.auto.tfvars.json"
+	varsFileMode       = 0o600
+	tofuCPUProfileName = "tofu_cpu.prof"
+	tofuProfileDirMode = 0o700
 )
 
+// TerraformCommandsThatUseState lists the tofu commands that read or write state. Only these commands bootstrap
+// the remote state backend before they run.
 var TerraformCommandsThatUseState = []string{
 	"init",
 	"apply",
@@ -72,8 +80,6 @@ var TerraformCommandsThatDoNotNeedInit = []string{
 	// Engines can decide to selectively perform inits based on the logic of their engine commands.
 	"engine",
 }
-
-var ModuleRegex = regexp.MustCompile(`module[[:blank:]]+".+"`)
 
 // sourceChangeLocks is a map of per-directory mutexes that serializes concurrent access to cache directories.
 // It prevents generated code from being overwritten while a hook (e.g. `tflint`) is running, and prevents
@@ -169,17 +175,27 @@ func Run(
 		return err
 	}
 
-	// Always download/copy source to cache directory for consistency.
-	// When no source is specified, sourceURL will be "." (current directory).
-	err = telemetry.TelemeterFromContext(ctx).
-		Collect(ctx, l, "download_terraform_source", map[string]any{
-			"sourceUrl": redact.NewURL(sourceURL),
-		}, func(ctx context.Context, l log.Logger) error {
-			updatedOpts, err = DownloadTerraformSource(ctx, l, v, sourceURL, opts, cfg, r)
-			return err
-		})
+	skipCache, err := runcfg.ShouldSkipCache(
+		opts.Experiments.Evaluate(experiment.NoDotTerragruntCache),
+		opts.Source,
+		opts.TerragruntConfigPath,
+		cfg,
+	)
 	if err != nil {
 		return err
+	}
+
+	if !skipCache {
+		err = telemetry.TelemeterFromContext(ctx).
+			Collect(ctx, l, "download_terraform_source", map[string]any{
+				"sourceUrl": redact.NewURL(sourceURL),
+			}, func(ctx context.Context, l log.Logger) error {
+				updatedOpts, err = DownloadTerraformSource(ctx, l, v, sourceURL, opts, cfg, r)
+				return err
+			})
+		if err != nil {
+			return err
+		}
 	}
 
 	// Handle code generation configs, both generate blocks and generate attribute of remote_state.
@@ -297,7 +313,8 @@ func runTerragruntWithConfig(
 
 	if len(cfg.Terraform.ExtraArgs) > 0 {
 		args := FilterTerraformExtraArgs(l, v.FS, opts, cfg)
-		extraEnvVars := filterTerraformEnvVarsFromExtraArgsRunCfg(opts, cfg)
+		cmd := opts.TerraformCliArgs.CommandName(opts.TerraformCliArgs.First())
+		extraEnvVars := extraArgsEnvVars(cfg, cmd)
 
 		opts.InsertTerraformCliArgs(args...)
 
@@ -312,6 +329,10 @@ func runTerragruntWithConfig(
 		return err
 	}
 
+	if err := validateDeclaredInputs(v.FS, opts.CacheDir, cfg.ValidatedInputs); err != nil {
+		return err
+	}
+
 	if opts.TerraformCliArgs.First() == tf.CommandNameInit {
 		if err := prepareInitCommandRunCfg(ctx, l, v, opts, cfg); err != nil {
 			return err
@@ -322,22 +343,31 @@ func runTerragruntWithConfig(
 		}
 	}
 
-	// Write null-valued inputs to a tfvars.json file that OpenTofu/Terraform will auto-load.
+	var runVarFiles []string
+
+	defer func() {
+		for _, path := range runVarFiles {
+			if removeErr := v.FS.Remove(path); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
+				l.Debugf("Failed to remove variables file %s: %v", path, removeErr)
+			}
+		}
+	}()
+
 	nullVarsFile, err := setTerragruntNullValuesRunCfg(v, opts, cfg)
 	if err != nil {
 		return err
 	}
 
-	defer func() {
-		if nullVarsFile != "" {
-			if removeErr := v.FS.Remove(
-				nullVarsFile,
-			); removeErr != nil &&
-				!errors.Is(removeErr, os.ErrNotExist) {
-				l.Debugf("Failed to remove null values file %s: %v", nullVarsFile, removeErr)
-			}
-		}
-	}()
+	if nullVarsFile != "" {
+		runVarFiles = append(runVarFiles, nullVarsFile)
+	}
+
+	inPlaceVarFiles, err := writeVarFiles(v.FS, opts, cfg)
+	runVarFiles = append(runVarFiles, inPlaceVarFiles...)
+
+	if err != nil {
+		return err
+	}
 
 	// Now that we've run 'init' and have all the source code locally, we can finally run the patch command
 	if err := CheckProtectedModuleRunCfg(opts, cfg); err != nil {
@@ -361,7 +391,7 @@ func runTerragruntWithConfig(
 			// Execute the underlying command once; retries and ignores are handled by outer RunWithErrorHandling
 			out, runTerraformError := tf.RunCommandWithOutput(
 				childCtx, l, v,
-				opts.tfRunOptions(v.Env), opts.TerraformCliArgs.Slice()...,
+				opts.tfRunOptions(v.Exec, v.Env), opts.TerraformCliArgs.Slice()...,
 			)
 
 			var lockFileError error
@@ -389,11 +419,44 @@ func runTerragruntWithConfig(
 				if out == nil {
 					l.Errorf("%s invocation failed in %s", opts.TofuImplementation, opts.CacheDir)
 				}
+
+				return errors.Join(runTerraformError, lockFileError)
 			}
 
-			return errors.Join(runTerraformError, lockFileError)
+			var recordInitError error
+			if opts.TerraformCliArgs.First() == tf.CommandNameInit {
+				recordInitError = recordInit(v.FS, opts, cfg, v.Env)
+			}
+
+			return errors.Join(lockFileError, recordInitError)
 		},
 	)
+}
+
+// recordInit updates what [needsInitRunCfg] reads on later runs after a successful init: it
+// stores the [tf.InitFingerprint] of the working directory and removes the
+// [ModuleInitRequiredFile] that requested the init.
+func recordInit(fsys vfs.FS, opts *Options, cfg *runcfg.RunConfig, env map[string]string) error {
+	fingerprint, err := tf.ComputeInitFingerprint(
+		fsys,
+		opts.CacheDir,
+		opts.DataDir(env),
+		initInputs(cfg, env),
+	)
+	if err != nil {
+		return err
+	}
+
+	if err := tf.WriteInitFingerprint(fsys, opts.DataDir(env), fingerprint); err != nil {
+		return err
+	}
+
+	initRequiredFile := filepath.Join(opts.CacheDir, ModuleInitRequiredFile)
+	if !vfs.Exists(fsys, initRequiredFile) {
+		return nil
+	}
+
+	return fsys.Remove(initRequiredFile)
 }
 
 // ShouldCopyLockFile verifies if the lock file should be copied to the user's working directory
@@ -503,13 +566,16 @@ func SetTerragruntInputsAsEnvVars(
 		panic(venv.ErrVenvEnvUnset)
 	}
 
-	asEnvVars, err := ToTerraformEnvVars(
-		l,
-		cfg.Inputs,
-		declaredVariables(l, fsys, modulePath, cfg.Inputs),
-	)
+	asEnvVars, err := ToTerraformEnvVars(l, cfg.Inputs, nil)
 	if err != nil {
 		return err
+	}
+
+	if hasTemplateSequence(asEnvVars) {
+		asEnvVars, err = ToTerraformEnvVars(l, cfg.Inputs, declaredVariables(l, fsys, modulePath))
+		if err != nil {
+			return err
+		}
 	}
 
 	for key, value := range asEnvVars {
@@ -621,23 +687,16 @@ func prepareInitOptions(l log.Logger, opts *Options) (log.Logger, *Options, bool
 	return l, initOptions, suppressInitStdout, nil
 }
 
-// Return true if modules aren't already downloaded and the Terraform templates in this project reference modules.
-// Note that to keep the logic in this code very simple, this code ONLY detects the case where you haven't downloaded
-// modules at all. Detecting if your downloaded modules are out of date (as opposed to missing entirely) is more
-// complicated and not something we handle at the moment.
+// modulesNeedInit reports whether init must run to install modules: the root module calls
+// modules and none are installed yet. It only detects missing modules, not stale ones; a
+// source change requests init through [ModuleInitRequiredFile] instead.
 func modulesNeedInit(fsys vfs.FS, opts *Options, env map[string]string) (bool, error) {
 	modulesPath := filepath.Join(opts.DataDir(env), "modules")
 	if vfs.Exists(fsys, modulesPath) {
 		return false, nil
 	}
 
-	// Check for module definitions in .tf and .tofu files using WalkDir
-	hasModuleDefinition, err := util.RegexFoundInTFFiles(fsys, opts.CacheDir, ModuleRegex)
-	if err != nil {
-		return false, err
-	}
-
-	return hasModuleDefinition, nil
+	return tf.HasModuleCalls(fsys, opts.CacheDir)
 }
 
 // remoteStateNeedsInit determines whether remote state initialization is required before running a Terraform command.
@@ -666,7 +725,7 @@ func remoteStateNeedsInit(
 		return false, nil
 	}
 
-	if ok, err := remoteState.NeedsBootstrap(ctx, l, v, opts.remoteStateOpts(v.Env)); err != nil || !ok {
+	if ok, err := remoteState.NeedsBootstrap(ctx, l, v, opts.remoteStateOpts(v.Exec, v.Env)); err != nil || !ok {
 		return false, err
 	}
 
@@ -675,33 +734,54 @@ func remoteStateNeedsInit(
 
 // FilterTerraformExtraArgs extracts terraform extra arguments using runcfg types.
 func FilterTerraformExtraArgs(l log.Logger, fsys vfs.FS, opts *Options, cfg *runcfg.RunConfig) []string {
-	out := []string{}
 	cmd := opts.TerraformCliArgs.CommandName(opts.TerraformCliArgs.First())
+
+	appliesPlanFile := (cmd == tf.CommandNameApply || cmd == tf.CommandNameDestroy) &&
+		vfs.IsFile(fsys, opts.TerraformCliArgs.Last())
+
+	vars := keepVarArgs
+	if appliesPlanFile {
+		vars = dropVarArgs
+	}
+
+	return extraArgs(cfg, cmd, vars)
+}
+
+// varArgs selects whether [extraArgs] keeps the -var arguments and var files of extra_arguments.
+type varArgs int
+
+const (
+	// keepVarArgs keeps them.
+	keepVarArgs varArgs = iota
+	// dropVarArgs leaves them out, as apply and destroy of a saved plan file take no variables.
+	dropVarArgs
+)
+
+// extraArgs returns the arguments that the extra_arguments of cfg give cmd, with the -var arguments and var files
+// that vars selects.
+func extraArgs(cfg *runcfg.RunConfig, cmd string, vars varArgs) []string {
+	out := []string{}
 
 	for i := range cfg.Terraform.ExtraArgs {
 		arg := &cfg.Terraform.ExtraArgs[i]
 		for _, argCmd := range arg.Commands {
-			if cmd == argCmd {
-				lastArg := opts.TerraformCliArgs.Last()
-				skipVars := (cmd == tf.CommandNameApply || cmd == tf.CommandNameDestroy) &&
-					vfs.IsFile(fsys, lastArg)
+			if cmd != argCmd {
+				continue
+			}
 
-				if len(arg.Arguments) > 0 {
-					if skipVars {
-						for _, a := range arg.Arguments {
-							if !strings.HasPrefix(a, "-var") {
-								out = append(out, a)
-							}
-						}
-					} else {
-						out = append(out, arg.Arguments...)
-					}
+			if vars == keepVarArgs {
+				out = append(out, arg.Arguments...)
+
+				for _, file := range arg.VarFiles {
+					out = append(out, "-var-file="+file)
 				}
 
-				if !skipVars {
-					for _, file := range arg.VarFiles {
-						out = append(out, "-var-file="+file)
-					}
+				continue
+			}
+
+			for _, a := range arg.Arguments {
+				if !strings.HasPrefix(a, "-var") {
+					out = append(out, a)
 				}
 			}
 		}
@@ -714,9 +794,10 @@ func FilterTerraformExtraArgs(l log.Logger, fsys vfs.FS, opts *Options, cfg *run
 // keys will be of the format TF_VAR_xxx and the values will be converted to JSON, which Terraform knows how to read
 // natively.
 //
-// A string value only has its interpolation sequences escaped when the module declares the matching
-// variable with a type constraint that makes OpenTofu/Terraform parse the value as HCL. Escaping a
-// value that is read literally would deliver $${...} to the module instead of ${...}.
+// Template sequences have to be escaped in a value OpenTofu/Terraform parse as HCL, and left alone
+// in a value they read literally, where escaping would deliver $${...} to the module instead of
+// ${...}. The type constraint in declared decides which applies. For a variable missing from
+// declared, a string is left alone and a map or list is escaped.
 func ToTerraformEnvVars(
 	l log.Logger,
 	vars map[string]any,
@@ -731,11 +812,7 @@ func ToTerraformEnvVars(
 
 		envVarName := fmt.Sprintf(tf.EnvNameTFVarFmt, varName)
 
-		if str, ok := varValue.(string); ok && declared[varName].ParsingMode == tf.VariableParseHCL {
-			varValue = util.EscapeInterpolationInString(str)
-		}
-
-		envVarValue, err := util.AsTerraformEnvVarJSONValue(varValue)
+		envVarValue, err := terraformEnvVarValue(varValue, declared[varName].ParsingMode)
 		if err != nil {
 			return nil, err
 		}
@@ -746,31 +823,42 @@ func ToTerraformEnvVars(
 	return out, nil
 }
 
-// declaredVariables reads how the module at modulePath declared its variables, so that only the
-// values OpenTofu/Terraform parse as HCL get escaped.
+// terraformEnvVarValue encodes value for a TF_VAR_* environment variable that OpenTofu/Terraform
+// read in the given mode.
 //
-// Reading the module is skipped unless an input actually carries an interpolation sequence, and a
-// module that cannot be read yields no declarations at all: values are then passed through
-// untouched, and OpenTofu/Terraform report the malformed module themselves.
-func declaredVariables(
-	l log.Logger,
-	fsys vfs.FS,
-	modulePath string,
-	inputs map[string]any,
-) map[string]tf.ModuleVariable {
-	needsDeclarations := false
+// With [tf.VariableParseUnknown], a string is encoded for a variable read literally and any other
+// value for a variable parsed as HCL. An unescaped map or list makes OpenTofu/Terraform fail when
+// they do parse it as HCL.
+func terraformEnvVarValue(value any, mode tf.VariableParsingMode) (string, error) {
+	str, isString := value.(string)
 
-	for _, value := range inputs {
-		if str, ok := value.(string); ok && strings.Contains(str, "${") {
-			needsDeclarations = true
-			break
+	switch {
+	case isString && mode == tf.VariableParseHCL:
+		return util.EscapeTemplateSequencesInString(str), nil
+	case isString, mode == tf.VariableParseLiteral:
+		return util.AsLiteralTerraformEnvVarJSONValue(value)
+	}
+
+	return util.AsTerraformEnvVarJSONValue(value)
+}
+
+// hasTemplateSequence reports whether any of the given environment variable values contains ${ or %{.
+func hasTemplateSequence(envVars map[string]string) bool {
+	for _, value := range envVars {
+		if strings.Contains(value, "${") || strings.Contains(value, "%{") {
+			return true
 		}
 	}
 
-	if !needsDeclarations {
-		return nil
-	}
+	return false
+}
 
+// declaredVariables reads how the module at modulePath declared its variables, so that only the
+// values OpenTofu/Terraform parse as HCL get escaped.
+//
+// A module that cannot be read yields no declarations at all, and OpenTofu/Terraform report the
+// malformed module themselves.
+func declaredVariables(l log.Logger, fsys vfs.FS, modulePath string) map[string]tf.ModuleVariable {
 	declared, err := tf.ModuleVariables(fsys, modulePath)
 	if err != nil {
 		l.Debugf("Failed to read variable declarations in %s: %v", modulePath, err)
@@ -781,13 +869,9 @@ func declaredVariables(
 	return declared
 }
 
-// filterTerraformEnvVarsFromExtraArgsRunCfg extracts terraform env vars from extra args using runcfg types.
-func filterTerraformEnvVarsFromExtraArgsRunCfg(
-	opts *Options,
-	cfg *runcfg.RunConfig,
-) map[string]string {
+// extraArgsEnvVars returns the environment variables that the extra_arguments of cfg set for cmd.
+func extraArgsEnvVars(cfg *runcfg.RunConfig, cmd string) map[string]string {
 	out := map[string]string{}
-	cmd := opts.TerraformCliArgs.CommandName(opts.TerraformCliArgs.First())
 
 	for i := range cfg.Terraform.ExtraArgs {
 		arg := &cfg.Terraform.ExtraArgs[i]
@@ -826,7 +910,7 @@ func prepareInitCommandRunCfg(
 		return nil
 	}
 
-	if err := cfg.RemoteState.Bootstrap(ctx, l, v, opts.remoteStateOpts(v.Env)); err != nil {
+	if err := cfg.RemoteState.Bootstrap(ctx, l, v, opts.remoteStateOpts(v.Exec, v.Env)); err != nil {
 		return err
 	}
 
@@ -875,17 +959,26 @@ func needsInitRunCfg(
 		return true, nil
 	}
 
-	if providersNeedInit(v.FS, opts, v.Env) {
-		return true, nil
-	}
-
-	modulesNeedsInit, err := modulesNeedInit(v.FS, opts, v.Env)
+	state, err := checkInitFingerprint(v.FS, opts, cfg, v.Env)
 	if err != nil {
 		return false, err
 	}
 
-	if modulesNeedsInit {
+	if state == fingerprintStale {
 		return true, nil
+	}
+
+	// Without a fingerprint, init last ran outside Terragrunt or under a version that recorded
+	// none, so what it left behind is the only evidence.
+	if state == fingerprintMissing {
+		missing, err := initArtifactsMissing(v.FS, opts, v.Env)
+		if err != nil {
+			return false, err
+		}
+
+		if missing {
+			return true, nil
+		}
 	}
 
 	if cfg.RemoteState.Config == nil {
@@ -893,6 +986,103 @@ func needsInitRunCfg(
 	}
 
 	return remoteStateNeedsInit(ctx, l, v, &cfg.RemoteState, opts)
+}
+
+// initInputs returns a function that gathers the [tf.InitInputs] of an init that runs with env and
+// with the extra_arguments that cfg gives init. The function leaves env as it is.
+func initInputs(cfg *runcfg.RunConfig, env map[string]string) func() (tf.InitInputs, error) {
+	return func() (tf.InitInputs, error) {
+		initEnv := maps.Clone(env)
+		maps.Copy(initEnv, extraArgsEnvVars(cfg, tf.CommandNameInit))
+
+		args := extraArgs(cfg, tf.CommandNameInit, keepVarArgs)
+
+		generated := make(map[string]string, len(cfg.TFVarsInputs)+len(cfg.JSONInputs))
+
+		for _, inputs := range []struct {
+			values map[string]any
+			kind   string
+		}{
+			{values: cfg.TFVarsInputs, kind: "tfvars"},
+			{values: cfg.JSONInputs, kind: "json"},
+		} {
+			for name, value := range inputs.values {
+				encoded, err := json.Marshal(value)
+				if err != nil {
+					return tf.InitInputs{}, err
+				}
+
+				generated[name] += inputs.kind + ":" + string(encoded) + "\n"
+			}
+		}
+
+		for name, value := range cfg.Inputs {
+			if value == nil {
+				generated[name] += "null\n"
+			}
+		}
+
+		return tf.InitInputs{
+			Env:               initEnv,
+			Args:              args,
+			Generated:         generated,
+			GeneratedVarFiles: []string{NullTFVarsFile, TFVarsFile, JSONVarsFile},
+		}, nil
+	}
+}
+
+// initFingerprintState is how the fingerprint recorded by the last init relates to the working
+// directory as it is now.
+type initFingerprintState int
+
+const (
+	fingerprintMissing initFingerprintState = iota
+	fingerprintCurrent
+	fingerprintStale
+)
+
+// checkInitFingerprint compares the fingerprint recorded by the last init, if any, against the
+// working directory as it is now.
+func checkInitFingerprint(
+	fsys vfs.FS,
+	opts *Options,
+	cfg *runcfg.RunConfig,
+	env map[string]string,
+) (initFingerprintState, error) {
+	recorded, err := tf.ReadInitFingerprint(fsys, opts.DataDir(env))
+	if errors.Is(err, os.ErrNotExist) {
+		return fingerprintMissing, nil
+	}
+
+	if err != nil {
+		return fingerprintMissing, err
+	}
+
+	current, err := tf.InitFingerprintCurrent(
+		fsys,
+		opts.CacheDir,
+		opts.DataDir(env),
+		recorded,
+		initInputs(cfg, env),
+	)
+	if err != nil {
+		return fingerprintMissing, err
+	}
+
+	if !current {
+		return fingerprintStale, nil
+	}
+
+	return fingerprintCurrent, nil
+}
+
+// initArtifactsMissing reports whether the working directory lacks something init installs.
+func initArtifactsMissing(fsys vfs.FS, opts *Options, env map[string]string) (bool, error) {
+	if providersNeedInit(fsys, opts, env) {
+		return true, nil
+	}
+
+	return modulesNeedInit(fsys, opts, env)
 }
 
 // runTerraformInitRunCfg runs terraform init using runcfg types.
@@ -925,7 +1115,7 @@ func runTerraformInitRunCfg(
 		initV = initV.WithWriter(io.Discard)
 	}
 
-	if err := runTerragruntWithConfig(
+	return runTerragruntWithConfig(
 		ctx,
 		l,
 		initV,
@@ -933,16 +1123,7 @@ func runTerraformInitRunCfg(
 		initOptions,
 		cfg,
 		r,
-	); err != nil {
-		return err
-	}
-
-	moduleNeedInit := filepath.Join(opts.CacheDir, ModuleInitRequiredFile)
-	if vfs.Exists(v.FS, moduleNeedInit) {
-		return v.FS.Remove(moduleNeedInit)
-	}
-
-	return nil
+	)
 }
 
 // CheckProtectedModuleRunCfg rejects a destroy of a unit that sets `prevent_destroy`.
@@ -964,6 +1145,10 @@ func CheckProtectedModuleRunCfg(opts *Options, cfg *runcfg.RunConfig) error {
 // that OpenTofu/Terraform will auto-load. This is necessary because OpenTofu/Terraform
 // cannot accept null values via environment variables (TF_VAR_*), but it can read them
 // from .auto.tfvars.json files.
+//
+// The file is removed after the run. When the unit runs in place, the file lands in the user's unit directory,
+// so an existing file there is never replaced and the run stops with VarsFileExists. In the cache directory
+// the file is a disposable copy and is overwritten.
 func setTerragruntNullValuesRunCfg(v *venv.Venv, opts *Options, cfg *runcfg.RunConfig) (string, error) {
 	jsonEmptyVars := make(map[string]any)
 
@@ -984,18 +1169,68 @@ func setTerragruntNullValuesRunCfg(v *venv.Venv, opts *Options, cfg *runcfg.RunC
 
 	varFile := filepath.Join(opts.CacheDir, NullTFVarsFile)
 
-	const ownerReadWritePermissions = 0600
-
-	if err := vfs.WriteFile(
-		v.FS,
-		varFile,
-		jsonContents,
-		os.FileMode(ownerReadWritePermissions),
-	); err != nil {
+	if err := writeVarsFile(v.FS, varFile, jsonContents, varsFileDirOf(opts)); err != nil {
 		return "", err
 	}
 
 	return varFile, nil
+}
+
+// varsFileDir is the kind of directory a run writes its variable files to.
+type varsFileDir int
+
+const (
+	// varsFileDirCache is a cache directory, where variable files are disposable and are overwritten.
+	varsFileDirCache varsFileDir = iota
+	// varsFileDirUnit is the user's unit directory, where a run never replaces an existing file.
+	varsFileDirUnit
+)
+
+// varsFileDirOf returns the kind of directory opts.CacheDir is. It is the unit directory when the unit runs in place.
+func varsFileDirOf(opts *Options) varsFileDir {
+	if filepath.Clean(opts.CacheDir) == filepath.Clean(opts.UnitDir) {
+		return varsFileDirUnit
+	}
+
+	return varsFileDirCache
+}
+
+// writeVarsFile writes contents to path atomically, so path never holds a partial file and nothing is left
+// behind when the write fails. In the unit directory, it first reserves path with reserveVarsFile, and the atomic
+// write then replaces only that reservation.
+func writeVarsFile(fsys vfs.FS, path string, contents []byte, dir varsFileDir) error {
+	if dir == varsFileDirCache {
+		return vfs.WriteFileAtomic(fsys, path, contents, varsFileMode)
+	}
+
+	if err := reserveVarsFile(fsys, path); err != nil {
+		return err
+	}
+
+	if err := vfs.WriteFileAtomic(fsys, path, contents, varsFileMode); err != nil {
+		return errors.Join(err, fsys.Remove(path))
+	}
+
+	return nil
+}
+
+// reserveVarsFile creates an empty file at path with an exclusive create, so anything already at path, file or
+// symlink, or created concurrently, stops the write with VarsFileExists rather than being replaced.
+func reserveVarsFile(fsys vfs.FS, path string) error {
+	reservation, err := fsys.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, varsFileMode)
+	if errors.Is(err, os.ErrExist) {
+		return VarsFileExists{Path: path}
+	}
+
+	if err != nil {
+		return err
+	}
+
+	if err := reservation.Close(); err != nil {
+		return errors.Join(err, fsys.Remove(path))
+	}
+
+	return nil
 }
 
 // SetTofuCPUProfileEnv points downstream OpenTofu at a unit-specific CPU profile path when directory collection is enabled.

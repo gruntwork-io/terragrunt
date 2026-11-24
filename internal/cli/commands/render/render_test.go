@@ -3,12 +3,19 @@ package render_test
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/render"
+	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -30,10 +37,9 @@ func TestRenderJSON_Basic(t *testing.T) {
 	opts.Write = false
 
 	err := render.Run(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
-		venvtest.NewOSWithEmptyEnv().WithWriter(&outputBuffer),
-		opts,
+		venvtest.NewOSWithEmptyEnv().WithWriter(&outputBuffer), new(config.Store), opts,
 	)
 	require.NoError(t, err)
 
@@ -58,10 +64,9 @@ func TestRenderJSON_WithMetadata(t *testing.T) {
 	opts.Write = false
 
 	err := render.Run(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
-		venvtest.NewOSWithEmptyEnv().WithWriter(&outputBuffer),
-		opts,
+		venvtest.NewOSWithEmptyEnv().WithWriter(&outputBuffer), new(config.Store), opts,
 	)
 	require.NoError(t, err)
 
@@ -85,10 +90,9 @@ func TestRenderJSON_WriteToFile(t *testing.T) {
 	opts.OutputPath = outputPath
 
 	err := render.Run(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
-		venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard),
-		opts,
+		venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard), new(config.Store), opts,
 	)
 	require.NoError(t, err)
 
@@ -148,10 +152,9 @@ func TestRenderWriteWithoutOutputPath(t *testing.T) {
 			opts.Write = true
 
 			err := render.Run(
-				t.Context(),
+				config.WithCaches(t.Context()),
 				logger.CreateLogger(),
-				venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard),
-				opts,
+				venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard), new(config.Store), opts,
 			)
 			require.NoError(t, err)
 
@@ -226,10 +229,9 @@ func renderToFilePerm(t *testing.T, format, outputPath string) os.FileMode {
 	opts.OutputPath = outputPath
 
 	err := render.Run(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
-		venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard),
-		opts,
+		venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard), new(config.Store), opts,
 	)
 	require.NoError(t, err)
 
@@ -246,10 +248,9 @@ func TestRenderJSON_InvalidFormat(t *testing.T) {
 	opts.Format = "invalid"
 
 	err := render.Run(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
-		venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard),
-		opts,
+		venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard), new(config.Store), opts,
 	)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid format")
@@ -264,10 +265,9 @@ func TestRenderJSON_HCLFormat(t *testing.T) {
 	var renderedBuffer bytes.Buffer
 
 	err := render.Run(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
-		venvtest.NewOSWithEmptyEnv().WithWriter(&renderedBuffer),
-		opts,
+		venvtest.NewOSWithEmptyEnv().WithWriter(&renderedBuffer), new(config.Store), opts,
 	)
 	require.NoError(t, err)
 
@@ -286,10 +286,9 @@ func TestRenderJSON_NumberOutOfRange(t *testing.T) {
 	opts.Write = false
 
 	err := render.Run(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		logger.CreateLogger(),
-		venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard),
-		opts,
+		venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard), new(config.Store), opts,
 	)
 
 	var diags hcl.Diagnostics
@@ -298,6 +297,164 @@ func TestRenderJSON_NumberOutOfRange(t *testing.T) {
 	require.Len(t, diags, 1)
 	assert.Equal(t, "Number out of range", diags[0].Summary)
 	assert.Equal(t, 6, diags[0].Subject.Start.Line)
+}
+
+func TestRenderAllFilter(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+
+	for _, name := range []string{"a", "b"} {
+		unitDir := filepath.Join(tmpDir, name)
+		require.NoError(t, os.MkdirAll(unitDir, 0755))
+		require.NoError(t, os.WriteFile(
+			filepath.Join(unitDir, "terragrunt.hcl"),
+			[]byte(`inputs = { name = "`+name+`" }`+"\n"),
+			0644,
+		))
+	}
+
+	tgOptions, err := options.NewTerragruntOptionsForTest(filepath.Join(tmpDir, "terragrunt.hcl"))
+	require.NoError(t, err)
+
+	l := logger.CreateLogger()
+
+	tgOptions.WorkingDir = tmpDir
+	tgOptions.RunAll = true
+	tgOptions.Filters, err = filter.ParseFilterQueries(l, []string{"a"})
+	require.NoError(t, err)
+
+	opts := render.NewOptions(tgOptions)
+	opts.Format = render.FormatHCL
+
+	var outputBuffer bytes.Buffer
+
+	err = render.Run(
+		config.WithCaches(t.Context()),
+		l,
+		venvtest.NewOSWithEmptyEnv().WithWriter(&outputBuffer), new(config.Store), opts,
+	)
+	require.NoError(t, err)
+
+	assert.Equal(t, "inputs = {\n  name = \"a\"\n}\n", outputBuffer.String())
+}
+
+// TestRenderAllReadsJSONUnits pins that render --all reads a unit from the config file it was
+// discovered with.
+func TestRenderAllReadsJSONUnits(t *testing.T) {
+	t.Parallel()
+
+	root := venvtest.Root("/repo")
+	fsys := venvtest.NewFS(t, root, map[string]string{
+		"json-unit/terragrunt.hcl.json": `{"inputs": {"name": "json"}}`,
+	})
+
+	tgOptions, err := options.NewTerragruntOptionsForTest(filepath.Join(root, "terragrunt.hcl"))
+	require.NoError(t, err)
+
+	tgOptions.WorkingDir = root
+	tgOptions.RunAll = true
+
+	opts := render.NewOptions(tgOptions)
+	opts.Format = render.FormatHCL
+
+	var outputBuffer bytes.Buffer
+
+	err = render.Run(
+		config.WithCaches(t.Context()),
+		logger.CreateLogger(),
+		venv.MemVenv().WithFS(fsys).WithWriter(&outputBuffer),
+		new(config.Store),
+		opts,
+	)
+	require.NoError(t, err)
+
+	assert.Equal(t, "inputs = {\n  name = \"json\"\n}\n", outputBuffer.String())
+}
+
+func TestRenderAllDiscoveryBoundaryMustExist(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+
+	tgOptions, err := options.NewTerragruntOptionsForTest(filepath.Join(tmpDir, "terragrunt.hcl"))
+	require.NoError(t, err)
+
+	tgOptions.WorkingDir = tmpDir
+	tgOptions.RunAll = true
+	tgOptions.DiscoveryBoundary = filepath.Join(tmpDir, "missing")
+
+	err = render.Run(
+		config.WithCaches(t.Context()),
+		logger.CreateLogger(),
+		venvtest.NewOSWithEmptyEnv(), new(config.Store), render.NewOptions(tgOptions),
+	)
+
+	var boundaryErr discovery.DiscoveryBoundaryDirError
+
+	require.ErrorAs(t, err, &boundaryErr)
+}
+
+func TestRenderAllGitFilterReadsUnchangedIncludes(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+	runner := helpers.InitTestGitRunner(t, tmpDir)
+
+	unitDir := filepath.Join(tmpDir, "a")
+	unitPath := filepath.Join(unitDir, "terragrunt.hcl")
+	unitConfig := func(name string) []byte {
+		return []byte(`include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+
+inputs = { name = "` + name + `" }
+`)
+	}
+
+	require.NoError(t, os.MkdirAll(unitDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "root.hcl"), []byte(`inputs = { env = "prod" }`+"\n"), 0644))
+	require.NoError(t, os.WriteFile(unitPath, unitConfig("before"), 0644))
+	require.NoError(t, runner.Add(t.Context(), "."))
+	require.NoError(t, runner.Commit(t.Context(), "Add unit"))
+
+	require.NoError(t, os.WriteFile(unitPath, unitConfig("after"), 0644))
+	require.NoError(t, runner.Add(t.Context(), "."))
+	require.NoError(t, runner.Commit(t.Context(), "Change unit"))
+
+	l := logger.CreateLogger()
+
+	tgOptions, err := options.NewTerragruntOptionsForTest(filepath.Join(tmpDir, "terragrunt.hcl"))
+	require.NoError(t, err)
+
+	tgOptions.WorkingDir = tmpDir
+	tgOptions.RunAll = true
+	tgOptions.Filters, err = filter.ParseFilterQueries(l, []string{"[HEAD~1...HEAD]"})
+	require.NoError(t, err)
+
+	opts := render.NewOptions(tgOptions)
+	opts.Format = render.FormatJSON
+
+	var outputBuffer bytes.Buffer
+
+	require.NoError(t, render.Run(
+		config.WithCaches(t.Context()),
+		l,
+		venvtest.NewOSWithEmptyEnv().WithWriter(&outputBuffer), new(config.Store), opts,
+	))
+
+	var rendered struct {
+		Inputs map[string]string `json:"inputs"`
+	}
+
+	require.NoError(t, json.Unmarshal(outputBuffer.Bytes(), &rendered))
+	assert.Equal(t, map[string]string{"env": "prod", "name": "after"}, rendered.Inputs)
+
+	worktrees, err := os.ReadDir(filepath.Join(tmpDir, ".git", "worktrees"))
+	if !errors.Is(err, fs.ErrNotExist) {
+		require.NoError(t, err)
+		assert.Empty(t, worktrees, "render removes the worktrees it checked out")
+	}
 }
 
 // setupTest writes config to a terragrunt.hcl in a fresh temporary directory
@@ -404,3 +561,271 @@ const testExtremeExponentConfigFixture = `dependency "dep" {
   }
 }
 `
+
+const testSensitiveMockValueFixture = `outputs {
+  output "token" {
+    mock_value = sensitive("mock-token")
+  }
+}
+`
+
+// TestRenderSensitiveMockValue expects a sensitive() mock value to render as the value it holds in both formats.
+func TestRenderSensitiveMockValue(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		format   string
+		expected string
+	}{
+		{name: "hcl", format: render.FormatHCL, expected: `mock_value = "mock-token"`},
+		{name: "json", format: render.FormatJSON, expected: `"mock_value":"mock-token"`},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			opts, _ := setupTest(t, testSensitiveMockValueFixture)
+			require.NoError(t, opts.Experiments.EnableExperiment(experiment.OutputsBlock))
+
+			opts.Format = tc.format
+			opts.Write = false
+
+			var rendered bytes.Buffer
+
+			err := render.Run(
+				config.WithCaches(t.Context()),
+				logger.CreateLogger(),
+				venvtest.NewOSWithEmptyEnv().WithWriter(&rendered),
+				new(config.Store),
+				opts,
+			)
+			require.NoError(t, err)
+			assert.Contains(t, rendered.String(), tc.expected)
+		})
+	}
+}
+
+const testLargeIntegerConfigFixture = `locals {
+  local_number = 111111111111111111
+}
+inputs = {
+  some_number = 111111111111111111
+  other       = 9007199254740993
+  nested = {
+    map_number  = 9007199254740993
+    list_number = [111111111111111111, 9007199254740993]
+  }
+}
+`
+
+func TestRenderJSONKeepsIntegersAboveFloat64Precision(t *testing.T) {
+	t.Parallel()
+
+	const expected = `"inputs":{"nested":{"list_number":[111111111111111111,9007199254740993],` +
+		`"map_number":9007199254740993},"other":9007199254740993,"some_number":111111111111111111}`
+
+	testCases := []struct {
+		render func(t *testing.T, opts *render.Options) string
+		name   string
+	}{
+		{
+			name: "stdout",
+			render: func(t *testing.T, opts *render.Options) string {
+				t.Helper()
+
+				var rendered bytes.Buffer
+
+				err := render.Run(
+					config.WithCaches(t.Context()),
+					logger.CreateLogger(),
+					venvtest.NewOSWithEmptyEnv().WithWriter(&rendered), new(config.Store), opts,
+				)
+				require.NoError(t, err)
+
+				return rendered.String()
+			},
+		},
+		{
+			name: "write",
+			render: func(t *testing.T, opts *render.Options) string {
+				t.Helper()
+
+				opts.Write = true
+				opts.OutputPath = filepath.Join(helpers.TmpDirWOSymlinks(t), "output.json")
+
+				err := render.Run(
+					config.WithCaches(t.Context()),
+					logger.CreateLogger(),
+					venvtest.NewOSWithEmptyEnv().WithWriter(io.Discard), new(config.Store), opts,
+				)
+				require.NoError(t, err)
+
+				content, err := os.ReadFile(opts.OutputPath)
+				require.NoError(t, err)
+
+				return string(content)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			opts, _ := setupTest(t, testLargeIntegerConfigFixture)
+			opts.Format = render.FormatJSON
+
+			rendered := tc.render(t, opts)
+
+			assert.Contains(t, rendered, expected)
+			assert.Contains(t, rendered, `"locals":{"local_number":111111111111111111}`)
+		})
+	}
+}
+
+func TestRenderJSONNumbersMatchHCL(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		literal  string
+		expected string
+	}{
+		{name: "integer above 2^53", literal: "9007199254740993", expected: "9007199254740993"},
+		{name: "integer above 2^64", literal: "123456789012345678901234567890", expected: "123456789012345678901234567890"},
+		{name: "negative large integer", literal: "-111111111111111111", expected: "-111111111111111111"},
+		{name: "short fraction", literal: "1.5", expected: "1.5"},
+		{name: "tenth", literal: "0.1", expected: "0.1"},
+		{name: "large exponent", literal: "1e21", expected: "1000000000000000000000"},
+		{name: "small exponent", literal: "1e-7", expected: "0.0000001"},
+		{name: "long fraction", literal: "1.23456789012345678901", expected: "1.23456789012345678901"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			fixture := "inputs = {\n  value = " + tc.literal + "\n}\n"
+
+			assert.Contains(t, renderToString(t, fixture, render.FormatHCL), "value = "+tc.expected+"\n")
+			assert.Contains(t, renderToString(t, fixture, render.FormatJSON), `"inputs":{"value":`+tc.expected+"}")
+		})
+	}
+}
+
+func renderToString(t *testing.T, fixture, format string) string {
+	t.Helper()
+
+	opts, _ := setupTest(t, fixture)
+	opts.Format = format
+
+	var rendered bytes.Buffer
+
+	err := render.Run(
+		config.WithCaches(t.Context()),
+		logger.CreateLogger(),
+		venvtest.NewOSWithEmptyEnv().WithWriter(&rendered), new(config.Store), opts,
+	)
+	require.NoError(t, err)
+
+	return rendered.String()
+}
+
+const testKeywordKeysConfigFixture = `locals {
+  m = { "for" = "x", zone = "y" }
+}
+
+terraform {
+  extra_arguments "env" {
+    commands = ["plan"]
+    env_vars = { "for" = "x" }
+  }
+}
+
+remote_state {
+  backend = "local"
+  config  = { "for" = "x" }
+}
+
+dependency "dep" {
+  config_path  = "./dep"
+  skip_outputs = true
+  mock_outputs = { "for" = "x" }
+}
+
+feature "flag" {
+  default = { "for" = "x" }
+}
+
+engine {
+  source = "./engine"
+  meta   = { "for" = "x" }
+}
+
+errors {
+  ignore "known" {
+    ignorable_errors = [".*"]
+    signals          = { "for" = "x" }
+  }
+}
+
+outputs {
+  output "o" {
+    mock_value = { "for" = "x" }
+  }
+}
+
+variables {
+  kind   = "tfvar"
+  inputs = { v = { "for" = "x" } }
+}
+
+inputs = {
+  m    = local.m
+  list = [{ "for" = "x" }, [{ "for" = { "for" = "y" } }]]
+  keys = { "a b" = "space", "a-b" = "dash", "if" = "keyword" }
+}
+`
+
+func TestRenderHCLWithKeywordKeysRendersBack(t *testing.T) {
+	t.Parallel()
+
+	rendered := renderConfig(t, testKeywordKeysConfigFixture, render.FormatHCL)
+
+	assert.JSONEq(
+		t,
+		renderConfig(t, testKeywordKeysConfigFixture, render.FormatJSON),
+		renderConfig(t, rendered, render.FormatJSON),
+	)
+}
+
+// renderConfig returns cfg rendered in format, with the outputs-block and variables-block experiments on and a
+// ./dep unit beside it.
+func renderConfig(t *testing.T, cfg, format string) string {
+	t.Helper()
+
+	opts, configPath := setupTest(t, cfg)
+	require.NoError(t, opts.Experiments.EnableExperiment(experiment.OutputsBlock))
+	require.NoError(t, opts.Experiments.EnableExperiment(experiment.VariablesBlock))
+
+	depDir := filepath.Join(filepath.Dir(configPath), "dep")
+	require.NoError(t, os.MkdirAll(depDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(depDir, "terragrunt.hcl"), []byte("inputs = {}\n"), 0644))
+
+	opts.Format = format
+	opts.Write = false
+
+	var rendered bytes.Buffer
+
+	require.NoError(t, render.Run(
+		config.WithCaches(t.Context()),
+		logger.CreateLogger(),
+		venvtest.NewOSWithEmptyEnv().WithWriter(&rendered),
+		new(config.Store),
+		opts,
+	))
+
+	return rendered.String()
+}

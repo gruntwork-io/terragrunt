@@ -15,7 +15,6 @@ import (
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/internal/cli/commands/aws-provider-patch"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl"
 	hclformat "github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl/format"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
@@ -24,13 +23,13 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -44,7 +43,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		t.Skip("Skipping test on Windows")
 	}
 
-	workingDir, err := venvtest.New().Platform.Getwd()
+	workingDir, err := venv.MemVenv().Platform.Getwd()
 	require.NoError(t, err)
 
 	testCases := []struct {
@@ -161,7 +160,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		{
 			args: []string{
 				"plan",
-				doubleDashed(run.ConfigFlagName),
+				doubleDashed(shared.ConfigFlagName),
 				"/some/path/" + config.DefaultTerragruntConfigPath,
 			},
 			expectedOptions: mockOptions(
@@ -198,7 +197,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		},
 
 		{
-			args: []string{"plan", doubleDashed(run.SourceFlagName), "/some/path"},
+			args: []string{"plan", doubleDashed(shared.SourceFlagName), "/some/path"},
 			expectedOptions: mockOptions(
 				t,
 				filepath.Join(
@@ -219,7 +218,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		{
 			args: []string{
 				"plan",
-				doubleDashed(run.SourceMapFlagName),
+				doubleDashed(shared.SourceMapFlagName),
 				"git::git@github.com:one/gw-terraform-aws-vpc.git=git::git@github.com:two/test.git?ref=FEATURE",
 			},
 			expectedOptions: mockOptionsWithSourceMap(
@@ -277,7 +276,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		{
 			args: []string{
 				"plan",
-				doubleDashed(run.IAMAssumeRoleFlagName),
+				doubleDashed(shared.IAMAssumeRoleFlagName),
 				"arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME",
 			},
 			expectedOptions: mockOptionsWithIamRole(
@@ -291,7 +290,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		},
 
 		{
-			args: []string{"plan", doubleDashed(run.IAMAssumeRoleDurationFlagName), "36000"},
+			args: []string{"plan", doubleDashed(shared.IAMAssumeRoleDurationFlagName), "36000"},
 			expectedOptions: mockOptionsWithIamAssumeRoleDuration(
 				t,
 				filepath.Join(
@@ -310,7 +309,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		{
 			args: []string{
 				"plan",
-				doubleDashed(run.IAMAssumeRoleSessionNameFlagName),
+				doubleDashed(shared.IAMAssumeRoleSessionNameFlagName),
 				"terragrunt-iam-role-session-name",
 			},
 			expectedOptions: mockOptionsWithIamAssumeRoleSessionName(
@@ -326,7 +325,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		{
 			args: []string{
 				"plan",
-				doubleDashed(run.IAMAssumeRoleWebIdentityTokenFlagName),
+				doubleDashed(shared.IAMAssumeRoleWebIdentityTokenFlagName),
 				"web-identity-token",
 			},
 			expectedOptions: mockOptionsWithIamWebIdentityToken(
@@ -347,7 +346,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		{
 			args: []string{
 				"plan",
-				doubleDashed(run.ConfigFlagName),
+				doubleDashed(shared.ConfigFlagName),
 				"/some/path/" + config.DefaultTerragruntConfigPath,
 				"-non-interactive",
 			},
@@ -369,14 +368,14 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		{
 			args: []string{
 				"plan",
-				doubleDashed(run.ConfigFlagName),
+				doubleDashed(shared.ConfigFlagName),
 				"/some/path/" + config.DefaultTerragruntConfigPath,
 				"bar",
 				doubleDashed(global.NonInteractiveFlagName),
 				"--baz",
 				doubleDashed(global.WorkingDirFlagName),
 				"/some/path",
-				doubleDashed(run.SourceFlagName),
+				doubleDashed(shared.SourceFlagName),
 				"github.com/foo/bar//baz?ref=1.0.3",
 			},
 
@@ -414,8 +413,8 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 			),
 		},
 		{
-			args:        []string{"plan", doubleDashed(run.ConfigFlagName)},
-			expectedErr: argMissingValueError(run.ConfigFlagName),
+			args:        []string{"plan", doubleDashed(shared.ConfigFlagName)},
+			expectedErr: argMissingValueError(shared.ConfigFlagName),
 		},
 
 		{
@@ -424,11 +423,11 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		},
 
 		{
-			args:        []string{"plan", "--foo", "bar", doubleDashed(run.ConfigFlagName)},
-			expectedErr: argMissingValueError(run.ConfigFlagName),
+			args:        []string{"plan", "--foo", "bar", doubleDashed(shared.ConfigFlagName)},
+			expectedErr: argMissingValueError(shared.ConfigFlagName),
 		},
 		{
-			args: []string{"plan", doubleDashed(run.InputsDebugFlagName)},
+			args: []string{"plan", doubleDashed(shared.InputsDebugFlagName)},
 			expectedOptions: mockOptions(
 				t,
 				filepath.Join(workingDir,
@@ -449,7 +448,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts := options.NewTerragruntOptions()
 
 			l := log.New(
 				log.WithOutput(os.Stderr),
@@ -682,7 +681,7 @@ func TestFilterTerragruntArgs(t *testing.T) {
 		{
 			args: []string{
 				"plan",
-				doubleDashed(run.ConfigFlagName),
+				doubleDashed(shared.ConfigFlagName),
 				"/some/path/" + config.DefaultTerragruntConfigPath,
 			},
 			expected: []string{"plan"},
@@ -692,7 +691,7 @@ func TestFilterTerragruntArgs(t *testing.T) {
 			expected: []string{"plan"},
 		},
 		{
-			args:     []string{"plan", doubleDashed(run.InputsDebugFlagName)},
+			args:     []string{"plan", doubleDashed(shared.InputsDebugFlagName)},
 			expected: []string{"plan"},
 		},
 		{
@@ -703,10 +702,22 @@ func TestFilterTerragruntArgs(t *testing.T) {
 				doubleDashed(global.WorkingDirFlagName),
 				"/some/path",
 				"--baz",
-				doubleDashed(run.ConfigFlagName),
+				doubleDashed(shared.ConfigFlagName),
 				"/some/path/" + config.DefaultTerragruntConfigPath,
 			},
 			expected: []string{"plan", "-bar", "-baz"},
+		},
+		{
+			args:     []string{"run", "--", tf.CommandNamePlan},
+			expected: []string{tf.CommandNamePlan},
+		},
+		{
+			args:     []string{"run", tf.CommandNamePlan},
+			expected: []string{tf.CommandNamePlan},
+		},
+		{
+			args:     []string{"run", "--", "custom-command"},
+			expected: []string{"custom-command"},
 		},
 		{
 			args:     []string{"run", "--all", "apply", "plan", "bar"},
@@ -740,7 +751,7 @@ func TestFilterTerragruntArgs(t *testing.T) {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts := options.NewTerragruntOptions()
 			l := log.New(
 				log.WithOutput(os.Stderr),
 				log.WithLevel(defaultLogLevel),
@@ -762,7 +773,7 @@ func TestFilterTerragruntArgs(t *testing.T) {
 func TestParseMultiStringArg(t *testing.T) {
 	t.Parallel()
 
-	flagName := doubleDashed(run.ProviderCacheRegistryNamesFlagName)
+	flagName := doubleDashed(shared.ProviderCacheRegistryNamesFlagName)
 
 	testCases := []struct {
 		expectedErr  error
@@ -809,7 +820,7 @@ func TestParseMultiStringArg(t *testing.T) {
 				"value",
 			},
 			defaultValue: []string{"registry.terraform.io", "registry.opentofu.org"},
-			expectedErr:  argMissingValueError(run.ProviderCacheRegistryNamesFlagName),
+			expectedErr:  argMissingValueError(shared.ProviderCacheRegistryNamesFlagName),
 		},
 	}
 
@@ -817,7 +828,7 @@ func TestParseMultiStringArg(t *testing.T) {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts := options.NewTerragruntOptions()
 			l := log.New(
 				log.WithOutput(os.Stderr),
 				log.WithLevel(defaultLogLevel),
@@ -861,9 +872,8 @@ func TestParseMutliStringKeyValueArg(t *testing.T) {
 			expectedVals: map[string]string{"default": "value"},
 		},
 		{
-			args:         []string{awsproviderpatch.CommandName, "--other", "arg"},
-			defaultValue: map[string]string{"default": "value"},
-			expectedVals: map[string]string{"default": "value"},
+			args:        []string{awsproviderpatch.CommandName, "--other", "arg"},
+			expectedErr: clihelper.UndefinedFlagError("other"),
 		},
 		{
 			args:         []string{awsproviderpatch.CommandName, flagName, "key=value"},
@@ -894,7 +904,7 @@ func TestParseMutliStringKeyValueArg(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		opts := options.NewTerragruntOptions(vexec.NewOSExec())
+		opts := options.NewTerragruntOptions()
 		opts.AwsProviderPatchOverrides = tc.defaultValue
 		l := log.New(
 			log.WithOutput(os.Stderr),
@@ -933,9 +943,9 @@ func TestTerragruntVersion(t *testing.T) {
 
 	for _, tc := range testCases {
 		output := &bytes.Buffer{}
-		opts := options.NewTerragruntOptions(vexec.NewOSExec())
+		opts := options.NewTerragruntOptions()
 
-		testV := venvtest.New()
+		testV := venv.MemVenv()
 
 		testV.Writers = &writer.Writers{Writer: output, ErrWriter: os.Stderr}
 
@@ -956,8 +966,8 @@ func TestTerragruntHelp(t *testing.T) {
 
 	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
-	app := cli.NewApp(logger.CreateLogger(), opts, venvtest.New())
+	opts := options.NewTerragruntOptions()
+	app := cli.NewApp(logger.CreateLogger(), opts, venv.MemVenv())
 
 	testCases := []struct {
 		expected    string
@@ -981,7 +991,7 @@ func TestTerragruntHelp(t *testing.T) {
 		},
 		{
 			args:        []string{"terragrunt", awsproviderpatch.CommandName, "-h"},
-			expected:    run.ConfigFlagName,
+			expected:    shared.ConfigFlagName,
 			notExpected: hcl.CommandName + " " + hclformat.CommandName,
 		},
 		{
@@ -995,9 +1005,9 @@ func TestTerragruntHelp(t *testing.T) {
 			t.Parallel()
 
 			output := &bytes.Buffer{}
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts := options.NewTerragruntOptions()
 
-			testV := venvtest.New()
+			testV := venv.MemVenv()
 
 			testV.Writers = &writer.Writers{Writer: output, ErrWriter: os.Stderr}
 
@@ -1021,9 +1031,9 @@ func TestTerraformHelp_wrongHelpFlag(t *testing.T) {
 
 	output := &bytes.Buffer{}
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 
-	testV := venvtest.New()
+	testV := venv.MemVenv()
 
 	testV.Writers = &writer.Writers{Writer: output, ErrWriter: os.Stderr}
 
@@ -1049,9 +1059,9 @@ func runAppTest(
 ) (*options.TerragruntOptions, error) {
 	emptyAction := func(ctx context.Context, cliCtx *clihelper.Context) error { return nil }
 
-	testV := venvtest.New()
+	testV := venv.MemVenv()
 
-	terragruntCommands := commands.New(l, opts, testV)
+	terragruntCommands := commands.New(l, opts, testV, new(config.Store))
 	setCommandAction(emptyAction, terragruntCommands...)
 
 	app := clihelper.NewApp(testV.Env)
@@ -1077,7 +1087,9 @@ func runAppTest(
 	}
 	app.ExitErrHandler = cli.ExitErrHandler
 
-	err := app.Run(append([]string{"--"}, args...))
+	ctx := config.WithCaches(context.Background())
+
+	err := app.RunContext(ctx, append([]string{"--"}, args...))
 
 	return opts, err
 }
@@ -1119,11 +1131,11 @@ func TestAutocomplete(t *testing.T) {
 
 	for _, tc := range testCases {
 		output := &bytes.Buffer{}
-		opts := options.NewTerragruntOptions(vexec.NewOSExec())
+		opts := options.NewTerragruntOptions()
 
 		// Autocomplete reads COMP_LINE from the venv's environment, so the
 		// completion request is handed over rather than exported to the process.
-		testV := venvtest.New().WithEnv(map[string]string{
+		testV := venv.MemVenv().WithEnv(map[string]string{
 			"COMP_LINE": "terragrunt " + tc.compLine,
 		})
 

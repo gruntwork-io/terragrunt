@@ -9,13 +9,14 @@ import (
 // Re-exports of hashicorp/go-getter/v2 types so callers can avoid importing
 // go-getter directly.
 type (
-	Client       = getter.Client
-	Request      = getter.Request
-	Mode         = getter.Mode
-	Getter       = getter.Getter
-	Detector     = getter.Detector
-	GetResult    = getter.GetResult
-	Decompressor = getter.Decompressor
+	Client        = getter.Client
+	Request       = getter.Request
+	Mode          = getter.Mode
+	Getter        = getter.Getter
+	Detector      = getter.Detector
+	GetResult     = getter.GetResult
+	Decompressor  = getter.Decompressor
+	ChecksumError = getter.ChecksumError
 )
 
 // Mode constants re-exported from go-getter/v2.
@@ -37,16 +38,4 @@ type (
 	FileDetector   = getter.FileDetector
 	S3Detector     = s3.Detector
 	GCSDetector    = gcs.Detector
-)
-
-// Concrete getter type aliases for callers that need to assert on the
-// underlying getter type (typically tests pinning the protocol set). The
-// git, s3 and gcs slots are intentionally absent: GitGetter, S3Getter and
-// GCSGetter are Terragrunt's own types (defined in git.go, s3.go and gcs.go),
-// not the upstream go-getter/v2 getters.
-type (
-	HgGetter        = getter.HgGetter
-	SmbClientGetter = getter.SmbClientGetter
-	SmbMountGetter  = getter.SmbMountGetter
-	FileGetter      = getter.FileGetter
 )

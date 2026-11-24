@@ -13,14 +13,18 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
+// BackendName is the remote_state backend value this backend handles.
 const BackendName = "s3"
 
 var _ backend.Backend = new(Backend)
 
+// Backend bootstraps, migrates, and deletes remote state stored in an S3 bucket with an optional DynamoDB
+// lock table.
 type Backend struct {
 	*backend.CommonBackend
 }
 
+// NewBackend returns the s3 [Backend].
 func NewBackend() *Backend {
 	return &Backend{
 		CommonBackend: backend.NewCommonBackend(BackendName),
@@ -352,6 +356,7 @@ func (backend *Backend) DeleteBucket(
 	return nil
 }
 
+// GetTFInitArgs returns the result of [Config.GetTFInitArgs] for config.
 func (backend *Backend) GetTFInitArgs(config backend.Config) map[string]any {
 	return Config(config).GetTFInitArgs()
 }

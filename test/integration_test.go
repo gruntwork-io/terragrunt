@@ -15,7 +15,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/view/diagnostic"
-	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/stretchr/testify/assert"
@@ -229,6 +228,43 @@ func TestHclvalidateDiagnostic(t *testing.T) {
 				HighlightEndOffset:   30,
 			},
 		},
+		&diagnostic.Diagnostic{
+			Severity: diagnostic.DiagnosticSeverity(hcl.DiagError),
+			Summary:  "Missing dependency",
+			Detail:   "This directory does not exist.",
+			Range: &diagnostic.Range{
+				Filename: filepath.Join(rootPath, "first/b/terragrunt.hcl"),
+				Start:    diagnostic.Pos{Line: 2, Column: 17, Byte: 33},
+				End:      diagnostic.Pos{Line: 2, Column: 85, Byte: 101},
+			},
+			Snippet: &diagnostic.Snippet{
+				Context:              "dependency \"a\"",
+				Code:                 "  config_path = \"${path_relative_from_include()}/${path_relative_to_include()}/../a\"",
+				StartLine:            2,
+				HighlightStartOffset: 16,
+				HighlightEndOffset:   84,
+			},
+		},
+		&diagnostic.Diagnostic{
+			Severity: diagnostic.DiagnosticSeverity(hcl.DiagError),
+			Summary:  "Missing dependency",
+			Detail:   "This directory does not exist.",
+			Range: &diagnostic.Range{
+				Filename: filepath.Join(
+					rootPath,
+					"valid/dependency-unresolvable-path/terragrunt.hcl",
+				),
+				Start: diagnostic.Pos{Line: 2, Column: 17, Byte: 39},
+				End:   diagnostic.Pos{Line: 2, Column: 40, Byte: 62},
+			},
+			Snippet: &diagnostic.Snippet{
+				Context:              "dependency \"missing\"",
+				Code:                 "  config_path = \"../nonexistent-module\"",
+				StartLine:            2,
+				HighlightStartOffset: 16,
+				HighlightEndOffset:   39,
+			},
+		},
 	}
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
@@ -425,39 +461,6 @@ inputs = {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "Reading inputs from dependencies is no longer supported")
 	assert.Contains(t, err.Error(), "use outputs")
-}
-
-func TestTerragruntFailIfBucketCreationIsrequired(t *testing.T) {
-	t.Parallel()
-
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
-	rootPath := filepath.Join(tmpEnvPath, testFixturePath)
-	helpers.CleanupTerraformFolder(t, rootPath)
-
-	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
-	lockTableName := "terragrunt-test-locks-" + strings.ToLower(helpers.UniqueID())
-
-	tmpTerragruntConfigPath := helpers.CreateTmpTerragruntConfig(
-		t,
-		rootPath,
-		s3BucketName,
-		lockTableName,
-		config.DefaultTerragruntConfigPath,
-	)
-
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-	err := helpers.RunTerragruntCommand(
-		t,
-		fmt.Sprintf(
-			"terragrunt apply --fail-on-state-bucket-creation --non-interactive --config %s --working-dir %s",
-			tmpTerragruntConfigPath,
-			rootPath,
-		),
-		&stdout,
-		&stderr,
-	)
-	require.Error(t, err)
 }
 
 func TestTerragruntInfoError(t *testing.T) {
