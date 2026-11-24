@@ -9,7 +9,10 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/errorconfig"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/report"
@@ -167,6 +170,76 @@ func TestRunPipelineEndToEndPropagatesPlanFailure(t *testing.T) {
 		creds.NewGetter(),
 	)
 	require.Error(t, err, "non-zero terraform exit must surface from run.Run")
+}
+
+// TestRunPipelineEndToEndRetriesFailedSourceDownload pins that a failed
+// source download is retried under the errors rules. When the attempts
+// run out, run.Run returns a MaxAttemptsReachedError wrapping the clone
+// failure, and tofu is never started.
+func TestRunPipelineEndToEndRetriesFailedSourceDownload(t *testing.T) {
+	t.Parallel()
+
+	s := setupRunE2EScaffold(t)
+
+	rec := &recorder{}
+	exec := vexec.NewMemExec(rec.handler(vexec.Result{
+		ExitCode: 128,
+		Stderr:   []byte("fatal: repository not found\n"),
+	}))
+
+	userDir := t.TempDir()
+	userDirFn := func() (string, error) { return userDir, nil }
+
+	v := venv.MemVenv().
+		WithExec(exec).
+		WithFS(vfs.NewOSFS()).
+		WithUserHomeDir(userDirFn).
+		WithUserCacheDir(userDirFn)
+
+	const maxAttempts = 2
+
+	cfg := &runcfg.RunConfig{
+		Terraform: runcfg.TerraformConfig{
+			Source: "git::https://notreal.invalid/notreal.git//foo?ref=v1.2.3",
+		},
+		Errors: runcfg.ErrorsConfig{
+			Retry: []*runcfg.RetryBlock{
+				{
+					Label:           "any",
+					RetryableErrors: []string{".*"},
+					MaxAttempts:     maxAttempts,
+				},
+			},
+		},
+	}
+
+	opts := newRunE2EOpts(t, s, "apply", "-auto-approve")
+	opts.AutoRetry = true
+	opts.CASCloneDepth = cas.DefaultCASCloneDepth
+
+	err := run.Run(
+		t.Context(),
+		logger.CreateLogger(),
+		v,
+		opts,
+		report.NewReport(),
+		cfg,
+		creds.NewGetter(),
+	)
+
+	var maxAttemptsErr *errorconfig.MaxAttemptsReachedError
+
+	require.ErrorAs(t, err, &maxAttemptsErr)
+	assert.Equal(t, maxAttempts, maxAttemptsErr.MaxRetries)
+
+	require.ErrorIs(t, maxAttemptsErr.Err, git.ErrGitClone)
+
+	calls := rec.snapshot()
+	require.NotEmpty(t, calls)
+
+	for _, call := range calls {
+		assert.Equal(t, "git", call.Name)
+	}
 }
 
 // TestRunPipelineEndToEndFiresHooks pins the contract that before and
