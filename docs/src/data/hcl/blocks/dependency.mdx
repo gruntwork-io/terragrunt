@@ -108,6 +108,7 @@ attributes:
 import { Aside } from '@astrojs/starlight/components';
 import FileTree from '@components/vendored/starlight/FileTree.astro';
 import Since from '@components/Since.astro';
+import StatefulTabs from '@components/StatefulTabs.astro';
 
 A `dependency` block reads another unit's outputs:
 
@@ -637,6 +638,9 @@ Terragrunt reads outputs only from generated units. `run --all` generates the st
 
 To read a dependency's outputs, Terragrunt first tries to parse only the dependency's `remote_state` block, and reads the outputs from that backend. In this chain, `app` depends on `vpc`, and `vpc` depends on `account`:
 
+<StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure', 'GCP']}>
+<Fragment slot="aws">
+
 ```hcl
 # root.hcl
 
@@ -653,6 +657,50 @@ remote_state {
   }
 }
 ```
+
+</Fragment>
+<Fragment slot="azure">
+
+```hcl
+# root.hcl
+
+remote_state {
+  backend = "azurerm"
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite_terragrunt"
+  }
+  config = {
+    resource_group_name  = "my-tofu-state"
+    storage_account_name = "mytofustate"
+    container_name       = "tfstate"
+    key                  = "${path_relative_to_include()}/tofu.tfstate"
+    use_azuread_auth     = true
+  }
+}
+```
+
+</Fragment>
+<Fragment slot="gcp">
+
+```hcl
+# root.hcl
+
+remote_state {
+  backend = "gcs"
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite_terragrunt"
+  }
+  config = {
+    bucket = "my-tofu-state"
+    prefix = path_relative_to_include()
+  }
+}
+```
+
+</Fragment>
+</StatefulTabs>
 
 ```hcl
 # app/terragrunt.hcl
@@ -698,6 +746,9 @@ To read `vpc`'s outputs for `app`, Terragrunt parses only the `remote_state` blo
 
 When the `remote_state` block reads `dependency` outputs, Terragrunt parses the dependency's whole configuration, including its own `dependency` blocks, one level at a time down the chain. If `vpc` sets its own backend from `account`'s outputs, reading `vpc`'s outputs also reads `account`'s:
 
+<StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure', 'GCP']}>
+<Fragment slot="aws">
+
 ```hcl
 # vpc/terragrunt.hcl
 
@@ -718,5 +769,57 @@ remote_state {
   }
 }
 ```
+
+</Fragment>
+<Fragment slot="azure">
+
+```hcl
+# vpc/terragrunt.hcl
+
+dependency "account" {
+  config_path = "../account"
+}
+
+remote_state {
+  backend = "azurerm"
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite_terragrunt"
+  }
+  config = {
+    resource_group_name  = "my-tofu-state"
+    storage_account_name = dependency.account.outputs.state_storage_account
+    container_name       = "tfstate"
+    key                  = "vpc/tofu.tfstate"
+    use_azuread_auth     = true
+  }
+}
+```
+
+</Fragment>
+<Fragment slot="gcp">
+
+```hcl
+# vpc/terragrunt.hcl
+
+dependency "account" {
+  config_path = "../account"
+}
+
+remote_state {
+  backend = "gcs"
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite_terragrunt"
+  }
+  config = {
+    bucket = dependency.account.outputs.state_bucket
+    prefix = "vpc"
+  }
+}
+```
+
+</Fragment>
+</StatefulTabs>
 
 Parsing only `remote_state` skips the dependency's hooks and `extra_arguments` for `init`. If the dependency needs them to reach its state, set [`disable_dependency_optimization = true`](/reference/hcl/blocks/remote_state#disable_dependency_optimization) in its `remote_state` block.
