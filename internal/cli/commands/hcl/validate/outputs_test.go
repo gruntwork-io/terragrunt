@@ -2209,7 +2209,11 @@ outputs {
 
 			require.Equal(t, "Declared output not in module", diag.Summary)
 			require.NotNil(t, diag.Range)
-			require.Equal(t, filepath.Join(result.root, filepath.FromSlash(tc.expectedFile)), diag.Range.Filename)
+			require.Equal(
+				t,
+				filepath.Join(result.root, filepath.FromSlash(tc.expectedFile)),
+				filepath.Clean(diag.Range.Filename),
+			)
 			require.Equal(t, cmp.Or(tc.expectedLine, 7), diag.Range.Start.Line)
 		})
 	}
@@ -2261,7 +2265,7 @@ include "origin" {
 	require.NotNil(t, diag.Range)
 
 	cached := filepath.Join(root, "vpc", ".terragrunt-cache", "*", "*", "origin.hcl")
-	matched, err := filepath.Match(cached, diag.Range.Filename)
+	matched, err := filepath.Match(cached, filepath.Clean(diag.Range.Filename))
 
 	require.NoError(t, err)
 	require.True(t, matched, diag.Range.Filename)
