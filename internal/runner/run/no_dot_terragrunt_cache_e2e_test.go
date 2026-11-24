@@ -244,6 +244,112 @@ func TestRunNullInputReplacesLeftoverCacheFile(t *testing.T) {
 	assert.NoFileExists(t, leftover, "a leftover null-vars file in the cache must be replaced and removed")
 }
 
+func TestRunNoDotTerragruntCacheHooksRunInUnitDir(t *testing.T) {
+	t.Parallel()
+
+	s := setupRunE2EScaffold(t)
+	rec := &recorder{}
+	v := venv.MemVenv().WithExec(vexec.NewMemExec(rec.handler(vexec.Result{}))).WithFS(vfs.NewOSFS())
+
+	opts := newNoDotTerragruntCacheOpts(t, s, "plan")
+	cfg := &runcfg.RunConfig{
+		Terraform: runcfg.TerraformConfig{
+			NoDotTerragruntCache: true,
+			BeforeHooks: []runcfg.Hook{
+				{Name: "before", Commands: []string{"plan"}, Execute: []string{"./scripts/before.sh"}, If: true},
+			},
+			AfterHooks: []runcfg.Hook{
+				{Name: "after", Commands: []string{"plan"}, Execute: []string{"./scripts/after.sh"}, If: true},
+			},
+		},
+	}
+
+	require.NoError(t, run.Run(t.Context(), logger.CreateLogger(), v, opts, report.NewReport(), cfg, creds.NewGetter()))
+
+	calls := rec.snapshot()
+	require.Len(t, calls, 3)
+
+	for i, name := range []string{"./scripts/before.sh", "tofu", "./scripts/after.sh"} {
+		assert.Equal(t, name, calls[i].Name)
+		assert.Equal(t, s.dir, calls[i].Dir, "%s must run in the unit directory", name)
+	}
+}
+
+func TestRunNoDotTerragruntCacheSkipsInitFromModuleHooks(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name    string
+		want    []string
+		inPlace bool
+	}{
+		{name: "in place", inPlace: true, want: []string{"tofu"}},
+		{name: "cache", want: []string{"before-source", "after-source", "tofu"}},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			s := setupRunE2EScaffold(t)
+			rec := &recorder{}
+			v := venv.MemVenv().WithExec(vexec.NewMemExec(rec.handler(vexec.Result{}))).WithFS(vfs.NewOSFS())
+
+			opts := newNoDotTerragruntCacheOpts(t, s, "plan")
+			sourceCommands := []string{tf.CommandNameInitFromModule}
+			cfg := &runcfg.RunConfig{
+				Terraform: runcfg.TerraformConfig{
+					NoDotTerragruntCache: tc.inPlace,
+					BeforeHooks: []runcfg.Hook{
+						{Name: "before-source", Commands: sourceCommands, Execute: []string{"before-source"}, If: true},
+					},
+					AfterHooks: []runcfg.Hook{
+						{Name: "after-source", Commands: sourceCommands, Execute: []string{"after-source"}, If: true},
+					},
+				},
+			}
+
+			require.NoError(
+				t,
+				run.Run(t.Context(), logger.CreateLogger(), v, opts, report.NewReport(), cfg, creds.NewGetter()),
+			)
+
+			calls := rec.snapshot()
+			names := make([]string, 0, len(calls))
+
+			for _, call := range calls {
+				names = append(names, call.Name)
+			}
+
+			assert.Equal(t, tc.want, names)
+		})
+	}
+}
+
+func TestRunNoDotTerragruntCacheRunsInWorkingDirWhenConfigIsElsewhere(t *testing.T) {
+	t.Parallel()
+
+	s := setupRunE2EScaffold(t)
+	configPath := filepath.Join(t.TempDir(), "terragrunt.hcl")
+	require.NoError(t, os.WriteFile(configPath, nil, 0o644))
+
+	rec := &recorder{}
+	v := venv.MemVenv().WithExec(vexec.NewMemExec(rec.handler(vexec.Result{}))).WithFS(vfs.NewOSFS())
+
+	opts := newNoDotTerragruntCacheOpts(t, s, "plan")
+	opts.TerragruntConfigPath = configPath
+	opts.OriginalTerragruntConfigPath = configPath
+
+	cfg := &runcfg.RunConfig{Terraform: runcfg.TerraformConfig{NoDotTerragruntCache: true}}
+
+	require.NoError(t, run.Run(t.Context(), logger.CreateLogger(), v, opts, report.NewReport(), cfg, creds.NewGetter()))
+
+	calls := rec.snapshot()
+	require.Len(t, calls, 1)
+	assert.Equal(t, s.dir, calls[0].Dir)
+	assert.NoDirExists(t, filepath.Join(s.dir, ".terragrunt-cache"))
+}
+
 // newNoDotTerragruntCacheOpts returns scaffold options with the no-dot-terragrunt-cache experiment enabled.
 func newNoDotTerragruntCacheOpts(t *testing.T, s runE2EScaffold, command string) *run.Options {
 	t.Helper()

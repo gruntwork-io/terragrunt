@@ -7,7 +7,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
+	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -41,4 +44,29 @@ inputs = {
 	require.NoError(t, err)
 	assert.Equal(t, map[string]any{"region": "us-east-1"}, prepared.Cfg.Inputs)
 	assert.NotZero(t, store.Stats().Misses)
+}
+
+func TestPrepareSourceInPlaceKeepsWorkingDir(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	unitDir := filepath.Join(root, "unit")
+
+	opts, err := options.NewTerragruntOptionsWithConfigPath(
+		filepath.Join(root, "configs", config.DefaultTerragruntConfigPath),
+	)
+	require.NoError(t, err)
+	require.NoError(t, opts.Experiments.EnableExperiment(experiment.NoDotTerragruntCache))
+
+	opts.WorkingDir = unitDir
+
+	cfg := &config.TerragruntConfig{Terraform: &config.TerraformConfig{NoDotTerragruntCache: new(true)}}
+
+	updatedOpts, _, err := prepare.PrepareSource(
+		run.WithRunVersionCache(t.Context()), logger.CreateLogger(), venv.MemVenv(), opts, cfg, report.NewReport(),
+	)
+	require.NoError(t, err)
+
+	assert.Equal(t, unitDir, updatedOpts.WorkingDir)
+	assert.NotSame(t, opts, updatedOpts)
 }
