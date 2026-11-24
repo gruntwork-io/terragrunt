@@ -100,6 +100,7 @@ func findMatchingUnitsInPath(
 	cfgOpts.TofuCommand = opts.TofuCommand
 	cfgOpts.TerraformCliArgs = opts.TerraformCliArgs
 	cfgOpts.CheckDependentUnits = opts.CheckDependentUnits
+	cfgOpts.TerragruntVersion = opts.TerragruntVersion
 	cfgOpts.NonInteractive = true
 
 	l.Infof("Discovering dependent units for %s", opts.TerragruntConfigPath)
