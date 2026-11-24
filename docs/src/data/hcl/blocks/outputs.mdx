@@ -47,7 +47,8 @@ blocks:
         description: The OpenTofu/Terraform commands that may use the mock values, e.g. `validate` and `plan`. When it is unset or empty, every command may use them. It works like `mock_outputs_allowed_terraform_commands` on a [`dependency`](/reference/hcl/blocks/dependency) block.
       - name: merge_with_state
         type: string
-        description: How Terragrunt merges the outputs in the unit's state with the mock values. One of `no_merge`, `shallow`, or `deep_map_only`, as for `mock_outputs_merge_strategy_with_state` on a [`dependency`](/reference/hcl/blocks/dependency) block. When it is unset, a declared output that the state lacks reads its `mock_value`, and nothing else merges. With `no_merge`, a declared output that the state lacks is an error.
+        default: no_merge
+        description: How Terragrunt merges the outputs in the unit's state with the mock values. One of `no_merge`, `shallow`, or `deep_map_only`. It works like `mock_outputs_merge_strategy_with_state` on a `dependency` block.
     example: |
       # vpc/terragrunt.hcl
 
@@ -73,7 +74,7 @@ blocks:
       - name: nullable
         type: bool
         default: "false"
-        description: Set it to `true` for an output whose value can be `null`. OpenTofu/Terraform leaves a `null` output out of the state. When the state has other outputs, dependents read `null` for the output, unless a state merge supplies its `mock_value`, and Terragrunt does not report the output as missing. When the state has no outputs, a command that may use the mock values reads them, and reads `null` for a `nullable` output without a `mock_value`. Any other command reads `null` if every declared output is `nullable`, and fails otherwise. Terragrunt cannot tell a state with no outputs from a unit that is not applied.
+        description: Set it to `true` for an output whose value can be `null`. OpenTofu/Terraform leaves a `null` output out of the state. When the state has other outputs, dependents read `null` for the output, unless a state merge supplies its `mock_value`, and Terragrunt does not report the output as missing. It has no effect while the state has no outputs. Terragrunt cannot tell such a state from a unit that is not applied, so the rules for mock values apply.
     example: |
       # vpc/terragrunt.hcl
 
@@ -99,11 +100,11 @@ The `outputs` block lists the outputs of a unit. Each output can have a mock val
 
 You declare the mock values once, in the unit that produces the outputs. Its dependents need no `mock_outputs` in their [`dependency`](/reference/hcl/blocks/dependency) blocks.
 
-Dependents read the mock values while the unit has no state yet or its state has no outputs. The rules are the same as for `mock_outputs`. They also read the mock value of a declared output that the state lacks. Any other error while reading the state fails the run, except for `render`, which falls back to the mock values.
+Dependents read the mock values while the unit has no state yet or its state has no outputs. The rules are the same as for `mock_outputs`. Any other error while reading the state fails the run, except for `render`, which falls back to the mock values.
 
 ### With a dependency block
 
-A `dependency` block reads the `outputs` block of the unit it points at. For each output, it takes the value from the unit's state when the state has one, and the declared `mock_value` otherwise.
+A `dependency` block reads the `outputs` block of the unit it points at. It takes the outputs from the unit's state when the state has outputs, and the declared mock values otherwise.
 
 <SideBySide>
 
@@ -138,24 +139,17 @@ Settings on the `dependency` block override the `outputs` block of the unit it r
 - `mock_outputs` overrides `mock_value` one key at a time. A key that `mock_outputs` leaves out keeps its declared mock value.
 - `mock_outputs_allowed_terraform_commands` and `mock_outputs_merge_strategy_with_state` override `mock_strategy` when set.
 
-When the unit has outputs in state, Terragrunt expects every declared output among them. For a declared output that the state lacks:
+When the unit has outputs in state, every declared output has to be among them. A missing one is an error, unless `merge_with_state` fills it from `mock_value` or the output has `nullable = true`. The `render` command does not raise this error.
 
-- With `nullable = true`, dependents read `null`, unless a state merge supplies a mock value.
-- With a `mock_value`, or a `mock_outputs` value for it on the `dependency` block, and no state merge set, dependents read that value for a command that may use the mock values, e.g. a `plan` after you add an output and before the next apply. For `apply` and `destroy`, that needs a list that names the command.
-- With a `shallow` or `deep_map_only` state merge, the merge supplies the mock value for a command that may use the mock values.
-- Otherwise the run fails. It also fails for an output with a `mock_value` when `merge_with_state` is `no_merge`.
-
-The `render` command does not raise this error.
-
-A declared output without a `mock_value` has no value before the unit is applied. `hcl validate` reads it as unknown, and so does a run with [`--no-dependency-outputs`](/reference/cli/commands/run#no-dependency-outputs). In any other run, a `nullable` output reads as `null` under the rules of the `nullable` attribute, and a read of any other such output fails.
+A declared output that has no `mock_value`, and no value in the `mock_outputs` of the `dependency` block, has no value before the unit is applied. `hcl validate` reads it as unknown, and so does a run with [`--no-dependency-outputs`](/reference/cli/commands/run#no-dependency-outputs). Any other run that reads it fails.
 
 `render` prints the `dependency` block as you wrote it. The declared mock values appear in the resolved `inputs`.
 
 ### Through include
 
-An included file can declare the `outputs` block. With a `shallow` merge, the unit's `output` blocks replace the included ones, and the unit keeps each `mock_strategy` attribute of the included block that it does not set. With a `deep` merge, Terragrunt combines the two blocks by output name. When both declare the same output, the unit's declaration wins.
+An included file can declare the `outputs` block. With a `shallow` merge, the unit's own `outputs` block replaces the included one. With a `deep` merge, Terragrunt combines the two blocks by output name. When both declare the same output, the unit's declaration wins.
 
-A `terragrunt.autoinclude.hcl` file beside the unit can declare the `outputs` block too. Its `output` blocks replace those of the unit, and it keeps each `mock_strategy` attribute of the unit that it does not set.
+A `terragrunt.autoinclude.hcl` file beside the unit can declare the `outputs` block too. Its block replaces the `outputs` block of the unit.
 
 ### Checking outputs with hcl validate
 
@@ -164,9 +158,9 @@ A `terragrunt.autoinclude.hcl` file beside the unit can declare the `outputs` bl
 - Every declared output has to exist in the OpenTofu/Terraform module the unit runs.
 - Every `dependency.<name>.outputs.<output>` reference has to name an output that the dependency declares. The check skips a dependency that has no `outputs` block.
 
-The second check reads only the literal references in `terragrunt.hcl` files. It skips a reference inside `try()` or `can()`. It does not see a read through a function such as `lookup()`, or a reference in a `terragrunt.hcl.json` file.
+The second check reads only literal references. It skips a reference inside `try()` or `can()`. It does not see a read through a function such as `lookup()`, or a reference in a `terragrunt.hcl.json` file.
 
-Without the flag, `hcl validate` runs neither check. A reference to an output that the dependency does not declare can still fail with `Unsupported attribute`, because `hcl validate` reads only the declared outputs, also after the unit is applied. A run with `--no-dependency-outputs` does the same for a command that may use the mock values.
+Without the flag, `hcl validate` runs neither check. A reference to an output that the dependency does not declare can still fail with `Unsupported attribute`. When `hcl validate` uses the mock values of a unit, it reads only the declared outputs and the `mock_outputs` of the dependent, not the state. A run with `--no-dependency-outputs` does the same.
 
 In this example, `eks` reads `subnet_ids`, an output that `vpc` does not declare:
 

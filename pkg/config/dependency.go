@@ -1102,10 +1102,6 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(
 		return dependencyConfig.MockOutputs, nil
 	}
 
-	if nulls := declared.nullOutputs(); nulls != nil && dependencyConfig.shouldGetOutputs(pctx) {
-		return nulls, nil
-	}
-
 	if pctx.Experiments.Evaluate(experiment.EmptyDependencyOutputs) {
 		l.Debugf(
 			"Config %s is a dependency of %s that has no outputs, resolving its outputs to an empty object.",
@@ -1222,7 +1218,7 @@ func getTerragruntOutput(
 	}
 
 	if fromState && !isEmpty {
-		if err := fillDeclaredOutputs(pctx, dependencyConfig, declared, targetConfigPath, outputMap); err != nil {
+		if err := checkDeclaredOutputs(pctx, dependencyConfig, declared, targetConfigPath, outputMap); err != nil {
 			return nil, isEmpty, DependencyBlockError{
 				Name:       dependencyConfig.Name,
 				ConfigPath: pctx.TerragruntConfigPath,

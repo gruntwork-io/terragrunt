@@ -162,18 +162,15 @@ func (c *OutputsConfig) MockValues() *cty.Value {
 	return &object
 }
 
-// standInValues returns the mock value of each declared output, else unknown under skipOutput, else null if nullable.
-func (c *OutputsConfig) standInValues(skipOutput bool) *cty.Value {
+// mockValuesOrUnknown returns an object of every declared output, unknown for each that sets no mock value.
+func (c *OutputsConfig) mockValuesOrUnknown() *cty.Value {
 	values := make(map[string]cty.Value, len(c.Outputs))
 
 	for _, output := range c.Outputs {
-		switch {
-		case output.MockValue != nil:
+		values[output.Name] = cty.DynamicVal
+
+		if output.MockValue != nil {
 			values[output.Name] = *output.MockValue
-		case skipOutput:
-			values[output.Name] = cty.DynamicVal
-		case output.Nullable != nil && *output.Nullable:
-			values[output.Name] = cty.NullVal(cty.DynamicPseudoType)
 		}
 	}
 
@@ -184,46 +181,6 @@ func (c *OutputsConfig) standInValues(skipOutput bool) *cty.Value {
 	object := cty.ObjectVal(values)
 
 	return &object
-}
-
-// nullOutputs returns an object with a null for each declared output when every one is nullable, nil otherwise.
-func (c *OutputsConfig) nullOutputs() *cty.Value {
-	if c == nil || len(c.Outputs) == 0 {
-		return nil
-	}
-
-	values := make(map[string]cty.Value, len(c.Outputs))
-
-	for _, output := range c.Outputs {
-		if output.Nullable == nil || !*output.Nullable {
-			return nil
-		}
-
-		values[output.Name] = cty.NullVal(cty.DynamicPseudoType)
-	}
-
-	object := cty.ObjectVal(values)
-
-	return &object
-}
-
-// withMockStrategyOf returns a copy of c whose mock_strategy takes each attribute it leaves unset from parent.
-func (c *OutputsConfig) withMockStrategyOf(parent *OutputsConfig) *OutputsConfig {
-	clone := c.Clone()
-
-	if parent == nil || parent.MockStrategy == nil {
-		return clone
-	}
-
-	strategy := parent.MockStrategy.Clone()
-
-	if clone.MockStrategy != nil {
-		strategy.merge(clone.MockStrategy)
-	}
-
-	clone.MockStrategy = strategy
-
-	return clone
 }
 
 // Clone returns a deep copy of s.
