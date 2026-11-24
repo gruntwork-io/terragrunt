@@ -567,7 +567,7 @@ func validateDependencyReferences(pc *ParsingContext, file *hclparse.File) error
 		return TerraformSourceReferencesDependencyError{ConfigPath: file.ConfigPath}
 	}
 
-	if slices.Contains(pc.PartialParseDecodeList, moduleDirAttributes) {
+	if slices.Contains(pc.PartialParseDecodeList, moduleDirAttributes) && !includedWithoutMerge(pc) {
 		if err := moduleDirDependencyError(file); err != nil {
 			return err
 		}
@@ -726,4 +726,15 @@ func absInclude(pc *ParsingContext) *IncludeConfig {
 	abs.Path = filepath.Clean(filepath.Join(filepath.Dir(pc.TerragruntConfigPath), abs.Path))
 
 	return &abs
+}
+
+// includedWithoutMerge reports whether pc parses a file that an include block names with the no_merge strategy.
+func includedWithoutMerge(pc *ParsingContext) bool {
+	if pc.include == nil {
+		return false
+	}
+
+	strategy, err := pc.include.GetMergeStrategy()
+
+	return err == nil && strategy == NoMerge
 }

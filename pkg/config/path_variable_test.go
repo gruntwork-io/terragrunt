@@ -2,6 +2,7 @@ package config_test
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -319,6 +320,82 @@ inputs = {
 	require.NoError(t, result.runConfigErr)
 	require.NotNil(t, result.cfg)
 	assert.Equal(t, appDir, result.cfg.Inputs["module"])
+}
+
+func TestPathVariableModuleFollowsTheMergeStrategyOfAnExposedInclude(t *testing.T) {
+	t.Parallel()
+
+	const (
+		data = `
+locals {
+  label = "catalog"
+}
+
+dependency "vpc" {
+  config_path = "{{root}}/vpc"
+}
+
+download_dir = dependency.vpc.outputs.id
+`
+		unit = `
+include "data" {
+  path           = "{{root}}/data.hcl"
+  expose         = true
+  merge_strategy = "%s"
+}
+
+inputs = {
+  label  = include.data.locals.label
+  module = path.download
+}
+`
+	)
+
+	testCases := []struct {
+		name     string
+		strategy string
+		rejected bool
+	}{
+		{name: "no merge", strategy: "no_merge"},
+		{name: "shallow merge", strategy: "shallow", rejected: true},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := venvtest.Root("/fixture")
+
+			result := resolveUnit(t, unitCase{
+				cfgPath: filepath.Join(root, "app", config.DefaultTerragruntConfigPath),
+				newFS: memFS(root, map[string]string{
+					"vpc/terragrunt.hcl": "",
+					"vpc/main.tf":        "",
+					"app/main.tf":        "",
+					"data.hcl":           data,
+					"app/terragrunt.hcl": fmt.Sprintf(unit, tc.strategy),
+				}),
+				configure: func(pctx *config.ParsingContext) {
+					pctx.OriginalTerragruntConfigPath = pctx.TerragruntConfigPath
+
+					require.NoError(t, pctx.Experiments.EnableExperiment(experiment.PathVariable))
+				},
+			})
+
+			if tc.rejected {
+				var rejected config.ModuleDirReferencesDependencyError
+
+				require.ErrorAs(t, result.runConfigErr, &rejected)
+
+				return
+			}
+
+			require.NoError(t, result.runConfigErr)
+			require.NotNil(t, result.cfg)
+			assert.Equal(t, "catalog", result.cfg.Inputs["label"])
+			assert.NotEmpty(t, result.cfg.Inputs["module"])
+		})
+	}
 }
 
 func TestPathVariableModuleEvaluatesTheSourceWithTheIAMRoleOfTheUnit(t *testing.T) {

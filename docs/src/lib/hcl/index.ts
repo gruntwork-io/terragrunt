@@ -1,6 +1,6 @@
 import type { CollectionEntry } from 'astro:content';
 
-export const HCL_KINDS = ['blocks', 'attributes', 'functions'] as const;
+export const HCL_KINDS = ['blocks', 'attributes', 'functions', 'variables'] as const;
 
 export type HclKind = (typeof HCL_KINDS)[number];
 
@@ -8,12 +8,16 @@ export const HCL_COLLECTIONS = {
 	blocks: 'hclBlocks',
 	attributes: 'hclAttributes',
 	functions: 'hclFunctions',
+	variables: 'hclVariables',
 } as const satisfies Record<HclKind, string>;
 
 export type HclEntry =
 	| CollectionEntry<'hclBlocks'>
 	| CollectionEntry<'hclAttributes'>
-	| CollectionEntry<'hclFunctions'>;
+	| CollectionEntry<'hclFunctions'>
+	| CollectionEntry<'hclVariables'>;
+
+export type VariableAttribute = CollectionEntry<'hclVariables'>['data']['attributes'][number];
 
 export type BlockAttribute = NonNullable<CollectionEntry<'hclBlocks'>['data']['attributes']>[number];
 
@@ -68,16 +72,21 @@ export function itemHeadings(entry: HclEntry, bodyHeadings: Heading[]): Heading[
 	];
 	const examples = entry.data.examples ? [{ depth: 2, slug: 'examples', text: 'Examples' }] : [];
 
-	if (entry.collection === 'hclFunctions') return [...usage, ...referenceHeadings(entry), ...examples];
+	if (entry.collection === 'hclFunctions' || entry.collection === 'hclVariables') {
+		return [...usage, ...referenceHeadings(entry), ...examples];
+	}
 	return [...usage, ...examples, ...referenceHeadings(entry)];
 }
 
 /**
  * Returns the fragments an item's page defines besides its fixed sections: the
  * slugs of the body's headings and, for a block, its attribute names, key
- * group sections, and nested block names.
+ * group sections, and nested block names. A variable adds its attribute names.
  */
 export function itemAnchors(entry: HclEntry, bodyHeadings: Heading[]): string[] {
+	if (entry.collection === 'hclVariables') {
+		return [...bodyHeadings.map((heading) => heading.slug), ...entry.data.attributes.map((attr) => attr.name)];
+	}
 	if (entry.collection !== 'hclBlocks') return bodyHeadings.map((heading) => heading.slug);
 	const attributes = entry.data.attributes ?? [];
 	const keyGroups = attributeKeyGroups(attributes).flatMap((keys) => [keys.slug, ...keys.groups.map((group) => group.name)]);
@@ -167,6 +176,14 @@ export function referenceMarkdown(entry: HclEntry): { before: string; after: str
 				after: [...sections, examplesMarkdown(entry.data.examples)].join('\n\n'),
 			};
 		}
+		case 'hclVariables': {
+			const attributes = entry.data.attributes.map((attr) => variableAttributeMarkdown(entry.data.name, attr));
+			const examples = entry.data.examples ? [examplesMarkdown(entry.data.examples)] : [];
+			return {
+				before: '## Usage',
+				after: ['## Attributes', ...attributes, ...examples].join('\n\n'),
+			};
+		}
 	}
 }
 
@@ -190,7 +207,21 @@ function referenceHeadings(entry: HclEntry): Heading[] {
 			return [];
 		case 'hclFunctions':
 			return entry.data.params.length ? [{ depth: 2, slug: 'parameters', text: 'Parameters' }] : [];
+		case 'hclVariables':
+			return [
+				{ depth: 2, slug: 'attributes', text: 'Attributes' },
+				...entry.data.attributes.map((attr) => ({
+					depth: 3,
+					slug: attr.name,
+					text: variableAttributeName(entry.data.name, attr),
+				})),
+			];
 	}
+}
+
+/** Returns how a read of a variable's attribute is written, e.g. `path.unit`. */
+export function variableAttributeName(variable: string, attr: Pick<VariableAttribute, 'name'>): string {
+	return `${variable}.${attr.name}`;
 }
 
 function examplesMarkdown(examples: NonNullable<HclEntry['data']['examples']>): string {
@@ -254,6 +285,16 @@ function blockAttributeMarkdown(attr: BlockAttribute): string {
 	const meta = [`- **Type:** ${code(attr.type)}`, `- **Required:** ${attr.required ? 'Yes' : 'No'}`];
 	if (attr.default !== undefined) meta.push(`- **Default:** ${code(attr.default)}`);
 	return [`### ${code(attr.name)}`, attr.description, meta.join('\n'), hclFence(attr.example)].join('\n\n');
+}
+
+function variableAttributeMarkdown(variable: string, attr: VariableAttribute): string {
+	const meta = [`- **Type:** ${code(attr.type)}`, `- **Defined in:** ${attr.configs.map(code).join(', ')}`];
+	return [
+		`### ${code(variableAttributeName(variable, attr))}`,
+		attr.description.trim(),
+		meta.join('\n'),
+		hclFence(attr.example),
+	].join('\n\n');
 }
 
 function code(text: string): string {
