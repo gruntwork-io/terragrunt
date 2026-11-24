@@ -164,7 +164,7 @@ When you run `terragrunt apply` in `live/stage/app`, Terragrunt will:
 
 4. Pass any variables defined in the `inputs = { …​ }` block as environment variables (prefixed with `TF_VAR_`) when running OpenTofu/Terraform. Notice how the `inputs` block in `stage/app/terragrunt.hcl` deploys fewer and smaller instances than prod.
 
-Check out the [terragrunt-infrastructure-modules-example](https://github.com/gruntwork-io/terragrunt-infrastructure-modules-example) and [terragrunt-infrastructure-live-example](https://github.com/gruntwork-io/terragrunt-infrastructure-live-example) repos for fully-working sample code that demonstrates our recommended folder structure for successful infrastructure management.
+Check out the [terragrunt-infrastructure-catalog-example](https://github.com/gruntwork-io/terragrunt-infrastructure-catalog-example) repo and the live repos for [AWS](https://github.com/gruntwork-io/terragrunt-infrastructure-live-stacks-example), [Azure](https://github.com/gruntwork-io/terragrunt-infrastructure-live-azure-example), and [GCP](https://github.com/gruntwork-io/terragrunt-infrastructure-live-gcp-example) for fully-working sample code that demonstrates our recommended folder structure for successful infrastructure management.
 
 ## Immutable modules and atomic deployments
 
@@ -395,6 +395,6 @@ Every unit that includes `env.hcl` generates the same `provider.tf` content, so 
 - [Includes](/features/units/includes) — share common configuration across units
 - [Extra Arguments](/features/units/extra-arguments) — pass additional CLI arguments to OpenTofu/Terraform
 - [Hooks](/features/units/hooks) — run custom commands before or after OpenTofu/Terraform
-- [Authentication](/features/units/authentication) — work with multiple AWS accounts and dynamic provider authentication
+- [Authentication](/features/units/authentication) — authenticate with AWS, Azure, or GCP, and fetch credentials dynamically
 - [`terraform` block reference](/reference/hcl/blocks/terraform/) — full reference for the `terraform` block
 - [Lock File Handling](/features/units/lock-files) — details on how Terragrunt manages `.terraform.lock.hcl` files
