@@ -2,7 +2,6 @@ package config_test
 
 import (
 	"errors"
-	"maps"
 	"path/filepath"
 	"testing"
 
@@ -58,12 +57,7 @@ func TestValidateDependencyConfigPaths(t *testing.T) {
 				"empty/main.tf":                              "",
 			})
 
-			err := config.ValidateDependencyConfigPaths(
-				fsys,
-				dependencyConfig(tc.configPath, tc.enabled),
-				appConfigPath(repo),
-				config.RejectAmbiguousConfig,
-			)
+			err := config.ValidateDependencyConfigPaths(fsys, dependencyConfig(tc.configPath, tc.enabled), appConfigPath(repo))
 			if tc.wantMissing == "" {
 				require.NoError(t, err)
 
@@ -74,75 +68,6 @@ func TestValidateDependencyConfigPaths(t *testing.T) {
 			require.True(t, ok, "unexpected error %v", err)
 			assert.Equal(t, tc.wantMissing, notFound.Path)
 			assert.Contains(t, err.Error(), `dependency "dep"`)
-		})
-	}
-}
-
-// TestValidateDependencyConfigPathsAmbiguousDirectory pins which dependencies on a directory holding both
-// terragrunt.hcl and terragrunt.hcl.json fail with a [config.AmbiguousConfigError].
-func TestValidateDependencyConfigPathsAmbiguousDirectory(t *testing.T) {
-	t.Parallel()
-
-	repo := venvtest.Root("/repo")
-
-	tcs := []struct {
-		files         map[string]string
-		name          string
-		configPath    string
-		check         config.AmbiguousConfigCheck
-		wantAmbiguous bool
-	}{
-		{
-			name:          "directory",
-			configPath:    "../dual",
-			check:         config.RejectAmbiguousConfig,
-			wantAmbiguous: true,
-		},
-		{
-			name:          "directory also holding a stack file",
-			files:         map[string]string{"dual/terragrunt.stack.hcl": ""},
-			configPath:    "../dual",
-			check:         config.RejectAmbiguousConfig,
-			wantAmbiguous: true,
-		},
-		{
-			name:       "config file in the directory",
-			configPath: "../dual/terragrunt.hcl",
-			check:      config.RejectAmbiguousConfig,
-		},
-		{
-			name:       "directory with ambiguity allowed",
-			configPath: "../dual",
-			check:      config.AllowAmbiguousConfig,
-		},
-	}
-
-	for _, tc := range tcs {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			files := map[string]string{
-				"app/terragrunt.hcl":       "",
-				"dual/terragrunt.hcl":      "",
-				"dual/terragrunt.hcl.json": "{}",
-			}
-			maps.Copy(files, tc.files)
-
-			err := config.ValidateDependencyConfigPaths(
-				venvtest.NewFS(t, repo, files),
-				dependencyConfig(tc.configPath, nil),
-				appConfigPath(repo),
-				tc.check,
-			)
-			if !tc.wantAmbiguous {
-				require.NoError(t, err)
-
-				return
-			}
-
-			ambiguousErr, ok := errors.AsType[config.AmbiguousConfigError](err)
-			require.True(t, ok, "unexpected error %v", err)
-			assert.Equal(t, filepath.Join(repo, "dual"), ambiguousErr.ComponentPath)
 		})
 	}
 }
@@ -158,12 +83,7 @@ func TestValidateDependencyConfigPathsStatError(t *testing.T) {
 		failPath: filepath.Join(repo, "dep"),
 	}
 
-	err := config.ValidateDependencyConfigPaths(
-		fsys,
-		dependencyConfig("../dep", nil),
-		appConfigPath(repo),
-		config.RejectAmbiguousConfig,
-	)
+	err := config.ValidateDependencyConfigPaths(fsys, dependencyConfig("../dep", nil), appConfigPath(repo))
 	require.ErrorIs(t, err, errStatFailed)
 
 	_, notFound := errors.AsType[config.DependencyConfigNotFound](err)

@@ -21,7 +21,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
-func TestDiscoveryReportsAmbiguousConfigsInGitFilterWorktreesWithRacing(t *testing.T) {
+func TestDiscoveryReadsTerragruntHCLBesideTheJSONConfigInGitFilterWorktreesWithRacing(t *testing.T) {
 	t.Parallel()
 
 	repo, runner := setupGitRepo(t)
@@ -29,7 +29,7 @@ func TestDiscoveryReportsAmbiguousConfigsInGitFilterWorktreesWithRacing(t *testi
 	createUnit(t, repo, "app", "")
 	createUnit(t, repo, "both", "")
 
-	require.NoError(t, os.WriteFile(filepath.Join(repo, "both", "terragrunt.hcl.json"), []byte("{}"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(repo, "both", "terragrunt.hcl.json"), []byte("{"), 0o644))
 
 	commitChanges(t, runner, "Initial commit")
 
@@ -56,13 +56,18 @@ func TestDiscoveryReportsAmbiguousConfigsInGitFilterWorktreesWithRacing(t *testi
 	opts.WorkingDir = repo
 	opts.RootWorkingDir = repo
 
-	_, err = discovery.NewDiscovery(repo).
+	components, err := discovery.NewDiscovery(repo).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: repo}).
 		WithWorktrees(w).
 		WithFilters(filter.Filters{filter.NewFilter(gitExpr, gitExpr.String())}).
-		WithSuppressParseErrors().
 		Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(config.Store), opts)
-	require.ErrorAs(t, err, new(config.AmbiguousConfigError))
+	require.NoError(t, err)
+	require.NotEmpty(t, components)
+
+	for _, c := range components {
+		assert.Equal(t, "both", filepath.Base(c.Path()))
+		assert.Equal(t, config.DefaultTerragruntConfigPath, c.ConfigFile())
+	}
 }
 
 func TestDiscoveryPipelineFindsWorktreeDependentsOfAnAbsolutePath(t *testing.T) {
@@ -193,33 +198,6 @@ func TestDiscoveryPipelineParsesComponentsFoundInWorktreesWithRacing(t *testing.
 func TestDiscoveryPipelineReportsConfigConflictsInWorktreesWithRacing(t *testing.T) {
 	t.Parallel()
 
-	conflicts := []struct {
-		requireErr func(t *testing.T, err error)
-		name       string
-		sibling    string
-		contents   string
-	}{
-		{
-			name:    "unit and stack",
-			sibling: config.DefaultStackFile,
-			requireErr: func(t *testing.T, err error) {
-				t.Helper()
-
-				require.ErrorAs(t, err, new(discovery.CoexistenceError))
-			},
-		},
-		{
-			name:     "both default unit configs",
-			sibling:  config.DefaultTerragruntJSONConfigPath,
-			contents: "{}",
-			requireErr: func(t *testing.T, err error) {
-				t.Helper()
-
-				require.ErrorAs(t, err, new(config.AmbiguousConfigError))
-			},
-		},
-	}
-
 	flows := []struct {
 		configure func(d *discovery.Discovery) *discovery.Discovery
 		name      string
@@ -270,53 +248,51 @@ func TestDiscoveryPipelineReportsConfigConflictsInWorktreesWithRacing(t *testing
 		},
 	}
 
-	for _, conflict := range conflicts {
-		for _, placement := range placements {
-			for _, flow := range flows {
-				t.Run(conflict.name+"/"+placement.name+"/"+flow.name, func(t *testing.T) {
-					t.Parallel()
+	for _, placement := range placements {
+		for _, flow := range flows {
+			t.Run(placement.name+"/"+flow.name, func(t *testing.T) {
+				t.Parallel()
 
-					repo, runner := setupGitRepo(t)
+				repo, runner := setupGitRepo(t)
 
-					createUnit(t, repo, "kept", "")
+				createUnit(t, repo, "kept", "")
 
-					placement.commit(t, repo, runner, func() {
-						both := createUnit(t, repo, "both", "")
-						require.NoError(t, os.WriteFile(
-							filepath.Join(both, conflict.sibling),
-							[]byte(conflict.contents),
-							0o644,
-						))
-					})
-
-					l := logger.CreateLogger()
-					ctx := config.WithCaches(t.Context())
-
-					gitExpr := filter.NewGitExpression("HEAD~1", "HEAD")
-
-					w, err := worktrees.NewWorktrees(ctx, l, venvtest.NewOSWithEmptyEnv(), worktrees.WorktreeOpts{
-						WorkingDir:     repo,
-						GitExpressions: filter.GitExpressions{gitExpr},
-					})
-					require.NoError(t, err)
-
-					t.Cleanup(func() {
-						require.NoError(t, w.Cleanup(context.WithoutCancel(ctx), l, venvtest.NewOSWithEmptyEnv()))
-					})
-
-					opts := options.NewTerragruntOptions()
-					opts.WorkingDir = repo
-					opts.RootWorkingDir = repo
-
-					d := flow.configure(discovery.NewDiscovery(repo).
-						WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: repo}).
-						WithWorktrees(w).
-						WithFilters(filter.Filters{filter.NewFilter(gitExpr, gitExpr.String())}))
-
-					_, err = d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(config.Store), opts)
-					conflict.requireErr(t, err)
+				placement.commit(t, repo, runner, func() {
+					both := createUnit(t, repo, "both", "")
+					require.NoError(t, os.WriteFile(
+						filepath.Join(both, config.DefaultStackFile),
+						nil,
+						0o644,
+					))
 				})
-			}
+
+				l := logger.CreateLogger()
+				ctx := config.WithCaches(t.Context())
+
+				gitExpr := filter.NewGitExpression("HEAD~1", "HEAD")
+
+				w, err := worktrees.NewWorktrees(ctx, l, venvtest.NewOSWithEmptyEnv(), worktrees.WorktreeOpts{
+					WorkingDir:     repo,
+					GitExpressions: filter.GitExpressions{gitExpr},
+				})
+				require.NoError(t, err)
+
+				t.Cleanup(func() {
+					require.NoError(t, w.Cleanup(context.WithoutCancel(ctx), l, venvtest.NewOSWithEmptyEnv()))
+				})
+
+				opts := options.NewTerragruntOptions()
+				opts.WorkingDir = repo
+				opts.RootWorkingDir = repo
+
+				d := flow.configure(discovery.NewDiscovery(repo).
+					WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: repo}).
+					WithWorktrees(w).
+					WithFilters(filter.Filters{filter.NewFilter(gitExpr, gitExpr.String())}))
+
+				_, err = d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(config.Store), opts)
+				require.ErrorAs(t, err, new(discovery.CoexistenceError))
+			})
 		}
 	}
 }

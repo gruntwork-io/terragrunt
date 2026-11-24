@@ -150,6 +150,7 @@ func (key InstanceKey) Address(label string) string {
 // block yields a single Instance with both keys nil.
 type Instance struct {
 	Value       any
+	Block       *hcl.Block
 	Source      *SourceBlock
 	EvalContext *hcl.EvalContext
 	InstanceKey
@@ -374,7 +375,7 @@ func ExpandBlock(
 			return nil, diags
 		}
 
-		return []Instance{{Value: instance, EvalContext: evalCtx}}, nil
+		return []Instance{{Value: instance, Block: block, EvalContext: evalCtx}}, nil
 	}
 
 	forEach, count, err := expansionMetaArg(expansion)
@@ -635,7 +636,7 @@ func (dec *elementDecoder) decode(
 	if !diags.HasErrors() {
 		dec.instances = append(
 			dec.instances,
-			Instance{Value: value, EvalContext: ctx, InstanceKey: key},
+			Instance{Value: value, Block: block, EvalContext: ctx, InstanceKey: key},
 		)
 
 		return

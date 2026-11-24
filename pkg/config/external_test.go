@@ -396,6 +396,49 @@ func TestExternalGetDefaultConfigPath(t *testing.T) {
 	assert.Contains(t, result, "terragrunt.hcl")
 }
 
+// TestGetDefaultConfigPathPrefersTerragruntHCL pins the documented lookup order: terragrunt.hcl, then
+// terragrunt.hcl.json.
+func TestGetDefaultConfigPathPrefersTerragruntHCL(t *testing.T) {
+	t.Parallel()
+
+	root := venvtest.Root("/repo")
+
+	tcs := []struct {
+		files map[string]string
+		name  string
+		want  string
+	}{
+		{
+			name: "both",
+			files: map[string]string{
+				"unit/terragrunt.hcl":      "",
+				"unit/terragrunt.hcl.json": "{}",
+			},
+			want: config.DefaultTerragruntConfigPath,
+		},
+		{
+			name:  "JSON only",
+			files: map[string]string{"unit/terragrunt.hcl.json": "{}"},
+			want:  config.DefaultTerragruntJSONConfigPath,
+		},
+		{
+			name:  "neither",
+			files: map[string]string{"unit/main.tf": ""},
+			want:  config.DefaultTerragruntConfigPath,
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			dir := filepath.Join(root, "unit")
+			got := config.GetDefaultConfigPath(venvtest.NewFS(t, root, tc.files), dir)
+			assert.Equal(t, filepath.Join(dir, tc.want), got)
+		})
+	}
+}
+
 func TestExternalParseAndDecodeVarFile(t *testing.T) {
 	t.Parallel()
 
@@ -472,9 +515,9 @@ unit "db" {
 
 	ctx := config.WithCaches(t.Context())
 	v := venvtest.NewWithOSFS()
-	pctx := config.NewParsingContext()
 
 	stackValues := cty.ObjectVal(map[string]cty.Value{})
+	pctx := config.NewParsingContext().WithValues(&stackValues)
 
 	sc, err := config.ReadStackConfigString(
 		ctx,
@@ -484,7 +527,6 @@ unit "db" {
 		pctx,
 		config.DefaultStackFile,
 		stackHCL,
-		&stackValues,
 	)
 	require.NoError(t, err)
 	require.NotNil(t, sc)
@@ -497,7 +539,7 @@ unit "db" {
 }
 
 // TestExternalParseStackConfigStringNilValues validates that an external consumer can
-// parse a terragrunt.stack.hcl config using NewParsingContext with nil for values.
+// parse a terragrunt.stack.hcl config using NewParsingContext with no values.
 func TestExternalParseStackConfigStringNilValues(t *testing.T) {
 	t.Parallel()
 
@@ -527,7 +569,6 @@ unit "db" {
 		pctx,
 		config.DefaultStackFile,
 		stackHCL,
-		nil,
 	)
 	require.NoError(t, err)
 	require.NotNil(t, sc)
@@ -560,11 +601,11 @@ unit "db" {
 
 	ctx := config.WithCaches(t.Context())
 	v := venvtest.NewWithOSFS()
-	pctx := config.NewParsingContext()
 
 	stackValues := cty.ObjectVal(map[string]cty.Value{
 		"app_path": cty.StringVal("foo"),
 	})
+	pctx := config.NewParsingContext().WithValues(&stackValues)
 
 	sc, err := config.ReadStackConfigString(
 		ctx,
@@ -574,7 +615,6 @@ unit "db" {
 		pctx,
 		config.DefaultStackFile,
 		stackHCL,
-		&stackValues,
 	)
 	require.NoError(t, err)
 	require.NotNil(t, sc)
@@ -586,15 +626,14 @@ unit "db" {
 	assert.Equal(t, "database", sc.Units[1].Path)
 }
 
-// TestExternalReadValuesAndParseStackConfig validates that an external consumer
-// can read a terragrunt.values.hcl file from disk using ReadValues and feed the
-// result into ReadStackConfigString, with no internal/ imports required.
-func TestExternalReadValuesAndParseStackConfig(t *testing.T) {
+// TestExternalReadStackConfigFileReadsValues validates that an external consumer
+// can parse a terragrunt.stack.hcl that reads the terragrunt.values.hcl beside it,
+// with no internal/ imports required.
+func TestExternalReadStackConfigFileReadsValues(t *testing.T) {
 	t.Parallel()
 
 	l := createExternalLogger()
 
-	// Write a terragrunt.values.hcl file to a temp directory.
 	dir := t.TempDir()
 	valuesContent := []byte(`
 app_path = "my-app"
@@ -605,23 +644,20 @@ region   = "us-west-2"
 		os.WriteFile(filepath.Join(dir, "terragrunt.values.hcl"), valuesContent, 0644),
 	)
 
-	ctx := config.WithCaches(t.Context())
-	v := venvtest.NewWithOSFS()
-	pctx := config.NewParsingContext()
-
-	// Read values from the file on disk.
-	values, err := config.ReadValues(ctx, l, v, new(config.Store), pctx, dir)
-	require.NoError(t, err)
-	require.NotNil(t, values)
-
-	// Parse a stack config that references the values.
-	stackHCL := `
+	stackHCL := []byte(`
 unit "app" {
   source = "./modules/app"
   path   = values.app_path
 }
-`
-	sc, err := config.ReadStackConfigString(ctx, l, v, new(config.Store), pctx, config.DefaultStackFile, stackHCL, values)
+`)
+	stackPath := filepath.Join(dir, config.DefaultStackFile)
+	require.NoError(t, os.WriteFile(stackPath, stackHCL, 0644))
+
+	ctx := config.WithCaches(t.Context())
+	v := venvtest.NewWithOSFS()
+	pctx := config.NewParsingContext()
+
+	sc, err := config.ReadStackConfigFile(ctx, l, v, new(config.Store), pctx, stackPath)
 	require.NoError(t, err)
 	require.NotNil(t, sc)
 	require.Len(t, sc.Units, 1)

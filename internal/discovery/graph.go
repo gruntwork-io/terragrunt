@@ -11,7 +11,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -211,7 +210,6 @@ func (p *graphTraversal) resolveDependency(
 	fsys vfs.FS,
 	parent component.Component,
 	depPath string,
-	check config.AmbiguousConfigCheck,
 	threadSafeComponents *component.ThreadSafeComponents,
 ) (component.Component, error) {
 	parentCtx := parent.DiscoveryContext()
@@ -223,10 +221,7 @@ func (p *graphTraversal) resolveDependency(
 		return nil, NewMissingWorkingDirectoryError(parent.Path())
 	}
 
-	depComponent, err := componentFromDependencyPath(fsys, depPath, check, threadSafeComponents)
-	if err != nil {
-		return nil, err
-	}
+	depComponent := componentFromDependencyPath(fsys, depPath, threadSafeComponents)
 
 	assignGraphDiscoveryContext(fsys, depComponent, parentCtx, depPath)
 

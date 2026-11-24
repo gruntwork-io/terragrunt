@@ -214,10 +214,6 @@ type RunSettings struct {
 	// querying the remote again. Zero re-queries on every run.
 	CASProbeTTL time.Duration
 
-	// AmbiguousConfigCheck says whether a unit directory holding both default unit configuration files fails to
-	// resolve. [AllowAmbiguousConfig] when the user named the config file with the --config flag.
-	AmbiguousConfigCheck AmbiguousConfigCheck
-
 	// TFPathExplicitlySet reports that --tf-path named the tofu binary, which then wins over a unit's
 	// terraform_binary.
 	TFPathExplicitlySet bool

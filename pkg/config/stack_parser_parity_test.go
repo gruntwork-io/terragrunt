@@ -139,6 +139,46 @@ unit "vpc" {
 			},
 		},
 		{
+			name: "for_each over a default-only value",
+			files: map[string]string{
+				config.DefaultStackFile: `
+values {
+  value "regions" {
+    type    = set(string)
+    default = ["east", "west"]
+  }
+}
+
+unit "vpc" {
+  expansion {
+    for_each = values.regions
+  }
+
+  source = "./units/app"
+  path   = "vpc/${each.key}"
+}
+`,
+			},
+		},
+		{
+			name: "converted value in path",
+			files: map[string]string{
+				"terragrunt.values.hcl": `shard = "03"`,
+				config.DefaultStackFile: `
+values {
+  value "shard" {
+    type = number
+  }
+}
+
+unit "db" {
+  source = "./units/app"
+  path   = "db-${values.shard}"
+}
+`,
+			},
+		},
+		{
 			name: "expanded unit without .terragrunt-stack",
 			files: map[string]string{
 				config.DefaultStackFile: `
@@ -281,12 +321,9 @@ unit "shard" {
 
 			stackPath := filepath.Join(dir, config.DefaultStackFile)
 			l := logger.CreateLogger()
-			ctx, pctx := newTestParsingContext(t, stackPath)
+			ctx, pctx := newValuesTestContext(t, stackPath, valuesExperimentOn)
 
-			values, err := config.ReadValues(ctx, l, v, new(config.Store), pctx, dir)
-			require.NoError(t, err)
-
-			stack, err := config.ReadStackConfigFile(ctx, l, v, new(config.Store), pctx, stackPath, values)
+			stack, err := config.ReadStackConfigFile(ctx, l, v, new(config.Store), pctx, stackPath)
 			require.NoError(t, err)
 
 			unitPaths, stackPaths, err := inthclparse.DirectComponentPaths(
@@ -312,7 +349,7 @@ unit "shard" {
 			require.NoError(t, err)
 
 			parsed, err := inthclparse.ParseStackFile(ctx, v.FS, &inthclparse.ParseStackFileInput{
-				Values:    values,
+				Values:    stack.Values,
 				Functions: funcs,
 				Filename:  config.DefaultStackFile,
 				StackDir:  dir,
@@ -336,6 +373,77 @@ unit "shard" {
 			)
 		})
 	}
+}
+
+// TestStackFileParsersRejectValuesBlockInIncludedFile pins that discovery and the autoinclude parser
+// reject a values block in an included stack file, as the full stack parse does.
+func TestStackFileParsersRejectValuesBlockInIncludedFile(t *testing.T) {
+	t.Parallel()
+
+	v, dir := newMemTestDir(t)
+
+	files := map[string]string{
+		config.DefaultStackFile: `
+include "shared" {
+  path = "./shared.hcl"
+}
+`,
+		"shared.hcl": `
+values {
+  value "env" {
+    default = "dev"
+  }
+}
+
+unit "vpc" {
+  source = "./units/app"
+  path   = "vpc"
+}
+`,
+	}
+
+	for path, body := range files {
+		require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(dir, path), []byte(body), 0o644))
+	}
+
+	stackPath := filepath.Join(dir, config.DefaultStackFile)
+	l := logger.CreateLogger()
+	ctx, pctx := newValuesTestContext(t, stackPath, valuesExperimentOn)
+
+	_, err := config.ReadStackConfigFile(ctx, l, v, new(config.Store), pctx, stackPath)
+
+	var inInclude config.ValuesBlockInIncludeError
+	require.ErrorAs(t, err, &inInclude, "full stack parse")
+
+	_, _, err = inthclparse.DirectComponentPaths(
+		ctx,
+		v.FS,
+		dir,
+		&inthclparse.StackDirArgs{
+			FuncsFor: func(stackDir string) (map[string]function.Function, error) {
+				return config.EarlyStackParseFunctions(ctx, l, v, new(config.Store), pctx, stackDir)
+			},
+		},
+	)
+
+	var invalidInclude inthclparse.IncludeValidationError
+	require.ErrorAs(t, err, &invalidInclude, "discovery")
+	assert.Equal(t, "shared", invalidInclude.IncludeName)
+
+	src, err := vfs.ReadFile(v.FS, stackPath)
+	require.NoError(t, err)
+
+	funcs, err := config.EarlyStackParseFunctions(ctx, l, v, new(config.Store), pctx, dir)
+	require.NoError(t, err)
+
+	_, err = inthclparse.ParseStackFile(ctx, v.FS, &inthclparse.ParseStackFileInput{
+		Functions: funcs,
+		Filename:  config.DefaultStackFile,
+		StackDir:  dir,
+		Src:       src,
+	})
+	require.ErrorAs(t, err, &invalidInclude, "autoinclude parser")
+	assert.Equal(t, "shared", invalidInclude.IncludeName)
 }
 
 // enabledComponentPaths returns the generated path under dir of every enabled unit and stack in

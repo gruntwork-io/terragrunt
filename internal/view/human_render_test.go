@@ -352,6 +352,26 @@ func TestHumanRenderDiagnosticsWrapping(t *testing.T) {
 	}
 }
 
+func TestHumanRenderDiagnosticsDetailParagraphs(t *testing.T) {
+	t.Parallel()
+
+	actual, err := view.NewHumanRender(terminalVenv(80), true).Diagnostics(diagnostic.Diagnostics{{
+		Severity: diagnostic.DiagnosticSeverity(hcl.DiagError),
+		Summary:  "Undeclared value",
+		Detail:   "The values block does not declare \"tgas\".\nIt reads values.\n\nDid you mean \"tags\"?\n\n\n",
+	}})
+	require.NoError(t, err)
+	assert.Equal(
+		t,
+		"error: Undeclared value\n"+
+			"  = The values block does not declare \"tgas\".\n"+
+			"    It reads values.\n"+
+			"  = Did you mean \"tags\"?\n"+
+			"\n",
+		actual,
+	)
+}
+
 // TestHumanRenderDiagnosticsFunctionCallNotes pins the call signature and value notes under a failed function call.
 func TestHumanRenderDiagnosticsFunctionCallNotes(t *testing.T) {
 	t.Parallel()

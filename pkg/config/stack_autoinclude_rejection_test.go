@@ -192,7 +192,16 @@ func generateLiveStack(t *testing.T, stackFile string, files map[string]string) 
 
 	defer pool.Stop()
 
-	if err := config.GenerateStackFile(ctx, l, v, new(config.Store), pctx, pool, stackPath); err != nil {
+	if err := config.GenerateStackFile(
+		ctx,
+		l,
+		v,
+		new(config.Store),
+		pctx,
+		pool,
+		stackPath,
+		func(config.TryDefault) {},
+	); err != nil {
 		return v, err
 	}
 

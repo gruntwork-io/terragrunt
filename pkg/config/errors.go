@@ -240,22 +240,6 @@ func (err ConflictingRunCmdCacheOptionsError) Error() string {
 	return "The --terragrunt-global-cache and --terragrunt-no-cache options cannot be used together. Choose one caching option for run_cmd."
 }
 
-// AmbiguousConfigError reports a directory that holds both default unit configuration files, terragrunt.hcl and
-// terragrunt.hcl.json.
-type AmbiguousConfigError struct {
-	ComponentPath string
-	ConfigFileA   string
-	ConfigFileB   string
-}
-
-func (err AmbiguousConfigError) Error() string {
-	return fmt.Sprintf(
-		"Component %q has more than one Terragrunt configuration file (%s and %s). "+
-			"Only one may be present in a directory; remove one to disambiguate.",
-		err.ComponentPath, err.ConfigFileA, err.ConfigFileB,
-	)
-}
-
 // TerragruntConfigNotFoundError reports a Terragrunt config file that does not exist.
 type TerragruntConfigNotFoundError struct {
 	Path string
@@ -1011,6 +995,35 @@ func (err BlockNestingExceededError) Error() string {
 		"%s nests blocks more than %d levels deep. Flatten the nested blocks.",
 		err.ConfigPath,
 		err.Limit,
+	)
+}
+
+// ValuesBlockRequiresExperimentError reports a values block declared without the values-block experiment.
+type ValuesBlockRequiresExperimentError struct {
+	ConfigPath string
+}
+
+func (err ValuesBlockRequiresExperimentError) Error() string {
+	return fmt.Sprintf(
+		"%s declares a values block, which needs the %s experiment. "+
+			"Enable it with --experiment %s or TG_EXPERIMENT=%s, or remove the block.",
+		err.ConfigPath,
+		experiment.ValuesBlock,
+		experiment.ValuesBlock,
+		experiment.ValuesBlock,
+	)
+}
+
+// ValuesBlockInIncludeError reports a values block in a file that another config includes, or in an autoinclude file.
+type ValuesBlockInIncludeError struct {
+	ConfigPath string
+}
+
+func (err ValuesBlockInIncludeError) Error() string {
+	return fmt.Sprintf(
+		"%s declares a values block, but it is included by another config or generated as an autoinclude. "+
+			"Move the block to the terragrunt.hcl or terragrunt.stack.hcl of the component.",
+		err.ConfigPath,
 	)
 }
 

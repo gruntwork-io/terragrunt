@@ -92,13 +92,11 @@ var parsingContextFieldsOutsideKey = map[string]string{
 	"readConfigChain": "it detects cycles, which fail the read, and marks the target that `path.read` names, which is in the key",
 	"catalogStubDir": "only the generated catalog child reads it, and nothing else lives in that in-memory " +
 		"directory to be a read target",
-	"ParseDepth":      "it only limits nesting, and going past the limit fails the read",
-	"RootWorkingDir":  logTextOnly,
-	"LogShowAbsPaths": logTextOnly,
-	"Experiments":     sameForCommand,
-	"StrictControls":  sameForCommand,
-	"AmbiguousConfigCheck": "it only decides whether a directory holding both default unit configs fails the " +
-		"read, and failed reads aren't cached",
+	"ParseDepth":                       "it only limits nesting, and going past the limit fails the read",
+	"RootWorkingDir":                   logTextOnly,
+	"LogShowAbsPaths":                  logTextOnly,
+	"Experiments":                      sameForCommand,
+	"StrictControls":                   sameForCommand,
 	"ScaffoldRootFileName":             "only catalog scaffolding reads it",
 	"ProviderCacheOptions":             "parsing doesn't read it",
 	"NoStackValidate":                  "only stack files read it, and they aren't cached",

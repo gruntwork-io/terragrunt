@@ -133,7 +133,9 @@ func RunValidate(
 		componentV := v.WithEnvCloned()
 
 		if _, ok := c.(*component.Stack); ok {
-			parseErrs = append(parseErrs, parser.Stack(ctx, l, componentV, s, opts, c.Path())...)
+			if err := parser.Stack(ctx, l, componentV, s, opts, c.Path()); err != nil {
+				parseErrs = append(parseErrs, err)
+			}
 
 			continue
 		}

@@ -564,7 +564,7 @@ func TestPathVariableInStackFile(t *testing.T) {
 
 	ctx, pctx := newPathParsingContext(t, stackPath)
 
-	stack, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, stackPath, nil)
+	stack, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, stackPath)
 	require.NoError(t, err)
 	require.Len(t, stack.Units, 1)
 	require.NotNil(t, stack.Units[0].Values)
@@ -609,7 +609,7 @@ func TestPathVariableStackPathBesideStackBlocks(t *testing.T) {
 
 			ctx, pctx := newPathParsingContext(t, stackPath)
 
-			stack, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, stackPath, nil)
+			stack, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, stackPath)
 			require.NoError(t, err)
 			require.Len(t, stack.Units, 1)
 			require.NotNil(t, stack.Units[0].Values)
@@ -664,7 +664,7 @@ unit "app" {
 				require.NoError(t, pctx.Experiments.EnableExperiment(name))
 			}
 
-			_, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, stackPath, nil)
+			_, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, stackPath)
 
 			var diags hcl.Diagnostics
 
@@ -696,10 +696,7 @@ func TestPathVariableInStackFileReadFromUnit(t *testing.T) {
 			ctx, pctx := unitPathParsingContext(t, v, filepath.Join(root, "stack", "consumer"))
 			l := logger.CreateLogger()
 
-			values, err := config.ReadValues(ctx, l, v, new(config.Store), pctx, stackDir)
-			require.NoError(t, err)
-
-			stack, err := config.ReadStackConfigFile(ctx, l, v, new(config.Store), pctx, stackPath, values)
+			stack, err := config.ReadStackConfigFile(ctx, l, v, new(config.Store), pctx, stackPath)
 			require.NoError(t, err)
 			require.Len(t, stack.Units, 1)
 			require.NotNil(t, stack.Units[0].Values)
@@ -831,7 +828,7 @@ func TestPathVariableInStackInclude(t *testing.T) {
 
 	ctx, pctx := newPathParsingContext(t, stackPath)
 
-	stack, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, stackPath, nil)
+	stack, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, stackPath)
 	require.NoError(t, err)
 	require.Len(t, stack.Units, 2)
 
@@ -1092,6 +1089,7 @@ func generatePathStack(t *testing.T, v *venv.Venv, stackDir string, experiments 
 		pctx,
 		pool,
 		stackPath,
+		func(config.TryDefault) {},
 	); err != nil {
 		return err
 	}

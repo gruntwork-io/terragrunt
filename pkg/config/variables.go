@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/hclhelper"
+	"github.com/gruntwork-io/terragrunt/internal/valuesblock"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 )
 
@@ -187,29 +188,7 @@ func inputKeyRange(file *hclparse.File, definition inputDefinition, name string)
 		return hcl.Range{}, diags
 	}
 
-	return objectKeyRange(content.Attributes[MetadataInputs].Expr, name), nil
-}
-
-// objectKeyRange returns the range of the literal key name in the object expression expr. It is the range of the
-// whole expression when expr is computed, such as a merge call, and has no such key.
-func objectKeyRange(expr hcl.Expression, name string) hcl.Range {
-	items, diags := hcl.ExprMap(expr)
-	if diags.HasErrors() {
-		return expr.Range()
-	}
-
-	for _, item := range items {
-		key, diags := item.Key.Value(nil)
-		if diags.HasErrors() || !key.Type().Equals(cty.String) || key.IsNull() || !key.IsKnown() {
-			continue
-		}
-
-		if key.AsString() == name {
-			return item.Key.Range()
-		}
-	}
-
-	return expr.Range()
+	return valuesblock.KeyRange(content.Attributes[MetadataInputs].Expr, name), nil
 }
 
 // mergeVariables appends blocks to cfg and removes from cfg every input that inputs or blocks define, leaving each input

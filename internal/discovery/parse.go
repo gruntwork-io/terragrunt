@@ -358,21 +358,14 @@ func trackStackComponentReads(
 	pctx = pctx.Clone()
 	pctx.Parser.IgnoreDiagnostics = true
 
-	values, err := config.ReadValues(ctx, l, v, s, pctx, filepath.Dir(stackFilePath))
-	if err != nil {
-		l.Debugf("Discovery: skipping read tracking for %s: %v", stackFilePath, err)
-
-		return nil
-	}
-
-	stackCfg, err := config.ReadStackConfigFile(ctx, l, v, s, pctx, stackFilePath, values)
+	stackCfg, err := config.ReadStackConfigFile(ctx, l, v, s, pctx, stackFilePath)
 	if err != nil {
 		l.Debugf("Discovery: read tracking for %s stopped early: %v", stackFilePath, err)
 
 		return nil
 	}
 
-	autoIncludes, err := config.StackAutoIncludes(ctx, l, v, s, pctx, stackFilePath, stackCfg, values)
+	autoIncludes, err := config.StackAutoIncludes(ctx, l, v, s, pctx, stackFilePath, stackCfg)
 	if err != nil {
 		l.Debugf("Discovery: read tracking for %s stopped early: %v", stackFilePath, err)
 	}
