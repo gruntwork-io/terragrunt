@@ -328,7 +328,7 @@ func evaluatedStackFile(pctx *ParsingContext) (string, bool) {
 	}
 
 	chain := pctx.readConfigChain
-	if len(chain) == 0 || chain[0].originalPath != pctx.OriginalTerragruntConfigPath {
+	if pctx.viaDependency || len(chain) == 0 {
 		return "", false
 	}
 

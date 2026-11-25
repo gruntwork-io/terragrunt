@@ -703,6 +703,22 @@ func TestPathVariableInFileReadByGeneratedStack(t *testing.T) {
 	assert.Equal(t, want, parsePathUnit(t, v, filepath.Join(stackDir, config.StackDir, "app")))
 }
 
+func TestPathVariableInDependencyThatIsTheOriginalConfigOfStackRun(t *testing.T) {
+	t.Parallel()
+
+	v, root := pathFixture(t)
+	stackDir := filepath.Join(root, "stack-read", "live")
+	original := filepath.Join(root, "stack-read", "base", config.DefaultTerragruntConfigPath)
+
+	require.NoError(t, generatePathStackFrom(t, v, stackDir, original, experiment.PathVariable))
+
+	want := stackReadValues(stackDir)
+	want["auto_read_stack"] = stackDir
+	want["auto_read_unit"] = "no-unit"
+
+	assert.Equal(t, want, parsePathUnit(t, v, filepath.Join(stackDir, config.StackDir, "app")))
+}
+
 func TestPathVariableStackBesideStackBlocks(t *testing.T) {
 	t.Parallel()
 
@@ -1195,10 +1211,21 @@ func unitPathParsingContext(t *testing.T, v *venv.Venv, unitDir string) (context
 func generatePathStack(t *testing.T, v *venv.Venv, stackDir string, experiments ...string) error {
 	t.Helper()
 
+	return generatePathStackFrom(t, v, stackDir, "", experiments...)
+}
+
+// generatePathStackFrom generates the stack in stackDir in a run that starts from the config at originalPath.
+func generatePathStackFrom(t *testing.T, v *venv.Venv, stackDir, originalPath string, experiments ...string) error {
+	t.Helper()
+
 	stackPath := filepath.Join(stackDir, config.DefaultStackFile)
 	ctx, pctx := newTestParsingContext(t, stackPath)
 	pctx.TerragruntStackConfigPath = stackPath
 	pctx.NoCAS = true
+
+	if originalPath != "" {
+		pctx.OriginalTerragruntConfigPath = originalPath
+	}
 
 	for _, name := range experiments {
 		require.NoError(t, pctx.Experiments.EnableExperiment(name))

@@ -124,6 +124,9 @@ type ParsingContext struct {
 	// inheritsDependencies marks an included file whose `dependency` value the including file resolves in
 	// ResolveRunConfig.
 	inheritsDependencies bool
+
+	// viaDependency is true for a config that a dependency block parses, and for each file that this config reads.
+	viaDependency bool
 }
 
 // RunSettings is the settings of the run a [ParsingContext] parses for.
@@ -493,6 +496,7 @@ func (ctx *ParsingContext) WithDependencyConfigPath(
 	}
 
 	c.OriginalTerragruntConfigPath = c.TerragruntConfigPath
+	c.viaDependency = true
 	c.DependencyBlocks = nil
 	c.DecodedDependencies = nil
 	c.Locals = nil
