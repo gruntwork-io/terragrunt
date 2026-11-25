@@ -51,51 +51,20 @@ inputs = {
 func TestPrepareSourceInPlaceKeepsWorkingDir(t *testing.T) {
 	t.Parallel()
 
-	root := t.TempDir()
-	unitDir := filepath.Join(root, "unit")
-	configPath := filepath.Join(root, "configs", config.DefaultTerragruntConfigPath)
-
-	fsys := vfs.NewMemMapFS()
-	require.NoError(t, vfs.WriteFile(fsys, configPath, []byte(""), 0o644))
-	require.NoError(t, vfs.WriteFile(fsys, filepath.Join(unitDir, "main.tf"), []byte(""), 0o644))
-
-	opts, err := options.NewTerragruntOptionsWithConfigPath(configPath)
-	require.NoError(t, err)
-
-	opts.WorkingDir = unitDir
-
-	updatedOpts := prepareSourceInPlace(t, fsys, opts, new(config.TerragruntConfig))
-
-	assert.Equal(t, unitDir, updatedOpts.WorkingDir)
-	assert.NotSame(t, opts, updatedOpts)
-}
-
-func TestPrepareSourceInPlaceKeepsConfigDirWithTFFiles(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	unitDir := filepath.Join(root, "unit")
-
-	fsys := vfs.NewMemMapFS()
-	require.NoError(t, vfs.WriteFile(fsys, filepath.Join(unitDir, "main.tf"), []byte(""), 0o644))
-
-	opts, err := options.NewTerragruntOptionsWithConfigPath(filepath.Join(unitDir, config.DefaultTerragruntConfigPath))
-	require.NoError(t, err)
-
-	opts.WorkingDir = root
-
-	updatedOpts := prepareSourceInPlace(t, fsys, opts, new(config.TerragruntConfig))
-
-	assert.Equal(t, unitDir, updatedOpts.WorkingDir)
-}
-
-func TestPrepareSourceInPlaceKeepsConfigDirThatGeneratesCode(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
-		cfg  *config.TerragruntConfig
-		name string
+		cfg            *config.TerragruntConfig
+		name           string
+		configDirFiles []string
 	}{
+		{
+			name: "config directory without code",
+			cfg:  new(config.TerragruntConfig),
+		},
+		{
+			name:           "config directory with code",
+			cfg:            new(config.TerragruntConfig),
+			configDirFiles: []string{"main.tf"},
+		},
 		{
 			name: "generate block",
 			cfg: &config.TerragruntConfig{
@@ -126,6 +95,10 @@ func TestPrepareSourceInPlaceKeepsConfigDirThatGeneratesCode(t *testing.T) {
 			require.NoError(t, vfs.WriteFile(fsys, configPath, []byte(""), 0o644))
 			require.NoError(t, vfs.WriteFile(fsys, filepath.Join(unitDir, "main.tf"), []byte(""), 0o644))
 
+			for _, name := range tc.configDirFiles {
+				require.NoError(t, vfs.WriteFile(fsys, filepath.Join(configDir, name), []byte(""), 0o644))
+			}
+
 			opts, err := options.NewTerragruntOptionsWithConfigPath(configPath)
 			require.NoError(t, err)
 
@@ -133,9 +106,28 @@ func TestPrepareSourceInPlaceKeepsConfigDirThatGeneratesCode(t *testing.T) {
 
 			updatedOpts := prepareSourceInPlace(t, fsys, opts, tc.cfg)
 
-			assert.Equal(t, configDir, updatedOpts.WorkingDir)
+			assert.Equal(t, unitDir, updatedOpts.WorkingDir)
+			assert.NotSame(t, opts, updatedOpts)
 		})
 	}
+}
+
+func TestPrepareSourceInPlaceKeepsWorkingDirWithRelativeConfigPath(t *testing.T) {
+	t.Parallel()
+
+	unitDir := filepath.Join(t.TempDir(), "unit")
+
+	fsys := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(fsys, filepath.Join(unitDir, "main.tf"), []byte(""), 0o644))
+
+	opts, err := options.NewTerragruntOptionsWithConfigPath(filepath.Join(unitDir, config.DefaultTerragruntConfigPath))
+	require.NoError(t, err)
+
+	opts.TerragruntConfigPath = filepath.Join("config", config.DefaultTerragruntConfigPath)
+
+	updatedOpts := prepareSourceInPlace(t, fsys, opts, new(config.TerragruntConfig))
+
+	assert.Equal(t, unitDir, updatedOpts.WorkingDir)
 }
 
 func TestPrepareSourceInPlaceReturnsAbsoluteConfigPath(t *testing.T) {

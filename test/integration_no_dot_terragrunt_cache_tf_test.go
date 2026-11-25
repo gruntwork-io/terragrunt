@@ -87,56 +87,69 @@ func TestTFNoDotTerragruntCacheGenerateKeepsUserFile(t *testing.T) {
 func TestTFNoDotTerragruntCacheRunsInWorkingDirWithConfigElsewhere(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNoDotTerragruntCacheWorkingDir)
-	rootPath := filepath.Join(tmpEnvPath, testFixtureNoDotTerragruntCacheWorkingDir)
-	unitPath := filepath.Join(rootPath, "unit")
-	configDir := filepath.Join(rootPath, "config")
-	flags := noDotTerragruntCacheFlags + unitPath +
-		" --config " + filepath.Join(configDir, config.DefaultTerragruntConfigPath)
+	tests := []struct {
+		name      string
+		configDir string
+	}{
+		{name: "config directory without code", configDir: "config"},
+		{name: "config directory with code", configDir: filepath.Join("units", "a")},
+	}
 
-	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve"+flags)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	assert.FileExists(t, filepath.Join(unitPath, "terraform.tfstate"))
-	assert.NoDirExists(t, filepath.Join(unitPath, helpers.TerragruntCache))
-	assert.NoDirExists(t, filepath.Join(configDir, helpers.TerragruntCache))
+			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNoDotTerragruntCacheWorkingDir)
+			rootPath := filepath.Join(tmpEnvPath, testFixtureNoDotTerragruntCacheWorkingDir)
+			unitPath := filepath.Join(rootPath, "unit")
+			configDir := filepath.Join(rootPath, tc.configDir)
+			flags := noDotTerragruntCacheFlags + unitPath +
+				" --config " + filepath.Join(configDir, config.DefaultTerragruntConfigPath)
 
-	helpers.RunTerragrunt(t, "terragrunt exec --in-download-dir"+flags+" -- touch exec.out")
+			helpers.RunTerragrunt(t, "terragrunt apply -auto-approve"+flags)
 
-	assert.FileExists(t, filepath.Join(unitPath, "exec.out"))
+			assert.FileExists(t, filepath.Join(unitPath, "terraform.tfstate"))
+			assert.NoFileExists(t, filepath.Join(configDir, "terraform.tfstate"))
+			assert.NoDirExists(t, filepath.Join(unitPath, helpers.TerragruntCache))
+			assert.NoDirExists(t, filepath.Join(configDir, helpers.TerragruntCache))
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt info print"+flags)
-	require.NoError(t, err)
+			helpers.RunTerragrunt(t, "terragrunt exec --in-download-dir"+flags+" -- touch exec.out")
 
-	var info print.InfoOutput
+			assert.FileExists(t, filepath.Join(unitPath, "exec.out"))
+			assert.NoFileExists(t, filepath.Join(configDir, "exec.out"))
 
-	require.NoError(t, json.Unmarshal([]byte(stdout), &info))
-	assert.Equal(t, unitPath, info.WorkingDir)
+			stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt info print"+flags)
+			require.NoError(t, err)
+
+			var info print.InfoOutput
+
+			require.NoError(t, json.Unmarshal([]byte(stdout), &info))
+			assert.Equal(t, unitPath, info.WorkingDir)
+		})
+	}
 }
 
-func TestTFNoDotTerragruntCacheExecRunsInConfigDirWithTFFiles(t *testing.T) {
+func TestTFNoDotTerragruntCacheExecRunsInWorkingDirWithRelativeConfig(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNoDotTerragruntCacheWorkingDir)
-	unitsPath := filepath.Join(tmpEnvPath, testFixtureNoDotTerragruntCacheWorkingDir, "units")
-	unitPath := filepath.Join(unitsPath, "a")
-	flags := noDotTerragruntCacheFlags + unitsPath +
-		" --config " + filepath.Join(unitPath, config.DefaultTerragruntConfigPath)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureNoDotTerragruntCacheWorkingDir)
+	unitPath := filepath.Join(rootPath, "unit")
+
+	currentDir, err := os.Getwd()
+	require.NoError(t, err)
+
+	configPath, err := filepath.Rel(currentDir, filepath.Join(rootPath, "config", config.DefaultTerragruntConfigPath))
+	require.NoError(t, err)
+
+	flags := noDotTerragruntCacheFlags + unitPath + " --config " + configPath
 
 	helpers.RunTerragrunt(t, "terragrunt exec --in-download-dir"+flags+" -- touch exec.out")
 
 	assert.FileExists(t, filepath.Join(unitPath, "exec.out"))
-	assert.NoFileExists(t, filepath.Join(unitsPath, "exec.out"))
-
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt info print"+flags)
-	require.NoError(t, err)
-
-	var info print.InfoOutput
-
-	require.NoError(t, json.Unmarshal([]byte(stdout), &info))
-	assert.Equal(t, unitPath, info.WorkingDir)
 }
 
-func TestTFNoDotTerragruntCacheExecRunsInConfigDirWithGenerateBlock(t *testing.T) {
+func TestTFNoDotTerragruntCacheExecGeneratesIntoWorkingDirWithConfigElsewhere(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNoDotTerragruntCacheWorkingDir)
@@ -148,9 +161,10 @@ func TestTFNoDotTerragruntCacheExecRunsInConfigDirWithGenerateBlock(t *testing.T
 
 	helpers.RunTerragrunt(t, "terragrunt exec --in-download-dir"+flags+" -- touch exec.out")
 
-	assert.FileExists(t, filepath.Join(configDir, "main.tf"))
-	assert.FileExists(t, filepath.Join(configDir, "exec.out"))
-	assert.NoFileExists(t, filepath.Join(unitPath, "exec.out"))
+	assert.FileExists(t, filepath.Join(unitPath, "generated.tf"))
+	assert.FileExists(t, filepath.Join(unitPath, "exec.out"))
+	assert.NoFileExists(t, filepath.Join(configDir, "generated.tf"))
+	assert.NoFileExists(t, filepath.Join(configDir, "exec.out"))
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt info print"+flags)
 	require.NoError(t, err)
@@ -158,7 +172,7 @@ func TestTFNoDotTerragruntCacheExecRunsInConfigDirWithGenerateBlock(t *testing.T
 	var info print.InfoOutput
 
 	require.NoError(t, json.Unmarshal([]byte(stdout), &info))
-	assert.Equal(t, configDir, info.WorkingDir)
+	assert.Equal(t, unitPath, info.WorkingDir)
 }
 
 func TestTFNoDotTerragruntCacheRunAllRunsEachUnitInPlace(t *testing.T) {
