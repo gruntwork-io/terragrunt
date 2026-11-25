@@ -287,6 +287,38 @@ func TestCommonProviderHandlerDiscoveryURLCoalescesConcurrentRequests(t *testing
 	assert.Equal(t, int32(1), hits.Load(), "concurrent discovery lookups should issue one upstream request")
 }
 
+func TestCommonProviderHandlerDiscoveryURLTimeoutDoesNotCacheDefaults(t *testing.T) {
+	t.Parallel()
+
+	var attempt atomic.Int32
+
+	c := vhttp.NewMemClient(func(_ context.Context, req *http.Request) (*http.Response, error) {
+		if attempt.Add(1) == 1 {
+			return nil, &url.Error{
+				Op:  "Get",
+				URL: req.URL.String(),
+				Err: context.DeadlineExceeded,
+			}
+		}
+
+		return vhttp.Respond(
+			http.StatusOK,
+			[]byte(`{"providers.v1":"/custom/providers/"}`),
+			http.Header{"Content-Type": []string{"application/json"}},
+		), nil
+	})
+
+	handler := handlers.NewCommonProviderHandler(logger.CreateLogger(), c, nil, nil)
+
+	urls, err := handler.DiscoveryURL(t.Context(), "registry.example.com")
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Nil(t, urls)
+
+	urls, err = handler.DiscoveryURL(t.Context(), "registry.example.com")
+	require.NoError(t, err)
+	assert.Equal(t, &handlers.RegistryURLs{ProvidersV1: "/custom/providers/"}, urls)
+}
+
 // newDirectHandler returns a direct handler that talks to the registry through c.
 func newDirectHandler(c vhttp.Client) *handlers.DirectProviderHandler {
 	return handlers.NewDirectProviderHandler(

@@ -1,0 +1,13 @@
+---
+version: "v1.2.3"
+category: "bug-fixes"
+---
+
+#### Fix provider cache stalls, 5xx/429 error propagation, and nil metadata panics
+
+Fixed several provider cache concurrency and error-handling issues under parallel loads:
+
+- Propagated upstream HTTP `429` and `5xx` responses as `502 Bad Gateway` / `504 Gateway Timeout` errors instead of silently caching empty metadata.
+- Prevented discovery request timeouts from caching default registry URLs in `discoveryURLCache`.
+- Avoided holding global cache and warm-up locks across network requests and waits, preventing one stalled provider download from blocking unrelated cache requests.
+- Coalesced concurrent registry service discovery calls and guarded against `nil` `ResponseBody` dereferences in `DocumentSHA256Sums`, `Signature`, and `AuthenticatePackage`.

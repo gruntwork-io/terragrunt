@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
@@ -116,7 +117,7 @@ func (handler *CommonProviderHandler) DiscoveryURL(
 
 		urls, err := DiscoveryURL(reqCtx, handler.httpClient, registryName)
 		if err != nil {
-			if !IsOfflineError(err) {
+			if reqCtx.Err() != nil || errors.Is(err, context.DeadlineExceeded) || !IsOfflineError(err) {
 				return nil, err
 			}
 

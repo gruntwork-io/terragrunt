@@ -539,7 +539,13 @@ func TestProviderServiceWaitForCacheReadyDoesNotBlockOtherRequests(t *testing.T)
 		Arch:         "amd64",
 	})
 
-	<-slowStarted
+	const phaseWaitTimeout = 3 * time.Second
+
+	select {
+	case <-slowStarted:
+	case <-time.After(phaseWaitTimeout):
+		require.FailNow(t, "timed out waiting for slow provider download to start")
+	}
 
 	waitSlowErr := make(chan error, 1)
 
@@ -579,15 +585,60 @@ func TestProviderServiceWaitForCacheReadyDoesNotBlockOtherRequests(t *testing.T)
 	select {
 	case err := <-fastDone:
 		require.NoError(t, err)
-	case <-time.After(3 * time.Second):
+	case <-time.After(phaseWaitTimeout):
 		require.FailNow(t, "WaitForCacheReady for slow provider blocked unrelated CacheProvider/WaitForCacheReady")
 	}
 
 	releaseOnce.Do(func() { close(releaseSlow) })
-	require.NoError(t, <-waitSlowErr)
+
+	select {
+	case err := <-waitSlowErr:
+		require.NoError(t, err)
+	case <-time.After(phaseWaitTimeout):
+		require.FailNow(t, "timed out waiting for slow WaitForCacheReady to complete")
+	}
 
 	cancel()
-	require.NoError(t, <-runErr)
+
+	select {
+	case err := <-runErr:
+		require.NoError(t, err)
+	case <-time.After(phaseWaitTimeout):
+		require.FailNow(t, "timed out waiting for cache service shutdown")
+	}
+}
+
+func TestProviderCacheNilResponseBodyDoesNotPanic(t *testing.T) {
+	t.Parallel()
+
+	cache := &services.ProviderCache{
+		Provider: &models.Provider{
+			RegistryName: "registry.example.com",
+			Namespace:    "example",
+			Name:         "missing-metadata",
+			Version:      "1.0.0",
+			OS:           "linux",
+			Arch:         "amd64",
+		},
+	}
+
+	assert.Nil(t, cache.RegistryHashes())
+
+	sums, err := cache.DocumentSHA256Sums(t.Context())
+	require.NoError(t, err)
+	assert.Nil(t, sums)
+
+	sig, err := cache.Signature(t.Context())
+	require.NoError(t, err)
+	assert.Nil(t, sig)
+
+	auth, err := cache.AuthenticatePackage(t.Context())
+	require.Error(t, err)
+	assert.Nil(t, auth)
+
+	var missingErr *services.ChecksumFieldMissingError
+	require.ErrorAs(t, err, &missingErr)
+	assert.Equal(t, services.FieldSHA256Sum, missingErr.Field)
 }
 
 // providerArchive builds a zip archive holding a single file, standing in for

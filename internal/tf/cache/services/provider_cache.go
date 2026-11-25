@@ -102,7 +102,7 @@ type ProviderCache struct {
 // DocumentSHA256Sums returns the SHA256SUMS document of the provider, fetching it on the first
 // call. It returns nil when the registry response gave no URL for it.
 func (cache *ProviderCache) DocumentSHA256Sums(ctx context.Context) ([]byte, error) {
-	if existing := cache.getDocumentSHA256Sums(); existing != nil || cache.SHA256SumsURL == "" {
+	if existing := cache.getDocumentSHA256Sums(); existing != nil || cache.ResponseBody == nil || cache.SHA256SumsURL == "" {
 		return existing, nil
 	}
 
@@ -112,7 +112,7 @@ func (cache *ProviderCache) DocumentSHA256Sums(ctx context.Context) ([]byte, err
 // Signature returns the signature over the SHA256SUMS document, fetching it on the first call.
 // It returns nil when the registry response gave no URL for it.
 func (cache *ProviderCache) Signature(ctx context.Context) ([]byte, error) {
-	if existing := cache.getSignature(); existing != nil || cache.SHA256SumsSignatureURL == "" {
+	if existing := cache.getSignature(); existing != nil || cache.ResponseBody == nil || cache.SHA256SumsSignatureURL == "" {
 		return existing, nil
 	}
 
@@ -182,6 +182,13 @@ func (cache *ProviderCache) RegistryHashes() map[string][]getproviders.Hash {
 func (cache *ProviderCache) AuthenticatePackage(
 	ctx context.Context,
 ) (*getproviders.PackageAuthenticationResult, error) {
+	if cache.ResponseBody == nil {
+		return nil, &ChecksumFieldMissingError{
+			Provider: cache.Provider.String(),
+			Field:    FieldSHA256Sum,
+		}
+	}
+
 	if cache.Origin == models.OriginMirror {
 		return nil, nil
 	}
