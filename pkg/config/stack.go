@@ -400,7 +400,6 @@ func resolveStackAutoIncludes(
 			Functions:        earlyFuncs,
 			OverrideSrc:      overrideSrc,
 			OverrideFilename: overridePath,
-			UnitRoots:        autoIncludeUnitRoots(scopedPctx),
 		},
 	)
 	if parseErr != nil {

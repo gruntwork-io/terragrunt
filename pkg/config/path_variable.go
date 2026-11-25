@@ -27,8 +27,6 @@ const (
 	pathAttrUnit = "unit"
 	// pathAttrStack names `path.stack`, the directory of the stack file.
 	pathAttrStack = "stack"
-	// pathAttrParentStack names `path.parentstack`, the directory of the nearest stack file at or above the unit.
-	pathAttrParentStack = "parentstack"
 	// pathAttrDownload names `path.download`, the directory in which OpenTofu/Terraform runs.
 	pathAttrDownload = "download"
 	// pathAttrInclude names `path.include`, the path of the included file.
@@ -71,19 +69,8 @@ func PathVariable(
 
 	refs := filePathReferences(file)
 
-	if refs.has(pathAttrUnit) || refs.has(pathAttrParentStack) || refs.has(pathAttrDownload) {
+	if refs.has(pathAttrUnit) || refs.has(pathAttrDownload) {
 		markNotShareable(ctx)
-	}
-
-	if refs.has(pathAttrParentStack) {
-		stackDir, err := enclosingStackDir(v.FS, pctx)
-		if err != nil {
-			return nil, fmt.Errorf("resolving path.parentstack for %s: %w", file.ConfigPath, err)
-		}
-
-		if stackDir != "" {
-			attrs[pathAttrParentStack] = cty.StringVal(stackDir)
-		}
 	}
 
 	if refs.has(pathAttrDownload) {
@@ -211,15 +198,6 @@ func referencesUnknownPath(diag *hcl.Diagnostic) bool {
 	return true
 }
 
-// autoIncludeUnitRoots returns the variable roots a unit autoinclude leaves for the generated unit to resolve.
-func autoIncludeUnitRoots(pctx *ParsingContext) []string {
-	if !pctx.Experiments.Evaluate(experiment.PathVariable) {
-		return nil
-	}
-
-	return []string{MetadataPath}
-}
-
 // has reports whether the file references attr, alone or through the whole `path` object.
 func (refs pathReferences) has(attr string) bool {
 	if refs.whole {
@@ -344,35 +322,6 @@ func isStackConfigFile(path string) bool {
 	base := filepath.Base(path)
 
 	return base == DefaultStackFile || base == DefaultAutoIncludeStackFile
-}
-
-// enclosingStackDir returns the nearest directory at or above the unit that holds a stack file, or "" when none does.
-func enclosingStackDir(fsys vfs.FS, pctx *ParsingContext) (string, error) {
-	dir := filepath.Dir(pctx.OriginalTerragruntConfigPath)
-
-	for range pctx.MaxFoldersToCheck {
-		exists, err := vfs.FileExists(fsys, filepath.Join(dir, DefaultStackFile))
-		if err != nil {
-			return "", err
-		}
-
-		if exists {
-			return dir, nil
-		}
-
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return "", nil
-		}
-
-		dir = parent
-	}
-
-	return "", ParentFileNotFoundError{
-		Path:  pctx.OriginalTerragruntConfigPath,
-		File:  DefaultStackFile,
-		Cause: fmt.Sprintf("Exceeded maximum folders to check (%d)", pctx.MaxFoldersToCheck),
-	}
 }
 
 // unitModuleDir returns the directory in which OpenTofu/Terraform runs for the unit pctx parses.

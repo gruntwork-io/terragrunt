@@ -9,13 +9,12 @@ This experiment is ongoing and disabled by default. A reference to `path` withou
 
 ### `path-variable` - What it does
 
-Functions such as `get_terragrunt_dir()` and `get_parent_terragrunt_dir()` return a different directory in a unit, in an included file and in a file that `read_terragrunt_config` reads. With this experiment enabled, each attribute of `path` names one location:
+Functions such as `get_terragrunt_dir()` and `get_parent_terragrunt_dir()` return a different directory in a unit, in an included file and in a file that `read_terragrunt_config` reads. With this experiment enabled, each field of `path` names one location:
 
-| Attribute | Value |
+| Field | Value |
 | --- | --- |
 | `path.unit` | Absolute path to the directory of the unit, which holds its `terragrunt.hcl`. |
 | `path.stack` | Absolute path to the directory of the `terragrunt.stack.hcl` that Terragrunt evaluates. |
-| `path.parentstack` | Absolute path to the nearest directory, at or above the unit, that holds a `terragrunt.stack.hcl`. |
 | `path.download` | Absolute path to the directory in which Terragrunt runs OpenTofu/Terraform for the unit. |
 | `path.include` | Absolute path to the included file, e.g. `/path/to/root.hcl`. |
 | `path.read` | Absolute path to the file that `read_terragrunt_config` reads, e.g. `/path/to/env.hcl`. |
@@ -37,7 +36,7 @@ remote_state {
 terragrunt run --all --experiment path-variable -- plan
 ```
 
-An attribute is defined only where its location exists, e.g. `path.unit` is not defined in `terragrunt.stack.hcl`, and `path.stack` is not defined in a unit. See the [`path` variable reference](/reference/hcl/variables/path/) for each attribute, with examples.
+A field is defined only where its location exists, e.g. `path.unit` is not defined in `terragrunt.stack.hcl`, and `path.stack` is not defined in a unit. See the [`path` variable reference](/reference/hcl/variables/path/) for each field, with examples.
 
 ### `path-variable` - How to provide feedback
 
@@ -49,7 +48,7 @@ Provide your feedback in the [Terragrunt GitHub Discussions](https://github.com/
 
 To transition the `path-variable` feature to a stable release, the following must be addressed:
 
-- [ ] Agree on the attribute names, and on an error or a `null` value for an attribute that is not defined.
+- [ ] Agree on the field names, and on an error or a `null` value for a field that is not defined.
 - [x] Add reference documentation for the `path` variable.
 - [ ] Support the `path` variable in [`terragrunt-ls`](https://github.com/gruntwork-io/terragrunt-ls).
 - [ ] Serve the `path` variable reference through the [Terragrunt docs MCP server](/getting-started/install#terragrunt-docs-mcp-server).

@@ -1,12 +1,10 @@
 ---
-import { Code } from '@astrojs/starlight/components';
+import { LinkCard } from '@astrojs/starlight/components';
 import { render, type CollectionEntry } from 'astro:content';
 import HclConfigs from '@components/HclConfigs.astro';
 import HclExamples from '@components/HclExamples.astro';
-import ReferenceCard from '@components/ReferenceCard.astro';
-import TypeBadge from '@components/TypeBadge.astro';
-import { variableAttributeName } from '@lib/hcl';
-import { renderMarkdownField } from '@lib/hcl/markdown';
+import { variableFieldName, variableFieldPath } from '@lib/hcl';
+import { getPublishedVariableFields } from '@lib/hcl/published';
 
 interface Props {
 	entry: CollectionEntry<'hclVariables'>;
@@ -14,14 +12,7 @@ interface Props {
 
 const { entry } = Astro.props;
 const { Content } = await render(entry);
-
-const attributes = await Promise.all(
-	entry.data.attributes.map(async (attribute) => ({
-		...attribute,
-		title: variableAttributeName(entry.data.name, attribute),
-		html: await renderMarkdownField(attribute.description),
-	})),
-);
+const fields = await getPublishedVariableFields(entry.data.name);
 ---
 
 <HclConfigs configs={entry.data.configs} />
@@ -30,21 +21,16 @@ const attributes = await Promise.all(
 
 <Content />
 
-<h2 id="attributes">Attributes</h2>
+<h2 id="fields">Fields</h2>
 
-<div>
-	{
-		attributes.map((attribute) => (
-			<section id={attribute.name}>
-				<ReferenceCard title={attribute.title}>
-					<TypeBadge slot="meta" type={attribute.type} />
-					<HclConfigs configs={attribute.configs} />
-					<Fragment set:html={attribute.html} />
-					<Code code={attribute.example.trim()} lang="hcl" />
-				</ReferenceCard>
-			</section>
-		))
-	}
-</div>
+{
+	fields.map((field) => (
+		<LinkCard
+			title={variableFieldName(field.data)}
+			href={variableFieldPath(field.data)}
+			description={field.data.description}
+		/>
+	))
+}
 
 {entry.data.examples && <HclExamples examples={entry.data.examples} />}

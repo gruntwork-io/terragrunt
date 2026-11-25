@@ -714,29 +714,50 @@ unit "app" {
 	)
 }
 
-func TestGenerateAutoIncludeFileKeepsUnitRoots(t *testing.T) {
+func TestGenerateAutoIncludeFileResolvesPathOfTheStackFile(t *testing.T) {
 	t.Parallel()
 
-	fsys, resolved := resolvePathAutoInclude(t, []string{"path"})
+	fsys, root := venvtest.LoadFS(t, filepath.Join("..", "..", "test", "fixtures", "path-variable"))
+	stackDir := filepath.Join(root, "autoinclude", "live")
 
-	err := hclparse.GenerateAutoIncludeFile(fsys, resolved, testGenDir, resolved.SourceBytes, resolved.EvalCtx)
+	src, err := vfs.ReadFile(fsys, filepath.Join(stackDir, "terragrunt.stack.hcl"))
+	require.NoError(t, err)
+
+	resolved := resolvePathAutoInclude(t, fsys, stackDir, src)
+
+	err = hclparse.GenerateAutoIncludeFile(fsys, resolved, testGenDir, resolved.SourceBytes, resolved.EvalCtx)
 	require.NoError(t, err)
 
 	generated, err := vfs.ReadFile(fsys, filepath.Join(testGenDir, hclparse.AutoIncludeFile))
 	require.NoError(t, err)
 
 	content := string(generated)
-	assert.Contains(t, content, "consumer = path.unit")
-	assert.Contains(t, content, "= path.download")
-	assert.Contains(t, content, "= path.parentstack")
-	assert.Contains(t, content, `"live:${path.unit}"`)
+	assert.Contains(t, content, "consumer = "+strconv.Quote(stackDir))
+	assert.Contains(t, content, "auto_stack  = "+strconv.Quote(stackDir))
+	assert.Contains(t, content, `auto_unit   = "no-unit"`)
+	assert.Contains(t, content, "auto_label  = "+strconv.Quote("live:"+stackDir))
+	assert.NotContains(t, content, "path.")
 	assert.NotContains(t, content, "local.env")
 }
 
-func TestGenerateAutoIncludeFileRejectsUnitPathWithoutUnitRoots(t *testing.T) {
+func TestGenerateAutoIncludeFileRejectsPathUnit(t *testing.T) {
 	t.Parallel()
 
-	fsys, resolved := resolvePathAutoInclude(t, nil)
+	const src = `
+unit "app" {
+  source = "../units/app"
+  path   = "app"
+
+  autoinclude {
+    inputs = {
+      unit_dir = path.unit
+    }
+  }
+}
+`
+
+	fsys := vfs.NewMemMapFS()
+	resolved := resolvePathAutoInclude(t, fsys, testStackDir, []byte(src))
 
 	err := hclparse.GenerateAutoIncludeFile(fsys, resolved, testGenDir, resolved.SourceBytes, resolved.EvalCtx)
 
@@ -869,7 +890,6 @@ func TestParseStackFileScopesPathIncludeToIncludedFile(t *testing.T) {
 		StackDir:  stackDir,
 		Variables: pathVars(stackDir),
 		Functions: pathFuncs(),
-		UnitRoots: []string{"path"},
 	})
 	require.NoError(t, err)
 	require.Len(t, result.Units, 2)
@@ -903,7 +923,7 @@ func TestParseStackFileScopesPathIncludeToIncludedFile(t *testing.T) {
 	assert.Contains(t, content, "auto_include = "+strconv.Quote(includePath))
 	assert.Contains(t, content, "auto_index   = "+strconv.Quote(includePath))
 	assert.Contains(t, content, `auto_guard   = "components.hcl"`)
-	assert.Contains(t, content, `"components.hcl:${path.unit}"`)
+	assert.Contains(t, content, `auto_label   = "components.hcl:live"`)
 }
 
 // TestGenerateAutoIncludeFile_MockOutputsResolvesLocal pins that a dependency's mock_outputs resolves
@@ -3399,27 +3419,21 @@ unit "app" {
 	assert.Contains(t, err.Error(), `path`)
 }
 
-// resolvePathAutoInclude resolves the app autoinclude of the path-variable fixture stack with unitRoots kept verbatim.
-func resolvePathAutoInclude(t *testing.T, unitRoots []string) (vfs.FS, *hclparse.AutoIncludeResolved) {
+// resolvePathAutoInclude resolves the autoinclude of the unit app in the stack file src of stackDir.
+func resolvePathAutoInclude(t *testing.T, fsys vfs.FS, stackDir string, src []byte) *hclparse.AutoIncludeResolved {
 	t.Helper()
-
-	fsys, root := venvtest.LoadFS(t, filepath.Join("..", "..", "test", "fixtures", "path-variable"))
-	stackDir := filepath.Join(root, "autoinclude", "live")
-
-	src, err := vfs.ReadFile(fsys, filepath.Join(stackDir, "terragrunt.stack.hcl"))
-	require.NoError(t, err)
 
 	result, err := hclparse.ParseStackFile(t.Context(), fsys, &hclparse.ParseStackFileInput{
 		Src:       src,
 		Filename:  "terragrunt.stack.hcl",
 		StackDir:  stackDir,
 		Variables: pathVars(stackDir),
-		UnitRoots: unitRoots,
+		Functions: pathFuncs(),
 	})
 	require.NoError(t, err)
 
 	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey(hclparse.KindUnit, "app")]
 	require.True(t, ok)
 
-	return fsys, resolved
+	return resolved
 }

@@ -4,103 +4,6 @@ description: Holds the absolute paths of the unit, the stack and the files that 
 configs: [unit, stack]
 since: v1.2.3
 experiment: path-variable
-attributes:
-  - name: unit
-    type: string
-    configs: [unit]
-    description: |
-      The directory of the unit, which holds its `terragrunt.hcl`.
-
-      It is defined in a unit, and in every file that the unit includes or reads. It is not defined in `terragrunt.stack.hcl`, or in the `terragrunt.values.hcl` beside it.
-    example: |
-      # root.hcl
-      remote_state {
-        backend = "s3"
-
-        config = {
-          bucket = "my-tofu-state"
-          key    = "${trimprefix(path.unit, "${dirname(path.include)}/")}/tofu.tfstate"
-          region = "us-east-1"
-        }
-      }
-  - name: stack
-    type: string
-    configs: [stack]
-    description: |
-      The directory of the `terragrunt.stack.hcl` that Terragrunt evaluates.
-
-      It is defined in `terragrunt.stack.hcl`, in every file that it includes, and in the `terragrunt.values.hcl` beside it. It is not defined in a unit.
-    example: |
-      # terragrunt.stack.hcl
-      unit "app" {
-        source = "../units/app"
-        path   = "app"
-
-        values = {
-          stack_dir = path.stack
-        }
-      }
-  - name: parentstack
-    type: string
-    configs: [unit]
-    description: |
-      The nearest directory, at or above the directory of the unit, that holds a `terragrunt.stack.hcl`. In a unit that a stack generates, it is the directory of that stack.
-
-      It is defined in a unit, and in every file that the unit includes or reads, when such a directory exists. It is not defined in `terragrunt.stack.hcl`.
-    example: |
-      # terragrunt.hcl
-      locals {
-        stack_settings = yamldecode(file("${path.parentstack}/settings.yml"))
-      }
-  - name: download
-    type: string
-    configs: [unit]
-    description: |
-      The directory in which Terragrunt runs OpenTofu/Terraform for the unit.
-
-      It is defined in a unit, and in every file that the unit includes or reads. It is not defined in `terragrunt.stack.hcl`, or in the `terragrunt.values.hcl` beside it.
-
-      Terragrunt resolves `path.download` before it reads the outputs of a `dependency`. A unit that references `path.download` returns an error when its `download_dir` or its `terraform.no_dot_terragrunt_cache` references a `dependency` output.
-
-      Terragrunt evaluates the `locals` of a unit more than one time. In an early evaluation, `path.download` can be an empty string, or a directory that the run does not use, e.g. in `run --all` or with `--source`. A `run_cmd` call in `locals` that receives `path.download` also runs with those values, so do not build the path of a destructive command from it. An expression in `locals` that fails for an empty string, e.g. `regex("[^/]+$", path.download)`, fails the unit. Wrap it in `try`, or move it to `inputs`.
-
-      With `--all` and `--source`, `render` does not add the module path of each unit to the source, so its `path.download` is not the directory that `run --all` uses.
-    example: |
-      # terragrunt.hcl
-      terraform {
-        source = "git::https://github.com/acme/modules.git//app?ref=v1.0.0"
-
-        before_hook "list" {
-          commands = ["plan"]
-          execute  = ["ls", path.download]
-        }
-      }
-  - name: include
-    type: string
-    configs: [unit, stack]
-    description: |
-      The path of the included file, e.g. `/path/to/root.hcl`.
-
-      It is defined in a file that a unit or a `terragrunt.stack.hcl` includes with an `include` block.
-    example: |
-      # catalog/components.hcl, included by terragrunt.stack.hcl
-      unit "app" {
-        source = "${dirname(path.include)}/units/app"
-        path   = "app"
-      }
-  - name: read
-    type: string
-    configs: [unit, stack]
-    description: |
-      The path of the file that `read_terragrunt_config` reads, e.g. `/path/to/env.hcl`.
-
-      It is defined in that file. When that file has an `include` block, `path.read` has the same value in the included file.
-    example: |
-      # env.hcl
-      locals {
-        settings = yamldecode(file("${dirname(path.read)}/settings.yml"))
-        unit     = basename(path.unit)
-      }
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -109,39 +12,15 @@ import { Aside } from '@astrojs/starlight/components';
   The `path` variable needs the [`path-variable`](/reference/experiments/active#path-variable) experiment. Enable it with `--experiment path-variable` or `TG_EXPERIMENT=path-variable`. Without the experiment, a reference to `path` fails with an error.
 </Aside>
 
-Each attribute of `path` is the absolute path of one location. `path.unit`, `path.parentstack` and `path.download` have the same value in every file that Terragrunt evaluates for a unit. `path.include` and `path.read` name the file that Terragrunt evaluates.
+Each field of `path` is the absolute path of one location. `path.unit` and `path.download` have the same value in every file that Terragrunt evaluates for a unit. `path.include` and `path.read` name the file that Terragrunt evaluates.
 
-An attribute is defined only where its location exists. A reference to an attribute that is not defined returns an error. Use `try` to supply a fallback:
+A field is defined only where its location exists. A reference to a field that is not defined returns an error. Use `try` to supply a fallback:
 
 ```hcl
+# common.hcl, which a unit includes or reads
 locals {
-  stack_dir = try(path.parentstack, path.unit)
+  common_dir = dirname(try(path.include, path.read))
 }
 ```
 
-### In a `dependency`
-
-In the configuration of a `dependency`, `path.unit`, `path.parentstack` and `path.download` are the paths of that dependency.
-
-### In an `autoinclude` block
-
-In the `autoinclude` block of a `unit` block in `terragrunt.stack.hcl`, `path` has the values of the generated unit. `path.unit` and `path.download` are the paths of that unit, and `path.parentstack` is the directory of the stack:
-
-```hcl
-# terragrunt.stack.hcl
-unit "app" {
-  source = "../units/app"
-  path   = "app"
-
-  autoinclude {
-    inputs = {
-      unit_dir  = path.unit
-      stack_dir = path.parentstack
-    }
-  }
-}
-```
-
-Terragrunt resolves `path.include` in that block when it generates the stack, so it is the path of the included file that declares the block. The same applies to `path[key]` when the key is known at that time. An expression that reads the whole `path` object, e.g. `keys(path)`, `lookup(path, "include", "")` or `path[key]` with a `for` iterator as the key, resolves in the generated unit, where `path` has no `include` attribute.
-
-Two parts of a stack file also resolve when Terragrunt generates the stack: the `config_path` of a `dependency` block, and the `autoinclude` block of a `stack` block. `path.stack` is defined there, and `path.unit`, `path.parentstack` and `path.download` are not.
+An `autoinclude` block is a part of `terragrunt.stack.hcl`. Terragrunt resolves `path` in that block when it generates the stack, so `path.stack` is defined there, and `path.unit` and `path.download` are not.

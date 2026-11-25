@@ -242,7 +242,7 @@ func TestPathVariableModuleInSharedStoreFollowsParsingContext(t *testing.T) {
 	}
 }
 
-func TestPathVariableParentStackInSharedStoreFollowsNewStackFile(t *testing.T) {
+func TestPathVariableStackIsNotDefinedInUnitBesideStackFile(t *testing.T) {
 	t.Parallel()
 
 	v, root := pathFixture(t)
@@ -254,13 +254,13 @@ func TestPathVariableParentStackInSharedStoreFollowsNewStackFile(t *testing.T) {
 	pctx = pctx.WithDecodeList(config.TerraformBlock)
 	s := new(config.Store)
 
-	for _, want := range []string{"no-stack", unitDir} {
+	for range 2 {
 		cfg, err := s.ResolvePartialConfig(ctx, l, v, pctx, cfgPath)
 		require.NoError(t, err)
 
 		hooks := cfg.Terraform.GetBeforeHooks()
 		require.Len(t, hooks, 2)
-		assert.Equal(t, []string{"ls", want}, hooks[1].Execute)
+		assert.Equal(t, []string{"ls", "no-stack"}, hooks[1].Execute)
 
 		require.NoError(t, vfs.WriteFile(v.FS, filepath.Join(unitDir, config.DefaultStackFile), nil, 0o644))
 	}
@@ -622,83 +622,15 @@ func TestPathVariableInJSONConfig(t *testing.T) {
 	assert.Equal(t, map[string]any{"unit": unitDir, "indexed": unitDir}, inputs)
 }
 
-func TestPathVariableParentStackOfUnitBelowStackFile(t *testing.T) {
+func TestPathVariableStackIsNotDefinedInUnitBelowStackFile(t *testing.T) {
 	t.Parallel()
 
 	v, root := pathFixture(t)
-	stackDir := filepath.Join(root, "stack", "live")
-	unitDir := filepath.Join(stackDir, "manual")
+	unitDir := filepath.Join(root, "stack", "live", "manual")
 
 	inputs := parsePathUnit(t, v, unitDir)
 
-	assert.Equal(t, map[string]any{"unit": unitDir, "stack": "no-stack", "parent_stack": stackDir}, inputs)
-}
-
-func TestPathVariableParentStackInReadFileFollowsTheReadingUnit(t *testing.T) {
-	t.Parallel()
-
-	const (
-		common = "locals {\n  stack = try(path.parentstack, \"no-stack\")\n}\n"
-		unit   = "locals {\n  common = read_terragrunt_config(\"{{root}}/common.hcl\")\n}\n\n" +
-			"inputs = {\n  stack = local.common.locals.stack\n}\n"
-	)
-
-	root := venvtest.Root("/fixture")
-	stackDir := filepath.Join(root, "live")
-	v := venv.MemVenv().WithFS(memFS(root, map[string]string{
-		"common.hcl":                common,
-		"plain/app/terragrunt.hcl":  unit,
-		"live/terragrunt.stack.hcl": "",
-		"live/app/terragrunt.hcl":   unit,
-	})(t))
-
-	written := time.Now().Add(-time.Hour)
-	require.NoError(t, v.FS.Chtimes(filepath.Join(root, "common.hcl"), written, written))
-
-	ctx := config.WithCaches(t.Context())
-
-	plain := parsePathInputs(ctx, t, v, filepath.Join(root, "plain", "app", config.DefaultTerragruntConfigPath))
-	inStack := parsePathInputs(ctx, t, v, filepath.Join(stackDir, "app", config.DefaultTerragruntConfigPath))
-
-	assert.Equal(t, "no-stack", plain["stack"])
-	assert.Equal(t, stackDir, inStack["stack"])
-}
-
-func TestPathVariableParentStackSearchRunsOnlyWhenRead(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		name     string
-		config   string
-		searches bool
-	}{
-		{name: "path.unit", config: "inputs = {\n  dir = path.unit\n}\n"},
-		{name: "path.parentstack", config: "inputs = {\n  dir = path.parentstack\n}\n", searches: true},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			root := venvtest.Root("/fixture")
-			cfgPath := filepath.Join(root, "app", config.DefaultTerragruntConfigPath)
-			v := venv.MemVenv().WithFS(memFS(root, map[string]string{"app/terragrunt.hcl": tc.config})(t))
-
-			ctx, pctx := newPathParsingContext(t, cfgPath)
-			pctx.MaxFoldersToCheck = 0
-
-			_, err := new(config.Store).ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, cfgPath)
-			if !tc.searches {
-				require.NoError(t, err)
-
-				return
-			}
-
-			var notFound config.ParentFileNotFoundError
-
-			require.ErrorAs(t, err, &notFound)
-		})
-	}
+	assert.Equal(t, map[string]any{"unit": unitDir, "stack": "no-stack"}, inputs)
 }
 
 func TestPathVariableInStackFile(t *testing.T) {
@@ -722,7 +654,6 @@ func TestPathVariableInStackFile(t *testing.T) {
 		"stack_dir":       stackDir,
 		"unit_in_stack":   "no-unit",
 		"module_in_stack": "no-module",
-		"parent_in_stack": "no-parent",
 	}, values)
 }
 
@@ -855,7 +786,6 @@ func TestPathVariableInStackFileReadFromUnit(t *testing.T) {
 				"stack_dir":       stackDir,
 				"unit_in_stack":   "no-unit",
 				"module_in_stack": "no-module",
-				"parent_in_stack": "no-parent",
 			}, unitValues)
 		})
 	}
@@ -909,11 +839,10 @@ func TestPathVariableInGeneratedAutoInclude(t *testing.T) {
 	assert.Equal(t, map[string]any{
 		"unit":        unitDir,
 		"working_dir": inputs["working_dir"],
-		"auto_unit":   unitDir,
-		"auto_module": inputs["working_dir"],
 		"auto_stack":  stackDir,
-		"auto_label":  "live:" + unitDir,
-		"db_consumer": unitDir,
+		"auto_unit":   "no-unit",
+		"auto_label":  "live:" + stackDir,
+		"db_consumer": stackDir,
 	}, inputs)
 }
 
@@ -1023,7 +952,7 @@ func TestPathVariableInGeneratedStackInclude(t *testing.T) {
 		"auto_include": includePath,
 		"auto_index":   includePath,
 		"auto_guard":   "components.hcl",
-		"auto_label":   "components.hcl:" + appDir,
+		"auto_label":   "components.hcl:live",
 	}, parsePathUnit(t, v, appDir))
 }
 
@@ -1150,7 +1079,7 @@ func TestPathVariableErrorNamesTheExperimentWhenDisabled(t *testing.T) {
 		{name: "JSON config", config: filepath.Join("live", "json", config.DefaultTerragruntJSONConfigPath)},
 		{name: "path.unit in locals", config: filepath.Join("all", "app", config.DefaultTerragruntConfigPath)},
 		{
-			name:   "path.parentstack in a unit",
+			name:   "unit below a stack file",
 			config: filepath.Join("stack", "live", "manual", config.DefaultTerragruntConfigPath),
 		},
 	}

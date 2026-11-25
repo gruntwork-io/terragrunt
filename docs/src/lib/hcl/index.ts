@@ -17,7 +17,7 @@ export type HclEntry =
 	| CollectionEntry<'hclFunctions'>
 	| CollectionEntry<'hclVariables'>;
 
-export type VariableAttribute = CollectionEntry<'hclVariables'>['data']['attributes'][number];
+export type VariableField = CollectionEntry<'hclVariableFields'>;
 
 export type BlockAttribute = NonNullable<CollectionEntry<'hclBlocks'>['data']['attributes']>[number];
 
@@ -81,12 +81,9 @@ export function itemHeadings(entry: HclEntry, bodyHeadings: Heading[]): Heading[
 /**
  * Returns the fragments an item's page defines besides its fixed sections: the
  * slugs of the body's headings and, for a block, its attribute names, key
- * group sections, and nested block names. A variable adds its attribute names.
+ * group sections, and nested block names.
  */
 export function itemAnchors(entry: HclEntry, bodyHeadings: Heading[]): string[] {
-	if (entry.collection === 'hclVariables') {
-		return [...bodyHeadings.map((heading) => heading.slug), ...entry.data.attributes.map((attr) => attr.name)];
-	}
 	if (entry.collection !== 'hclBlocks') return bodyHeadings.map((heading) => heading.slug);
 	const attributes = entry.data.attributes ?? [];
 	const keyGroups = attributeKeyGroups(attributes).flatMap((keys) => [keys.slug, ...keys.groups.map((group) => group.name)]);
@@ -125,8 +122,9 @@ export function anchorRedirects(kind: HclKind, items: { name: string; anchors: s
 /**
  * Returns the Markdown an entry's structured fields render to, split into the
  * part that goes before the entry's body and the part that goes after it.
+ * `fields` is the fields of a variable, which link to their own pages.
  */
-export function referenceMarkdown(entry: HclEntry): { before: string; after: string } {
+export function referenceMarkdown(entry: HclEntry, fields: VariableField[] = []): { before: string; after: string } {
 	switch (entry.collection) {
 		case 'hclBlocks': {
 			const labels = entry.data.labels ?? [];
@@ -177,11 +175,13 @@ export function referenceMarkdown(entry: HclEntry): { before: string; after: str
 			};
 		}
 		case 'hclVariables': {
-			const attributes = entry.data.attributes.map((attr) => variableAttributeMarkdown(entry.data.name, attr));
+			const links = fields.map(
+				(field) => `- [${code(variableFieldName(field.data))}](${variableFieldPath(field.data)}): ${field.data.description}`,
+			);
 			const examples = entry.data.examples ? [examplesMarkdown(entry.data.examples)] : [];
 			return {
 				before: '## Usage',
-				after: ['## Attributes', ...attributes, ...examples].join('\n\n'),
+				after: [...(links.length ? ['## Fields', links.join('\n')] : []), ...examples].join('\n\n'),
 			};
 		}
 	}
@@ -208,20 +208,44 @@ function referenceHeadings(entry: HclEntry): Heading[] {
 		case 'hclFunctions':
 			return entry.data.params.length ? [{ depth: 2, slug: 'parameters', text: 'Parameters' }] : [];
 		case 'hclVariables':
-			return [
-				{ depth: 2, slug: 'attributes', text: 'Attributes' },
-				...entry.data.attributes.map((attr) => ({
-					depth: 3,
-					slug: attr.name,
-					text: variableAttributeName(entry.data.name, attr),
-				})),
-			];
+			return [{ depth: 2, slug: 'fields', text: 'Fields' }];
 	}
 }
 
-/** Returns how a read of a variable's attribute is written, e.g. `path.unit`. */
-export function variableAttributeName(variable: string, attr: Pick<VariableAttribute, 'name'>): string {
-	return `${variable}.${attr.name}`;
+/** Returns how a read of a variable's field is written, e.g. `path.unit`. */
+export function variableFieldName(data: Pick<VariableField['data'], 'variable' | 'name'>): string {
+	return `${data.variable}.${data.name}`;
+}
+
+/** Returns the URL path of a field's page, e.g. `/reference/hcl/variables/path/unit/`. */
+export function variableFieldPath(data: Pick<VariableField['data'], 'variable' | 'name'>): string {
+	return `${hclItemPath('variables', data.variable)}${data.name}/`;
+}
+
+/** Returns a field page's headings in page order, given the headings of the entry's body. */
+export function fieldHeadings(bodyHeadings: Heading[]): Heading[] {
+	return [
+		{ depth: 2, slug: 'usage', text: 'Usage' },
+		...bodyHeadings.filter((heading) => heading.depth <= 4),
+		{ depth: 2, slug: 'examples', text: 'Examples' },
+	];
+}
+
+/**
+ * Returns the Markdown a field's structured data renders to, split into the
+ * part that goes before the entry's body and the part that goes after it.
+ */
+export function fieldMarkdown(entry: VariableField): { before: string; after: string } {
+	const { variable, type, configs, examples } = entry.data;
+	const meta = [`**Type:** ${code(type)}`, `**Defined in:** ${configs.map(code).join(', ')}`];
+	return {
+		before: [
+			meta.join('\\\n'),
+			`A field of the [${code(variable)}](${hclItemPath('variables', variable)}) variable.`,
+			'## Usage',
+		].join('\n\n'),
+		after: examplesMarkdown(examples),
+	};
 }
 
 function examplesMarkdown(examples: NonNullable<HclEntry['data']['examples']>): string {
@@ -285,16 +309,6 @@ function blockAttributeMarkdown(attr: BlockAttribute): string {
 	const meta = [`- **Type:** ${code(attr.type)}`, `- **Required:** ${attr.required ? 'Yes' : 'No'}`];
 	if (attr.default !== undefined) meta.push(`- **Default:** ${code(attr.default)}`);
 	return [`### ${code(attr.name)}`, attr.description, meta.join('\n'), hclFence(attr.example)].join('\n\n');
-}
-
-function variableAttributeMarkdown(variable: string, attr: VariableAttribute): string {
-	const meta = [`- **Type:** ${code(attr.type)}`, `- **Defined in:** ${attr.configs.map(code).join(', ')}`];
-	return [
-		`### ${code(variableAttributeName(variable, attr))}`,
-		attr.description.trim(),
-		meta.join('\n'),
-		hclFence(attr.example),
-	].join('\n\n');
 }
 
 function code(text: string): string {

@@ -3,6 +3,7 @@ package hclparse
 import (
 	"bytes"
 	"errors"
+	"maps"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
@@ -36,13 +37,11 @@ const defaultMaxPartialEvalDepth = 10000
 
 // EvalArgs bundles the shared arguments for partial evaluation functions.
 type EvalArgs struct {
-	EvalCtx        *hcl.EvalContext
-	Deferred       map[string]struct{}
-	iterators      map[string]struct{}
-	includeIndexes map[*hclsyntax.IndexExpr]bool
-	SrcBytes       []byte
-	MaxDepth       int
-	depth          int
+	EvalCtx  *hcl.EvalContext
+	Deferred map[string]struct{}
+	SrcBytes []byte
+	MaxDepth int
+	depth    int
 }
 
 // maxDepth returns the recursion bound to enforce, falling back to defaultMaxPartialEvalDepth when the caller leaves MaxDepth unset.
@@ -75,7 +74,7 @@ func PartialEval(expr hclsyntax.Expression, args *EvalArgs) ([]byte, error) {
 	defer func() { args.depth-- }()
 
 	// Fast path: an expression with no deferred root (dependency.*) is resolved in the stack file context.
-	if args.isPure(expr) {
+	if IsPure(expr, args.Deferred) {
 		val, diags := expr.Value(args.EvalCtx)
 		// hclwrite.TokensForValue panics on unknown values; resolve only wholly-known values here.
 		if !diags.HasErrors() && val.IsWhollyKnown() && valueRendersAsHCLLiteral(val, 0) {
@@ -120,11 +119,23 @@ func partialEvalByType(expr hclsyntax.Expression, args *EvalArgs) ([]byte, error
 	case *hclsyntax.UnaryOpExpr:
 		return partialEvalChildren(args, e.Range(), []hclsyntax.Expression{e.Val})
 	case *hclsyntax.IndexExpr:
-		return partialEvalIndex(e, args)
+		return partialEvalChildren(args, e.Range(), []hclsyntax.Expression{e.Collection, e.Key})
 	case *hclsyntax.RelativeTraversalExpr:
 		return partialEvalChildren(args, e.Range(), []hclsyntax.Expression{e.Source})
+	// For defers the loop variables so a stack local in the body resolves while the loop var stays verbatim; the collection has no loop vars so the shared deferred set is safe.
 	case *hclsyntax.ForExpr:
-		return partialEvalFor(e, args)
+		saved := args.Deferred
+		args.Deferred = maps.Clone(saved)
+		args.Deferred[e.KeyVar] = struct{}{}
+		args.Deferred[e.ValVar] = struct{}{}
+
+		defer func() { args.Deferred = saved }()
+
+		return partialEvalChildren(
+			args,
+			e.Range(),
+			[]hclsyntax.Expression{e.CollExpr, e.KeyExpr, e.ValExpr, e.CondExpr},
+		)
 	// Splat renders only the source; its body runs against the anonymous iterator which cannot be deferred by name, so it stays verbatim.
 	case *hclsyntax.SplatExpr:
 		return partialEvalChildren(args, e.Range(), []hclsyntax.Expression{e.Source})
@@ -134,37 +145,8 @@ func partialEvalByType(expr hclsyntax.Expression, args *EvalArgs) ([]byte, error
 	return RangeBytes(args.SrcBytes, expr.Range()), nil
 }
 
-// partialEvalFor renders the collection in the outer scope and the rest with the iterators kept verbatim.
-func partialEvalFor(e *hclsyntax.ForExpr, args *EvalArgs) ([]byte, error) {
-	collEnd := e.CollExpr.Range().End
-
-	prefix, prefixErr := partialEvalChildren(
-		args,
-		hcl.Range{Start: e.Range().Start, End: collEnd},
-		[]hclsyntax.Expression{e.CollExpr},
-	)
-
-	deferred, iterators := args.Deferred, args.iterators
-	args.Deferred = deferredWith(deferred, []string{e.KeyVar, e.ValVar})
-	args.iterators = deferredWith(iterators, []string{e.KeyVar, e.ValVar})
-
-	defer func() { args.Deferred, args.iterators = deferred, iterators }()
-
-	suffix, suffixErr := partialEvalChildren(
-		args,
-		hcl.Range{Start: collEnd, End: e.Range().End},
-		[]hclsyntax.Expression{e.KeyExpr, e.ValExpr, e.CondExpr},
-	)
-
-	if prefixErr != nil {
-		return append(prefix, suffix...), prefixErr
-	}
-
-	return append(prefix, suffix...), suffixErr
-}
-
 func partialEvalTraversal(e *hclsyntax.ScopeTraversalExpr, args *EvalArgs) ([]byte, error) {
-	if args.defers(e.Traversal) {
+	if _, deferred := args.Deferred[e.Traversal.RootName()]; deferred {
 		return RangeBytes(args.SrcBytes, e.Range()), nil
 	}
 
@@ -224,7 +206,7 @@ func partialEvalChildren(
 }
 
 func partialEvalConditional(e *hclsyntax.ConditionalExpr, args *EvalArgs) ([]byte, error) {
-	if !args.isPure(e.Condition) {
+	if !IsPure(e.Condition, args.Deferred) {
 		return partialEvalChildren(
 			args,
 			e.Range(),
@@ -276,194 +258,22 @@ func isPartialEvalUnresolved(err error) bool {
 
 func partialEvalParens(e *hclsyntax.ParenthesesExpr, args *EvalArgs) ([]byte, error) {
 	// Pure inner expression - parens are redundant around a single expression; emit the inner directly.
-	if args.isPure(e.Expression) {
+	if IsPure(e.Expression, args.Deferred) {
 		return PartialEval(e.Expression, args)
 	}
 
 	return partialEvalChildren(args, e.Range(), []hclsyntax.Expression{e.Expression})
 }
 
-// IsPure reports whether expr reads no deferred root, where `path.include` is not a deferred read.
+// IsPure returns true if the expression has no references to deferred root names.
 func IsPure(expr hclsyntax.Expression, deferred map[string]struct{}) bool {
-	return (&EvalArgs{Deferred: deferred}).isPure(expr)
-}
-
-// isPure reports whether expr reads no traversal that args defers.
-func (args *EvalArgs) isPure(expr hclsyntax.Expression) bool {
-	wholePath := false
-
 	for _, traversal := range expr.Variables() {
-		if !args.defers(traversal) {
-			continue
-		}
-
-		if !isWholePath(traversal) {
-			return false
-		}
-
-		wholePath = true
-	}
-
-	return !wholePath || !args.readsWholePath(expr)
-}
-
-// isWholePath reports whether traversal names the `path` object with no attribute.
-func isWholePath(traversal hcl.Traversal) bool {
-	return len(traversal) == 1 && traversal.RootName() == varPath
-}
-
-// readsWholePath reports whether expr reads the `path` object other than through an index with the key "include".
-func (args *EvalArgs) readsWholePath(expr hclsyntax.Expression) bool {
-	if _, iterator := args.iterators[varPath]; iterator {
-		return true
-	}
-
-	walker := &pathReadWalker{
-		args:     args,
-		bound:    map[string]int{},
-		includes: map[hclsyntax.Expression]struct{}{},
-	}
-	diags := hclsyntax.Walk(expr, walker)
-
-	return walker.whole || diags.HasErrors()
-}
-
-// pathReadWalker finds a read of the `path` object that is not an index with the key "include".
-type pathReadWalker struct {
-	args     *EvalArgs
-	bound    map[string]int
-	includes map[hclsyntax.Expression]struct{}
-	whole    bool
-}
-
-// Enter records the names that node binds and the read of `path` that node makes.
-func (w *pathReadWalker) Enter(node hclsyntax.Node) hcl.Diagnostics {
-	switch n := node.(type) {
-	case hclsyntax.ChildScope:
-		for name := range n.LocalNames {
-			w.bound[name]++
-		}
-	case *hclsyntax.IndexExpr:
-		if w.args.indexesPathInclude(n, w.bound) {
-			w.includes[n.Collection] = struct{}{}
-		}
-	case *hclsyntax.ScopeTraversalExpr:
-		if _, include := w.includes[n]; !include && w.bound[varPath] == 0 && isWholePath(n.Traversal) {
-			w.whole = true
-		}
-	}
-
-	return nil
-}
-
-// Exit releases the names that node binds.
-func (w *pathReadWalker) Exit(node hclsyntax.Node) hcl.Diagnostics {
-	if scope, ok := node.(hclsyntax.ChildScope); ok {
-		for name := range scope.LocalNames {
-			w.bound[name]--
-		}
-	}
-
-	return nil
-}
-
-// defers reports whether traversal reads a deferred root, other than `path.include` outside an iterator named `path`.
-func (args *EvalArgs) defers(traversal hcl.Traversal) bool {
-	root := traversal.RootName()
-	if _, deferred := args.Deferred[root]; !deferred {
-		return false
-	}
-
-	_, iterator := args.iterators[root]
-
-	return iterator || !readsPathInclude(traversal)
-}
-
-// readsPathInclude reports whether traversal reads `path.include`.
-func readsPathInclude(traversal hcl.Traversal) bool {
-	if traversal.RootName() != varPath || len(traversal) == 1 {
-		return false
-	}
-
-	switch step := traversal[1].(type) {
-	case hcl.TraverseAttr:
-		return step.Name == pathAttrInclude
-	case hcl.TraverseIndex:
-		key := step.Key
-
-		return key.Type() == cty.String && key.IsKnown() && !key.IsNull() && key.AsString() == pathAttrInclude
-	}
-
-	return false
-}
-
-// partialEvalIndex renders an index by child; `path[key]` with the key "include" that has no value is an error.
-func partialEvalIndex(e *hclsyntax.IndexExpr, args *EvalArgs) ([]byte, error) {
-	index, err := partialEvalChildren(args, e.Range(), []hclsyntax.Expression{e.Collection, e.Key})
-	if err != nil || !args.indexesPathInclude(e, nil) {
-		return index, err
-	}
-
-	include := hcl.Traversal{hcl.TraverseRoot{Name: varPath}, hcl.TraverseAttr{Name: pathAttrInclude}}
-
-	val, diags := include.TraverseAbs(args.EvalCtx)
-	if !diags.HasErrors() && val.IsWhollyKnown() && valueRendersAsHCLLiteral(val, 0) {
-		return valueToHCLBytes(val), nil
-	}
-
-	return index, PartialEvalUnresolvedError{
-		Reason: "path.include is not available at generation time",
-		Err:    diags,
-	}
-}
-
-// indexesPathInclude reports whether e reads `path.include` through an index whose key reads no name in bound.
-func (args *EvalArgs) indexesPathInclude(e *hclsyntax.IndexExpr, bound map[string]int) bool {
-	collection, ok := e.Collection.(*hclsyntax.ScopeTraversalExpr)
-	if !ok || !isWholePath(collection.Traversal) || bound[varPath] > 0 {
-		return false
-	}
-
-	_, deferred := args.Deferred[varPath]
-	_, iterator := args.iterators[varPath]
-
-	if !deferred || iterator {
-		return false
-	}
-
-	for _, traversal := range e.Key.Variables() {
-		if bound[traversal.RootName()] > 0 {
+		if _, found := deferred[traversal.RootName()]; found {
 			return false
 		}
 	}
 
-	if include, known := args.includeIndexes[e]; known {
-		return include
-	}
-
-	if args.includeIndexes == nil {
-		args.includeIndexes = map[*hclsyntax.IndexExpr]bool{}
-	}
-
-	args.includeIndexes[e] = args.isPathIncludeKey(e.Key)
-
-	return args.includeIndexes[e]
-}
-
-// isPathIncludeKey reports whether key reads no deferred traversal and has the value "include".
-func (args *EvalArgs) isPathIncludeKey(key hclsyntax.Expression) bool {
-	if !args.isPure(key) {
-		return false
-	}
-
-	val, diags := key.Value(args.EvalCtx)
-	if diags.HasErrors() {
-		return false
-	}
-
-	val, _ = val.Unmark()
-
-	return val.Type() == cty.String && val.IsKnown() && !val.IsNull() && val.AsString() == pathAttrInclude
+	return true
 }
 
 func partialEvalTemplate(e *hclsyntax.TemplateExpr, args *EvalArgs) ([]byte, error) {
@@ -481,7 +291,7 @@ func partialEvalTemplate(e *hclsyntax.TemplateExpr, args *EvalArgs) ([]byte, err
 			continue
 		}
 
-		if args.isPure(part) {
+		if IsPure(part, args.Deferred) {
 			val, diags := part.Value(args.EvalCtx)
 			if !diags.HasErrors() && val.IsWhollyKnown() {
 				strVal, err := convert.Convert(val, cty.String)

@@ -154,7 +154,7 @@ func TestPathVariableInGeneratedStack(t *testing.T) {
 
 	assert.Equal(t, map[string]any{
 		"unit":            unitDir,
-		"stack":           stackDir,
+		"stack":           "no-stack",
 		"stack_dir":       stackDir,
 		"unit_in_stack":   "no-unit",
 		"module_in_stack": "no-module",
@@ -176,11 +176,10 @@ func TestPathVariableInGeneratedAutoInclude(t *testing.T) {
 	assert.Equal(t, map[string]any{
 		"unit":        unitDir,
 		"working_dir": inputs["working_dir"],
-		"auto_unit":   unitDir,
-		"auto_module": inputs["working_dir"],
 		"auto_stack":  stackDir,
-		"auto_label":  "live:" + unitDir,
-		"db_consumer": unitDir,
+		"auto_unit":   "no-unit",
+		"auto_label":  "live:" + stackDir,
+		"db_consumer": stackDir,
 	}, inputs)
 }
 
@@ -207,7 +206,7 @@ func TestPathVariableInGeneratedStackInclude(t *testing.T) {
 		"auto_include": includePath,
 		"auto_index":   includePath,
 		"auto_guard":   "components.hcl",
-		"auto_label":   "components.hcl:" + appDir,
+		"auto_label":   "components.hcl:live",
 	}, renderPathVariableInputs(t, appDir))
 }
 

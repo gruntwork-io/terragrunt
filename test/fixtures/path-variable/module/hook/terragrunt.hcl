@@ -6,7 +6,7 @@ terraform {
 
   before_hook "stack" {
     commands = ["plan"]
-    execute  = ["ls", try(path.parentstack, "no-stack")]
+    execute  = ["ls", try(path.stack, "no-stack")]
   }
 }
 

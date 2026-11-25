@@ -74,8 +74,6 @@ type ParseStackFileInput struct {
 	// OverrideSrc is the optional sibling terragrunt.autoinclude.stack.hcl. Its unit and stack blocks
 	// replace same-name base blocks wholesale, including their paths and autoinclude blocks.
 	OverrideSrc []byte
-	// UnitRoots are the variable roots a unit autoinclude keeps verbatim for the generated unit to resolve.
-	UnitRoots []string
 }
 
 // ParseResult holds the output of ParseStackFile.
@@ -113,8 +111,8 @@ func ParseStackFile(
 	// srcByFilename tracks source bytes by filename so the generator can slice expression bytes from the correct file even after include merging.
 	srcByFilename := map[string][]byte{input.Filename: input.Src}
 
-	// Phase 3 resolves include blocks and merges included Remain bodies.
-	mergedRemain, contexts, err := mergeIncludes(
+	// Phase 3 resolves include blocks and pairs each Remain body with its eval context.
+	bodies, err := scopedBodies(
 		fsys,
 		parsedStackFile,
 		input.StackDir,
@@ -140,12 +138,12 @@ func ParseStackFile(
 	// Publish unit.<name>.path / stack.<name>.path from a path-only pre-decode so the
 	// phase-4 decode can evaluate values expressions that reference sibling component
 	// paths, matching the production parse (injectStackComponentRefs in pkg/config).
-	if err := publishComponentRefs(ctx, mergedRemain, overrideRemain, contexts, input.StackDir); err != nil {
+	if err := publishComponentRefs(ctx, bodies, overrideRemain, evalCtx, input.StackDir); err != nil {
 		return result, err
 	}
 
 	// Phase 4 decodes unit/stack blocks once per expansion element and resolves autoincludes.
-	units, stacks, err := decodeComponents(ctx, mergedRemain, contexts)
+	units, stacks, err := decodeScopedComponents(ctx, bodies)
 
 	// Surface partial Units/Stacks before the error so LSP/IDE callers can inspect them.
 	result.Units = units
@@ -162,7 +160,7 @@ func ParseStackFile(
 	resolveUnits, resolveStacks := units, stacks
 
 	if overrideRemain != nil {
-		overrideUnits, overrideStacks, err := decodeComponents(ctx, overrideRemain, contexts)
+		overrideUnits, overrideStacks, err := decodeComponents(ctx, overrideRemain, evalCtx)
 		if err != nil {
 			return result, FileDecodeError{Name: input.OverrideFilename, Err: err}
 		}
@@ -176,7 +174,7 @@ func ParseStackFile(
 		resolveStacks = util.MergeNamed(stacks, overrideStacks, func(s *StackBlockHCL) string { return s.Name })
 	}
 
-	autoIncludes, err := resolveAutoIncludes(ctx, resolveUnits, resolveStacks, srcByFilename, input.UnitRoots)
+	autoIncludes, err := resolveAutoIncludes(ctx, resolveUnits, resolveStacks, srcByFilename)
 	if err != nil {
 		return result, err
 	}
@@ -270,7 +268,7 @@ func buildBaseEvalContext(input *ParseStackFileInput) *hcl.EvalContext {
 func decodeComponents(
 	ctx context.Context,
 	body hcl.Body,
-	contexts blockContexts,
+	evalCtx *hcl.EvalContext,
 ) ([]*UnitBlockHCL, []*StackBlockHCL, error) {
 	content, _, diags := body.PartialContent(componentBlocksSchema())
 	if diags.HasErrors() {
@@ -280,12 +278,12 @@ func decodeComponents(
 	units, unitErr := expandComponentBlocks[UnitBlockHCL](
 		ctx,
 		content.Blocks.OfType(blockUnit),
-		contexts,
+		evalCtx,
 	)
 	stacks, stackErr := expandComponentBlocks[StackBlockHCL](
 		ctx,
 		content.Blocks.OfType(blockStack),
-		contexts,
+		evalCtx,
 	)
 
 	return units, stacks, errors.Join(unitErr, stackErr)
@@ -336,17 +334,18 @@ func validateUniqueNames(units []*UnitBlockHCL, stacks []*StackBlockHCL) error {
 // block, which the phase-4 decode accepts.
 func publishComponentRefs(
 	ctx context.Context,
-	body, override hcl.Body,
-	contexts blockContexts,
+	bodies []scopedBody,
+	override hcl.Body,
+	evalCtx *hcl.EvalContext,
 	stackDir string,
 ) error {
-	headers, decoded := pathOnlyHeaders(ctx, body, contexts)
+	headers, decoded := scopedPathOnlyHeaders(ctx, bodies)
 	if !decoded {
 		return nil
 	}
 
 	// Publish the base refs first so an override path referencing a base component resolves.
-	if err := setComponentRefVars(contexts.base, headers, stackDir); err != nil {
+	if err := setComponentRefVars(evalCtx, headers, stackDir); err != nil {
 		return err
 	}
 
@@ -354,7 +353,7 @@ func publishComponentRefs(
 		return nil
 	}
 
-	overrideHeaders, decoded := pathOnlyHeaders(ctx, override, contexts)
+	overrideHeaders, decoded := pathOnlyHeaders(ctx, override, evalCtx)
 	if !decoded {
 		return nil
 	}
@@ -362,7 +361,7 @@ func publishComponentRefs(
 	headers.Units = util.MergeNamed(headers.Units, overrideHeaders.Units, unitPathName)
 	headers.Stacks = util.MergeNamed(headers.Stacks, overrideHeaders.Stacks, stackPathName)
 
-	return setComponentRefVars(contexts.base, headers, stackDir)
+	return setComponentRefVars(evalCtx, headers, stackDir)
 }
 
 // pathOnlyHeaders decodes the path-only shape of every unit and stack block in body, and reports
@@ -370,14 +369,14 @@ func publishComponentRefs(
 func pathOnlyHeaders(
 	ctx context.Context,
 	body hcl.Body,
-	contexts blockContexts,
+	evalCtx *hcl.EvalContext,
 ) (*discoveryDecode, bool) {
 	content, _, diags := body.PartialContent(componentBlocksSchema())
 	if diags.HasErrors() {
 		return nil, false
 	}
 
-	headers, err := decodeComponentPaths(ctx, content.Blocks, contexts)
+	headers, err := decodeComponentPaths(ctx, content.Blocks, evalCtx)
 
 	return headers, err == nil
 }
@@ -643,54 +642,87 @@ type resolvedInclude struct {
 	Src    []byte
 }
 
-// blockContexts selects the eval context of a block by the file that declares it.
-type blockContexts struct {
-	base     *hcl.EvalContext
-	includes map[string]*hcl.EvalContext
+// scopedBody is a Remain body with the eval context that its blocks decode in.
+type scopedBody struct {
+	body    hcl.Body
+	evalCtx *hcl.EvalContext
 }
 
-// forBlock returns the eval context of the included file that declares block, or the base context.
-func (contexts blockContexts) forBlock(block *hcl.Block) *hcl.EvalContext {
-	if evalCtx, found := contexts.includes[block.DefRange.Filename]; found {
-		return evalCtx
-	}
-
-	return contexts.base
-}
-
-// mergeIncludes merges the included Remain bodies and returns the eval contexts of their blocks.
-func mergeIncludes(
+// scopedBodies returns the Remain body of the stack file and of each included file, each with its eval context.
+func scopedBodies(
 	fsys vfs.FS,
 	parsedFile *StackFileHCL,
 	stackDir string,
 	evalCtx *hcl.EvalContext,
 	srcByFilename map[string][]byte,
-) (hcl.Body, blockContexts, error) {
-	contexts := blockContexts{
-		base:     evalCtx,
-		includes: make(map[string]*hcl.EvalContext, len(parsedFile.Includes)),
-	}
-
-	bodies := make([]hcl.Body, 0, 1+len(parsedFile.Includes))
-	bodies = append(bodies, parsedFile.Remain)
+) ([]scopedBody, error) {
+	bodies := make([]scopedBody, 0, 1+len(parsedFile.Includes))
+	bodies = append(bodies, scopedBody{body: parsedFile.Remain, evalCtx: evalCtx})
 
 	for _, inc := range parsedFile.Includes {
 		resolved, err := mergeOneInclude(fsys, inc, stackDir, evalCtx)
 		if err != nil {
-			return nil, contexts, err
+			return nil, err
 		}
 
 		srcByFilename[resolved.Path] = resolved.Src
-		contexts.includes[resolved.Path] = IncludeEvalContext(evalCtx, resolved.Path)
 
-		bodies = append(bodies, resolved.Remain)
+		bodies = append(bodies, scopedBody{
+			body:    resolved.Remain,
+			evalCtx: IncludeEvalContext(evalCtx, resolved.Path),
+		})
 	}
 
-	if len(bodies) == 1 {
-		return bodies[0], contexts, nil
+	return bodies, nil
+}
+
+// decodeScopedComponents decodes the unit and stack blocks of each body in the eval context of that body.
+func decodeScopedComponents(ctx context.Context, bodies []scopedBody) ([]*UnitBlockHCL, []*StackBlockHCL, error) {
+	var (
+		units  []*UnitBlockHCL
+		stacks []*StackBlockHCL
+	)
+
+	errs := make([]error, 0, len(bodies))
+
+	for _, scoped := range bodies {
+		bodyUnits, bodyStacks, err := decodeComponents(ctx, scoped.body, scoped.evalCtx)
+
+		units = append(units, bodyUnits...)
+		stacks = append(stacks, bodyStacks...)
+		errs = append(errs, err)
 	}
 
-	return hcl.MergeBodies(bodies), contexts, nil
+	return units, stacks, errors.Join(errs...)
+}
+
+// scopedPathOnlyHeaders decodes the path-only shape of the components of bodies, and reports whether it succeeded.
+func scopedPathOnlyHeaders(ctx context.Context, bodies []scopedBody) (*discoveryDecode, bool) {
+	headers, err := decodeScopedPaths(ctx, bodies)
+
+	return headers, err == nil
+}
+
+// decodeScopedPaths decodes the path-only shape of the components of each body in the eval context of that body.
+func decodeScopedPaths(ctx context.Context, bodies []scopedBody) (*discoveryDecode, error) {
+	decoded := &discoveryDecode{}
+
+	for _, scoped := range bodies {
+		content, _, diags := scoped.body.PartialContent(componentBlocksSchema())
+		if diags.HasErrors() {
+			return nil, diags
+		}
+
+		paths, err := decodeComponentPaths(ctx, content.Blocks, scoped.evalCtx)
+		if err != nil {
+			return nil, err
+		}
+
+		decoded.Units = append(decoded.Units, paths.Units...)
+		decoded.Stacks = append(decoded.Stacks, paths.Stacks...)
+	}
+
+	return decoded, nil
 }
 
 // mergeOneInclude reads and parses one included file.
@@ -817,7 +849,6 @@ func resolveAutoIncludes(
 	units []*UnitBlockHCL,
 	stacks []*StackBlockHCL,
 	srcByFilename map[string][]byte,
-	unitRoots []string,
 ) (map[string]*AutoIncludeResolved, error) {
 	autoIncludes := make(map[string]*AutoIncludeResolved)
 
@@ -839,7 +870,6 @@ func resolveAutoIncludes(
 		}
 
 		if resolved != nil {
-			resolved.UnitRoots = unitRoots
 			autoIncludes[AutoIncludeKey(KindUnit, unit.Address())] = resolved
 		}
 	}

@@ -131,7 +131,7 @@ func componentBlocksSchema() *hcl.BodySchema {
 func expandComponentBlocks[T any, P expandedComponent[T]](
 	ctx context.Context,
 	blocks hcl.Blocks,
-	contexts blockContexts,
+	evalCtx *hcl.EvalContext,
 ) ([]P, error) {
 	var (
 		components []P
@@ -140,7 +140,7 @@ func expandComponentBlocks[T any, P expandedComponent[T]](
 	)
 
 	for _, block := range blocks {
-		instances, err := pkghclparse.ExpandBlock(ctx, block, new(T), contexts.forBlock(block))
+		instances, err := pkghclparse.ExpandBlock(ctx, block, new(T), evalCtx)
 		if err != nil {
 			if blockDiags, ok := errors.AsType[hcl.Diagnostics](err); ok {
 				diags = append(diags, blockDiags...)
@@ -181,13 +181,13 @@ func expandComponentBlocks[T any, P expandedComponent[T]](
 func decodeComponentPaths(
 	ctx context.Context,
 	blocks hcl.Blocks,
-	contexts blockContexts,
+	evalCtx *hcl.EvalContext,
 ) (*discoveryDecode, error) {
-	units, unitErr := expandComponentBlocks[unitPathOnlyHCL](ctx, blocks.OfType(blockUnit), contexts)
+	units, unitErr := expandComponentBlocks[unitPathOnlyHCL](ctx, blocks.OfType(blockUnit), evalCtx)
 	stacks, stackErr := expandComponentBlocks[stackPathOnlyHCL](
 		ctx,
 		blocks.OfType(blockStack),
-		contexts,
+		evalCtx,
 	)
 
 	return &discoveryDecode{Units: units, Stacks: stacks}, errors.Join(unitErr, stackErr)
@@ -685,17 +685,12 @@ func decodeDiscovery(
 
 	srcByFilename := map[string][]byte{stackFile: data}
 
-	mergedRemain, contexts, err := mergeIncludes(fsys, parsedFile, stackDir, evalCtx, srcByFilename)
+	bodies, err := scopedBodies(fsys, parsedFile, stackDir, evalCtx, srcByFilename)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	content, _, diags := mergedRemain.PartialContent(componentBlocksSchema())
-	if diags.HasErrors() {
-		return nil, nil, FileDecodeError{Name: stackFile, Err: diags}
-	}
-
-	decoded, err := decodeComponentPaths(ctx, content.Blocks, contexts)
+	decoded, err := decodeScopedPaths(ctx, bodies)
 	if err != nil {
 		return nil, nil, FileDecodeError{Name: stackFile, Err: err}
 	}
@@ -883,7 +878,7 @@ func mergeDiscoveryStackAutoInclude(
 		return FileDecodeError{Name: autoIncludePath, Err: diags}
 	}
 
-	autoDecoded, err := decodeComponentPaths(ctx, content.Blocks, blockContexts{base: evalCtx})
+	autoDecoded, err := decodeComponentPaths(ctx, content.Blocks, evalCtx)
 	if err != nil {
 		return FileDecodeError{Name: autoIncludePath, Err: err}
 	}
