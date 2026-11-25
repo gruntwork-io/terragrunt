@@ -46,4 +46,4 @@ To transition the `block-iteration` feature to a stable release, the following w
 - [x] A key containing a quote resolves in `inputs` when written with HCL's escape, as in `dependency.aurora["a\"b"]`, and `stack output` reads the same escaped address.
 - [x] `render` prints an expanded block as written, followed by its elements as resolved, commented-out blocks. A JSON configuration renders the same way, and `--format json` emits the block as written.
 - [x] Git-based `--filter` expressions select the components an expansion orphaned when it shrank. The reference documents that `run --all destroy --filter` is rejected, that orphans are found only when the stack file or a file it reads appears in the diff, and that a selecting filter drops them.
-- [ ] Positive feedback from users replacing repeated blocks with iteration.
+- [x] Positive feedback from users replacing repeated blocks with iteration.
