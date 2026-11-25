@@ -31,6 +31,8 @@ type RunConfig struct {
 	JSONInputs map[string]any
 	// ValidatedInputs names the input variables the module must declare.
 	ValidatedInputs map[string]struct{}
+	// RequiredOutputs names the declared outputs that the state must hold after an apply of the whole module.
+	RequiredOutputs []string
 	// Engine contains engine-specific settings
 	Engine EngineConfig
 	// DownloadDir is the custom download directory for terraform source

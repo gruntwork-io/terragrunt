@@ -142,6 +142,8 @@ Settings on the `dependency` block override the `outputs` block of the unit it r
 
 When the unit has outputs in state, every declared output has to be among them. A missing one is an error, unless `merge_with_state` fills it from `mock_value` or the output has `nullable = true`. The `render` command does not raise this error.
 
+Terragrunt also checks the unit itself after its `apply` succeeds: the state has to hold every declared output that does not set `nullable = true`. OpenTofu/Terraform leaves a `null` output out of the state, so a missing output there is `null` or is not in the module, and the run fails before a dependent reads it. The check runs only when the `apply` writes the whole module to the state of its backend: not for a saved plan file, and not with `-destroy`, `-refresh-only`, `-target`, `-exclude`, `-target-file`, `-exclude-file`, `-state` or `-state-out`, also when `TF_CLI_ARGS` or `TF_CLI_ARGS_apply` sets one of them. The check also does not run when `TF_CLI_ARGS` or `TF_CLI_ARGS_apply` contains a quote, a backslash or the argument terminator `--`, e.g. `-var="name=value"`. If Terragrunt cannot read the outputs of the unit, it logs a warning and does not fail the run.
+
 A declared output that has no `mock_value`, and no value in the `mock_outputs` of the `dependency` block, has no value before the unit is applied. `hcl validate` reads it as unknown, and so does a run with [`--no-dependency-outputs`](/reference/cli/commands/run#no-dependency-outputs). Any other run that reads it fails.
 
 `render` prints the `dependency` block as you wrote it. The declared mock values appear in the resolved `inputs`.

@@ -2673,6 +2673,56 @@ outputs {
 	assert.True(t, mockValue.IsMarked(), "the value read_terragrunt_config exposes keeps the mark")
 }
 
+func TestOutputsBlockToRunConfigRequiresTheOutputsThatAreNotNullable(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		config   string
+		expected []string
+	}{
+		{name: "a unit with no outputs block requires no outputs"},
+		{
+			name: "a nullable output is not required",
+			config: `
+outputs {
+  output "vpc_id" {}
+
+  output "subnet_ids" {
+    nullable = false
+  }
+
+  output "nat_id" {
+    nullable = true
+  }
+}
+`,
+			expected: []string{"subnet_ids", "vpc_id"},
+		},
+		{
+			name: "a block of nullable outputs requires no outputs",
+			config: `
+outputs {
+  output "nat_id" {
+    nullable = true
+  }
+}
+`,
+			expected: []string{},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			runCfg := parseOutputsConfig(t, tc.config, true).ToRunConfig(createLogger(), venv.MemVenv().FS)
+
+			require.Equal(t, tc.expected, runCfg.RequiredOutputs)
+		})
+	}
+}
+
 // parseOutputsConfig parses content as a unit config, with the outputs-block experiment on when enabled.
 func parseOutputsConfig(t *testing.T, content string, enabled bool) *config.TerragruntConfig {
 	t.Helper()

@@ -23,6 +23,4 @@ outputs {
 terragrunt run --all --experiment outputs-block -- plan
 ```
 
-Set `nullable = true` on an `output` whose value can be `null`. Terragrunt then does not report it as missing from the state.
-
 `terragrunt hcl validate --outputs` checks that each declared output exists in the OpenTofu/Terraform module and that dependents reference only declared outputs. Declaring the block without the experiment enabled returns an error. See the [`outputs` block reference](/reference/hcl/blocks/outputs/).

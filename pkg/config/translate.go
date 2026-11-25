@@ -1,6 +1,8 @@
 package config
 
 import (
+	"slices"
+
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
@@ -27,6 +29,7 @@ func (cfg *TerragruntConfig) ToRunConfig(l log.Logger, fsys vfs.FS) *runcfg.RunC
 		TFVarsInputs:                inputs.tfvars,
 		JSONInputs:                  inputs.json,
 		ValidatedInputs:             inputs.validated,
+		RequiredOutputs:             translateRequiredOutputs(cfg.Outputs),
 		IAMRole:                     cfg.GetIAMRoleOptions(),
 		DownloadDir:                 cfg.DownloadDir,
 		TerraformBinary:             cfg.TerraformBinary,
@@ -476,4 +479,25 @@ func translateIgnoreBlocks(blocks []*IgnoreBlock) []*runcfg.IgnoreBlock {
 	}
 
 	return result
+}
+
+// translateRequiredOutputs returns the sorted names of the declared outputs that are not nullable.
+func translateRequiredOutputs(outputs *OutputsConfig) []string {
+	if outputs == nil {
+		return nil
+	}
+
+	names := make([]string, 0, len(outputs.Outputs))
+
+	for _, output := range outputs.Outputs {
+		if output.Nullable != nil && *output.Nullable {
+			continue
+		}
+
+		names = append(names, output.Name)
+	}
+
+	slices.Sort(names)
+
+	return names
 }
