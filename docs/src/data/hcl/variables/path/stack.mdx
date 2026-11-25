@@ -1,0 +1,31 @@
+---
+name: stack
+variable: path
+type: string
+description: The absolute path of the directory of the `terragrunt.stack.hcl` that Terragrunt evaluates.
+configs: [stack]
+since: v1.2.3
+experiment: path-variable
+examples:
+  - description: A stack gives its directory to a unit through `values`.
+    code: |
+      # terragrunt.stack.hcl
+      unit "app" {
+        source = "../units/app"
+        path   = "app"
+
+        values = {
+          stack_dir = path.stack
+        }
+      }
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip" title="Experimental">
+  `path.stack` needs the [`path-variable`](/reference/experiments/active#path-variable) experiment. Enable it with `--experiment path-variable` or `TG_EXPERIMENT=path-variable`. Without the experiment, a reference to `path` fails with an error.
+</Aside>
+
+`path.stack` is defined in `terragrunt.stack.hcl`, in every file that it includes, and in the `terragrunt.values.hcl` beside it.
+
+It is not defined in a unit. To use the directory of the stack in a unit, pass it through `values`.

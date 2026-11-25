@@ -1,0 +1,35 @@
+---
+name: download
+variable: path
+type: string
+description: The absolute path of the directory in which Terragrunt runs OpenTofu/Terraform for the unit.
+configs: [unit]
+since: v1.2.3
+experiment: path-variable
+examples:
+  - description: A hook lists the directory before each plan.
+    code: |
+      # terragrunt.hcl
+      terraform {
+        source = "git::https://github.com/acme/modules.git//app?ref=v1.0.0"
+
+        before_hook "list" {
+          commands = ["plan"]
+          execute  = ["ls", path.download]
+        }
+      }
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip" title="Experimental">
+  `path.download` needs the [`path-variable`](/reference/experiments/active#path-variable) experiment. Enable it with `--experiment path-variable` or `TG_EXPERIMENT=path-variable`. Without the experiment, a reference to `path` fails with an error.
+</Aside>
+
+`path.download` is defined in a unit, and in every file that the unit includes or reads. It is not defined in `terragrunt.stack.hcl`, or in the `terragrunt.values.hcl` beside it.
+
+Terragrunt resolves `path.download` before it reads the outputs of a `dependency`. A unit that references `path.download` returns an error when its `download_dir` or its `terraform.no_dot_terragrunt_cache` references a `dependency` output.
+
+Terragrunt evaluates the `locals` of a unit more than one time. In an early evaluation, `path.download` can be an empty string, or a directory that the run does not use, e.g. in `run --all` or with `--source`. A `run_cmd` call in `locals` that receives `path.download` also runs with those values, so do not build the path of a destructive command from it. An expression in `locals` that fails for an empty string, e.g. `regex("[^/]+$", path.download)`, fails the unit. Wrap it in `try`, or move it to `inputs`.
+
+With `--all` and `--source`, `render` does not add the module path of each unit to the source, so its `path.download` is not the directory that `run --all` uses.

@@ -1,0 +1,30 @@
+---
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import { render } from 'astro:content';
+import HclVariableField from '@components/HclVariableField.astro';
+import { fieldHeadings, variableFieldName, type VariableField } from '@lib/hcl';
+import { getPublishedVariableFields } from '@lib/hcl/published';
+
+export const prerender = true;
+
+export async function getStaticPaths() {
+	return (await getPublishedVariableFields()).map((entry) => ({
+		params: { variable: entry.data.variable, field: entry.data.name },
+		props: { entry },
+	}));
+}
+
+const { entry } = Astro.props as { entry: VariableField };
+const { headings } = await render(entry);
+---
+
+<StarlightPage
+	frontmatter={{
+		title: variableFieldName(entry.data),
+		description: entry.data.description,
+		tableOfContents: { maxHeadingLevel: 4 },
+	}}
+	headings={fieldHeadings(headings)}
+>
+	<HclVariableField entry={entry} />
+</StarlightPage>
