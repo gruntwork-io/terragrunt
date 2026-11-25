@@ -2,6 +2,7 @@ package telemetry
 
 import (
 	"context"
+	"errors"
 	"io"
 	"strconv"
 	"sync/atomic"
@@ -59,7 +60,7 @@ func NewLogger(
 
 	provider, err := newLogsProvider(ctx, counted, appName, appVersion, env)
 	if err != nil {
-		return nil, err
+		return nil, errors.Join(err, exporter.Shutdown(ctx))
 	}
 
 	otel.SetLoggerProvider(provider)

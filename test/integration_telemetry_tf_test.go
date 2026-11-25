@@ -355,7 +355,7 @@ func findAttribute(attrs []consoleAttribute, key string) any {
 	return attrs[i].Value.Value
 }
 
-// unitOfSpan returns the unit_name of the unit_run span that spanID is or is below.
+// unitOfSpan returns the unit_name of the nearest span that has one, from spanID up to the root.
 func unitOfSpan(spans map[string]consoleSpan, spanID string) string {
 	for range len(spans) {
 		span, ok := spans[spanID]
@@ -363,12 +363,7 @@ func unitOfSpan(spans map[string]consoleSpan, spanID string) string {
 			return ""
 		}
 
-		if span.Name == "unit_run" {
-			name, ok := span.attribute("unit_name").(string)
-			if !ok {
-				return ""
-			}
-
+		if name, ok := span.attribute("unit_name").(string); ok {
 			return name
 		}
 
