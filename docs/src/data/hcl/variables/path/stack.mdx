@@ -26,6 +26,6 @@ import { Aside } from '@astrojs/starlight/components';
   `path.stack` needs the [`path-variable`](/reference/experiments/active#path-variable) experiment. Enable it with `--experiment path-variable` or `TG_EXPERIMENT=path-variable`. Without the experiment, a reference to `path` fails with an error.
 </Aside>
 
-`path.stack` is defined in `terragrunt.stack.hcl`, in every file that it includes, and in the `terragrunt.values.hcl` beside it.
+`path.stack` is defined in `terragrunt.stack.hcl`, in every file that it includes or reads, and in the `terragrunt.values.hcl` beside it.
 
 It is not defined in a unit. To use the directory of the stack in a unit, pass it through `values`.

@@ -23,4 +23,4 @@ locals {
 }
 ```
 
-An `autoinclude` block is a part of `terragrunt.stack.hcl`. Terragrunt resolves `path` in that block when it generates the stack, so `path.stack` is defined there, and `path.unit` and `path.download` are not.
+An `autoinclude` block is a part of `terragrunt.stack.hcl`. Terragrunt resolves `path` in that block when it generates the stack, so `path.stack` is defined there, and `path.unit` and `path.download` are not. The exception is a part of an expression that Terragrunt keeps for the generated unit, e.g. a `%{ if }` or `%{ for }` template directive that reads a `dependency` output, or the part after `[*]` in a splat expression. The generated unit resolves that part, so `path.stack` is not defined in it.

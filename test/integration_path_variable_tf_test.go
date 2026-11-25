@@ -51,6 +51,22 @@ func TestTFPathVariableModuleIsRunDirectory(t *testing.T) {
 	}
 }
 
+func TestTFPathVariableInDependencyOfUnitThatStackReads(t *testing.T) {
+	t.Parallel()
+
+	root := copyPathVariableFixture(t)
+	stackDir := filepath.Join(root, "stack-read-dependency", "live")
+	unitDir := filepath.Join(stackDir, ".terragrunt-stack", "app")
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --working-dir "+stackDir+pathVariableExperimentFlag)
+
+	assert.Equal(t, map[string]any{
+		"app_stack":      stackDir,
+		"app_db":         "mock",
+		"auto_app_stack": stackDir,
+	}, renderPathVariableInputs(t, unitDir))
+}
+
 func TestTFPathVariableUnitInAwsProviderPatchAll(t *testing.T) {
 	t.Parallel()
 

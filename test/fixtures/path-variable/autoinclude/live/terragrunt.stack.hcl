@@ -25,6 +25,7 @@ unit "app" {
       auto_stack  = path.stack
       auto_unit   = try(path.unit, "no-unit")
       auto_label  = "${local.env}:${path.stack}"
+      auto_loop   = [for path in [path.stack] : "${path}:${dependency.db.outputs.consumer}"]
       db_consumer = dependency.db.outputs.consumer
     }
   }

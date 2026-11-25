@@ -69,11 +69,11 @@ func PathVariable(
 
 	refs := filePathReferences(file)
 
-	if refs.has(pathAttrUnit) || refs.has(pathAttrDownload) {
+	if refs.has(pathAttrUnit) || refs.has(pathAttrStack) || refs.has(pathAttrDownload) {
 		markNotShareable(ctx)
 	}
 
-	if refs.has(pathAttrDownload) {
+	if _, ofUnit := attrs[pathAttrUnit]; ofUnit && refs.has(pathAttrDownload) {
 		moduleDir, err := unitModuleDir(ctx, l, v, s, pctx)
 		if err != nil {
 			return nil, fmt.Errorf("resolving path.download for %s: %w", file.ConfigPath, err)
@@ -283,8 +283,8 @@ func filePathReferences(file *hclparse.File) pathReferences {
 func basePathAttributes(pctx *ParsingContext, include *IncludeConfig) map[string]cty.Value {
 	attrs := map[string]cty.Value{pathAttrUnit: cty.StringVal(filepath.Dir(pctx.OriginalTerragruntConfigPath))}
 
-	if isStackConfigFile(pctx.TerragruntConfigPath) {
-		attrs = map[string]cty.Value{pathAttrStack: cty.StringVal(filepath.Dir(pctx.TerragruntConfigPath))}
+	if stackFile, ofStack := evaluatedStackFile(pctx); ofStack {
+		attrs = map[string]cty.Value{pathAttrStack: cty.StringVal(filepath.Dir(stackFile))}
 	}
 
 	if include != nil {
@@ -315,6 +315,24 @@ func pathObject(attrs map[string]cty.Value) *cty.Value {
 	value := cty.ObjectVal(attrs)
 
 	return &value
+}
+
+// evaluatedStackFile returns the stack file that pctx evaluates a file for, and false for a file of a unit.
+func evaluatedStackFile(pctx *ParsingContext) (string, bool) {
+	if isStackConfigFile(pctx.TerragruntConfigPath) {
+		return pctx.TerragruntConfigPath, true
+	}
+
+	if isStackConfigFile(pctx.OriginalTerragruntConfigPath) {
+		return pctx.OriginalTerragruntConfigPath, true
+	}
+
+	chain := pctx.readConfigChain
+	if len(chain) == 0 || chain[0].originalPath != pctx.OriginalTerragruntConfigPath {
+		return "", false
+	}
+
+	return chain[0].path, isStackConfigFile(chain[0].path)
 }
 
 // isStackConfigFile reports whether path names a stack file or a stack autoinclude file.

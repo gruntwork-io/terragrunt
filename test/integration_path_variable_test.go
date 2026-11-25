@@ -161,6 +161,27 @@ func TestPathVariableInGeneratedStack(t *testing.T) {
 	}, renderPathVariableInputs(t, unitDir))
 }
 
+func TestPathVariableInFileReadByGeneratedStack(t *testing.T) {
+	t.Parallel()
+
+	root := copyPathVariableFixture(t)
+	stackDir := filepath.Join(root, "stack-read", "live")
+	unitDir := filepath.Join(stackDir, ".terragrunt-stack", "app")
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --working-dir "+stackDir+pathVariableExperimentFlag)
+
+	assert.Equal(t, map[string]any{
+		"read_stack":      stackDir,
+		"read_unit":       "no-unit",
+		"read_download":   "no-download",
+		"nested_stack":    stackDir,
+		"dependent_stack": stackDir,
+		"dependent_base":  "mock",
+		"auto_read_stack": stackDir,
+		"auto_read_unit":  "no-unit",
+	}, renderPathVariableInputs(t, unitDir))
+}
+
 func TestPathVariableInGeneratedAutoInclude(t *testing.T) {
 	t.Parallel()
 
@@ -179,6 +200,7 @@ func TestPathVariableInGeneratedAutoInclude(t *testing.T) {
 		"auto_stack":  stackDir,
 		"auto_unit":   "no-unit",
 		"auto_label":  "live:" + stackDir,
+		"auto_loop":   []any{stackDir + ":" + stackDir},
 		"db_consumer": stackDir,
 	}, inputs)
 }

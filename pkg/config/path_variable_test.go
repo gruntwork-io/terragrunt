@@ -657,6 +657,52 @@ func TestPathVariableInStackFile(t *testing.T) {
 	}, values)
 }
 
+func TestPathVariableInFileReadByStackFile(t *testing.T) {
+	t.Parallel()
+
+	v, root := pathFixture(t)
+	stackDir := filepath.Join(root, "stack-read", "live")
+	stackPath := filepath.Join(stackDir, config.DefaultStackFile)
+
+	ctx, pctx := newPathParsingContext(t, stackPath)
+
+	stack, err := config.ReadStackConfigFile(ctx, logger.CreateLogger(), v, new(config.Store), pctx, stackPath)
+	require.NoError(t, err)
+	require.Len(t, stack.Units, 1)
+	require.NotNil(t, stack.Units[0].Values)
+
+	values, err := ctyhelper.ParseCtyValueToMap(*stack.Units[0].Values)
+	require.NoError(t, err)
+
+	assert.Equal(t, stackReadValues(stackDir), values)
+}
+
+func TestPathVariableInFileReadByStackFileThatUnitReads(t *testing.T) {
+	t.Parallel()
+
+	v, root := pathFixture(t)
+	stackDir := filepath.Join(root, "stack-read", "live")
+
+	inputs := parsePathUnit(t, v, filepath.Join(root, "stack-read", "consumer"))
+
+	assert.Equal(t, stackReadValues(stackDir), inputs)
+}
+
+func TestPathVariableInFileReadByGeneratedStack(t *testing.T) {
+	t.Parallel()
+
+	v, root := pathFixture(t)
+	stackDir := filepath.Join(root, "stack-read", "live")
+
+	require.NoError(t, generatePathStack(t, v, stackDir, experiment.PathVariable))
+
+	want := stackReadValues(stackDir)
+	want["auto_read_stack"] = stackDir
+	want["auto_read_unit"] = "no-unit"
+
+	assert.Equal(t, want, parsePathUnit(t, v, filepath.Join(stackDir, config.StackDir, "app")))
+}
+
 func TestPathVariableStackBesideStackBlocks(t *testing.T) {
 	t.Parallel()
 
@@ -842,6 +888,7 @@ func TestPathVariableInGeneratedAutoInclude(t *testing.T) {
 		"auto_stack":  stackDir,
 		"auto_unit":   "no-unit",
 		"auto_label":  "live:" + stackDir,
+		"auto_loop":   []any{stackDir + ":" + stackDir},
 		"db_consumer": stackDir,
 	}, inputs)
 }
@@ -1001,6 +1048,8 @@ func TestPathVariableResolvesInEachFixtureUnit(t *testing.T) {
 	fixtures := loadFixtures(t, []string{"path-variable"}, map[string]struct{}{
 		"path-variable/module/dependency":           {},
 		"path-variable/stack/units":                 {},
+		"path-variable/stack-read/units":            {},
+		"path-variable/stack-read-dependency/units": {},
 		"path-variable/stack-include/catalog/units": {},
 	})
 	require.NotEmpty(t, fixtures.configs)
@@ -1195,6 +1244,18 @@ func parsePathUnit(t *testing.T, v *venv.Venv, unitDir string) map[string]any {
 	cfgPath := filepath.Join(unitDir, config.DefaultTerragruntConfigPath)
 
 	return parsePathInputs(config.WithCaches(t.Context()), t, v, cfgPath)
+}
+
+// stackReadValues returns the values that the stack-read fixture gives to its unit for the stack in stackDir.
+func stackReadValues(stackDir string) map[string]any {
+	return map[string]any{
+		"read_stack":      stackDir,
+		"read_unit":       "no-unit",
+		"read_download":   "no-download",
+		"nested_stack":    stackDir,
+		"dependent_stack": stackDir,
+		"dependent_base":  "mock",
+	}
 }
 
 // namesPathExperiment reports whether a diagnostic tells how to enable the path-variable experiment.

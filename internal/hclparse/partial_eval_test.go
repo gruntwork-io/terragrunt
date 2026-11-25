@@ -150,6 +150,31 @@ func TestPartialEval(t *testing.T) {
 			contains: []string{"for", "dependency.vpc.outputs.tags"},
 		},
 		{
+			name:     "for collection reads path under a loop variable with the name path",
+			hcl:      `val = [for path in [path.stack] : "${path}-${dependency.vpc.outputs.id}"]`,
+			evalCtx:  buildPathEvalCtx(),
+			contains: []string{`for path in ["/live"] :`, `"${path}-${dependency.vpc.outputs.id}"`},
+			excludes: []string{"path.stack"},
+		},
+		{
+			name:     "nested for collection reads the outer loop variable with the name path",
+			hcl:      `val = [for path in dependency.vpc.outputs.rows : [for path in path.items : path]]`,
+			evalCtx:  buildPathEvalCtx(),
+			contains: []string{`[for path in path.items : path]`},
+		},
+		{
+			name:     "for collection stays verbatim under a loop variable with the name path when no path is defined",
+			hcl:      `val = [for path in [try(path.stack, "none")] : "${path}-${dependency.vpc.outputs.id}"]`,
+			evalCtx:  buildEvalCtx(),
+			contains: []string{`for path in [try(path.stack, "none")] :`},
+		},
+		{
+			name:     "for collection under a loop variable with the name of another root stays verbatim",
+			hcl:      `val = [for local in local.names : "${local}-${dependency.vpc.outputs.id}"]`,
+			evalCtx:  buildEvalCtx(),
+			contains: []string{`for local in local.names :`, `"${local}-${dependency.vpc.outputs.id}"`},
+		},
+		{
 			name:     "binary op with deferred",
 			hcl:      `val = local.count + dependency.vpc.outputs.count`,
 			evalCtx:  buildEvalCtx(),
@@ -1312,6 +1337,14 @@ func buildEvalCtx() *hcl.EvalContext {
 				"flag":   cty.BoolVal(true),
 				"names":  cty.TupleVal([]cty.Value{cty.StringVal("a"), cty.StringVal("b")}),
 			}),
+		},
+	}
+}
+
+func buildPathEvalCtx() *hcl.EvalContext {
+	return &hcl.EvalContext{
+		Variables: map[string]cty.Value{
+			"path": cty.ObjectVal(map[string]cty.Value{"stack": cty.StringVal("/live")}),
 		},
 	}
 }

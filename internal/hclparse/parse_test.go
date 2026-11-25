@@ -736,6 +736,7 @@ func TestGenerateAutoIncludeFileResolvesPathOfTheStackFile(t *testing.T) {
 	assert.Contains(t, content, "auto_stack  = "+strconv.Quote(stackDir))
 	assert.Contains(t, content, `auto_unit   = "no-unit"`)
 	assert.Contains(t, content, "auto_label  = "+strconv.Quote("live:"+stackDir))
+	assert.Contains(t, content, "auto_loop   = [for path in ["+strconv.Quote(stackDir)+"] : ")
 	assert.NotContains(t, content, "path.")
 	assert.NotContains(t, content, "local.env")
 }

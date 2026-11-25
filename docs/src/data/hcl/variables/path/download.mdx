@@ -26,7 +26,7 @@ import { Aside } from '@astrojs/starlight/components';
   `path.download` needs the [`path-variable`](/reference/experiments/active#path-variable) experiment. Enable it with `--experiment path-variable` or `TG_EXPERIMENT=path-variable`. Without the experiment, a reference to `path` fails with an error.
 </Aside>
 
-`path.download` is defined in a unit, and in every file that the unit includes or reads. It is not defined in `terragrunt.stack.hcl`, or in the `terragrunt.values.hcl` beside it.
+`path.download` is defined in a unit, and in every file that the unit includes or reads. It is not defined in `terragrunt.stack.hcl`, in a file that the stack file reads, or in the `terragrunt.values.hcl` beside it.
 
 Terragrunt resolves `path.download` before it reads the outputs of a `dependency`. A unit that references `path.download` returns an error when its `download_dir` or its `terraform.no_dot_terragrunt_cache` references a `dependency` output.
 
