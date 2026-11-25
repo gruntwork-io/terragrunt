@@ -1,0 +1,10 @@
+---
+version: "v1.2.3"
+category: "bug-fixes"
+---
+
+#### `--all` commands resolve `get_original_terragrunt_dir()` and `get_working_dir()` for each unit
+
+With [`render --all`](/reference/cli/commands/render), `get_original_terragrunt_dir()` returned the directory of the run for every unit, and `get_working_dir()` returned a path below the `.terragrunt-cache` of that directory. `backend delete --all` and `aws-provider-patch --all` had the same defect, and `backend bootstrap --all` had it for `get_working_dir()`.
+
+Both functions now return the paths of the unit, as they do in `run --all`. `aws-provider-patch --all` now patches the `.terragrunt-cache` of each unit, which is the directory that `run --all` uses.

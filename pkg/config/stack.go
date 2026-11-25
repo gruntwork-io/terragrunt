@@ -348,7 +348,7 @@ func resolveStackAutoIncludes(
 	}
 
 	// Rescope the parsing context to the stack file so terragrunt functions resolve paths relative to it instead of the root caller.
-	scopedLogger, scopedPctx, scopedErr := pctx.WithConfigPath(l, stackFilePath)
+	scopedLogger, scopedPctx, scopedErr := pctx.WithStackConfigPath(l, stackFilePath)
 	if scopedErr != nil {
 		return nil, nil, AutoIncludeParserStageError{
 			Stage: "rescope",
@@ -406,7 +406,7 @@ func resolveStackAutoIncludes(
 		return nil, nil, AutoIncludeParserStageError{
 			Stage: "parse",
 			File:  stackFilePath,
-			Err:   parseErr,
+			Err:   withPathExperimentHint(pctx.Experiments.Evaluate(experiment.PathVariable), parseErr),
 		}
 	}
 
@@ -859,7 +859,12 @@ func generateAutoInclude(
 		resolved.SourceBytes,
 		resolved.EvalCtx,
 	); err != nil {
-		return fmt.Errorf("failed to write autoinclude for %s %s: %w", kind, cmp.address, err)
+		return fmt.Errorf(
+			"failed to write autoinclude for %s %s: %w",
+			kind,
+			cmp.address,
+			withPathExperimentHint(opts.experiments.Evaluate(experiment.PathVariable), err),
+		)
 	}
 
 	return nil
@@ -1674,6 +1679,7 @@ func ReadStackConfigFile(
 	stackPctx := pctx.Clone()
 	stackPctx.TerragruntConfigPath = filePath
 	stackPctx.OriginalTerragruntConfigPath = filePath
+	stackPctx.Path = nil
 
 	file, err := stackPctx.NewParser(l, v).
 		ParseFromFile(v.FS, filePath)
@@ -1713,6 +1719,8 @@ func ParseStackConfig(
 	parser *ParsingContext,
 	file *hclparse.File,
 ) (*StackConfig, error) {
+	parser = parser.forStackFile(file.ConfigPath)
+
 	values, err := ReadValues(ctx, l, v, s, parser, file, fileRole(file))
 	if err != nil {
 		return nil, err
@@ -2265,7 +2273,7 @@ func valuesKeys(values *cty.Value) []string {
 }
 
 // processStackConfigIncludes resolves include blocks during stack file parsing.
-// It reads each included file, parses it with the same eval context, and merges
+// It reads each included file, parses it with the eval context of that file, and merges
 // its units and stacks into the main config so generation sees all components,
 // not just those in the root file.
 func processStackConfigIncludes(
@@ -2291,12 +2299,14 @@ func processStackConfigIncludes(
 			return err
 		}
 
+		includeCtx := inthclparse.IncludeEvalContext(evalCtx, includePath)
+
 		included := &StackConfigFile{}
-		if decodeErr := incFile.Decode(included, evalCtx); decodeErr != nil {
+		if decodeErr := incFile.Decode(included, includeCtx); decodeErr != nil {
 			return fmt.Errorf("failed to decode include %q: %w", inc.Name, decodeErr)
 		}
 
-		included.Units, included.Stacks, err = decodeComponents(ctx, incFile, evalCtx)
+		included.Units, included.Stacks, err = decodeComponents(ctx, incFile, includeCtx)
 		if err != nil {
 			return fmt.Errorf("failed to decode include %q: %w", inc.Name, err)
 		}

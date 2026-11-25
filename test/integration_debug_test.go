@@ -155,6 +155,27 @@ func TestTerragruntHCLValidateResolvesOriginalTerragruntDir(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestRenderAllResolvesOriginalTerragruntDir(t *testing.T) {
+	t.Parallel()
+
+	fixture := "fixtures/hcl-validate-original-dir"
+	tmpEnvPath := helpers.CopyEnvironment(t, fixture)
+	rootPath := filepath.Join(tmpEnvPath, fixture)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt render --all --format json --non-interactive --working-dir "+rootPath,
+	)
+	require.NoError(t, err)
+
+	var rendered struct {
+		Inputs map[string]any `json:"inputs"`
+	}
+
+	require.NoError(t, json.Unmarshal([]byte(stdout), &rendered))
+	assert.Equal(t, "hello from original terragrunt dir", rendered.Inputs["input"])
+}
+
 func TestRenderJSONConfigWithIncludesDependenciesAndLocals(t *testing.T) {
 	t.Parallel()
 

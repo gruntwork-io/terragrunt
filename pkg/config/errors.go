@@ -744,6 +744,34 @@ func (err TerraformSourceReferencesDependencyError) Error() string {
 	)
 }
 
+// ModuleDirReferencesDependencyError reports a module directory attribute that references the `dependency` namespace.
+type ModuleDirReferencesDependencyError struct {
+	ConfigPath string
+	Attribute  string
+}
+
+func (err ModuleDirReferencesDependencyError) Error() string {
+	return fmt.Sprintf(
+		"%s in %s cannot reference dependency outputs when path.download is read; the directory must be resolvable before dependencies are evaluated",
+		err.Attribute,
+		err.ConfigPath,
+	)
+}
+
+// PathDownloadInLocalsError reports a local that reads `path.download`.
+type PathDownloadInLocalsError struct {
+	ConfigPath string
+	Local      string
+}
+
+func (err PathDownloadInLocalsError) Error() string {
+	return fmt.Sprintf(
+		"local %s in %s reads path.download, which is not available in locals; read path.download in inputs or in a hook of the terraform block",
+		err.Local,
+		err.ConfigPath,
+	)
+}
+
 // ExcludeReferencesDependencyError is returned when an `exclude` block references the `dependency` namespace.
 // Discovery evaluates exclude blocks to build the run queue before any dependency has run, so the reference can
 // never be satisfied there.

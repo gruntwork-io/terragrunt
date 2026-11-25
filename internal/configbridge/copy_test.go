@@ -19,8 +19,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zclconf/go-cty/cty"
 )
 
 // TestNewParsingContextCopiesEveryOption pins every bridged option onto the ParsingContext so no flag is dropped.
@@ -262,6 +264,26 @@ func TestStackFuncFactoryScopesFunctionsToStackDir(t *testing.T) {
 			assert.Equal(t, tc.stackDir, got.AsString(), "each call is scoped to the stack dir it was given")
 		})
 	}
+}
+
+func TestStackDirArgsScopesVariablesToStackDir(t *testing.T) {
+	t.Parallel()
+
+	stackDir := venvtest.Root("/mem/root/live/stack-a")
+
+	opts, err := options.NewTerragruntOptionsForTest("/mem/root/live/terragrunt.hcl")
+	require.NoError(t, err)
+	require.NoError(t, opts.Experiments.EnableExperiment(experiment.PathVariable))
+
+	args := configbridge.StackDirArgs(t.Context(), logger.CreateLogger(), venv.MemVenv(), new(config.Store), opts)
+	require.NotNil(t, args.FuncsFor)
+
+	vars, err := args.VarsFor(stackDir)
+	require.NoError(t, err)
+
+	assert.Equal(t, map[string]cty.Value{
+		config.MetadataPath: cty.ObjectVal(map[string]cty.Value{"stack": cty.StringVal(stackDir)}),
+	}, vars)
 }
 
 // optionsWithDistinctValues returns options whose every bridged field holds a recognizable non-zero value.

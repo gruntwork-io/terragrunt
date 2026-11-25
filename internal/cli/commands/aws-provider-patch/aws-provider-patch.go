@@ -91,9 +91,7 @@ func runAll(
 
 	for _, unit := range units {
 		unitOpts := opts.Clone()
-		unitOpts.WorkingDir = unit.Path()
-
-		unitOpts.TerragruntConfigPath = filepath.Join(unit.Path(), unit.ConfigFile())
+		discoverysetup.ScopeToUnit(unitOpts, unit)
 
 		// Preparation writes obtained credentials into the env, so each
 		// unit gets its own clone to keep them from leaking to siblings.

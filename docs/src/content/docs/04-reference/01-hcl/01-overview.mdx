@@ -8,6 +8,7 @@ sidebar:
 
 import AnchorRedirects from '@components/AnchorRedirects.astro';
 import FileTree from '@components/vendored/starlight/FileTree.astro';
+import Since from '@components/Since.astro';
 
 <AnchorRedirects redirects={{
   'stacks': '/reference/hcl/stacks/',
@@ -30,6 +31,12 @@ Refer to the following pages for a complete reference of supported features in t
 - [Blocks](/reference/hcl/blocks)
 - [Attributes](/reference/hcl/attributes)
 - [Functions](/reference/hcl/functions)
+
+<Since version="v1.2.3">
+
+- [Variables](/reference/hcl/variables)
+
+</Since>
 
 ## Configuration parsing order
 

@@ -3,16 +3,22 @@ import type { CollectionEntry } from 'astro:content';
 import {
 	anchorRedirects,
 	compareHclItems,
+	fieldHeadings,
+	fieldMarkdown,
 	functionSignature,
 	hclItemPath,
 	itemAnchors,
 	itemHeadings,
 	referenceMarkdown,
+	variableFieldName,
+	variableFieldPath,
+	type VariableField,
 } from '.';
 
 type FunctionData = CollectionEntry<'hclFunctions'>['data'];
 type BlockData = CollectionEntry<'hclBlocks'>['data'];
 type AttributeData = CollectionEntry<'hclAttributes'>['data'];
+type VariableData = CollectionEntry<'hclVariables'>['data'];
 
 const examples: FunctionData['examples'] = [{ code: 'x = 1\n' }];
 
@@ -46,6 +52,30 @@ function attributeEntry(data: Partial<AttributeData>): CollectionEntry<'hclAttri
 		collection: 'hclAttributes',
 		data: { name: 'attr', description: 'An attribute.', configs: ['unit'], examples, type: 'bool', ...data },
 	} as CollectionEntry<'hclAttributes'>;
+}
+
+function variableEntry(data: Partial<VariableData>): CollectionEntry<'hclVariables'> {
+	return {
+		id: 'path',
+		collection: 'hclVariables',
+		data: { name: 'path', description: 'A variable.', configs: ['unit', 'stack'], ...data },
+	} as CollectionEntry<'hclVariables'>;
+}
+
+function fieldEntry(data: Partial<VariableField['data']>): VariableField {
+	return {
+		id: 'path/unit',
+		collection: 'hclVariableFields',
+		data: {
+			name: 'unit',
+			variable: 'path',
+			type: 'string',
+			description: 'The unit.',
+			configs: ['unit'],
+			examples,
+			...data,
+		},
+	} as VariableField;
 }
 
 describe('hclItemPath', () => {
@@ -172,6 +202,14 @@ describe('itemHeadings', () => {
 	test('adds nothing past Examples for an attribute', () => {
 		expect(slugs(attributeEntry({}))).toEqual(['usage', 'examples']);
 	});
+
+	test('puts Fields before Examples for a variable', () => {
+		expect(slugs(variableEntry({ examples }))).toEqual(['usage', 'fields', 'examples']);
+	});
+
+	test('omits Examples for a variable with none', () => {
+		expect(slugs(variableEntry({}))).toEqual(['usage', 'fields']);
+	});
 });
 
 describe('itemAnchors', () => {
@@ -200,6 +238,11 @@ describe('itemAnchors', () => {
 
 	test('returns nothing for an attribute without body headings', () => {
 		expect(itemAnchors(attributeEntry({}), [])).toEqual([]);
+	});
+
+	test('returns only body heading slugs for a variable', () => {
+		const body = [{ depth: 3, slug: 'fallbacks', text: 'Fallbacks' }];
+		expect(itemAnchors(variableEntry({}), body)).toEqual(['fallbacks']);
 	});
 });
 
@@ -235,6 +278,24 @@ describe('anchorRedirects', () => {
 });
 
 describe('referenceMarkdown', () => {
+	test('links each field of a variable to its page, before the examples', () => {
+		const fields = [fieldEntry({}), fieldEntry({ name: 'include', description: 'The file.' })];
+		expect(referenceMarkdown(variableEntry({ examples }), fields)).toEqual({
+			before: '## Usage',
+			after: [
+				'## Fields',
+				'- [`path.unit`](/reference/hcl/variables/path/unit/): The unit.\n' +
+					'- [`path.include`](/reference/hcl/variables/path/include/): The file.',
+				'## Examples',
+				'```hcl\nx = 1\n```',
+			].join('\n\n'),
+		});
+	});
+
+	test('renders no Fields section for a variable without fields', () => {
+		expect(referenceMarkdown(variableEntry({}))).toEqual({ before: '## Usage', after: '' });
+	});
+
 	test('escapes pipes in table cells', () => {
 		const entry = functionEntry({
 			params: [{ name: 'mode', type: 'string', optional: false, description: 'Either `a|b` or `c`.' }],
@@ -367,5 +428,40 @@ describe('referenceMarkdown', () => {
 				'```hcl\nx = 1\n```',
 			].join('\n\n'),
 		);
+	});
+});
+
+describe('variableFieldName', () => {
+	test('joins the variable and the field with a dot', () => {
+		expect(variableFieldName({ variable: 'path', name: 'unit' })).toBe('path.unit');
+	});
+});
+
+describe('variableFieldPath', () => {
+	test('puts the field below the page of its variable', () => {
+		expect(variableFieldPath({ variable: 'path', name: 'unit' })).toBe('/reference/hcl/variables/path/unit/');
+	});
+});
+
+describe('fieldHeadings', () => {
+	test('puts body headings between Usage and Examples, and drops deep ones', () => {
+		const body = [
+			{ depth: 3, slug: 'caveats', text: 'Caveats' },
+			{ depth: 5, slug: 'deep', text: 'Deep' },
+		];
+		expect(fieldHeadings(body).map((heading) => heading.slug)).toEqual(['usage', 'caveats', 'examples']);
+	});
+});
+
+describe('fieldMarkdown', () => {
+	test('leads with the type, the configs and a link to the variable', () => {
+		expect(fieldMarkdown(fieldEntry({ configs: ['unit', 'stack'] }))).toEqual({
+			before: [
+				'**Type:** `string`\\\n**Defined in:** `unit`, `stack`',
+				'A field of the [`path`](/reference/hcl/variables/path/) variable.',
+				'## Usage',
+			].join('\n\n'),
+			after: ['## Examples', '```hcl\nx = 1\n```'].join('\n\n'),
+		});
 	});
 });

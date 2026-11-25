@@ -63,6 +63,9 @@ type ParsingContext struct {
 	// Locals is the `local` value expressions in the file read.
 	Locals *cty.Value
 
+	// Path is the `path` value of the file being parsed.
+	Path *cty.Value
+
 	// dependencyOutputEnvKeys records environment keys set for dependency output resolution through
 	// extra_arguments.env_vars. Inherited process values stay eligible for direct state reads until
 	// output-specific configuration overrides them.
@@ -75,6 +78,9 @@ type ParsingContext struct {
 	// key is [Key.Context] for the file: the digest of the run's settings and of the chain of files the parse
 	// went through to reach it. Set only when keyed is.
 	key string
+
+	// stackFile is the stack file that the context evaluates files for, and empty for the files of a unit.
+	stackFile string
 
 	// IAMRoleOptions is the IAM role the file's functions and dependency output fetches assume.
 	IAMRoleOptions iam.RoleOptions
@@ -377,7 +383,13 @@ func (ctx *ParsingContext) WithDiagnosticsDiscarded() *ParsingContext {
 
 // ParserOptions returns the [hclparse.Option] list for this context's parser settings.
 func (ctx *ParsingContext) ParserOptions(l log.Logger, v *venv.Venv) []hclparse.Option {
-	return ParserOptions(l, v, ctx.Parser)
+	opts := ParserOptions(l, v, ctx.Parser)
+
+	if ctx.Experiments.Evaluate(experiment.PathVariable) {
+		return opts
+	}
+
+	return slices.Insert(opts, 0, pathExperimentHintOption)
 }
 
 // NewParser returns an HCL parser configured by this context's parser settings.
@@ -461,8 +473,19 @@ func (ctx *ParsingContext) WithConfigPath(
 
 	c.TerragruntConfigPath = cfgPath
 	c.WorkingDir = workingDir
+	c.Path = nil
 
 	return l, c, nil
+}
+
+// WithStackConfigPath returns a new ParsingContext that evaluates the stack file at cfgPath and the files it reads.
+func (ctx *ParsingContext) WithStackConfigPath(l log.Logger, cfgPath string) (log.Logger, *ParsingContext, error) {
+	l, c, err := ctx.WithConfigPath(l, cfgPath)
+	if err != nil {
+		return l, nil, err
+	}
+
+	return l, c.forStackFile(c.TerragruntConfigPath), nil
 }
 
 // WithDependencyConfigPath returns a new ParsingContext for parsing a dependency as an independent unit.
@@ -483,6 +506,7 @@ func (ctx *ParsingContext) WithDependencyConfigPath(
 	}
 
 	c.OriginalTerragruntConfigPath = c.TerragruntConfigPath
+	c.stackFile = ""
 	c.DependencyBlocks = nil
 	c.DecodedDependencies = nil
 	c.Locals = nil

@@ -123,6 +123,8 @@ func partialDecodeSectionName(section PartialDecodeSectionType) string {
 		return "errors"
 	case OutputsBlock:
 		return "outputs"
+	case moduleDirAttributes:
+		return "module_dir"
 	default:
 		return "unknown"
 	}

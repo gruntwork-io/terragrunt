@@ -430,6 +430,7 @@ func resolveConfigPath(
 					configPathEvalReason(diags),
 				),
 				Subject: pathRange,
+				Extra:   diags,
 			},
 		}
 	}
