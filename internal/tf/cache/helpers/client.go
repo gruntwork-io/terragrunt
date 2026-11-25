@@ -5,26 +5,48 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	svchost "github.com/hashicorp/terraform-svchost"
+	"golang.org/x/sync/singleflight"
 )
 
-// maxResponseBody bounds a registry response body length.
-const maxResponseBody = 32 << 20
+const (
+	// maxResponseBody bounds a registry response body length.
+	maxResponseBody = 32 << 20
+
+	// defaultRequestTimeout bounds a coalesced upstream metadata request when
+	// the underlying http.Client leaves Timeout unset.
+	defaultRequestTimeout = 60 * time.Second
+)
+
+// HTTPStatusError reports a transient HTTP failure from an upstream registry
+// so callers can fail loudly rather than caching an empty response.
+type HTTPStatusError struct {
+	URL        string
+	Status     string
+	StatusCode int
+}
+
+func (e *HTTPStatusError) Error() string {
+	return fmt.Sprintf("registry request %s returned HTTP %s", e.URL, e.Status)
+}
 
 // Client is the cache server's outbound HTTP client. It wraps a
-// [vhttp.Client] with registry credential injection and a per-URL response
-// cache.
+// [vhttp.Client] with registry credential injection, in-flight request
+// coalescing, and a per-URL response cache.
 type Client struct {
 	httpClient vhttp.Client
 
 	credsSource *cliconfig.CredentialsSource
 	cache       map[string][]byte
+	group       singleflight.Group
 	cacheMu     sync.Mutex
 }
 
@@ -39,18 +61,76 @@ func NewClient(c vhttp.Client, credsSource *cliconfig.CredentialsSource) *Client
 }
 
 // Do sends an HTTP request and decodes an HTTP response to the given `value`.
-func (client *Client) Do(ctx context.Context, method, reqURL string, value any) (err error) {
-	client.cacheMu.Lock()
-	cached, ok := client.cache[reqURL]
-	client.cacheMu.Unlock()
-
-	if ok {
+func (client *Client) Do(ctx context.Context, method, reqURL string, value any) error {
+	if cached, ok := client.getCached(reqURL); ok {
 		return unmarshalBody(cached, value)
 	}
 
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	resCh := client.group.DoChan(method+" "+reqURL, func() (any, error) {
+		if cached, ok := client.getCached(reqURL); ok {
+			return cached, nil
+		}
+
+		reqCtx, cancel := client.requestContext(ctx)
+		defer cancel()
+
+		bodyBytes, err := client.fetch(reqCtx, method, reqURL)
+		if err != nil {
+			return nil, err
+		}
+
+		client.setCached(reqURL, bodyBytes)
+
+		return bodyBytes, nil
+	})
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case res := <-resCh:
+		if res.Err != nil {
+			return res.Err
+		}
+
+		bodyBytes, _ := res.Val.([]byte)
+
+		return unmarshalBody(bodyBytes, value)
+	}
+}
+
+func (client *Client) getCached(reqURL string) ([]byte, bool) {
+	client.cacheMu.Lock()
+	defer client.cacheMu.Unlock()
+
+	cached, ok := client.cache[reqURL]
+
+	return cached, ok
+}
+
+func (client *Client) setCached(reqURL string, body []byte) {
+	client.cacheMu.Lock()
+	defer client.cacheMu.Unlock()
+
+	client.cache[reqURL] = body
+}
+
+func (client *Client) requestContext(callerCtx context.Context) (context.Context, context.CancelFunc) {
+	timeout := defaultRequestTimeout
+	if client.httpClient != nil && client.httpClient.Timeout > 0 {
+		timeout = client.httpClient.Timeout
+	}
+
+	return context.WithTimeout(context.WithoutCancel(callerCtx), timeout)
+}
+
+func (client *Client) fetch(ctx context.Context, method, reqURL string) (bodyBytes []byte, err error) {
 	req, err := http.NewRequestWithContext(ctx, method, reqURL, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if client.credsSource != nil {
@@ -62,23 +142,14 @@ func (client *Client) Do(ctx context.Context, method, reqURL string, value any) 
 
 	resp, err := client.httpClient.Do(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	defer func() {
 		err = errors.Join(err, resp.Body.Close())
 	}()
 
-	bodyBytes, err := decodeResponse(resp)
-	if err != nil {
-		return err
-	}
-
-	client.cacheMu.Lock()
-	client.cache[reqURL] = bodyBytes
-	client.cacheMu.Unlock()
-
-	return unmarshalBody(bodyBytes, value)
+	return decodeResponse(resp)
 }
 
 // ReadBody reads r into memory, refusing a body past limit with
@@ -116,6 +187,19 @@ func unmarshalBody(data []byte, value any) error {
 }
 
 func decodeResponse(resp *http.Response) ([]byte, error) {
+	if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= http.StatusInternalServerError {
+		reqURL := ""
+		if resp.Request != nil && resp.Request.URL != nil {
+			reqURL = resp.Request.URL.String()
+		}
+
+		return nil, &HTTPStatusError{
+			StatusCode: resp.StatusCode,
+			Status:     resp.Status,
+			URL:        reqURL,
+		}
+	}
+
 	if resp.StatusCode != http.StatusOK {
 		return nil, nil
 	}

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/handlers"
@@ -219,6 +221,70 @@ func TestCommonProviderHandlerDiscoveryURL(t *testing.T) {
 			assert.Equal(t, tc.want, urls)
 		})
 	}
+}
+
+func TestCommonProviderHandlerDiscoveryURLCoalescesConcurrentRequests(t *testing.T) {
+	t.Parallel()
+
+	var hits atomic.Int32
+
+	started := make(chan struct{})
+	release := make(chan struct{})
+
+	var once, releaseOnce sync.Once
+
+	t.Cleanup(func() { releaseOnce.Do(func() { close(release) }) })
+
+	c := vhttp.NewMemClient(func(_ context.Context, _ *http.Request) (*http.Response, error) {
+		hits.Add(1)
+		once.Do(func() { close(started) })
+		<-release
+
+		return vhttp.Respond(http.StatusOK, []byte(discoveryDocument), nil), nil
+	})
+
+	handler := handlers.NewCommonProviderHandler(logger.CreateLogger(), c, nil, nil)
+
+	const callers = 12
+
+	leaderCtx, cancelLeader := context.WithCancel(t.Context())
+	defer cancelLeader()
+
+	leaderErr := make(chan error, 1)
+
+	go func() {
+		_, err := handler.DiscoveryURL(leaderCtx, "registry.example.com")
+		leaderErr <- err
+	}()
+
+	<-started
+
+	errs := make(chan error, callers-1)
+
+	var wg sync.WaitGroup
+	for range callers - 1 {
+		wg.Go(func() {
+			urls, err := handler.DiscoveryURL(t.Context(), "registry.example.com")
+			if err == nil && urls.ProvidersV1 != "/v1/providers/" {
+				err = errors.New("unexpected providers.v1 endpoint")
+			}
+
+			errs <- err
+		})
+	}
+
+	cancelLeader()
+	require.ErrorIs(t, <-leaderErr, context.Canceled)
+
+	releaseOnce.Do(func() { close(release) })
+	wg.Wait()
+	close(errs)
+
+	for err := range errs {
+		require.NoError(t, err)
+	}
+
+	assert.Equal(t, int32(1), hits.Load(), "concurrent discovery lookups should issue one upstream request")
 }
 
 // newDirectHandler returns a direct handler that talks to the registry through c.

@@ -518,6 +518,77 @@ func TestDownloaderControllerSegmentIsUniquePerController(t *testing.T) {
 	assert.NotEqual(t, first.Segment(), second.Segment(), "every controller should get its own secret segment")
 }
 
+func TestProviderControllerGetPlatformFailureDoesNotPanic(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		handlerErr error
+		name       string
+		wantStatus int
+	}{
+		{
+			name:       "generic upstream failure returns bad gateway",
+			handlerErr: errors.New("connection reset"),
+			wantStatus: http.StatusBadGateway,
+		},
+		{
+			name:       "deadline exceeded returns gateway timeout",
+			handlerErr: context.DeadlineExceeded,
+			wantStatus: http.StatusGatewayTimeout,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			l := logger.CreateLogger()
+			tempDir := t.TempDir()
+			require.NoError(t, os.Chmod(tempDir, 0o700))
+
+			service := services.NewProviderService(
+				helpers.TmpDirWOSymlinks(t),
+				"",
+				nil,
+				l,
+				venvtest.NewOSWithEmptyEnv().WithTempDir(func() string { return tempDir }),
+			)
+			require.NoError(t, service.Init())
+
+			root := router.New()
+			root.Use(middleware.Logger(l, ""))
+			root.Use(middleware.Recover(l))
+			root.Group("v1").Register(&controllers.ProviderController{
+				Logger:                      l,
+				ProviderService:             service,
+				ProviderHandlers:            []handlers.ProviderHandler{&fakeProviderHandler{canHandle: true, err: tc.handlerErr}},
+				CacheProviderHTTPStatusCode: http.StatusLocked,
+			})
+
+			rec := serve(
+				t,
+				root,
+				"/v1/providers/cache-request/"+testRegistry+"/example/example/1.0.0/download/linux/amd64",
+				"",
+			)
+
+			assert.Equal(t, tc.wantStatus, rec.Code)
+
+			versionsRec := serve(
+				t,
+				root,
+				"/v1/providers/cache-request/"+testRegistry+"/example/example/versions",
+				"",
+			)
+			assert.Equal(t, tc.wantStatus, versionsRec.Code)
+
+			cached, err := service.WaitForCacheReady("cache-request")
+			require.NoError(t, err)
+			assert.Empty(t, cached)
+		})
+	}
+}
+
 // fakeProviderHandler answers provider requests with fixed values.
 type fakeProviderHandler struct {
 	err       error

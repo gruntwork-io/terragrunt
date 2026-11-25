@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -226,6 +227,137 @@ func TestClientDoFailures(t *testing.T) {
 			tc.assertErr(t, helpers.NewClient(vhttp.NewMemClient(respond), nil).Do(t.Context(), http.MethodGet, reqURL, &value))
 		})
 	}
+}
+
+func TestClientDoCoalescesConcurrentRequestsAndDoesNotCacheTransientErrors(t *testing.T) {
+	t.Parallel()
+
+	t.Run("coalesces concurrent misses and shields peers from one canceled caller", func(t *testing.T) {
+		t.Parallel()
+
+		var hits atomic.Int32
+
+		started := make(chan struct{})
+		release := make(chan struct{})
+
+		var once, releaseOnce sync.Once
+
+		t.Cleanup(func() { releaseOnce.Do(func() { close(release) }) })
+
+		c := vhttp.NewMemClient(func(_ context.Context, _ *http.Request) (*http.Response, error) {
+			hits.Add(1)
+			once.Do(func() { close(started) })
+			<-release
+
+			return vhttp.Respond(http.StatusOK, []byte(versionsListing), nil), nil
+		})
+
+		client := helpers.NewClient(c, nil)
+
+		const callers = 16
+
+		leaderCtx, cancelLeader := context.WithCancel(t.Context())
+		defer cancelLeader()
+
+		leaderErr := make(chan error, 1)
+
+		go func() {
+			var v versionsValue
+
+			leaderErr <- client.Do(leaderCtx, http.MethodGet, "https://registry.test/v1/providers/hashicorp/aws/versions", &v)
+		}()
+
+		<-started
+
+		followerErrs := make(chan error, callers-1)
+
+		var wg sync.WaitGroup
+		for range callers - 1 {
+			wg.Go(func() {
+				var v versionsValue
+
+				err := client.Do(
+					t.Context(),
+					http.MethodGet,
+					"https://registry.test/v1/providers/hashicorp/aws/versions",
+					&v,
+				)
+				if err == nil && len(v.Versions) != 2 {
+					err = errors.New("expected 2 decoded versions")
+				}
+
+				followerErrs <- err
+			})
+		}
+
+		// Cancel the leader while followers are queued; followers must still complete from the shared flight.
+		cancelLeader()
+		require.ErrorIs(t, <-leaderErr, context.Canceled)
+
+		releaseOnce.Do(func() { close(release) })
+		wg.Wait()
+		close(followerErrs)
+
+		for err := range followerErrs {
+			require.NoError(t, err)
+		}
+
+		assert.Equal(
+			t,
+			int32(1),
+			hits.Load(),
+			"concurrent callers for the same URL should coalesce into one upstream request",
+		)
+	})
+
+	t.Run("transient 429 and 5xx errors fail and are not cached", func(t *testing.T) {
+		t.Parallel()
+
+		for _, status := range []int{http.StatusTooManyRequests, http.StatusServiceUnavailable} {
+			t.Run(http.StatusText(status), func(t *testing.T) {
+				t.Parallel()
+
+				var calls atomic.Int32
+
+				c := vhttp.NewMemClient(func(_ context.Context, _ *http.Request) (*http.Response, error) {
+					if calls.Add(1) == 1 {
+						return vhttp.Respond(status, nil, nil), nil
+					}
+
+					return vhttp.Respond(http.StatusOK, []byte(versionsListing), nil), nil
+				})
+
+				client := helpers.NewClient(c, nil)
+
+				var first versionsValue
+
+				err := client.Do(
+					t.Context(),
+					http.MethodGet,
+					"https://registry.test/v1/providers/hashicorp/aws/versions",
+					&first,
+				)
+				require.Error(t, err)
+
+				var second versionsValue
+				require.NoError(
+					t,
+					client.Do(
+						t.Context(),
+						http.MethodGet,
+						"https://registry.test/v1/providers/hashicorp/aws/versions",
+						&second,
+					),
+				)
+				assert.Len(
+					t,
+					second.Versions,
+					2,
+					"a transient status failure must not poison subsequent lookups",
+				)
+			})
+		}
+	})
 }
 
 // versionsValue is the decoded shape of versionsListing.
