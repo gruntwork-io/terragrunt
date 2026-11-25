@@ -399,15 +399,6 @@ type StackDirArgs struct {
 	MaxDepth int
 }
 
-// varsFor returns the variables for stackDir, or none when args sets no factory.
-func (args *StackDirArgs) varsFor(stackDir string) (map[string]cty.Value, error) {
-	if args.VarsFor == nil {
-		return nil, nil
-	}
-
-	return args.VarsFor(stackDir)
-}
-
 // maxDepth returns the recursion bound to enforce, falling back to
 // DefaultMaxStackRecursionDepth when the caller leaves MaxDepth unset.
 func (args *StackDirArgs) maxDepth() int {
@@ -447,6 +438,10 @@ func UnitPathsFromStackDir(
 		)
 	}
 
+	if args.VarsFor == nil {
+		panic(fmt.Sprintf("hclparse.UnitPathsFromStackDir: varsFor is nil (stackDir=%q)", stackDir))
+	}
+
 	return unitPathsFromStackDir(ctx, fsys, stackDir, args, make(map[string]struct{}), 0)
 }
 
@@ -477,6 +472,10 @@ func DirectComponentPaths(
 		panic(fmt.Sprintf("hclparse.DirectComponentPaths: funcsFor is nil (stackDir=%q)", stackDir))
 	}
 
+	if args.VarsFor == nil {
+		panic(fmt.Sprintf("hclparse.DirectComponentPaths: varsFor is nil (stackDir=%q)", stackDir))
+	}
+
 	stackDir = vfs.ResolveForCompare(fsys, stackDir)
 	stackFile := filepath.Join(stackDir, stackFileName)
 
@@ -503,7 +502,7 @@ func DirectComponentPaths(
 		)
 	}
 
-	vars, err := args.varsFor(stackDir)
+	vars, err := args.VarsFor(stackDir)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -580,7 +579,7 @@ func unitPathsFromStackDir(
 		)
 	}
 
-	vars, err := args.varsFor(stackDir)
+	vars, err := args.VarsFor(stackDir)
 	if err != nil {
 		return nil, err
 	}

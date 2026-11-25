@@ -25,8 +25,24 @@ func GiveStackNestedGenerateTip(
 	filters filter.Filters,
 	allTips Tips,
 ) {
-	if len(filters) == 0 || allTips == nil || args == nil || args.FuncsFor == nil {
+	if len(filters) == 0 {
 		return
+	}
+
+	if allTips == nil {
+		panic("tips.GiveStackNestedGenerateTip: allTips is nil")
+	}
+
+	if args == nil {
+		panic("tips.GiveStackNestedGenerateTip: args is nil")
+	}
+
+	if args.FuncsFor == nil {
+		panic("tips.GiveStackNestedGenerateTip: args.FuncsFor is nil")
+	}
+
+	if args.VarsFor == nil {
+		panic("tips.GiveStackNestedGenerateTip: args.VarsFor is nil")
 	}
 
 	tip := allTips.Find(StackNestedStacksNotGenerated)

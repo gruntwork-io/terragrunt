@@ -81,7 +81,8 @@ func TestTFPathVariableUnitInAwsProviderPatchAll(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	initialized, err := filepath.Glob(filepath.Join(workingDir, ".terragrunt-cache", "*", "*", ".terraform"))
+	initialized, err := filepath.Glob(filepath.Join(workingDir, "*", ".terragrunt-cache", "*", "*", ".terraform"))
 	require.NoError(t, err)
 	assert.Len(t, initialized, 2)
+	assert.NoDirExists(t, filepath.Join(workingDir, ".terragrunt-cache"))
 }

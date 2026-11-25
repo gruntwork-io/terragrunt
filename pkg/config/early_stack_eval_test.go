@@ -356,7 +356,7 @@ unit "vpc" {
 		t.Context(),
 		venvtest.NewOSOverlayFS(),
 		stackDir,
-		&inthclparse.StackDirArgs{FuncsFor: funcsFor},
+		&inthclparse.StackDirArgs{FuncsFor: funcsFor, VarsFor: noStackVars},
 	)
 	require.NoError(t, err)
 	require.Len(t, paths, 1)
@@ -407,7 +407,7 @@ unit "vpc" {
 		t.Context(),
 		venvtest.NewOSOverlayFS(),
 		stackDir,
-		&inthclparse.StackDirArgs{FuncsFor: funcsFor},
+		&inthclparse.StackDirArgs{FuncsFor: funcsFor, VarsFor: noStackVars},
 	)
 	require.NoError(t, err)
 	require.Len(t, paths, 1)
@@ -439,4 +439,8 @@ func TestEarlyStackParseFunctions_TerraformStdlibIncluded(t *testing.T) {
 	// scope is still merged into the early-stack-parse function set.
 	_, ok := funcs["format"]
 	assert.True(t, ok, "terraform stdlib (format) should be present alongside the tg functions")
+}
+
+func noStackVars(string) (map[string]cty.Value, error) {
+	return nil, nil
 }

@@ -60,6 +60,8 @@ var knownBadFiles = []string{
 	// Files that return an error for a dependency reference in a module directory attribute
 	"fixtures/path-variable/module/dependency/download-dir/terragrunt.hcl",
 	"fixtures/path-variable/module/dependency/in-place/terragrunt.hcl",
+	// Stack files that read path.stack in locals
+	"fixtures/path-variable/stack/live/terragrunt.stack.hcl",
 }
 
 func TestParseAllFixtureFiles(t *testing.T) {

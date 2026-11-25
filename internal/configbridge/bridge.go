@@ -57,7 +57,7 @@ func StackVarFactory(
 	return func(stackDir string) (map[string]cty.Value, error) {
 		stackFile := filepath.Join(stackDir, config.DefaultStackFile)
 
-		scopedLogger, scopedPctx, err := pctx.WithConfigPath(l, stackFile)
+		scopedLogger, scopedPctx, err := pctx.WithStackConfigPath(l, stackFile)
 		if err != nil {
 			return nil, err
 		}

@@ -244,7 +244,7 @@ func evalContextWithoutIncludes(
 	cfgPath string,
 	calls hclparse.FunctionCalls,
 ) *hcl.EvalContext {
-	return TerragruntEvalContext(ctx, l, v, s, pctx, cfgPath, calls, evalVariablesWithoutIncludes(ctx, pctx))
+	return TerragruntEvalContext(ctx, l, v, s, pctx, cfgPath, calls, evalVariablesWithoutIncludes(pctx))
 }
 
 // TerragruntEvalContext returns an eval context with vars and the functions of the config at cfgPath: the OpenTofu
@@ -353,7 +353,7 @@ func TerragruntEvalVariables(
 	cfgPath string,
 	exposed ExposedInclude,
 ) (map[string]cty.Value, error) {
-	vars := evalVariablesWithoutIncludes(ctx, pctx)
+	vars := evalVariablesWithoutIncludes(pctx)
 
 	if pctx.includes != nil && len(pctx.includes.List) > 0 {
 		// For each include block, check if we want to expose the included config, and if so, add under the include
@@ -388,11 +388,11 @@ func TerragruntEvalVariables(
 }
 
 // evalVariablesWithoutIncludes returns the variables of [TerragruntEvalVariables] other than `include`.
-func evalVariablesWithoutIncludes(ctx context.Context, pctx *ParsingContext) map[string]cty.Value {
+func evalVariablesWithoutIncludes(pctx *ParsingContext) map[string]cty.Value {
 	vars := map[string]cty.Value{}
 
-	if pctx.Experiments.Evaluate(experiment.PathVariable) {
-		vars[MetadataPath] = evalPathVariable(ctx, pctx)
+	if pctx.Path != nil {
+		vars[MetadataPath] = *pctx.Path
 	}
 
 	if pctx.Locals != nil {

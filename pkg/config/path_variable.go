@@ -62,11 +62,6 @@ func PathVariable(
 	}
 
 	attrs := basePathAttributes(pctx, include)
-
-	if isStackConfigFile(pctx.TerragruntConfigPath) {
-		return pathObject(attrs), nil
-	}
-
 	refs := filePathReferences(file)
 
 	if refs.has(pathAttrUnit) || refs.has(pathAttrStack) || refs.has(pathAttrDownload) {
@@ -127,19 +122,6 @@ func withValuesPathVariable(
 	}
 
 	return pctx.withPath(stackValuesPath(pctx, directory)), nil
-}
-
-// evalPathVariable returns the `path` value of pctx, built from the base attributes when no file supplied one.
-func evalPathVariable(ctx context.Context, pctx *ParsingContext) cty.Value {
-	if pctx.Path != nil {
-		return *pctx.Path
-	}
-
-	if !isStackConfigFile(pctx.TerragruntConfigPath) {
-		markNotShareable(ctx)
-	}
-
-	return *pathObject(basePathAttributes(pctx, pctx.include))
 }
 
 // pathExperimentDiagnostics adds the experiment hint to each diagnostic of an unknown `path` variable.
@@ -283,8 +265,8 @@ func filePathReferences(file *hclparse.File) pathReferences {
 func basePathAttributes(pctx *ParsingContext, include *IncludeConfig) map[string]cty.Value {
 	attrs := map[string]cty.Value{pathAttrUnit: cty.StringVal(filepath.Dir(pctx.OriginalTerragruntConfigPath))}
 
-	if stackFile, ofStack := evaluatedStackFile(pctx); ofStack {
-		attrs = map[string]cty.Value{pathAttrStack: cty.StringVal(filepath.Dir(stackFile))}
+	if pctx.stackFile != "" {
+		attrs = map[string]cty.Value{pathAttrStack: cty.StringVal(filepath.Dir(pctx.stackFile))}
 	}
 
 	if include != nil {
@@ -296,6 +278,19 @@ func basePathAttributes(pctx *ParsingContext, include *IncludeConfig) map[string
 	}
 
 	return attrs
+}
+
+// forStackFile returns a copy of ctx that evaluates the stack file at path and the files it reads.
+func (ctx *ParsingContext) forStackFile(path string) *ParsingContext {
+	c := ctx.derive()
+	c.stackFile = path
+	c.Path = nil
+
+	if c.Experiments.Evaluate(experiment.PathVariable) {
+		c.Path = pathObject(basePathAttributes(c, nil))
+	}
+
+	return c
 }
 
 // stackValuesPath returns the `path` value of the values file that belongs to the stack file in stackDir.
@@ -315,31 +310,6 @@ func pathObject(attrs map[string]cty.Value) *cty.Value {
 	value := cty.ObjectVal(attrs)
 
 	return &value
-}
-
-// evaluatedStackFile returns the stack file that pctx evaluates a file for, and false for a file of a unit.
-func evaluatedStackFile(pctx *ParsingContext) (string, bool) {
-	if isStackConfigFile(pctx.TerragruntConfigPath) {
-		return pctx.TerragruntConfigPath, true
-	}
-
-	if isStackConfigFile(pctx.OriginalTerragruntConfigPath) {
-		return pctx.OriginalTerragruntConfigPath, true
-	}
-
-	chain := pctx.readConfigChain
-	if pctx.viaDependency || len(chain) == 0 {
-		return "", false
-	}
-
-	return chain[0].path, isStackConfigFile(chain[0].path)
-}
-
-// isStackConfigFile reports whether path names a stack file or a stack autoinclude file.
-func isStackConfigFile(path string) bool {
-	base := filepath.Base(path)
-
-	return base == DefaultStackFile || base == DefaultAutoIncludeStackFile
 }
 
 // unitModuleDir returns the directory in which OpenTofu/Terraform runs for the unit pctx parses.

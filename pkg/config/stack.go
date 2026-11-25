@@ -348,7 +348,7 @@ func resolveStackAutoIncludes(
 	}
 
 	// Rescope the parsing context to the stack file so terragrunt functions resolve paths relative to it instead of the root caller.
-	scopedLogger, scopedPctx, scopedErr := pctx.WithConfigPath(l, stackFilePath)
+	scopedLogger, scopedPctx, scopedErr := pctx.WithStackConfigPath(l, stackFilePath)
 	if scopedErr != nil {
 		return nil, nil, AutoIncludeParserStageError{
 			Stage: "rescope",
@@ -1661,6 +1661,8 @@ func ParseStackConfig(
 	parser *ParsingContext,
 	file *hclparse.File,
 ) (*StackConfig, error) {
+	parser = parser.forStackFile(file.ConfigPath)
+
 	values, err := ReadValues(ctx, l, v, s, parser, file, fileRole(file))
 	if err != nil {
 		return nil, err
@@ -2546,7 +2548,7 @@ func evaluateStackLocals(
 		parser,
 		file,
 		attrs,
-		func() (map[string]cty.Value, error) { return evalVariablesWithoutIncludes(ctx, parser), nil },
+		func() (map[string]cty.Value, error) { return evalVariablesWithoutIncludes(parser), nil },
 	)
 	if err != nil {
 		return nil, err

@@ -76,7 +76,7 @@ func TestUnitPathsFromStackDir_NilFS_Panics(t *testing.T) {
 			t.Context(),
 			nil,
 			"/x",
-			&hclparse.StackDirArgs{FuncsFor: noFuncs},
+			&hclparse.StackDirArgs{FuncsFor: noFuncs, VarsFor: noVars},
 		)
 	})
 }
@@ -88,7 +88,7 @@ func TestUnitPathsFromStackDir_EmptyStackDir_Panics(t *testing.T) {
 			t.Context(),
 			vfs.NewMemMapFS(),
 			"",
-			&hclparse.StackDirArgs{FuncsFor: noFuncs},
+			&hclparse.StackDirArgs{FuncsFor: noFuncs, VarsFor: noVars},
 		)
 	})
 }
@@ -105,6 +105,18 @@ func TestUnitPathsFromStackDir_NilFuncsFactory_Panics(t *testing.T) {
 	})
 }
 
+func TestUnitPathsFromStackDir_NilVarsFactory_Panics(t *testing.T) {
+	t.Parallel()
+	assertPanicsContaining(t, "hclparse.UnitPathsFromStackDir: varsFor is nil", func() {
+		_, _ = hclparse.UnitPathsFromStackDir(
+			t.Context(),
+			vfs.NewMemMapFS(),
+			"/x",
+			&hclparse.StackDirArgs{FuncsFor: noFuncs},
+		)
+	})
+}
+
 func TestUnitPathsFromStackDir_NilArgs_Panics(t *testing.T) {
 	t.Parallel()
 	assertPanicsContaining(t, "hclparse.UnitPathsFromStackDir: args is nil", func() {
@@ -116,6 +128,18 @@ func TestDirectComponentPaths_NilArgs_Panics(t *testing.T) {
 	t.Parallel()
 	assertPanicsContaining(t, "hclparse.DirectComponentPaths: args is nil", func() {
 		_, _, _ = hclparse.DirectComponentPaths(t.Context(), vfs.NewMemMapFS(), "/x", nil)
+	})
+}
+
+func TestDirectComponentPaths_NilVarsFactory_Panics(t *testing.T) {
+	t.Parallel()
+	assertPanicsContaining(t, "hclparse.DirectComponentPaths: varsFor is nil", func() {
+		_, _, _ = hclparse.DirectComponentPaths(
+			t.Context(),
+			vfs.NewMemMapFS(),
+			"/x",
+			&hclparse.StackDirArgs{FuncsFor: noFuncs},
+		)
 	})
 }
 

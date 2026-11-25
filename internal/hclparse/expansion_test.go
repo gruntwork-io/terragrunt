@@ -413,7 +413,7 @@ func TestUnitPathsFromStackDirRejectsExpandedAndUnexpandedUnitSharingALabel(t *t
 		t.Context(),
 		fs,
 		"/test",
-		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+		&hclparse.StackDirArgs{FuncsFor: noFuncs, VarsFor: noVars},
 	)
 
 	var collision hclparse.ComponentRefCollisionError
@@ -464,7 +464,7 @@ unit "environment" {
 		t.Context(),
 		fs,
 		"/test",
-		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+		&hclparse.StackDirArgs{FuncsFor: noFuncs, VarsFor: noVars},
 	)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []string{

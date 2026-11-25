@@ -133,23 +133,9 @@ func partialEvalByType(expr hclsyntax.Expression, args *EvalArgs) ([]byte, error
 	return RangeBytes(args.SrcBytes, expr.Range()), nil
 }
 
-// partialEvalFor defers the loop variables; one with the name path does not hide a defined `path` in the collection.
+// partialEvalFor defers the loop variables in the body of e, and renders its collection without them.
 func partialEvalFor(e *hclsyntax.ForExpr, args *EvalArgs) ([]byte, error) {
-	saved := args.Deferred
-
-	defer func() { args.Deferred = saved }()
-
-	loop := maps.Clone(saved)
-	loop[e.KeyVar] = struct{}{}
-	loop[e.ValVar] = struct{}{}
-
-	collection := maps.Clone(loop)
-	if _, outer := saved[varPath]; !outer && definesPath(args.EvalCtx) {
-		delete(collection, varPath)
-	}
-
 	collEnd := e.CollExpr.Range().End
-	args.Deferred = collection
 
 	prefix, prefixErr := partialEvalChildren(
 		args,
@@ -157,7 +143,13 @@ func partialEvalFor(e *hclsyntax.ForExpr, args *EvalArgs) ([]byte, error) {
 		[]hclsyntax.Expression{e.CollExpr},
 	)
 
-	args.Deferred = loop
+	outer := args.Deferred
+
+	defer func() { args.Deferred = outer }()
+
+	args.Deferred = maps.Clone(outer)
+	args.Deferred[e.KeyVar] = struct{}{}
+	args.Deferred[e.ValVar] = struct{}{}
 
 	suffix, suffixErr := partialEvalChildren(
 		args,
@@ -492,15 +484,4 @@ func valueRendersAsHCLLiteral(val cty.Value, depth int) bool {
 	}
 
 	return true
-}
-
-// definesPath reports whether evalCtx or one of its parents defines the `path` variable.
-func definesPath(evalCtx *hcl.EvalContext) bool {
-	for scope := evalCtx; scope != nil; scope = scope.Parent() {
-		if _, defined := scope.Variables[varPath]; defined {
-			return true
-		}
-	}
-
-	return false
 }

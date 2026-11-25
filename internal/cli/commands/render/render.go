@@ -12,7 +12,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/discoverysetup"
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
-	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -50,20 +49,11 @@ func runAll(ctx context.Context, l log.Logger, v *venv.Venv, s *config.Store, op
 		return err
 	}
 
-	_, rootDownloadDir := util.DefaultWorkingAndDownloadDirs(opts.TerragruntConfigPath)
-
 	var errs []error
 
 	for _, unit := range units {
 		unitOpts := opts.Clone()
-		unitOpts.WorkingDir = unit.Path()
-
-		unitOpts.TerragruntConfigPath = filepath.Join(unit.Path(), unit.ConfigFile())
-		unitOpts.OriginalTerragruntConfigPath = unitOpts.TerragruntConfigPath
-
-		if opts.DownloadDir == "" || opts.DownloadDir == rootDownloadDir {
-			_, unitOpts.DownloadDir = util.DefaultWorkingAndDownloadDirs(unitOpts.TerragruntConfigPath)
-		}
+		discoverysetup.ScopeToUnit(unitOpts.TerragruntOptions, unit)
 
 		// Preparation writes obtained credentials into the env, so each
 		// unit gets its own clone to keep them from leaking to siblings.

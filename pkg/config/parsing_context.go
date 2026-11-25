@@ -79,6 +79,9 @@ type ParsingContext struct {
 	// went through to reach it. Set only when keyed is.
 	key string
 
+	// stackFile is the stack file that the context evaluates files for, and empty for the files of a unit.
+	stackFile string
+
 	// IAMRoleOptions is the IAM role the file's functions and dependency output fetches assume.
 	IAMRoleOptions iam.RoleOptions
 
@@ -124,9 +127,6 @@ type ParsingContext struct {
 	// inheritsDependencies marks an included file whose `dependency` value the including file resolves in
 	// ResolveRunConfig.
 	inheritsDependencies bool
-
-	// viaDependency is true for a config that a dependency block parses, and for each file that this config reads.
-	viaDependency bool
 }
 
 // RunSettings is the settings of the run a [ParsingContext] parses for.
@@ -478,6 +478,16 @@ func (ctx *ParsingContext) WithConfigPath(
 	return l, c, nil
 }
 
+// WithStackConfigPath returns a new ParsingContext that evaluates the stack file at cfgPath and the files it reads.
+func (ctx *ParsingContext) WithStackConfigPath(l log.Logger, cfgPath string) (log.Logger, *ParsingContext, error) {
+	l, c, err := ctx.WithConfigPath(l, cfgPath)
+	if err != nil {
+		return l, nil, err
+	}
+
+	return l, c.forStackFile(c.TerragruntConfigPath), nil
+}
+
 // WithDependencyConfigPath returns a new ParsingContext for parsing a dependency as an independent unit.
 //
 // It performs the same path and logger updates as [ParsingContext.WithConfigPath], and resets
@@ -496,7 +506,7 @@ func (ctx *ParsingContext) WithDependencyConfigPath(
 	}
 
 	c.OriginalTerragruntConfigPath = c.TerragruntConfigPath
-	c.viaDependency = true
+	c.stackFile = ""
 	c.DependencyBlocks = nil
 	c.DecodedDependencies = nil
 	c.Locals = nil

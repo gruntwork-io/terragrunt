@@ -6,11 +6,13 @@ package discoverysetup
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -69,6 +71,19 @@ func Units(
 	}
 
 	return components.Filter(component.UnitKind).Sort(), cleanup, nil
+}
+
+// ScopeToUnit points opts, a clone of the options of the run, at unit: working dir, config paths and download dir.
+func ScopeToUnit(opts *options.TerragruntOptions, unit component.Component) {
+	_, runDownloadDir := util.DefaultWorkingAndDownloadDirs(opts.TerragruntConfigPath)
+
+	opts.WorkingDir = unit.Path()
+	opts.TerragruntConfigPath = filepath.Join(unit.Path(), unit.ConfigFile())
+	opts.OriginalTerragruntConfigPath = opts.TerragruntConfigPath
+
+	if opts.DownloadDir == "" || opts.DownloadDir == runDownloadDir {
+		_, opts.DownloadDir = util.DefaultWorkingAndDownloadDirs(opts.TerragruntConfigPath)
+	}
 }
 
 // DiscoveryCheckout returns how much of the repository the worktrees for

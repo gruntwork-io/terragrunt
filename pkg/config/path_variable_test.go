@@ -325,32 +325,6 @@ inputs = {
 func TestPathVariableModuleFollowsTheMergeStrategyOfAnExposedInclude(t *testing.T) {
 	t.Parallel()
 
-	const (
-		data = `
-locals {
-  label = "catalog"
-}
-
-dependency "vpc" {
-  config_path = "{{root}}/vpc"
-}
-
-download_dir = dependency.vpc.outputs.id
-`
-		unit = `
-include "data" {
-  path           = "{{root}}/data.hcl"
-  expose         = true
-  merge_strategy = "%s"
-}
-
-inputs = {
-  label  = include.data.locals.label
-  module = path.download
-}
-`
-	)
-
 	testCases := []struct {
 		name     string
 		strategy string
@@ -364,23 +338,7 @@ inputs = {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			root := venvtest.Root("/fixture")
-
-			result := resolveUnit(t, unitCase{
-				cfgPath: filepath.Join(root, "app", config.DefaultTerragruntConfigPath),
-				newFS: memFS(root, map[string]string{
-					"vpc/terragrunt.hcl": "",
-					"vpc/main.tf":        "",
-					"app/main.tf":        "",
-					"data.hcl":           data,
-					"app/terragrunt.hcl": fmt.Sprintf(unit, tc.strategy),
-				}),
-				configure: func(pctx *config.ParsingContext) {
-					pctx.OriginalTerragruntConfigPath = pctx.TerragruntConfigPath
-
-					require.NoError(t, pctx.Experiments.EnableExperiment(experiment.PathVariable))
-				},
-			})
+			result := resolveExposedIncludeModule(t, tc.strategy)
 
 			if tc.rejected {
 				var rejected config.ModuleDirReferencesDependencyError
@@ -396,6 +354,20 @@ inputs = {
 			assert.NotEmpty(t, result.cfg.Inputs["module"])
 		})
 	}
+}
+
+func TestPathVariableModuleReportsOnlyTheInvalidMergeStrategyOfAnExposedInclude(t *testing.T) {
+	t.Parallel()
+
+	result := resolveExposedIncludeModule(t, "bogus")
+
+	var invalid config.InvalidMergeStrategyTypeError
+
+	require.ErrorAs(t, result.runConfigErr, &invalid)
+
+	var rejected config.ModuleDirReferencesDependencyError
+
+	require.NotErrorAs(t, result.runConfigErr, &rejected)
 }
 
 func TestPathVariableModuleEvaluatesTheSourceWithTheIAMRoleOfTheUnit(t *testing.T) {
@@ -657,6 +629,28 @@ func TestPathVariableInStackFile(t *testing.T) {
 	}, values)
 }
 
+func TestPathVariableInStackConfigStringParsedWithTheContextOfAUnit(t *testing.T) {
+	t.Parallel()
+
+	root := venvtest.Root("/repo")
+	stackDir := filepath.Join(root, "live")
+
+	ctx, pctx := newPathParsingContext(t, filepath.Join(root, "app", config.DefaultTerragruntConfigPath))
+
+	stack, err := config.ReadStackConfigString(
+		ctx,
+		logger.CreateLogger(),
+		venv.MemVenv(),
+		new(config.Store),
+		pctx,
+		filepath.Join(stackDir, config.DefaultStackFile),
+		"locals {\n  dir = path.stack\n}\n\nunit \"app\" {\n  source = \"../units/app\"\n  path   = \"app\"\n}\n",
+	)
+	require.NoError(t, err)
+
+	assert.Equal(t, stackDir, stack.Locals["dir"])
+}
+
 func TestPathVariableInFileReadByStackFile(t *testing.T) {
 	t.Parallel()
 
@@ -675,6 +669,29 @@ func TestPathVariableInFileReadByStackFile(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, stackReadValues(stackDir), values)
+}
+
+func TestPathVariableInFileReadByStackFileDuringDiscovery(t *testing.T) {
+	t.Parallel()
+
+	v, root := pathFixture(t)
+	stackDir := filepath.Join(root, "stack-read", "live")
+
+	ctx, pctx := newPathParsingContext(t, filepath.Join(root, "live", "app", config.DefaultTerragruntConfigPath))
+
+	funcs, err := config.EarlyStackParseFunctions(ctx, logger.CreateLogger(), v, new(config.Store), pctx, stackDir)
+	require.NoError(t, err)
+
+	read, err := funcs["read_terragrunt_config"].Call([]cty.Value{cty.StringVal("read.hcl")})
+	require.NoError(t, err)
+
+	values, err := ctyhelper.ParseCtyValueToMap(read)
+	require.NoError(t, err)
+
+	locals, ok := values["locals"].(map[string]any)
+	require.True(t, ok)
+
+	assert.Equal(t, stackDir, locals["stack"])
 }
 
 func TestPathVariableInFileReadByStackFileThatUnitReads(t *testing.T) {
@@ -1050,7 +1067,10 @@ func TestPathVariableInStackFileEvalVariables(t *testing.T) {
 				require.NoError(t, pctx.Experiments.EnableExperiment(name))
 			}
 
-			vars, err := config.TerragruntEvalVariables(ctx, logger.CreateLogger(), pctx, stackPath, nil)
+			l, stackPctx, err := pctx.WithStackConfigPath(logger.CreateLogger(), stackPath)
+			require.NoError(t, err)
+
+			vars, err := config.TerragruntEvalVariables(ctx, l, stackPctx, stackPath, nil)
 			require.NoError(t, err)
 
 			assert.Equal(t, tc.want, vars)
@@ -1283,6 +1303,55 @@ func stackReadValues(stackDir string) map[string]any {
 		"dependent_stack": stackDir,
 		"dependent_base":  "mock",
 	}
+}
+
+// resolveExposedIncludeModule resolves a unit that reads path.download and exposes an include with strategy.
+func resolveExposedIncludeModule(t *testing.T, strategy string) unitResult {
+	t.Helper()
+
+	const (
+		data = `
+locals {
+  label = "catalog"
+}
+
+dependency "vpc" {
+  config_path = "{{root}}/vpc"
+}
+
+download_dir = dependency.vpc.outputs.id
+`
+		unit = `
+include "data" {
+  path           = "{{root}}/data.hcl"
+  expose         = true
+  merge_strategy = "%s"
+}
+
+inputs = {
+  label  = include.data.locals.label
+  module = path.download
+}
+`
+	)
+
+	root := venvtest.Root("/fixture")
+
+	return resolveUnit(t, unitCase{
+		cfgPath: filepath.Join(root, "app", config.DefaultTerragruntConfigPath),
+		newFS: memFS(root, map[string]string{
+			"vpc/terragrunt.hcl": "",
+			"vpc/main.tf":        "",
+			"app/main.tf":        "",
+			"data.hcl":           data,
+			"app/terragrunt.hcl": fmt.Sprintf(unit, strategy),
+		}),
+		configure: func(pctx *config.ParsingContext) {
+			pctx.OriginalTerragruntConfigPath = pctx.TerragruntConfigPath
+
+			require.NoError(t, pctx.Experiments.EnableExperiment(experiment.PathVariable))
+		},
+	})
 }
 
 // namesPathExperiment reports whether a diagnostic tells how to enable the path-variable experiment.

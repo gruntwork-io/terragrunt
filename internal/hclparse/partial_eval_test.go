@@ -163,16 +163,18 @@ func TestPartialEval(t *testing.T) {
 			contains: []string{`[for path in path.items : path]`},
 		},
 		{
-			name:     "for collection stays verbatim under a loop variable with the name path when no path is defined",
-			hcl:      `val = [for path in [try(path.stack, "none")] : "${path}-${dependency.vpc.outputs.id}"]`,
+			name:     "for collection reads a local under a loop variable with the name local",
+			hcl:      `val = [for local in [local.env] : "${local}-${dependency.vpc.outputs.id}"]`,
 			evalCtx:  buildEvalCtx(),
-			contains: []string{`for path in [try(path.stack, "none")] :`},
+			contains: []string{`for local in ["production"] :`, `"${local}-${dependency.vpc.outputs.id}"`},
+			excludes: []string{"local.env"},
 		},
 		{
-			name:     "for collection under a loop variable with the name of another root stays verbatim",
-			hcl:      `val = [for local in local.names : "${local}-${dependency.vpc.outputs.id}"]`,
+			name:     "for collection reads a local under a key variable with the name local",
+			hcl:      `val = {for local, v in local.names : local => "${v}-${dependency.vpc.outputs.id}"}`,
 			evalCtx:  buildEvalCtx(),
-			contains: []string{`for local in local.names :`, `"${local}-${dependency.vpc.outputs.id}"`},
+			contains: []string{`for local, v in ["a", "b"] :`, `local => "${v}-${dependency.vpc.outputs.id}"`},
+			excludes: []string{"local.names"},
 		},
 		{
 			name:     "binary op with deferred",
@@ -1203,6 +1205,21 @@ func TestPartialEval_ObjectKeyUndefinedReferenceFails(t *testing.T) {
 			require.ErrorAs(t, err, &unresolvedErr)
 		})
 	}
+}
+
+func TestPartialEval_ForCollectionWithUndefinedRootFails(t *testing.T) {
+	t.Parallel()
+
+	expr, srcBytes := parseFirstAttrExpr(t, `val = [for path in [path.stack] : "${path}-${dependency.vpc.outputs.id}"]`)
+
+	_, err := hclparse.PartialEval(
+		expr,
+		&hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: buildEvalCtx(), Deferred: testDeferred},
+	)
+
+	var unresolved hclparse.PartialEvalUnresolvedError
+
+	require.ErrorAs(t, err, &unresolved)
 }
 
 // TestPartialEval_TemplateDirectives pins that a %{ for }/%{ if } directive on the structural path is emitted verbatim as a unit (re-emitting it inside ${...} would corrupt the output) while the template's other parts still partially evaluate, and that a generate-time-knowable directive template resolves on the fast path.
