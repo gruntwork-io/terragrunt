@@ -7,4 +7,4 @@ category: "bug-fixes"
 
 With two graph filters that reach the same unit at different depths, such as `--filter 'web...1' --filter 'worker...'` where both `web` and `worker` depend on `db`, Terragrunt sometimes stopped at `db` and left out its dependencies. Which filter reached `db` first decided the result, so it could change between runs.
 
-Terragrunt now continues from a shared unit whenever a filter has depth left there, and the selection no longer depends on the order.
+Terragrunt now follows the dependencies of a shared unit whenever a filter has depth left there, so every run selects the same units.

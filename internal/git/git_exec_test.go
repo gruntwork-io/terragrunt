@@ -67,6 +67,40 @@ func TestExecGitRunner_LsRemote(t *testing.T) {
 	})
 }
 
+// TestExecGitRunner_OutsideRepoIgnoresEnclosingRepoConfig pins that a temp dir
+// inside a repository does not pick up that repository's config.
+func TestExecGitRunner_OutsideRepoIgnoresEnclosingRepoConfig(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	url := startCommittedServer(t)
+
+	repo := helpers.TmpDirWOSymlinks(t)
+
+	runner, err := git.NewGitRunner(venv.OSVenv())
+	require.NoError(t, err)
+
+	repoRunner := runner.WithWorkDir(repo)
+	require.NoError(t, repoRunner.Init(ctx))
+	require.NoError(t, repoRunner.ConfigSet(ctx, "url.file:///nonexistent/.insteadOf", url))
+
+	_, err = repoRunner.LsRemote(ctx, url, "HEAD")
+	require.ErrorIs(t, err, git.ErrGitCommand, "the enclosing repository's config must break ls-remote run inside it")
+
+	v := venv.OSVenv().WithTempDir(func() string { return repo })
+
+	isolated, cleanup, err := runner.OutsideRepo(v)
+	require.NoError(t, err)
+
+	results, err := isolated.LsRemote(ctx, url, "HEAD")
+	require.NoError(t, err)
+	require.NotEmpty(t, results)
+
+	require.NoError(t, cleanup())
+	assert.NoDirExists(t, isolated.WorkDir)
+}
+
 func TestExecGitRunner_Clone(t *testing.T) {
 	t.Parallel()
 

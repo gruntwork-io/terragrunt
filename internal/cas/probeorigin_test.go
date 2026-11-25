@@ -36,7 +36,8 @@ func TestProbeOriginStampedOnlyByFetchSource(t *testing.T) {
 	tracer := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder)).Tracer("cas_test")
 
 	stub := &lsRemoteStub{hash: stubHash}
-	v := stub.venv().WithFS(vfs.NewOSFS())
+	tempDir := t.TempDir()
+	v := stub.venv().WithFS(vfs.NewOSFS()).WithTempDir(func() string { return tempDir })
 	l := logger.CreateLogger()
 
 	c, err := cas.New(v, cas.WithStorePath(filepath.Join(helpers.TmpDirWOSymlinks(t), "store")))

@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
 
@@ -33,6 +34,35 @@ func TestGitResolver_ProbeHEAD(t *testing.T) {
 	got, err := r.Probe(t.Context(), redact.NewURL(url))
 	require.NoError(t, err)
 	assert.Equal(t, headHash, got, "Probe(HEAD) must return the canonical commit SHA verbatim")
+}
+
+// TestGitResolver_ProbeIgnoresWorkingDirRepoConfig pins that the probe does not
+// read the config of the repository Terragrunt runs in, as clone and fetch do
+// not.
+func TestGitResolver_ProbeIgnoresWorkingDirRepoConfig(t *testing.T) {
+	t.Parallel()
+
+	srv := newEmptyTestServer(t)
+	require.NoError(t, srv.CommitFile(t.Context(), "README.md", []byte("hi"), "init"))
+
+	headHash, err := srv.Head(t.Context())
+	require.NoError(t, err)
+
+	url, err := srv.Start(t.Context())
+	require.NoError(t, err)
+
+	repo := helpers.TmpDirWOSymlinks(t)
+
+	runner := newGitRunner(t).WithWorkDir(repo)
+	require.NoError(t, runner.Init(t.Context()))
+	require.NoError(t, runner.ConfigSet(t.Context(), "url.file:///nonexistent/.insteadOf", url))
+
+	v := venv.OSVenv().WithExec(workingDirExec{Exec: vexec.NewOSExec(), dir: repo})
+	r := &cas.GitResolver{Venv: v}
+
+	got, err := r.Probe(t.Context(), redact.NewURL(url))
+	require.NoError(t, err)
+	assert.Equal(t, headHash, got)
 }
 
 func TestGitResolver_ProbeBranch(t *testing.T) {
@@ -306,6 +336,21 @@ func newGitRunner(t *testing.T) *git.GitRunner {
 	require.NoError(t, err)
 
 	return r
+}
+
+// workingDirExec starts every command in dir unless the caller sets the
+// command's directory, as commands inherit the working directory of a process
+// running in dir.
+type workingDirExec struct {
+	vexec.Exec
+	dir string
+}
+
+func (e workingDirExec) Command(ctx context.Context, name string, args ...string) vexec.Cmd {
+	cmd := e.Exec.Command(ctx, name, args...)
+	cmd.SetDir(e.dir)
+
+	return cmd
 }
 
 // newStubGitExec returns a [vexec.Exec] whose invocations are served by

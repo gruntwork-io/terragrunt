@@ -3,12 +3,12 @@ version: "v1.2.3"
 category: "bug-fixes"
 ---
 
-#### `hcl validate --inputs` counts `-var` and `-var-file` values passed as separate arguments
+#### `hcl validate --inputs` reads `-var` and `-var-file` flags split across two arguments
 
-`hcl validate --inputs` reported a required input as missing when `extra_arguments` or the command line set it with the flag and its value as two arguments, such as `"-var", "region=us-east-1"` or `"-var-file", "common.tfvars"`.
+`hcl validate --inputs` reported a required input as missing when `extra_arguments` or the command line set it with the flag and its argument separate, such as `"-var", "region=us-east-1"` or `"-var-file", "common.tfvars"`.
 
-`hcl validate --inputs` now counts a `-var` or `-var-file` flag whose value is in the next argument, and the `--var` and `--var-file` spellings.
+`hcl validate --inputs` now reads the argument of a `-var` or `-var-file` flag from the next position, and also accepts the `--var` and `--var-file` spellings.
 
-A relative `-var-file` path now resolves against the directory OpenTofu runs in, as it does during a run. Running `hcl validate --inputs` from a parent directory no longer fails with `no such file or directory`.
+Run from a parent directory, `hcl validate --inputs` failed with `no such file or directory` on a relative `-var-file` path. The path now resolves against the directory OpenTofu/Terraform runs in, as it does during a run.
 
 A `-var` flag with no `NAME=VALUE`, or a trailing `-var` or `-var-file` with nothing after it, now fails validation, as it fails a run.

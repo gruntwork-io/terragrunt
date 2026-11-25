@@ -7,8 +7,6 @@ const (
 	testFixtureLocalDownloadPath                      = "fixtures/download/local"
 	testFixtureCustomLockFile                         = "fixtures/download/custom-lock-file"
 	testFixtureRemoteDownloadPath                     = "fixtures/download/remote"
-	testFixtureInvalidRemoteDownloadPath              = "fixtures/download/remote-invalid"
-	testFixtureInvalidRemoteDownloadPathWithRetries   = "fixtures/download/remote-invalid-with-retries"
 	testFixtureOverrideDownloadPath                   = "fixtures/download/override"
 	testFixtureLocalRelativeDownloadPath              = "fixtures/download/local-relative"
 	testFixtureRemoteRelativeDownloadPath             = "fixtures/download/remote-relative"

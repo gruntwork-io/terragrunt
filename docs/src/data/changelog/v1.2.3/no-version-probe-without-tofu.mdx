@@ -18,11 +18,10 @@ Every command ran `tofu -version` at startup to set up provider caching, includi
 - `info strict`
 - `stack clean`
 
-Each of those commands finishes sooner by the time `tofu -version` takes. On a tree of 100 units, with OpenTofu 1.13.2 on a Ryzen AI Max+ 395:
+They take up to 49% less time than in v1.2.2, measured at 100 units with OpenTofu 1.13.2 on an AMD Ryzen AI Max+ 395:
 
 | Command | Before | After |
 | --- | --- | --- |
 | `terragrunt find` | 43.0 ms | 21.6 ms |
 | `terragrunt list` | 37.5 ms | 20.6 ms |
 | `terragrunt hcl fmt --check` | 39.3 ms | 21.2 ms |
-| `terragrunt hcl validate` | 59.1 ms | 38.8 ms |

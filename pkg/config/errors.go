@@ -617,6 +617,26 @@ func (err CASSourceInsideStackError) Error() string {
 	)
 }
 
+// CASRewriteRequiredError is returned when the CAS fails to fetch a component that sets
+// update_source_with_cas. The standard getter would copy those sources unrewritten, and they
+// resolve only inside the component's own repository.
+type CASRewriteRequiredError struct {
+	Err       error
+	Component string
+}
+
+func (err CASRewriteRequiredError) Error() string {
+	return fmt.Sprintf(
+		"%s sets update_source_with_cas, which only the CAS can rewrite, and fetching it through the CAS failed: %v",
+		err.Component,
+		err.Err,
+	)
+}
+
+func (err CASRewriteRequiredError) Unwrap() error {
+	return err.Err
+}
+
 // TerragruntOutputListEncodingError reports outputs of a config's dependencies that could not be combined
 // into one cty value.
 type TerragruntOutputListEncodingError struct {

@@ -18,13 +18,6 @@ m = {
 Invalid 'for' expression; For expression requires variable name after 'for'.
 ```
 
-Terragrunt now writes the key as `"for"` in:
+Terragrunt now writes the key as `"for"` everywhere it writes HCL, e.g. the files written by `stack generate`, the output of `render --format hcl`, and the backend file generated from a `remote_state` block.
 
-- `terragrunt.values.hcl` and `terragrunt.autoinclude.hcl` files written by `terragrunt stack generate`, `terragrunt scaffold` and `terragrunt catalog`
-- the output of `terragrunt render --format hcl` and `terragrunt stack output`
-- the backend file generated from a `remote_state` block
-- attributes overridden by `terragrunt aws-provider-patch`
-
-`terragrunt.auto.tfvars`, written by the `variables-block` experiment, quoted every object key (`"team" = "platform"`). It now quotes only `for` and writes `team = "platform"`.
-
-`terragrunt stack generate` and `terragrunt hcl validate` now report a top-level `values` key that is not a valid identifier, e.g. `"a b"`, and point at the key in the stack file. `terragrunt stack generate` used to write a `terragrunt.values.hcl` file that could not be parsed.
+A top-level `values` key that is not a valid identifier, e.g. `"a b"`, made `stack generate` write a `terragrunt.values.hcl` file that could not be parsed. `stack generate` and `hcl validate` now report the key and point at it in the stack file.

@@ -9,7 +9,7 @@ A local in a `terragrunt.stack.hcl` file that reads an undefined local or is par
 
 Stack files now fail on such a local the way unit configuration files do:
 
-```
+```text
 Error: Can't evaluate expression
 
   on terragrunt.stack.hcl line 3, in locals:
@@ -18,4 +18,4 @@ Error: Can't evaluate expression
 The local "envv" could not be evaluated. It is either undefined, part of a reference cycle, or depends on a value that locals cannot reference.
 ```
 
-See [`locals`](/reference/hcl/blocks/locals).
+Fix the reference or remove the local. See [`locals`](/reference/hcl/blocks/locals).

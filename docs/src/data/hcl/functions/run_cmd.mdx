@@ -17,6 +17,8 @@ examples:
       }
 ---
 
+import StatefulTabs from '@components/StatefulTabs.astro';
+
 `run_cmd` runs a command and returns what it prints to stdout, without the final newline. Terragrunt also prints the output, unless you pass [`--terragrunt-quiet`](#options). A command that exits with a non-zero status is an error.
 
 The command runs in the unit's directory, even from an included file. In a file read with [`read_terragrunt_config`](/reference/hcl/functions/read_terragrunt_config), it runs in that file's directory, and in a stack file, in the stack file's directory.
@@ -59,6 +61,9 @@ A call with an argument that changes each time, such as `uuid()`, runs every tim
 
 For a command whose output doesn't depend on the directory, `--terragrunt-global-cache` runs it once for all units:
 
+<StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure', 'GCP']}>
+<Fragment slot="aws">
+
 ```hcl
 # terragrunt.hcl
 
@@ -70,6 +75,38 @@ locals {
   )
 }
 ```
+
+</Fragment>
+<Fragment slot="azure">
+
+```hcl
+# terragrunt.hcl
+
+locals {
+  subscription_id = run_cmd(
+    "--terragrunt-global-cache",
+    "az", "account", "show",
+    "--query", "id", "--output", "tsv",
+  )
+}
+```
+
+</Fragment>
+<Fragment slot="gcp">
+
+```hcl
+# terragrunt.hcl
+
+locals {
+  project_id = run_cmd(
+    "--terragrunt-global-cache",
+    "gcloud", "config", "get-value", "project",
+  )
+}
+```
+
+</Fragment>
+</StatefulTabs>
 
 For a command whose output changes, such as a timestamp or a token, `--terragrunt-no-cache` runs it on every call:
 

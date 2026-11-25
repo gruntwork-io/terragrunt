@@ -33,8 +33,8 @@ func RewriteTerraformSource(content []byte, newSource string) ([]byte, error) {
 	return nil, ErrNoTerraformBlock
 }
 
-// stackBlockInfo holds parsed information about a unit or stack block in a stack file.
-type stackBlockInfo struct {
+// StackBlockInfo holds parsed information about a unit or stack block in a stack file.
+type StackBlockInfo struct {
 	body                *hclwrite.Body
 	Name                string
 	Source              string
@@ -44,7 +44,7 @@ type stackBlockInfo struct {
 }
 
 // SetSource sets the block's source attribute in the file it was read from.
-func (b *stackBlockInfo) SetSource(source string) {
+func (b *StackBlockInfo) SetSource(source string) {
 	b.body.SetAttributeValue("source", cty.StringVal(source))
 }
 
@@ -58,7 +58,7 @@ func (b *stackBlockInfo) SetSource(source string) {
 //
 // The unit and stack blocks declared in a stack block's autoinclude bodies
 // are read too, after that stack block.
-func ReadStackBlocks(content []byte) (*hclwrite.File, []stackBlockInfo, error) {
+func ReadStackBlocks(content []byte) (*hclwrite.File, []StackBlockInfo, error) {
 	f, diags := hclwrite.ParseConfig(content, "terragrunt.stack.hcl", hcl.InitialPos)
 	if diags.HasErrors() {
 		return nil, nil, fmt.Errorf("failed to parse stack HCL: %s", diags.Error())
@@ -80,8 +80,8 @@ func readStackBlocks(
 	body *hclwrite.Body,
 	evalCtx *hcl.EvalContext,
 	stackPath []string,
-	blocks []stackBlockInfo,
-) ([]stackBlockInfo, error) {
+	blocks []StackBlockInfo,
+) ([]StackBlockInfo, error) {
 	for _, block := range body.Blocks() {
 		bt := block.Type()
 		if bt != "unit" && bt != "stack" {
@@ -93,7 +93,7 @@ func readStackBlocks(
 			continue
 		}
 
-		info := stackBlockInfo{
+		info := StackBlockInfo{
 			body:      block.Body(),
 			stackPath: stackPath,
 			Name:      labels[0],
@@ -159,7 +159,7 @@ func readStackBlocks(
 
 // sourceRange returns the range of the source value of b in content, the stack file b was read from,
 // with filename as the range's Filename.
-func (b *stackBlockInfo) sourceRange(content []byte, filename string) (hcl.Range, error) {
+func (b *StackBlockInfo) sourceRange(content []byte, filename string) (hcl.Range, error) {
 	file, diags := hclsyntax.ParseConfig(content, filename, hcl.InitialPos)
 	if diags.HasErrors() {
 		return hcl.Range{}, fmt.Errorf("failed to parse stack HCL: %s", diags.Error())
