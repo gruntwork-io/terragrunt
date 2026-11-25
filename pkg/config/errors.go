@@ -738,6 +738,20 @@ func (err ModuleDirReferencesDependencyError) Error() string {
 	)
 }
 
+// PathDownloadInLocalsError reports a local that reads `path.download`.
+type PathDownloadInLocalsError struct {
+	ConfigPath string
+	Local      string
+}
+
+func (err PathDownloadInLocalsError) Error() string {
+	return fmt.Sprintf(
+		"local %s in %s reads path.download, which is not available in locals; read path.download in inputs or in a hook of the terraform block",
+		err.Local,
+		err.ConfigPath,
+	)
+}
+
 // ExcludeReferencesDependencyError is returned when an `exclude` block references the `dependency` namespace.
 // Discovery evaluates exclude blocks to build the run queue before any dependency has run, so the reference can
 // never be satisfied there.

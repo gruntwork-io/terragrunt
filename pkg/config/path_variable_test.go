@@ -370,6 +370,58 @@ func TestPathVariableModuleReportsOnlyTheInvalidMergeStrategyOfAnExposedInclude(
 	require.NotErrorAs(t, result.runConfigErr, &rejected)
 }
 
+func TestPathVariableDownloadIsRejectedInLocals(t *testing.T) {
+	t.Parallel()
+
+	const included = `
+locals {
+  module = path.download
+}
+`
+
+	testCases := []struct {
+		name  string
+		unit  string
+		local string
+	}{
+		{name: "direct reference", unit: "locals {\n  b = path.download\n  a = path.download\n}\n", local: "a"},
+		{name: "reference in try", unit: "locals {\n  dir = try(path.download, \"none\")\n}\n", local: "dir"},
+		{name: "index reference", unit: "locals {\n  dir = path[\"download\"]\n}\n", local: "dir"},
+		{
+			name:  "reference in an included file",
+			unit:  "include \"root\" {\n  path = \"{{root}}/root.hcl\"\n}\n",
+			local: "module",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := venvtest.Root("/fixture")
+
+			result := resolveUnit(t, unitCase{
+				cfgPath: filepath.Join(root, "app", config.DefaultTerragruntConfigPath),
+				newFS: memFS(root, map[string]string{
+					"app/main.tf":        "",
+					"root.hcl":           included,
+					"app/terragrunt.hcl": tc.unit,
+				}),
+				configure: func(pctx *config.ParsingContext) {
+					pctx.OriginalTerragruntConfigPath = pctx.TerragruntConfigPath
+
+					require.NoError(t, pctx.Experiments.EnableExperiment(experiment.PathVariable))
+				},
+			})
+
+			var rejected config.PathDownloadInLocalsError
+
+			require.ErrorAs(t, result.runConfigErr, &rejected)
+			assert.Equal(t, tc.local, rejected.Local)
+		})
+	}
+}
+
 func TestPathVariableModuleEvaluatesTheSourceWithTheIAMRoleOfTheUnit(t *testing.T) {
 	t.Parallel()
 
@@ -1158,7 +1210,7 @@ func TestPathVariableErrorNamesTheExperimentWhenDisabled(t *testing.T) {
 		name   string
 		config string
 	}{
-		{name: "locals", config: filepath.Join("module", "local", config.DefaultTerragruntConfigPath)},
+		{name: "no source", config: filepath.Join("module", "local", config.DefaultTerragruntConfigPath)},
 		{name: "inputs", config: filepath.Join("module", "remote", config.DefaultTerragruntConfigPath)},
 		{name: "values file", config: filepath.Join("values", "app", config.DefaultTerragruntConfigPath)},
 		{name: "JSON config", config: filepath.Join("live", "json", config.DefaultTerragruntJSONConfigPath)},

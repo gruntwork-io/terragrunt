@@ -61,6 +61,10 @@ func PathVariable(
 		return nil, nil
 	}
 
+	if local := localReadingPathDownload(file); local != "" {
+		return nil, PathDownloadInLocalsError{ConfigPath: file.ConfigPath, Local: local}
+	}
+
 	attrs := basePathAttributes(pctx, include)
 	refs := filePathReferences(file)
 
@@ -259,6 +263,40 @@ func filePathReferences(file *hclparse.File) pathReferences {
 	refs.whole = refs.whole || diags.HasErrors()
 
 	return refs
+}
+
+// localReadingPathDownload returns the first name of the locals of file that read `path.download`, or "".
+func localReadingPathDownload(file *hclparse.File) string {
+	blocks, err := file.Blocks(MetadataLocals, false)
+	if err != nil || len(blocks) == 0 {
+		return ""
+	}
+
+	attrs, err := blocks[0].JustAttributes()
+	if err != nil {
+		return ""
+	}
+
+	var names []string
+
+	for _, attr := range attrs {
+		if slices.ContainsFunc(attr.Expr.Variables(), readsPathDownload) {
+			names = append(names, attr.Name)
+		}
+	}
+
+	if len(names) == 0 {
+		return ""
+	}
+
+	return slices.Min(names)
+}
+
+// readsPathDownload reports whether traversal reads `path.download`.
+func readsPathDownload(traversal hcl.Traversal) bool {
+	name, _ := pathAttributeName(traversal)
+
+	return traversal.RootName() == MetadataPath && name == pathAttrDownload
 }
 
 // basePathAttributes returns the `path` attributes that need no parse and no filesystem probe.

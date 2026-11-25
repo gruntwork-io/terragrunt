@@ -30,6 +30,6 @@ import { Aside } from '@astrojs/starlight/components';
 
 Terragrunt resolves `path.download` before it reads the outputs of a `dependency`. A unit that references `path.download` returns an error when its `download_dir` or its `terraform.no_dot_terragrunt_cache` references a `dependency` output.
 
-Terragrunt evaluates the `locals` of a unit more than one time. In an early evaluation, `path.download` can be an empty string, or a directory that the run does not use, e.g. in `run --all` or with `--source`. A `run_cmd` call in `locals` that receives `path.download` also runs with those values, so do not build the path of a destructive command from it. An expression in `locals` that fails for an empty string, e.g. `regex("[^/]+$", path.download)`, fails the unit. Wrap it in `try`, or move it to `inputs`.
+A `locals` block cannot read `path.download`, because Terragrunt evaluates `locals` before it resolves the directory. A reference there returns an error. Read `path.download` in `inputs`, or in a hook of the `terraform` block.
 
 With `--all` and `--source`, `render` does not add the module path of each unit to the source, so its `path.download` is not the directory that `run --all` uses.

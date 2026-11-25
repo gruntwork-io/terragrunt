@@ -1,9 +1,5 @@
-locals {
-  module = path.download
-}
-
 inputs = {
-  module      = local.module
+  module      = path.download
   working_dir = get_working_dir()
   whole       = path
 }
