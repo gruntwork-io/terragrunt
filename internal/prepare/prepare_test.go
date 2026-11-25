@@ -7,8 +7,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gruntwork-io/terragrunt/internal/codegen"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
+	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -62,7 +64,7 @@ func TestPrepareSourceInPlaceKeepsWorkingDir(t *testing.T) {
 
 	opts.WorkingDir = unitDir
 
-	updatedOpts := prepareSourceInPlace(t, fsys, opts)
+	updatedOpts := prepareSourceInPlace(t, fsys, opts, new(config.TerragruntConfig))
 
 	assert.Equal(t, unitDir, updatedOpts.WorkingDir)
 	assert.NotSame(t, opts, updatedOpts)
@@ -82,9 +84,58 @@ func TestPrepareSourceInPlaceKeepsConfigDirWithTFFiles(t *testing.T) {
 
 	opts.WorkingDir = root
 
-	updatedOpts := prepareSourceInPlace(t, fsys, opts)
+	updatedOpts := prepareSourceInPlace(t, fsys, opts, new(config.TerragruntConfig))
 
 	assert.Equal(t, unitDir, updatedOpts.WorkingDir)
+}
+
+func TestPrepareSourceInPlaceKeepsConfigDirThatGeneratesCode(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		cfg  *config.TerragruntConfig
+		name string
+	}{
+		{
+			name: "generate block",
+			cfg: &config.TerragruntConfig{
+				GenerateConfigs: map[string]codegen.GenerateConfig{"main": {Path: "main.tf"}},
+			},
+		},
+		{
+			name: "remote_state generate",
+			cfg: &config.TerragruntConfig{
+				RemoteState: remotestate.New(&remotestate.Config{
+					BackendName: "local",
+					Generate:    &remotestate.ConfigGenerate{Path: "backend.tf"},
+				}),
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := t.TempDir()
+			unitDir := filepath.Join(root, "unit")
+			configDir := filepath.Join(root, "configs")
+			configPath := filepath.Join(configDir, config.DefaultTerragruntConfigPath)
+
+			fsys := vfs.NewMemMapFS()
+			require.NoError(t, vfs.WriteFile(fsys, configPath, []byte(""), 0o644))
+			require.NoError(t, vfs.WriteFile(fsys, filepath.Join(unitDir, "main.tf"), []byte(""), 0o644))
+
+			opts, err := options.NewTerragruntOptionsWithConfigPath(configPath)
+			require.NoError(t, err)
+
+			opts.WorkingDir = unitDir
+
+			updatedOpts := prepareSourceInPlace(t, fsys, opts, tc.cfg)
+
+			assert.Equal(t, configDir, updatedOpts.WorkingDir)
+		})
+	}
 }
 
 func TestPrepareSourceInPlaceReturnsAbsoluteConfigPath(t *testing.T) {
@@ -101,17 +152,22 @@ func TestPrepareSourceInPlaceReturnsAbsoluteConfigPath(t *testing.T) {
 
 	opts.TerragruntConfigPath = config.DefaultTerragruntConfigPath
 
-	updatedOpts := prepareSourceInPlace(t, fsys, opts)
+	updatedOpts := prepareSourceInPlace(t, fsys, opts, new(config.TerragruntConfig))
 
 	assert.Equal(t, configPath, updatedOpts.TerragruntConfigPath)
 }
 
-func prepareSourceInPlace(t *testing.T, fsys vfs.FS, opts *options.TerragruntOptions) *options.TerragruntOptions {
+func prepareSourceInPlace(
+	t *testing.T,
+	fsys vfs.FS,
+	opts *options.TerragruntOptions,
+	cfg *config.TerragruntConfig,
+) *options.TerragruntOptions {
 	t.Helper()
 
 	require.NoError(t, opts.Experiments.EnableExperiment(experiment.NoDotTerragruntCache))
 
-	cfg := &config.TerragruntConfig{Terraform: &config.TerraformConfig{NoDotTerragruntCache: new(true)}}
+	cfg.Terraform = &config.TerraformConfig{NoDotTerragruntCache: new(true)}
 
 	updatedOpts, _, err := prepare.PrepareSource(
 		run.WithRunVersionCache(t.Context()),

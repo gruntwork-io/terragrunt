@@ -177,7 +177,7 @@ func PrepareSource(
 			return nil, impl, err
 		}
 
-		configDirHasCode, err := util.DirContainsTFFiles(v.FS, updatedTerragruntOptions.WorkingDir)
+		configDirHasCode, err := configDirGetsCode(v, updatedTerragruntOptions.WorkingDir, runCfg)
 		if err != nil {
 			return nil, impl, err
 		}
@@ -291,4 +291,16 @@ func PrepareInit(
 		cfg,
 		r,
 	)
+}
+
+func configDirGetsCode(v *venv.Venv, configDir string, cfg *runcfg.RunConfig) (bool, error) {
+	if len(cfg.GenerateConfigs) > 0 {
+		return true, nil
+	}
+
+	if cfg.RemoteState.Config != nil && cfg.RemoteState.Generate != nil {
+		return true, nil
+	}
+
+	return util.DirContainsTFFiles(v.FS, configDir)
 }
