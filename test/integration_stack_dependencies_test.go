@@ -388,7 +388,10 @@ func TestStackDepsDAGExpandsStackToUnits(t *testing.T) {
 		ctx,
 		vfs.NewOSFS(),
 		stackDir,
-		&inthclparse.StackDirArgs{FuncsFor: stackDepsFuncsFor(ctx, l, v, pctx)},
+		&inthclparse.StackDirArgs{
+			FuncsFor: stackDepsFuncsFor(ctx, l, v, pctx),
+			VarsFor:  configbridge.StackVarFactory(ctx, l, pctx),
+		},
 	)
 	require.NoError(t, err)
 	require.Len(t, unitPaths, 2, "networking stack should expand to 2 unit paths")
@@ -434,7 +437,10 @@ func TestStackDepsUnitPathsFromNestedOnlyStack(t *testing.T) {
 		ctx,
 		vfs.NewOSFS(),
 		root,
-		&inthclparse.StackDirArgs{FuncsFor: stackDepsFuncsFor(ctx, l, v, pctx)},
+		&inthclparse.StackDirArgs{
+			FuncsFor: stackDepsFuncsFor(ctx, l, v, pctx),
+			VarsFor:  configbridge.StackVarFactory(ctx, l, pctx),
+		},
 	)
 	require.NoError(t, err)
 
@@ -463,7 +469,10 @@ func TestStackDepsUnitPathsFromMissingStackFile(t *testing.T) {
 		ctx,
 		vfs.NewOSFS(),
 		root,
-		&inthclparse.StackDirArgs{FuncsFor: stackDepsFuncsFor(ctx, l, v, pctx)},
+		&inthclparse.StackDirArgs{
+			FuncsFor: stackDepsFuncsFor(ctx, l, v, pctx),
+			VarsFor:  configbridge.StackVarFactory(ctx, l, pctx),
+		},
 	)
 	require.NoError(t, err)
 	assert.Empty(t, unitPaths, "a directory without a stack file expands to no unit paths")

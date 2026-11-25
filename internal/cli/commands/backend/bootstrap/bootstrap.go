@@ -4,7 +4,6 @@ package bootstrap
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 
 	"errors"
 
@@ -75,10 +74,7 @@ func runAll(
 
 			for _, unit := range units {
 				unitOpts := opts.Clone()
-				unitOpts.WorkingDir = unit.Path()
-
-				unitOpts.TerragruntConfigPath = filepath.Join(unit.Path(), unit.ConfigFile())
-				unitOpts.OriginalTerragruntConfigPath = unitOpts.TerragruntConfigPath
+				discoverysetup.ScopeToUnit(unitOpts, unit)
 
 				// Parsing can write obtained credentials into the env, so each
 				// unit gets its own clone to keep them from leaking to siblings.

@@ -12,6 +12,7 @@ import (
 
 	"errors"
 
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/topo"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -111,7 +112,7 @@ func evaluateLocals(
 				continue
 			}
 
-			diags := canEvaluateLocals(attr.Expr, evaluatedLocals)
+			diags := canEvaluateLocals(attr.Expr, evaluatedLocals, localsRootsFor(pctx))
 			if err := file.HandleDiagnostics(diags); err != nil {
 				errs = append(errs, err)
 			}
@@ -146,7 +147,7 @@ func evaluateLocalsInOrder(
 	attrs hclparse.Attributes,
 	evalVars func() (map[string]cty.Value, error),
 ) (map[string]cty.Value, error) {
-	graph, byName := localsGraph(attrs)
+	graph, byName := localsGraph(attrs, localsRootsFor(pctx))
 	ready := graph.Roots()
 	evaluatedLocals := make(map[string]cty.Value, len(attrs))
 
@@ -239,7 +240,10 @@ func readsVariable(attrs hclparse.Attributes, name string) bool {
 // localsGraph returns a graph over the names of attrs, in which each local waits on the locals it references, along
 // with attrs indexed by name. A local that can never be evaluated is left out of the graph, so neither it nor any
 // local waiting on it becomes ready.
-func localsGraph(attrs hclparse.Attributes) (*topo.Graph[string], map[string]*hclparse.Attribute) {
+func localsGraph(
+	attrs hclparse.Attributes,
+	roots []string,
+) (*topo.Graph[string], map[string]*hclparse.Attribute) {
 	byName := make(map[string]*hclparse.Attribute, len(attrs))
 	for _, attr := range attrs {
 		byName[attr.Name] = attr
@@ -248,7 +252,7 @@ func localsGraph(attrs hclparse.Attributes) (*topo.Graph[string], map[string]*hc
 	graph := topo.New[string](len(attrs))
 
 	for _, attr := range attrs {
-		deps, ok := localDependencies(attr.Expr, byName)
+		deps, ok := localDependencies(attr.Expr, byName, roots)
 		if !ok {
 			continue
 		}
@@ -266,11 +270,12 @@ func localsGraph(attrs hclparse.Attributes) (*topo.Graph[string], map[string]*hc
 func localDependencies(
 	expression hcl.Expression,
 	attrs map[string]*hclparse.Attribute,
+	roots []string,
 ) (map[string]struct{}, bool) {
 	var deps map[string]struct{}
 
 	for _, localVar := range expression.Variables() {
-		localName, detail := localReference(localVar)
+		localName, detail := localReference(localVar, roots)
 		if detail != "" {
 			return nil, false
 		}
@@ -302,11 +307,12 @@ func localDependencies(
 func canEvaluateLocals(
 	expression hcl.Expression,
 	evaluatedLocals map[string]cty.Value,
+	roots []string,
 ) hcl.Diagnostics {
 	var diags hcl.Diagnostics
 
 	for _, localVar := range expression.Variables() {
-		localName, detail := localReference(localVar)
+		localName, detail := localReference(localVar, roots)
 
 		if _, hasEvaluated := evaluatedLocals[localName]; detail == "" && localName != "" && !hasEvaluated {
 			detail = fmt.Sprintf(
@@ -332,18 +338,33 @@ func canEvaluateLocals(
 // localsRoots lists the variables a locals block can reference.
 var localsRoots = []string{MetadataLocal, MetadataInclude, MetadataFeatureFlag, MetadataValues}
 
+// localsRootsFor returns the variables a locals block parsed with pctx can reference.
+func localsRootsFor(pctx *ParsingContext) []string {
+	if pctx.Experiments.Evaluate(experiment.PathVariable) {
+		return append(slices.Clone(localsRoots), MetadataPath)
+	}
+
+	return localsRoots
+}
+
 // localReference classifies a variable referenced from a locals block. It returns the name of the local the reference
 // reads, or an empty name when the reference reads a variable locals can see without other locals. The detail is
 // non-empty when a locals block can never resolve the reference, and says why.
-func localReference(localVar hcl.Traversal) (localName, detail string) {
+func localReference(localVar hcl.Traversal, roots []string) (localName, detail string) {
 	rootName := localVar.RootName()
 
-	if !slices.Contains(localsRoots, rootName) {
-		return "", fmt.Sprintf(
+	if !slices.Contains(roots, rootName) {
+		detail := fmt.Sprintf(
 			"Locals can only reference these variables: %s. This expression references %q.",
-			strings.Join(localsRoots, ", "),
+			strings.Join(roots, ", "),
 			rootName,
 		)
+
+		if rootName == MetadataPath {
+			detail += pathExperimentHint
+		}
+
+		return "", detail
 	}
 
 	if rootName != MetadataLocal {

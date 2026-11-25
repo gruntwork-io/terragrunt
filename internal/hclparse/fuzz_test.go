@@ -458,7 +458,7 @@ func FuzzUnitPathsFromStackDir_ArgPanics(f *testing.F) {
 			t.Context(),
 			fs,
 			stackDir,
-			&hclparse.StackDirArgs{FuncsFor: noFuncs},
+			&hclparse.StackDirArgs{FuncsFor: noFuncs, VarsFor: noVars},
 		)
 	})
 }
@@ -616,7 +616,7 @@ func FuzzUnitPathsFromStackDir_AutoIncludeContent(f *testing.F) {
 			t.Context(),
 			fs,
 			"/fuzz",
-			&hclparse.StackDirArgs{FuncsFor: noFuncs},
+			&hclparse.StackDirArgs{FuncsFor: noFuncs, VarsFor: noVars},
 		)
 	})
 }

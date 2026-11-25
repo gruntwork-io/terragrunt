@@ -122,20 +122,8 @@ func partialEvalByType(expr hclsyntax.Expression, args *EvalArgs) ([]byte, error
 		return partialEvalChildren(args, e.Range(), []hclsyntax.Expression{e.Collection, e.Key})
 	case *hclsyntax.RelativeTraversalExpr:
 		return partialEvalChildren(args, e.Range(), []hclsyntax.Expression{e.Source})
-	// For defers the loop variables so a stack local in the body resolves while the loop var stays verbatim; the collection has no loop vars so the shared deferred set is safe.
 	case *hclsyntax.ForExpr:
-		saved := args.Deferred
-		args.Deferred = maps.Clone(saved)
-		args.Deferred[e.KeyVar] = struct{}{}
-		args.Deferred[e.ValVar] = struct{}{}
-
-		defer func() { args.Deferred = saved }()
-
-		return partialEvalChildren(
-			args,
-			e.Range(),
-			[]hclsyntax.Expression{e.CollExpr, e.KeyExpr, e.ValExpr, e.CondExpr},
-		)
+		return partialEvalFor(e, args)
 	// Splat renders only the source; its body runs against the anonymous iterator which cannot be deferred by name, so it stays verbatim.
 	case *hclsyntax.SplatExpr:
 		return partialEvalChildren(args, e.Range(), []hclsyntax.Expression{e.Source})
@@ -143,6 +131,37 @@ func partialEvalByType(expr hclsyntax.Expression, args *EvalArgs) ([]byte, error
 
 	// Any remaining type emits verbatim source bytes; the generated HCL keeps valid original text evaluated at runtime.
 	return RangeBytes(args.SrcBytes, expr.Range()), nil
+}
+
+// partialEvalFor defers the loop variables in the body of e, and renders its collection without them.
+func partialEvalFor(e *hclsyntax.ForExpr, args *EvalArgs) ([]byte, error) {
+	collEnd := e.CollExpr.Range().End
+
+	prefix, prefixErr := partialEvalChildren(
+		args,
+		hcl.Range{Start: e.Range().Start, End: collEnd},
+		[]hclsyntax.Expression{e.CollExpr},
+	)
+
+	outer := args.Deferred
+
+	defer func() { args.Deferred = outer }()
+
+	args.Deferred = maps.Clone(outer)
+	args.Deferred[e.KeyVar] = struct{}{}
+	args.Deferred[e.ValVar] = struct{}{}
+
+	suffix, suffixErr := partialEvalChildren(
+		args,
+		hcl.Range{Start: collEnd, End: e.Range().End},
+		[]hclsyntax.Expression{e.KeyExpr, e.ValExpr, e.CondExpr},
+	)
+
+	if prefixErr != nil {
+		return append(prefix, suffix...), prefixErr
+	}
+
+	return append(prefix, suffix...), suffixErr
 }
 
 func partialEvalTraversal(e *hclsyntax.ScopeTraversalExpr, args *EvalArgs) ([]byte, error) {

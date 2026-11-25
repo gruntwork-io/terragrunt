@@ -1,0 +1,13 @@
+{
+  "terraform": {
+    "no_dot_terragrunt_cache": "${try(dependency.local.outputs.in_place, false)}"
+  },
+  "dependency": {
+    "local": {
+      "config_path": "../../local"
+    }
+  },
+  "inputs": {
+    "module": "${path.download}"
+  }
+}

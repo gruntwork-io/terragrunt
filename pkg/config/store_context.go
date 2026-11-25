@@ -101,6 +101,7 @@ func (ctx *ParsingContext) withFile(file *ParsingContext) *ParsingContext {
 	c.include = file.include
 	c.includes = file.includes
 	c.Values = file.Values
+	c.Path = file.Path
 	c.Features = file.Features
 	c.Locals = file.Locals
 	c.DecodedDependencies = file.DecodedDependencies
@@ -141,6 +142,14 @@ func (ctx *ParsingContext) withBaseBlocks(baseBlocks *DecodedBaseBlocks) *Parsin
 func (ctx *ParsingContext) withUnitValues(values *cty.Value) *ParsingContext {
 	c := ctx.derive()
 	c.Values = values
+
+	return c
+}
+
+// withPath returns a copy of ctx with the file's `path` value.
+func (ctx *ParsingContext) withPath(path *cty.Value) *ParsingContext {
+	c := ctx.derive()
+	c.Path = path
 
 	return c
 }

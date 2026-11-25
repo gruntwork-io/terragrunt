@@ -95,13 +95,12 @@ func WithHaltOnErrorOnlyForBlocks(blockNames []string) Option {
 func WithDiagnosticsHandler(
 	fn func(file *hcl.File, diags hcl.Diagnostics) (hcl.Diagnostics, error),
 ) Option {
+	handler := func(file *File, diags hcl.Diagnostics) (hcl.Diagnostics, error) {
+		return fn(file.File, diags)
+	}
+
 	return func(parser *Parser) *Parser {
-		parser.handleDiagnosticsFunc = appendHandleDiagnosticsFunc(
-			parser.handleDiagnosticsFunc,
-			func(file *File, diags hcl.Diagnostics) (hcl.Diagnostics, error) {
-				return fn(file.File, diags)
-			},
-		)
+		parser.handleDiagnosticsFunc = appendHandleDiagnosticsFunc(parser.handleDiagnosticsFunc, handler)
 
 		return parser
 	}
@@ -110,13 +109,14 @@ func WithDiagnosticsHandler(
 func appendHandleDiagnosticsFunc(
 	prev, next func(*File, hcl.Diagnostics) (hcl.Diagnostics, error),
 ) func(*File, hcl.Diagnostics) (hcl.Diagnostics, error) {
-	return func(file *File, diags hcl.Diagnostics) (hcl.Diagnostics, error) {
-		var err error
+	if prev == nil {
+		return next
+	}
 
-		if prev != nil {
-			if diags, err = prev(file, diags); err != nil {
-				return diags, err
-			}
+	return func(file *File, diags hcl.Diagnostics) (hcl.Diagnostics, error) {
+		diags, err := prev(file, diags)
+		if err != nil {
+			return diags, err
 		}
 
 		return next(file, diags)

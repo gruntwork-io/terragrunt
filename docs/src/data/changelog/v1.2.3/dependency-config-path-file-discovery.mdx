@@ -1,0 +1,18 @@
+---
+version: "v1.2.3"
+category: "bug-fixes"
+---
+
+#### `run --all` and `find` read a `dependency` whose `config_path` names a file
+
+A `dependency` block whose `config_path` names a configuration file, e.g. `../shared/another-name.hcl`, made `run --all`, `find --dependencies`, `dag graph`, and graph filters fail when the directory had no `terragrunt.hcl`:
+
+```text
+You attempted to run terragrunt in a folder that does not contain a terragrunt.hcl file. Please add a terragrunt.hcl file and try again.
+```
+
+When the directory did have a `terragrunt.hcl`, those commands read it in place of the named file.
+
+They now read the named file, and resolve the relative dependency paths in it from its directory.
+
+Setting `config_path` to a file is deprecated. See the [`dependency-config-path-file`](/reference/strict-controls/active#dependency-config-path-file) strict control.

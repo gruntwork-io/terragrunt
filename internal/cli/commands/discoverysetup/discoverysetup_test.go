@@ -6,8 +6,10 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/discoverysetup"
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -180,6 +182,48 @@ func TestDiscoveryCheckout(t *testing.T) {
 			require.NoError(t, err)
 
 			assert.Equal(t, tc.want, discoverysetup.DiscoveryCheckout(d, filters))
+		})
+	}
+}
+
+func TestScopeToUnit(t *testing.T) {
+	t.Parallel()
+
+	root := venvtest.Root("/live")
+	runConfig := filepath.Join(root, config.DefaultTerragruntConfigPath)
+	unitDir := filepath.Join(root, "app")
+	unitConfig := filepath.Join(unitDir, config.DefaultTerragruntConfigPath)
+	custom := filepath.Join(root, "custom-cache")
+
+	_, runDownloadDir := util.DefaultWorkingAndDownloadDirs(runConfig)
+	_, unitDownloadDir := util.DefaultWorkingAndDownloadDirs(unitConfig)
+
+	testCases := []struct {
+		name        string
+		downloadDir string
+		want        string
+	}{
+		{name: "default download dir of the run", downloadDir: runDownloadDir, want: unitDownloadDir},
+		{name: "no download dir", downloadDir: "", want: unitDownloadDir},
+		{name: "custom download dir", downloadDir: custom, want: custom},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			opts := options.NewTerragruntOptions()
+			opts.WorkingDir = root
+			opts.TerragruntConfigPath = runConfig
+			opts.OriginalTerragruntConfigPath = runConfig
+			opts.DownloadDir = tc.downloadDir
+
+			discoverysetup.ScopeToUnit(opts, component.NewUnit(unitDir))
+
+			assert.Equal(t, unitDir, opts.WorkingDir)
+			assert.Equal(t, unitConfig, opts.TerragruntConfigPath)
+			assert.Equal(t, unitConfig, opts.OriginalTerragruntConfigPath)
+			assert.Equal(t, tc.want, opts.DownloadDir)
 		})
 	}
 }

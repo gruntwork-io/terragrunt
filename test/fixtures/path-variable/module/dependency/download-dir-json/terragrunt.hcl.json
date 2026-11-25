@@ -1,0 +1,11 @@
+{
+  "dependency": {
+    "local": {
+      "config_path": "../../local"
+    }
+  },
+  "download_dir": "${try(dependency.local.outputs.module, \"/abs/path\")}",
+  "inputs": {
+    "module": "${path.download}"
+  }
+}
