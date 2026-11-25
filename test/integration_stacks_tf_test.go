@@ -671,6 +671,46 @@ func TestTFNestedStackOutput(t *testing.T) {
 	assert.Equal(t, "web prod-web 1.0.0", prodOutputs["prod-web"].(map[string]any)["data"])
 }
 
+// TestTFNestedStackLogMinimalPrefix checks `%prefix(path=minimal)` on a nested
+// stack: units with a unique name print only that name, and the two `db` units
+// add parent directories, `.terragrunt-stack` included, until they differ.
+func TestTFNestedStackLogMinimalPrefix(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureNestedStackMinimalPrefix)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNestedStackMinimalPrefix)
+	gitPath := filepath.Join(tmpEnvPath, testFixtureNestedStackMinimalPrefix)
+
+	runner, err := git.NewGitRunner(venv.OSVenv())
+	require.NoError(t, err)
+
+	require.NoError(t, runner.WithWorkDir(gitPath).Init(t.Context()))
+
+	rootPath := filepath.Join(gitPath, "live")
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		fmt.Sprintf(
+			"terragrunt run --all init --non-interactive --no-color --experiment log-format-options --log-custom-format=%q --working-dir %s",
+			"%prefix(path=minimal,suffix=': ')%msg",
+			rootPath,
+		),
+	)
+	require.NoError(t, err)
+
+	for _, label := range []string{
+		"vpc",
+		"api",
+		filepath.Join("app-a", ".terragrunt-stack", "db"),
+		filepath.Join("app-b", ".terragrunt-stack", "db"),
+	} {
+		assert.Regexp(t, `(?m)^`+regexp.QuoteMeta(label)+`: `, stderr)
+	}
+
+	assert.NotRegexp(t, `(?m)^db: `, stderr, "units sharing a name must not print the bare name")
+	assert.NotRegexp(t, `(?m)^\.terragrunt-stack`, stderr, "the path above the label must not be printed")
+}
+
 func TestTFNestedStacksApply(t *testing.T) {
 	t.Parallel()
 

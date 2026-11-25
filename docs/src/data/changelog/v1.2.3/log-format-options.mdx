@@ -1,0 +1,14 @@
+---
+version: "v1.2.3"
+category: "experiments-added"
+---
+
+#### `log-format-options` experiment adds a `minimal` path mode to the `%prefix` log placeholder
+
+Enable the [`log-format-options`](/reference/experiments/active#log-format-options) experiment and set the `path` option of [`%prefix`](/reference/logging/formatting#options) to `minimal`. It shows only the last element of the unit path and hides the working directory, like `short-relative` does. This keeps the prefix short for units nested deep inside generated stacks:
+
+```bash
+terragrunt run --all plan --experiment log-format-options --log-custom-format "%time %level %prefix(path=minimal) %msg"
+```
+
+When several units in a run share a last element, Terragrunt adds parent directories until each label is unique, e.g. `app-a/.terragrunt-stack/db` and `app-b/.terragrunt-stack/db`. `.terragrunt-stack` counts as a normal path element. Using `path=minimal` without the experiment enabled returns an error.

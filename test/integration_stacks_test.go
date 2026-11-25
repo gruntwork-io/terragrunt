@@ -45,6 +45,7 @@ const (
 	testFixtureNoStack                         = "fixtures/stacks/no-stack"
 	testFixtureNestedStacks                    = "fixtures/stacks/nested"
 	testFixtureNestedStackFilter               = "fixtures/stacks/nested-stack-filter"
+	testFixtureNestedStackMinimalPrefix        = "fixtures/stacks/nested-minimal-prefix"
 	testFixtureStackValues                     = "fixtures/stacks/stack-values"
 	testFixtureStackDependencies               = "fixtures/stacks/dependencies"
 	testFixtureStackSourceMap                  = "fixtures/stacks/source-map"
@@ -1368,4 +1369,23 @@ func readCachedFiles(t *testing.T, root, fileName string) []string {
 	}))
 
 	return contents
+}
+
+// TestNestedStackLogMinimalPrefixRequiresExperiment checks the CLI rejects
+// `path=minimal` without the log-format-options experiment.
+func TestNestedStackLogMinimalPrefixRequiresExperiment(t *testing.T) {
+	t.Parallel()
+
+	// The flag check fails before discovery. The empty working dir keeps a
+	// regressed check from running `init` anywhere that matters.
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		fmt.Sprintf(
+			"terragrunt run --all init --non-interactive --log-custom-format=%q --working-dir %s",
+			"%prefix(path=minimal) %msg",
+			t.TempDir(),
+		),
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "log-format-options")
 }

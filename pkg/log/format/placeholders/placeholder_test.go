@@ -81,9 +81,19 @@ func TestParse(t *testing.T) {
 			expectCount: 1,
 		},
 		{
+			name:        "field_prefix_minimal",
+			input:       "%prefix(path=minimal)",
+			expectCount: 1,
+		},
+		{
 			name:        "field_tf_path",
 			input:       "%tf-path",
 			expectCount: 1,
+		},
+		{
+			name:      "field_tf_path_rejects_minimal",
+			input:     "%tf-path(path=minimal)",
+			expectErr: true,
 		},
 		{
 			name:        "field_tf_command_args",
@@ -290,5 +300,31 @@ func newMinimalData(msg string, level log.Level) *options.Data {
 			Fields: log.Fields{},
 		},
 		DisabledColors: true,
+	}
+}
+
+func TestUsesPathFormat(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		input    string
+		expected bool
+	}{
+		{name: "minimal_prefix", input: "%time %prefix(path=minimal) %msg", expected: true},
+		{name: "second_prefix_minimal", input: "%prefix(path=short) %prefix(path=minimal)", expected: true},
+		{name: "default_prefix", input: "%prefix %msg"},
+		{name: "short_relative_prefix", input: "%prefix(path=short-relative) %msg"},
+		{name: "no_path_option", input: "%level %msg"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			phs, err := placeholders.Parse(tc.input)
+			require.NoError(t, err)
+			assert.Equal(t, tc.expected, phs.UsesPathFormat(options.MinimalPath))
+		})
 	}
 }
