@@ -1,0 +1,21 @@
+---
+version: "v1.2.3"
+category: "experiments-updated"
+---
+
+#### `otel-logs` - No silent loss of log records on large stacks
+
+With the [`otel-logs`](/reference/experiments/active#otel-logs) experiment enabled, a `run --all` over 100 units that logged 121,000 lines in six seconds lost 3% to 19% of its log records, and Terragrunt printed nothing about the loss. This release fixes the causes:
+
+- The record buffer now holds 32768 records and exports up to 2048 records at a time, up from 2048 and 512. The same run now loses no records. `OTEL_BLRP_MAX_QUEUE_SIZE` and `OTEL_BLRP_MAX_EXPORT_BATCH_SIZE` still override both sizes.
+- When records are dropped or an export fails, Terragrunt prints how many records were lost as the command exits.
+- A line of OpenTofu/Terraform output that held invalid UTF-8 no longer makes the collector reject the whole export it was part of.
+
+The experiment also changes in these ways:
+
+- A `TG_TELEMETRY_LOGS_EXPORTER` value that Terragrunt does not know now stops the command with an error that lists the valid values. Before, the value was ignored and no logs were exported.
+- An `OTEL_BLRP_MAX_QUEUE_SIZE` or `OTEL_BLRP_MAX_EXPORT_BATCH_SIZE` value that is not a whole number above zero now stops the command with an error.
+- The final error of a failed command is exported as an error record of the root command span.
+- A telemetry shutdown error names the signal that failed.
+
+See [OpenTelemetry](/troubleshooting/open-telemetry) for every setting.

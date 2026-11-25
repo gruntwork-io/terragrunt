@@ -202,6 +202,7 @@ func newConsoleTelemeter(t *testing.T, l log.Logger) (*bytes.Buffer, *telemetry.
 		&telemetry.Options{
 			TraceExporter: "console",
 		},
+		nil,
 		false,
 	)
 	require.NoError(t, err)

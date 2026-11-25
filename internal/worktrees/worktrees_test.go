@@ -1318,7 +1318,7 @@ func TestNewWorktreesRecordsDiffTelemetry(t *testing.T) {
 
 	tlm, err := telemetry.NewTelemeter(t.Context(), l, "terragrunt", "v0.0.0-test", buf, &telemetry.Options{
 		MetricExporter: "console",
-	}, false)
+	}, nil, false)
 	require.NoError(t, err)
 
 	diff := "A\ta/terragrunt.hcl\nA\tb/terragrunt.hcl\n" +

@@ -3,6 +3,7 @@ package commands
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"runtime/debug"
 	"slices"
@@ -183,6 +184,7 @@ func WrapWithTelemetry(
 			cliCtx.App.Version,
 			cliCtx.App.Writer,
 			opts.Telemetry,
+			v.Env,
 			opts.Experiments.Evaluate(experiment.OtelLogs),
 		)
 		if err != nil {
@@ -195,7 +197,7 @@ func WrapWithTelemetry(
 			defer cancel()
 
 			if err := telemeter.Shutdown(shutdownCtx); err != nil {
-				if _, writeErr := cliCtx.App.ErrWriter.Write([]byte(err.Error())); writeErr != nil {
+				if _, writeErr := fmt.Fprintf(cliCtx.App.ErrWriter, "Telemetry shutdown: %v\n", err); writeErr != nil {
 					l.Debugf("Failed to report telemetry shutdown error %v: %v", err, writeErr)
 				}
 			}

@@ -126,8 +126,6 @@ func (meter *Meter) Count(ctx context.Context, name string, value int64) {
 }
 
 // NewMetricsExporter - create a new exporter based on the telemetry options.
-//
-//nolint:dupl // the per-signal OTLP option types prevent sharing one implementation
 func NewMetricsExporter(
 	ctx context.Context,
 	writer io.Writer,

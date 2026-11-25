@@ -7,6 +7,8 @@ sidebar:
 ---
 
 import { Aside } from '@astrojs/starlight/components';
+import Before from '@components/Before.astro';
+import Since from '@components/Since.astro';
 
 Terragrunt can be configured to emit telemetry in [OpenTelemetry](https://opentelemetry.io/) format in the form of traces, metrics, and logs.
 
@@ -55,6 +57,12 @@ The logs signal is gated behind the [`otel-logs`](/reference/experiments/active#
   - `otlpGrpc` - export logs to an OpenTelemetry collector over gRPC [otlploggrpc](https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc)
 - `TG_TELEMETRY_LOGS_EXPORTER_INSECURE_ENDPOINT` - if set to true, the exporter disables TLS and sends logs over an insecure connection, for local logs collection only.
 
+<Since version="v1.2.3">
+
+Terragrunt stops with an error when `TG_TELEMETRY_LOGS_EXPORTER` has any other value.
+
+</Since>
+
 The OTLP log exporters read the standard [OTLP exporter environment variables](https://opentelemetry.io/docs/specs/otel/protocol/exporter/). The `OTEL_EXPORTER_OTLP_LOGS_*` variables apply to logs only and override the shared `OTEL_EXPORTER_OTLP_*` ones:
 
 - `OTEL_EXPORTER_OTLP_ENDPOINT` - the collector address, e.g. `http://localhost:4318` for `otlpHttp` or `http://localhost:4317` for `otlpGrpc`. The HTTP exporter adds the `/v1/logs` path.
@@ -64,12 +72,28 @@ The OTLP log exporters read the standard [OTLP exporter environment variables](h
 - `OTEL_EXPORTER_OTLP_COMPRESSION` or `OTEL_EXPORTER_OTLP_LOGS_COMPRESSION` - set to `gzip` to compress exports.
 - `OTEL_EXPORTER_OTLP_TIMEOUT` or `OTEL_EXPORTER_OTLP_LOGS_TIMEOUT` - the export timeout in milliseconds.
 
-Each record carries the trace and span IDs of the span it was logged in, so logs link to traces in the backend. Records logged outside a unit, such as by the run queue, link to the root command span. Records carry these IDs only when a trace exporter is also set.
+Each record carries the trace and span IDs of the span it was logged in, so logs link to traces in the backend. Records logged outside a unit, such as by the run queue, link to the root command span. Records carry these IDs only when a trace exporter is also set. <Since version="v1.2.3">When a command fails, its final error is exported as an error record of the root command span.</Since>
 
-Only records at or above the [log level](/reference/logging) are exported, so `--log-level` also controls how many records reach the backend. Record bodies are plain text, without ANSI color codes. Records are sent in batches, and buffered records are flushed when the command exits. This also happens when a run is interrupted, and the flush waits at most 30 seconds. Records that do not fit in the buffer are dropped. These variables tune the buffer:
+The output of hook commands and of `run_cmd` is not exported. Errors that stop Terragrunt before the command starts, such as an unknown flag, are not exported either.
 
-- `OTEL_BLRP_MAX_QUEUE_SIZE` - the number of records buffered before new records are dropped. Defaults to `2048`.
-- `OTEL_BLRP_MAX_EXPORT_BATCH_SIZE` - the maximum number of records in one export. Defaults to `512`.
+Only records at or above the [log level](/reference/logging) are exported, so `--log-level` also controls how many records reach the backend. Record bodies are plain text, without ANSI color codes. Records are sent in batches, and buffered records are flushed when the command exits. This also happens when a run is interrupted, and the flush waits at most 30 seconds. Records that do not fit in the buffer are dropped. Terragrunt does not slow a run to wait for the collector.
+
+<Since version="v1.2.3">
+
+When records are dropped or an export fails, Terragrunt prints how many records were lost as the command exits:
+
+```text
+Telemetry shutdown: 4041 of 120987 log records were not exported: check the collector, or raise OTEL_BLRP_MAX_QUEUE_SIZE and OTEL_BLRP_MAX_EXPORT_BATCH_SIZE
+```
+
+A `run --all` over many units can log thousands of lines each second. If Terragrunt reports lost records and the collector is reachable, raise `OTEL_BLRP_MAX_QUEUE_SIZE`, set `OTEL_EXPORTER_OTLP_COMPRESSION=gzip`, or lower `--log-level`. The queue uses about 1 KB of memory for each record it can hold.
+
+</Since>
+
+These variables tune the buffer:
+
+- `OTEL_BLRP_MAX_QUEUE_SIZE` - the number of records buffered before new records are dropped. Defaults to <Before version="v1.2.3">`2048`</Before><Since version="v1.2.3">`32768`</Since>.
+- `OTEL_BLRP_MAX_EXPORT_BATCH_SIZE` - the maximum number of records in one export. Defaults to <Before version="v1.2.3">`512`</Before><Since version="v1.2.3">`2048`</Since>.
 - `OTEL_BLRP_SCHEDULE_DELAY` - the delay in milliseconds between exports. Defaults to `1000`.
 - `OTEL_BLRP_EXPORT_TIMEOUT` - the timeout in milliseconds for one export. Defaults to `30000`.
 
