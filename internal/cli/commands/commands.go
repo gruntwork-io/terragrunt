@@ -3,6 +3,7 @@ package commands
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"runtime/debug"
@@ -20,6 +21,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/panicreport"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
+	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
 	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -207,7 +209,9 @@ func WrapWithTelemetry(
 
 		resolveErr := resolveWorkingDir(v, opts)
 
-		return telemeter.Collect(ctx, l, cliCtx.Command.Name, map[string]any{
+		var successResult error
+
+		err = telemeter.Collect(ctx, l, cliCtx.Command.Name, map[string]any{
 			"dir": opts.WorkingDir,
 		}, func(childCtx context.Context, l log.Logger) error {
 			// Engines emit telemetry during shutdown, so stop them while the
@@ -238,11 +242,23 @@ func WrapWithTelemetry(
 
 			if err := RunAction(childCtx, cliCtx, l, opts, v, action); err != nil {
 				opts.Tips.Find(tips.DebuggingDocs).Evaluate(l)
+
+				if isSuccessResult(err) {
+					successResult = err
+
+					return nil
+				}
+
 				return err
 			}
 
 			return nil
 		})
+		if err != nil {
+			return err
+		}
+
+		return successResult
 	}
 }
 
@@ -533,4 +549,15 @@ func runsTofu(cliCtx *clihelper.Context) bool {
 	parent := cliCtx.Parent().Command
 
 	return parent != nil && parent.Name == runcmd.CommandName
+}
+
+// isSuccessResult reports whether err is a result that the CLI exits with code 0 for.
+func isSuccessResult(err error) bool {
+	if errors.Is(err, runall.ErrUserCancelled) {
+		return true
+	}
+
+	var exitCoder clihelper.ExitCoder
+
+	return errors.As(err, &exitCoder) && exitCoder.ExitCode() == 0
 }

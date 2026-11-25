@@ -13,7 +13,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -459,6 +461,44 @@ func TestWrapWithTelemetryReturnsErrors(t *testing.T) {
 	})
 }
 
+func TestWrapWithTelemetryExportsErrorRecordOfFailureOnly(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		err         error
+		name        string
+		wantRecords int
+	}{
+		{name: "failure", err: errActionFailed, wantRecords: 1},
+		{name: "exit code 0", err: clihelper.NewExitError(nil, 0), wantRecords: 0},
+		{name: "declined prompt", err: runall.ErrUserCancelled, wantRecords: 0},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			opts := newWrapTestOptions()
+			opts.WorkingDir = testWorkDir
+			opts.Telemetry.LogsExporter = "console"
+			require.NoError(t, opts.Experiments.EnableExperiment(experiment.OtelLogs))
+
+			app, out := newWrapTestApp()
+			cliCtx := newCommandContext(app, nil, &clihelper.Command{Name: "find"})
+
+			l := logger.CreateLogger()
+			l.SetOptions(log.WithOutput(io.Discard))
+
+			err := runWithTelemetry(t, l, opts, venv.MemVenv(), cliCtx, func(context.Context, *clihelper.Context) error {
+				return tc.err
+			})
+			require.ErrorIs(t, err, tc.err)
+
+			assert.Equal(t, tc.wantRecords, errorLogRecords(t, out))
+		})
+	}
+}
+
 // TestWrapWithTelemetryRecordsTofuSpanAttributes pins that only commands passing args to OpenTofu record them on the command span.
 func TestWrapWithTelemetryRecordsTofuSpanAttributes(t *testing.T) {
 	t.Parallel()
@@ -637,4 +677,29 @@ func spanAttributes(t *testing.T, out *bytes.Buffer, name string) (map[string]an
 	}
 
 	return nil, false
+}
+
+// errorLogRecords returns the count of error log records in console exporter output.
+func errorLogRecords(t *testing.T, out *bytes.Buffer) int {
+	t.Helper()
+
+	type exportedRecord struct {
+		Body         *struct{} `json:"Body"`
+		SeverityText string    `json:"SeverityText"`
+	}
+
+	count := 0
+
+	dec := json.NewDecoder(out)
+
+	for dec.More() {
+		var record exportedRecord
+		require.NoError(t, dec.Decode(&record))
+
+		if record.Body != nil && record.SeverityText == "error" {
+			count++
+		}
+	}
+
+	return count
 }
