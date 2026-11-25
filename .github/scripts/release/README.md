@@ -240,9 +240,10 @@ export CLOBBER=false
 ```
 
 **Features:**
-- Checks for 22 expected files (7 binaries + 7 ZIPs + 7 TAR.GZ + SHA256SUMS)
+- Checks for every file listed by `get_all_expected_files()`
 - Automatically retries failed uploads (max 10 attempts)
-- Verifies asset downloadability
+- Lists the release again after uploading and fails if any expected file is missing
+- Downloads `SHA256SUMS` from the release and fails if it differs from the local file
 
 ### `generate-upload-summary.sh`
 Generates a GitHub Actions step summary with release upload details.

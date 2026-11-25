@@ -3,7 +3,9 @@
 set -euo pipefail
 
 # Resolve the base commit a benchmark run compares HEAD against, and write
-# `base_sha` and `head_sha` to $GITHUB_OUTPUT.
+# `base_sha`, `head_sha`, and `base_description` to $GITHUB_OUTPUT.
+# `base_description` says in Markdown why the base is that commit, such as
+# "the latest release, `v1.2.2`".
 #
 # Usage: resolve-refs.sh <comparison>
 #
@@ -33,22 +35,22 @@ function main {
 	local -r base_ref="${BASE_REF:-}"
 	local -r before_sha="${BEFORE_SHA:-}"
 	local -r pushed_ref="${GITHUB_REF:-}"
-	local head_sha base_sha
+	local head_sha base base_sha base_description
 
 	head_sha="$(git rev-parse HEAD)"
 
 	case "$comparison" in
 	release)
-		base_sha="$(resolve_release "${repo:?Required environment variable REPO}" "$head_sha")"
+		base="$(resolve_release "${repo:?Required environment variable REPO}" "$head_sha")"
 		;;
 	self)
-		base_sha="$head_sha"
+		base="$(describe "$head_sha" "the same commit as head, to measure how much two runs of one build differ")"
 		;;
 	custom)
-		base_sha="$(resolve_commit "${base_ref:?Required environment variable BASE_REF}")"
+		base="$(resolve_custom "${base_ref:?Required environment variable BASE_REF}")"
 		;;
 	push)
-		base_sha="$(resolve_push "$pushed_ref" "$before_sha")"
+		base="$(resolve_push "$pushed_ref" "$before_sha")"
 		;;
 	*)
 		echo "Unknown comparison: ${comparison}" >&2
@@ -56,11 +58,15 @@ function main {
 		;;
 	esac
 
-	echo "Comparing base ${base_sha} with head ${head_sha}" >&2
+	base_sha="${base%%$'\n'*}"
+	base_description="${base#*$'\n'}"
+
+	echo "Comparing base ${base_sha} (${base_description}) with head ${head_sha}" >&2
 
 	{
 		echo "base_sha=${base_sha}"
 		echo "head_sha=${head_sha}"
+		echo "base_description=${base_description}"
 	} >>"$OUTPUT"
 
 	return 0
@@ -87,7 +93,7 @@ function resolve_release {
 		sha="$(resolve_commit "$tag")"
 
 		if [[ "$sha" != "$head_sha" ]]; then
-			echo "$sha"
+			describe "$sha" "the latest release, \`${tag}\`"
 			return 0
 		fi
 	done <<<"$tags"
@@ -101,18 +107,42 @@ function resolve_push {
 	local -r pushed_ref="$1"
 	local -r before="$2"
 
+	local sha
+
 	if [[ "$pushed_ref" != "refs/heads/main" ]]; then
-		git merge-base origin/main HEAD
+		sha="$(git merge-base origin/main HEAD)" || return 1
+
+		describe "$sha" "where this branch leaves \`main\`"
 		return 0
 	fi
 
 	# A force push leaves a previous tip that HEAD does not descend from.
 	if [[ -n "$before" && ! "$before" =~ ^0+$ ]] && git merge-base --is-ancestor "$before" HEAD 2>/dev/null; then
-		echo "$before"
+		describe "$before" "the tip of \`main\` before this push"
 		return 0
 	fi
 
-	git rev-parse 'HEAD^'
+	sha="$(git rev-parse 'HEAD^')" || return 1
+
+	describe "$sha" "the parent of head"
+
+	return 0
+}
+
+function resolve_custom {
+	local -r base_ref="$1"
+	local sha
+
+	sha="$(resolve_commit "$base_ref")" || return 1
+
+	describe "$sha" "\`${base_ref}\`"
+
+	return 0
+}
+
+# Print a base commit and, on the next line, why it is the base.
+function describe {
+	printf '%s\n%s\n' "$1" "$2"
 
 	return 0
 }
