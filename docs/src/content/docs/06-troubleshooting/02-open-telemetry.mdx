@@ -64,20 +64,14 @@ The OTLP log exporters read the standard [OTLP exporter environment variables](h
 - `OTEL_EXPORTER_OTLP_COMPRESSION` or `OTEL_EXPORTER_OTLP_LOGS_COMPRESSION` - set to `gzip` to compress exports.
 - `OTEL_EXPORTER_OTLP_TIMEOUT` or `OTEL_EXPORTER_OTLP_LOGS_TIMEOUT` - the export timeout in milliseconds.
 
-Each record carries the trace and span IDs of the span it was logged in, so logs link to traces in the backend. Records logged outside a unit, such as by the run queue, link to the root command span. Records carry these IDs only when a trace exporter is also set. When a command fails, its final error is exported as an error record of the root command span.
+Each record carries the trace and span IDs of the span it was logged in, so logs link to traces in the backend. Records logged outside a unit, such as by the run queue, link to the root command span. Records carry these IDs only when a trace exporter is also set.
 
-The output of hook commands and of `run_cmd` is not exported. Errors that stop Terragrunt before the command starts, such as an unknown flag, are not exported either.
+Only records at or above the [log level](/reference/logging) are exported, so `--log-level` also controls how many records reach the backend. Record bodies are plain text, without ANSI color codes. Records are sent in batches, and buffered records are flushed when the command exits. This also happens when a run is interrupted, and the flush waits at most 30 seconds. Records that do not fit in the buffer are dropped. These variables tune the buffer:
 
-Only records at or above the [log level](/reference/logging) are exported, so `--log-level` also controls how many records reach the backend. Record bodies are plain text, without ANSI color codes. Records are sent in batches, and buffered records are flushed when the command exits. This also happens when a run is interrupted, and the flush waits at most 30 seconds. Records that do not fit in the buffer are dropped. Terragrunt does not slow a run to wait for the collector. See [Logs on large stacks](#logs-on-large-stacks) for how to size the buffer.
-
-These variables tune the buffer:
-
-- `OTEL_BLRP_MAX_QUEUE_SIZE` - the number of records the buffer holds. Defaults to `32768`.
-- `OTEL_BLRP_MAX_EXPORT_BATCH_SIZE` - the maximum number of records in one export. Defaults to `2048`.
+- `OTEL_BLRP_MAX_QUEUE_SIZE` - the number of records buffered before new records are dropped. Defaults to `2048`.
+- `OTEL_BLRP_MAX_EXPORT_BATCH_SIZE` - the maximum number of records in one export. Defaults to `512`.
 - `OTEL_BLRP_SCHEDULE_DELAY` - the delay in milliseconds between exports. Defaults to `1000`.
 - `OTEL_BLRP_EXPORT_TIMEOUT` - the timeout in milliseconds for one export. Defaults to `30000`.
-
-Terragrunt stops with an error when `OTEL_BLRP_MAX_QUEUE_SIZE` or `OTEL_BLRP_MAX_EXPORT_BATCH_SIZE` is not a whole number greater than 0.
 
 Resource attributes:
 
@@ -204,29 +198,3 @@ This example runs an OpenTelemetry collector that receives Terragrunt's traces, 
 - Stop both services with `docker compose down`.
 
 To print traces, metrics, and logs to the terminal instead, set the exporters to `console`.
-
-## Logs on large stacks
-
-<Aside type="tip" title="Experimental">
-Log export is gated behind the [`otel-logs`](/reference/experiments/active#otel-logs) experiment. Enable it with `--experiment otel-logs` (or `TG_EXPERIMENT=otel-logs`).
-</Aside>
-
-Terragrunt exports each log line as one record, and that includes each line of OpenTofu/Terraform output. A `run --all` over many units logs many lines in a short time. In one test, a `plan` over 100 units logged 121,000 lines in six seconds.
-
-Terragrunt holds the records in a buffer in memory and sends them to the collector one batch at a time, while the run continues. When the units log faster than the collector accepts records, the buffer fills and its oldest records are lost. A batch that the collector does not accept is lost too.
-
-The buffer holds 32768 records by default, and one batch holds up to 2048 records. The test run above lost no records with these sizes.
-
-When records are lost, Terragrunt prints the count as the command exits. The exit code of the command does not change.
-
-```text
-Telemetry shutdown: 4041 of 120987 log records were not exported: check the collector, or raise OTEL_BLRP_MAX_QUEUE_SIZE and OTEL_BLRP_MAX_EXPORT_BATCH_SIZE
-```
-
-If records are lost, do these steps in order:
-
-1. Check that the collector receives records. If it receives none, check the endpoint, the credentials, and the TLS settings. A larger buffer does not help in that case.
-2. Raise `OTEL_BLRP_MAX_QUEUE_SIZE`. Double the value until the loss stops. A buffer of 32768 records uses about 22 MB of memory, and the memory grows in proportion to the value.
-3. Raise `OTEL_BLRP_MAX_EXPORT_BATCH_SIZE` to send more records in one export. Keep one batch below the largest request that the collector accepts.
-4. Set `OTEL_EXPORTER_OTLP_COMPRESSION=gzip` if the connection to the collector is slow.
-5. Run at the default log level, because `--log-level debug` and `trace` add many records. `--log-level warn` removes few records, because OpenTofu/Terraform output is still exported.
