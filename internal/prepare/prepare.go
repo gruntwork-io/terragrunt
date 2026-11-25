@@ -172,7 +172,14 @@ func PrepareSource(
 	}
 
 	if skipCache {
-		return opts.Clone(), impl, nil
+		_, updatedTerragruntOptions, err := opts.CloneWithConfigPath(l, opts.TerragruntConfigPath)
+		if err != nil {
+			return nil, impl, err
+		}
+
+		updatedTerragruntOptions.WorkingDir = opts.WorkingDir
+
+		return updatedTerragruntOptions, impl, nil
 	}
 
 	runOpts := configbridge.NewRunOptions(opts, impl)

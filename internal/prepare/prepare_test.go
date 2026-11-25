@@ -70,3 +70,24 @@ func TestPrepareSourceInPlaceKeepsWorkingDir(t *testing.T) {
 	assert.Equal(t, unitDir, updatedOpts.WorkingDir)
 	assert.NotSame(t, opts, updatedOpts)
 }
+
+func TestPrepareSourceInPlaceReturnsAbsoluteConfigPath(t *testing.T) {
+	t.Parallel()
+
+	configPath := filepath.Join(t.TempDir(), config.DefaultTerragruntConfigPath)
+
+	opts, err := options.NewTerragruntOptionsWithConfigPath(configPath)
+	require.NoError(t, err)
+	require.NoError(t, opts.Experiments.EnableExperiment(experiment.NoDotTerragruntCache))
+
+	opts.TerragruntConfigPath = config.DefaultTerragruntConfigPath
+
+	cfg := &config.TerragruntConfig{Terraform: &config.TerraformConfig{NoDotTerragruntCache: new(true)}}
+
+	updatedOpts, _, err := prepare.PrepareSource(
+		run.WithRunVersionCache(t.Context()), logger.CreateLogger(), venv.MemVenv(), opts, cfg, report.NewReport(),
+	)
+	require.NoError(t, err)
+
+	assert.Equal(t, configPath, updatedOpts.TerragruntConfigPath)
+}
