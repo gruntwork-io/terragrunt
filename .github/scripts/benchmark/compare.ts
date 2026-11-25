@@ -22,6 +22,8 @@
  *   BENCH_TIME_THRESHOLD_PCT     Smallest change in a time metric to flag (default 5).
  *   BENCH_MEMORY_THRESHOLD_PCT   Smallest change in peak RSS to flag (default 10).
  *   BENCH_ALLOC_THRESHOLD_PCT    Smallest change in B/op or allocs/op to flag (default 2).
+ *   GITHUB_REPOSITORY            owner/name. When set, the summary links the commits compared.
+ *   GITHUB_SERVER_URL            Host of that link (default https://github.com).
  */
 
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -398,13 +400,13 @@ const HEADLINE_NOUNS: Record<MetricKind, string> = {
 
 export function renderSummary(
   report: Report,
-  extras: { benchstat?: string; profileDiffs?: Map<string, ProfileDiffs> },
+  extras: { benchstat?: string; profileDiffs?: Map<string, ProfileDiffs>; repoUrl?: string },
 ): string {
   const flagged = flaggedMetrics(report);
   const lines = [
     `## Benchmark: ${report.comparison}`,
     "",
-    `Base \`${report.baseSha.slice(0, 12)}\`, head \`${report.headSha.slice(0, 12)}\`. ` +
+    `${comparedCommits(report, extras.repoUrl)}. ` +
       `${report.regressions} regressed and ${report.improvements} improved metrics across ` +
       `${report.scenarios.length} scenarios.`,
     "",
@@ -571,6 +573,20 @@ function flaggedMetrics(report: Report): FlaggedMetric[] {
       .filter((metric) => metric.verdict === "regression" || metric.verdict === "improvement")
       .map((metric) => ({ id: scenario.id, metric })),
   );
+}
+
+/**
+ * Names the base and head commits of a report. Links the commits between them
+ * when the repository is known and the two sides differ.
+ */
+function comparedCommits(report: Report, repoUrl?: string): string {
+  const commits = `Base \`${report.baseSha.slice(0, 12)}\`, head \`${report.headSha.slice(0, 12)}\``;
+
+  if (!repoUrl || report.baseSha === report.headSha) {
+    return commits;
+  }
+
+  return `${commits} ([compare](${repoUrl}/compare/${report.baseSha}...${report.headSha}))`;
 }
 
 function flaggingRule(report: Report): string {
@@ -799,6 +815,15 @@ function thresholdFromEnv(name: string, fallback: number): number {
   return value;
 }
 
+function repoUrlFromEnv(): string | undefined {
+  const repo = process.env.GITHUB_REPOSITORY;
+  if (!repo) {
+    return undefined;
+  }
+
+  return `${process.env.GITHUB_SERVER_URL || "https://github.com"}/${repo}`;
+}
+
 function main(): void {
   const { values } = parseArgs({
     options: {
@@ -839,7 +864,7 @@ function main(): void {
   const profileDiffs = values.profiles && existsSync(values.profiles) ? readProfileDiffs(values.profiles, 20) : undefined;
 
   writeFileSync(values.out, `${JSON.stringify(report, null, 2)}\n`);
-  writeFileSync(values.summary, renderSummary(report, { benchstat, profileDiffs }));
+  writeFileSync(values.summary, renderSummary(report, { benchstat, profileDiffs, repoUrl: repoUrlFromEnv() }));
 
   if (values.comment) {
     const profiled = flaggedScenarios(report).filter((id) => profileDiffs?.has(id));

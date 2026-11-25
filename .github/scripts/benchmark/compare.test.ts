@@ -341,6 +341,39 @@ describe("renderSummary", () => {
     expect(summary).not.toContain("| Scenario | Metric |");
     expect(summary).toContain("| `find.flat.10` | 1.00 s +0.0% |");
   });
+
+  test("links the commits between base and head", () => {
+    const summary = renderSummary(report(hyperfineSamples(steady, steady)), {
+      repoUrl: "https://github.com/gruntwork-io/terragrunt",
+    });
+
+    expect(summary).toContain(
+      `Base \`${"a".repeat(12)}\`, head \`${"b".repeat(12)}\` ` +
+        `([compare](https://github.com/gruntwork-io/terragrunt/compare/${"a".repeat(40)}...${"b".repeat(40)})). `,
+    );
+  });
+
+  test("names the commits without a link when the repository is unknown", () => {
+    const summary = renderSummary(report(hyperfineSamples(steady, steady)), {});
+
+    expect(summary).toContain(`Base \`${"a".repeat(12)}\`, head \`${"b".repeat(12)}\`. `);
+  });
+
+  test("names the commits without a link when base and head are the same commit", () => {
+    const self = buildReport({
+      comparison: "self",
+      baseSha: "a".repeat(40),
+      headSha: "a".repeat(40),
+      thresholds,
+      results: hyperfineSamples(steady, steady),
+      gobench: new Map(),
+    });
+
+    const summary = renderSummary(self, { repoUrl: "https://github.com/gruntwork-io/terragrunt" });
+
+    expect(summary).toContain(`Base \`${"a".repeat(12)}\`, head \`${"a".repeat(12)}\`. `);
+    expect(summary).not.toContain("/compare/");
+  });
 });
 
 function flaggedMetric(
