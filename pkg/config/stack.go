@@ -1092,29 +1092,56 @@ func fetchComponentSource(
 		return nil
 	}
 
-	if opts.casEnabled {
-		casErr := fetchViaCAS(ctx, l, v, opts, cmp, kindStr, source, dest)
-		if casErr == nil {
-			return nil
-		}
-
-		if opts.casOffline || casFailureIsFinal(casErr) {
-			return fmt.Errorf("failed to fetch %s %q via CAS: %w", kindStr, cmp.name, casErr)
-		}
-
-		l.Warnf(
-			"CAS processing failed for %s %q: %v. Falling back to standard getter; nested update_source_with_cas sources are not rewritten. Fix the source to restore the rewrite, or pass --no-cas to skip the CAS for every component.",
-			kindStr,
-			cmp.name,
-			casErr,
-		)
-		cas.RecordFallback(ctx, l, cas.FallbackReasonStackGenerationError, map[string]any{
-			"kind":   kindStr,
-			"name":   cmp.name,
-			"source": source,
-		})
+	if !opts.casEnabled {
+		return copyComponentSource(ctx, l, v, opts, cmp, kindStr, source, dest)
 	}
 
+	casErr := fetchViaCAS(ctx, l, v, opts, cmp, kindStr, source, dest)
+	if casErr == nil {
+		return nil
+	}
+
+	if opts.casOffline || casFailureIsFinal(casErr) {
+		return fmt.Errorf("failed to fetch %s %q via CAS: %w", kindStr, cmp.name, casErr)
+	}
+
+	if err := copyComponentSource(ctx, l, v, opts, cmp, kindStr, source, dest); err != nil {
+		return err
+	}
+
+	needsRewrite, err := needsCASRewrite(v.FS, dest)
+	if err != nil {
+		return err
+	}
+
+	if needsRewrite {
+		return CASRewriteRequiredError{Component: kindStr + " " + cmp.address, Err: casErr}
+	}
+
+	l.Warnf(
+		"CAS processing failed for %s %q, so it was fetched with the standard getter: %v. Pass --no-cas to skip the CAS for every component.",
+		kindStr,
+		cmp.name,
+		casErr,
+	)
+	cas.RecordFallback(ctx, l, cas.FallbackReasonStackGenerationError, map[string]any{
+		"kind":   kindStr,
+		"name":   cmp.name,
+		"source": source,
+	})
+
+	return nil
+}
+
+// copyComponentSource copies a component to dest with the standard getter.
+func copyComponentSource(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	opts *generateOpts,
+	cmp *componentToGenerate,
+	kindStr, source, dest string,
+) error {
 	cp := componentCopy{identifier: cmp.name, sourceDir: cmp.sourceDir, src: source, dest: dest}
 	if err := copyFiles(ctx, l, v, opts, cp); err != nil {
 		return fmt.Errorf(
@@ -1135,6 +1162,37 @@ func fetchComponentSource(
 	}
 
 	return nil
+}
+
+// needsCASRewrite reports whether the component in dir sets update_source_with_cas on a source that is not
+// a cas:: reference yet. It reads the stack file or unit file the CAS rewrite would read. A file that fails
+// to parse reports false, so the config parser reports the error with a diagnostic.
+func needsCASRewrite(fsys vfs.FS, dir string) (bool, error) {
+	content, err := vfs.ReadFile(fsys, filepath.Join(dir, DefaultStackFile))
+	if err == nil {
+		_, blocks, err := cas.ReadStackBlocks(content)
+
+		return err == nil && slices.ContainsFunc(blocks, func(block cas.StackBlockInfo) bool {
+			return block.UpdateSourceWithCAS && !isCASProtocol(block.Source)
+		}), nil
+	}
+
+	if !errors.Is(err, os.ErrNotExist) {
+		return false, err
+	}
+
+	content, err = vfs.ReadFile(fsys, filepath.Join(dir, DefaultTerragruntConfigPath))
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+
+	if err != nil {
+		return false, err
+	}
+
+	source, updateWithCAS, err := cas.ReadTerraformSourceInfo(content)
+
+	return err == nil && updateWithCAS && source != "" && !isCASProtocol(source), nil
 }
 
 // fetchViaCAS clones, stages or copies a component through the CAS, rewrites it, and copies the result to dest.

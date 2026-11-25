@@ -1,0 +1,10 @@
+---
+version: "v1.2.3"
+category: "bug-fixes"
+---
+
+#### The CAS no longer reads the Git config of the repository Terragrunt runs in
+
+When the [CAS](/features/caching/cas) resolved a Git ref, it applied the local Git config of the repository Terragrunt ran in, e.g. `url.<base>.insteadOf` or `http.extraHeader`, while clones and fetches ignored it. The same source could resolve differently depending on where Terragrunt ran. It now uses only the global and system Git config.
+
+When the CAS fails to fetch a component that sets [`update_source_with_cas`](/features/caching/cas#stack-usage), `terragrunt stack generate` now fails instead of falling back to the standard getter, which left those sources unrewritten.
