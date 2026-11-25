@@ -61,7 +61,12 @@ func PathVariable(
 		return nil, nil
 	}
 
-	if local := localReadingPathDownload(file); local != "" {
+	local, err := localReadingPathDownload(file)
+	if err != nil {
+		l.Debugf("Skipping the path.download check on the locals of %s: %v", file.ConfigPath, err)
+	}
+
+	if local != "" {
 		return nil, PathDownloadInLocalsError{ConfigPath: file.ConfigPath, Local: local}
 	}
 
@@ -266,15 +271,15 @@ func filePathReferences(file *hclparse.File) pathReferences {
 }
 
 // localReadingPathDownload returns the first name of the locals of file that read `path.download`, or "".
-func localReadingPathDownload(file *hclparse.File) string {
+func localReadingPathDownload(file *hclparse.File) (string, error) {
 	blocks, err := file.Blocks(MetadataLocals, false)
 	if err != nil || len(blocks) == 0 {
-		return ""
+		return "", err
 	}
 
 	attrs, err := blocks[0].JustAttributes()
 	if err != nil {
-		return ""
+		return "", err
 	}
 
 	var names []string
@@ -286,10 +291,10 @@ func localReadingPathDownload(file *hclparse.File) string {
 	}
 
 	if len(names) == 0 {
-		return ""
+		return "", nil
 	}
 
-	return slices.Min(names)
+	return slices.Min(names), nil
 }
 
 // readsPathDownload reports whether traversal reads `path.download`.

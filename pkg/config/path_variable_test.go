@@ -422,6 +422,37 @@ locals {
 	}
 }
 
+func TestPathVariableLeavesAMalformedLocalsBlockToTheLocalsEvaluation(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		unit string
+	}{
+		{name: "two locals blocks", unit: "locals {}\nlocals {}\n"},
+		{name: "block in the locals block", unit: "locals {\n  nested {}\n}\n"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfgPath := filepath.Join(venvtest.Root("/fixture"), "app", config.DefaultTerragruntConfigPath)
+			ctx, pctx := newPathParsingContext(t, cfgPath)
+			l := logger.CreateLogger()
+			v := venv.MemVenv()
+
+			file, err := pctx.NewParser(l, v).ParseFromString(tc.unit, cfgPath)
+			require.NoError(t, err)
+
+			path, err := config.PathVariable(ctx, l, v, new(config.Store), pctx, file, nil)
+
+			require.NoError(t, err)
+			assert.NotNil(t, path)
+		})
+	}
+}
+
 func TestPathVariableModuleEvaluatesTheSourceWithTheIAMRoleOfTheUnit(t *testing.T) {
 	t.Parallel()
 
