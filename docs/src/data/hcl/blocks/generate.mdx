@@ -131,8 +131,12 @@ attributes:
 ---
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
+import StatefulTabs from '@components/StatefulTabs.astro';
 
 Before it runs OpenTofu/Terraform, Terragrunt writes the file into the unit's copy of the module in `.terragrunt-cache`:
+
+<StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure', 'GCP']}>
+<Fragment slot="aws">
 
 ```hcl
 # live/vpc/terragrunt.hcl
@@ -151,6 +155,53 @@ provider "aws" {
 EOF
 }
 ```
+
+</Fragment>
+<Fragment slot="azure">
+
+```hcl
+# live/vpc/terragrunt.hcl
+
+terraform {
+  source = "../../modules//vpc"
+}
+
+generate "provider" {
+  path      = "provider.tf"
+  if_exists = "overwrite_terragrunt"
+  contents  = <<EOF
+provider "azurerm" {
+  features {}
+  subscription_id = "00000000-0000-0000-0000-000000000000"
+}
+EOF
+}
+```
+
+</Fragment>
+<Fragment slot="gcp">
+
+```hcl
+# live/vpc/terragrunt.hcl
+
+terraform {
+  source = "../../modules//vpc"
+}
+
+generate "provider" {
+  path      = "provider.tf"
+  if_exists = "overwrite_terragrunt"
+  contents  = <<EOF
+provider "google" {
+  project = "my-project"
+  region  = "us-central1"
+}
+EOF
+}
+```
+
+</Fragment>
+</StatefulTabs>
 
 <FileTree>
 

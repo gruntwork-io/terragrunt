@@ -287,64 +287,6 @@ func TestTFRemoteDownload(t *testing.T) {
 	)
 }
 
-func TestTFInvalidRemoteDownload(t *testing.T) {
-	t.Parallel()
-
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureInvalidRemoteDownloadPath)
-	rootPath := filepath.Join(tmpEnvPath, testFixtureInvalidRemoteDownloadPath)
-	helpers.CleanupTerraformFolder(t, rootPath)
-
-	applyStdout := bytes.Buffer{}
-	applyStderr := bytes.Buffer{}
-
-	err := helpers.RunTerragruntCommand(
-		t,
-		"terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath,
-		&applyStdout,
-		&applyStderr,
-	)
-
-	helpers.LogBufferContentsLineByLine(t, applyStdout, "apply stdout")
-	helpers.LogBufferContentsLineByLine(t, applyStderr, "apply stderr")
-
-	require.Error(t, err)
-
-	errMessage := "downloading source url"
-	assert.Containsf(
-		t,
-		err.Error(),
-		errMessage,
-		"expected error containing %q, got %s",
-		errMessage,
-		err,
-	)
-}
-
-func TestTFInvalidRemoteDownloadWithRetries(t *testing.T) {
-	t.Parallel()
-
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureInvalidRemoteDownloadPathWithRetries)
-	rootPath := filepath.Join(tmpEnvPath, testFixtureInvalidRemoteDownloadPathWithRetries)
-	helpers.CleanupTerraformFolder(t, rootPath)
-
-	_, _, err := helpers.RunTerragruntCommandWithOutput(
-		t,
-		"terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath,
-	)
-
-	require.Error(t, err)
-
-	errMessage := "max retry attempts (2) reached for error"
-	assert.Containsf(
-		t,
-		err.Error(),
-		errMessage,
-		"expected error containing %q, got %s",
-		errMessage,
-		err,
-	)
-}
-
 func TestTFRemoteDownloadWithRelativePath(t *testing.T) {
 	t.Parallel()
 

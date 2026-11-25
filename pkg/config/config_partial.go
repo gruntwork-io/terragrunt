@@ -50,6 +50,8 @@ const (
 	TerraformExtraArgs
 	// OutputsBlock decodes the `outputs` block.
 	OutputsBlock
+	// moduleDirAttributes decodes the attributes that select the directory in which OpenTofu/Terraform runs.
+	moduleDirAttributes
 )
 
 // terragruntIncludeMultiple is a struct that can be used to only decode the include block with labels.
@@ -508,6 +510,66 @@ func registerSiblingAutoInclude(
 	}
 
 	trackInclude.AutoIncludeOverride = &IncludeConfig{Path: autoIncludePath}
+}
+
+// moduleDirDependencyError returns the error for a module directory attribute of file that references a dependency.
+func moduleDirDependencyError(file *hclparse.File) error {
+	const source = "source"
+
+	attr, err := dependencyReferenceAttribute(file, file.Body, MetadataDownloadDir)
+	if err != nil {
+		return err
+	}
+
+	if attr != "" {
+		return ModuleDirReferencesDependencyError{ConfigPath: file.ConfigPath, Attribute: attr}
+	}
+
+	blocks, err := file.Blocks(MetadataTerraform, true)
+	if err != nil {
+		return err
+	}
+
+	for _, block := range blocks {
+		attr, err := dependencyReferenceAttribute(file, block.Body, source, "no_dot_terragrunt_cache")
+		if err != nil {
+			return err
+		}
+
+		if attr == source {
+			return TerraformSourceReferencesDependencyError{ConfigPath: file.ConfigPath}
+		}
+
+		if attr != "" {
+			return ModuleDirReferencesDependencyError{
+				ConfigPath: file.ConfigPath,
+				Attribute:  MetadataTerraform + "." + attr,
+			}
+		}
+	}
+
+	return nil
+}
+
+// dependencyReferenceAttribute returns the first of the named attributes of body that references a dependency, or "".
+func dependencyReferenceAttribute(file *hclparse.File, body hcl.Body, names ...string) (string, error) {
+	schema := &hcl.BodySchema{Attributes: make([]hcl.AttributeSchema, 0, len(names))}
+	for _, name := range names {
+		schema.Attributes = append(schema.Attributes, hcl.AttributeSchema{Name: name})
+	}
+
+	content, _, diags := body.PartialContent(schema)
+	if err := file.HandleDiagnostics(diags); err != nil {
+		return "", err
+	}
+
+	for _, name := range names {
+		if attr, found := content.Attributes[name]; found && expressionReferencesDependency(attr.Expr) {
+			return name, nil
+		}
+	}
+
+	return "", nil
 }
 
 // Custom error types

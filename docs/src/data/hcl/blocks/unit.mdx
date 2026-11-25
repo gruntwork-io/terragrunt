@@ -115,7 +115,6 @@ attributes:
 ---
 
 import SideBySide from '@components/SideBySide.astro';
-import Since from '@components/Since.astro';
 import FileTree from '@components/vendored/starlight/FileTree.astro';
 
 The `unit` block defines a unit in a `terragrunt.stack.hcl` file. [`terragrunt stack generate`](/reference/cli/commands/stack/generate) fetches the unit's configuration from `source` into `path`, under the stack's `.terragrunt-stack` directory, and writes `values` to a `terragrunt.values.hcl` file next to it:
@@ -152,11 +151,7 @@ inputs = {
 }
 ```
 
-<Since version="v1.2.3">
-
 With the [`values-block`](/reference/experiments/active#values-block) experiment, the unit can declare the values it accepts in a [`values`](/reference/hcl/blocks/values) block.
-
-</Since>
 
 ### Where the unit is generated
 

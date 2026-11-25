@@ -432,11 +432,20 @@ func (r *GitResolver) probeUncoalesced(ctx context.Context, u redact.URL) (probe
 		return probeResult{}, &OfflineMissError{Source: u, Ref: probeRefName(r.Branch)}
 	}
 
-	results, err := withSSHKey(ctx, r.Venv, r.SSHKey, func(v *venv.Venv) ([]git.LsRemoteResult, error) {
+	results, err := withSSHKey(ctx, r.Venv, r.SSHKey, func(v *venv.Venv) (_ []git.LsRemoteResult, err error) {
 		runner, err := git.NewGitRunner(v)
 		if err != nil {
 			return nil, err
 		}
+
+		runner, cleanup, err := runner.OutsideRepo(v)
+		if err != nil {
+			return nil, err
+		}
+
+		defer func() {
+			err = errors.Join(err, cleanup())
+		}()
 
 		return runner.LsRemote(ctx, u.Reveal(), r.Branch)
 	})

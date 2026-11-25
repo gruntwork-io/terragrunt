@@ -23,7 +23,6 @@ flags:
 
 import FileTree from "@components/vendored/starlight/FileTree.astro";
 import { Aside } from "@astrojs/starlight/components";
-import Since from "@components/Since.astro";
 
 ## Generating a stack
 
@@ -75,11 +74,7 @@ Generates the following stack:
 
 </FileTree>
 
-<Since version="v1.2.3">
-
 With the [`values-block`](/reference/experiments/active#values-block) experiment, when a generated unit or stack declares its values in a [`values`](/reference/hcl/blocks/values) block, `stack generate` checks the `values` of its `unit` or `stack` block against it, and writes no `terragrunt.values.hcl` for a unit or stack that fails the check.
-
-</Since>
 
 <Aside type="note">
 Parallel Execution: Stack generation runs concurrently to improve performance. The number of parallel tasks is determined by the `GOMAXPROCS` environment variable and can be explicitly controlled using the `--parallelism` flag:

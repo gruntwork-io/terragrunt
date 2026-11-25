@@ -139,6 +139,8 @@ const (
 	MetadataStack = "stack"
 	// MetadataUnit names the `unit` block of a stack file.
 	MetadataUnit = "unit"
+	// MetadataPath names the `path` variable.
+	MetadataPath = "path"
 )
 
 var (

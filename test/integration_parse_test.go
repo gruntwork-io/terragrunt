@@ -57,6 +57,11 @@ var knownBadFiles = []string{
 	"fixtures/get-aws-account-alias/terragrunt.hcl",
 	"fixtures/get-aws-caller-identity/terragrunt.hcl",
 	"fixtures/read-config/iam_role_in_file/terragrunt.hcl",
+	// Files that return an error for a dependency reference in a module directory attribute
+	"fixtures/path-variable/module/dependency/download-dir/terragrunt.hcl",
+	"fixtures/path-variable/module/dependency/in-place/terragrunt.hcl",
+	// Stack files that read path.stack in locals
+	"fixtures/path-variable/stack/live/terragrunt.stack.hcl",
 }
 
 func TestParseAllFixtureFiles(t *testing.T) {
@@ -81,6 +86,9 @@ func TestParseAllFixtureFiles(t *testing.T) {
 			dir := filepath.Dir(file)
 
 			opts, err := options.NewTerragruntOptionsForTest(dir)
+			require.NoError(t, err)
+
+			opts.OriginalTerragruntConfigPath, err = filepath.Abs(file)
 			require.NoError(t, err)
 
 			opts.Experiments.ExperimentMode()

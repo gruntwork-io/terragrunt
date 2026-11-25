@@ -1,0 +1,27 @@
+---
+import { render } from 'astro:content';
+import HclConfigs from '@components/HclConfigs.astro';
+import HclExamples from '@components/HclExamples.astro';
+import TypeBadge from '@components/TypeBadge.astro';
+import { hclItemPath, type VariableField } from '@lib/hcl';
+
+interface Props {
+	entry: VariableField;
+}
+
+const { entry } = Astro.props;
+const { variable, type, configs, examples } = entry.data;
+const { Content } = await render(entry);
+---
+
+<HclConfigs configs={configs}>
+	<TypeBadge type={type} />
+</HclConfigs>
+
+<p>A field of the <a href={hclItemPath('variables', variable)}><code>{variable}</code></a> variable.</p>
+
+<h2 id="usage">Usage</h2>
+
+<Content />
+
+<HclExamples examples={examples} />

@@ -156,6 +156,8 @@ const (
 	// ValuesBlock gates the values block, which declares the values a unit or stack accepts, each with an optional type,
 	// default, description, and nullable setting.
 	ValuesBlock = "values-block"
+	// PathVariable gates the `path` variable, which exposes the paths of a unit and of a stack by name.
+	PathVariable = "path-variable"
 )
 
 const (
@@ -315,6 +317,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: ValuesBlock,
+		},
+		{
+			Name: PathVariable,
 		},
 	}
 }

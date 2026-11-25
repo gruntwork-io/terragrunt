@@ -231,6 +231,11 @@ func readValuesFile(
 		return nil, err
 	}
 
+	pctx, err = withValuesPathVariable(ctx, l, v, s, pctx, file, dir)
+	if err != nil {
+		return nil, err
+	}
+
 	evalCtx := evalContextWithoutIncludes(ctx, l, v, s, pctx, file.ConfigPath, file.FunctionCalls())
 
 	attrs := hcl.Attributes{}

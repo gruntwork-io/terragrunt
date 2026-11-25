@@ -27,6 +27,4 @@ WARN   Source inside the stack directory
     directory.
 ```
 
-To fix it, move the stack into a subdirectory of the catalog and keep its sources outside that subdirectory. Then use `//` in the stack's source to separate the catalog from the stack directory, e.g. `source = "../catalog//stacks/bar"`.
-
-With the strict control enabled, the error gives the same instruction.
+Move the stack into a subdirectory of the catalog, keep its sources outside that subdirectory, and select it with `//`, e.g. `source = "../catalog//stacks/bar"`. With the strict control enabled, the error shows the same diagnostic.

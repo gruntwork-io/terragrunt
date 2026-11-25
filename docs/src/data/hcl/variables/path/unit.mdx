@@ -1,0 +1,32 @@
+---
+name: unit
+variable: path
+type: string
+description: The absolute path of the directory of the unit, which holds its `terragrunt.hcl`.
+configs: [unit]
+since: v1.2.3
+experiment: path-variable
+examples:
+  - description: A root file gives each unit that includes it a different state key.
+    code: |
+      # root.hcl
+      remote_state {
+        backend = "s3"
+
+        config = {
+          bucket = "my-tofu-state"
+          key    = "${trimprefix(path.unit, "${dirname(path.include)}/")}/tofu.tfstate"
+          region = "us-east-1"
+        }
+      }
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip" title="Experimental">
+  `path.unit` needs the [`path-variable`](/reference/experiments/active#path-variable) experiment. Enable it with `--experiment path-variable` or `TG_EXPERIMENT=path-variable`. Without the experiment, a reference to `path` fails with an error.
+</Aside>
+
+`path.unit` is defined in a unit, and in every file that the unit includes or reads. It has the same value in each of those files.
+
+It is not defined in `terragrunt.stack.hcl`, in a file that the stack file reads, or in the `terragrunt.values.hcl` beside it.

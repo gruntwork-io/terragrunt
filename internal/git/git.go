@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -30,6 +31,8 @@ const (
 	// the requested object is absent. Any other non-zero exit is an
 	// execution failure (e.g. 128 from a fatal error).
 	catFileMissingExitCode = 1
+
+	envCeilingDirectories = "GIT_CEILING_DIRECTORIES"
 )
 
 // GitRunner handles git command execution
@@ -521,6 +524,38 @@ func (g *GitRunner) CreateTempDir(v *venv.Venv) (string, func() error, error) {
 	}
 
 	return tempDir, cleanup, nil
+}
+
+// OutsideRepo returns a copy of g that runs in a new empty directory under the
+// venv's temp dir, with GIT_CEILING_DIRECTORIES set to that directory's parent.
+// Git then finds no repository and reads only global and system config, as a
+// clone does, so the repository Terragrunt runs in cannot rewrite or
+// authenticate the URLs the copy reaches. cleanup removes the directory.
+func (g *GitRunner) OutsideRepo(v *venv.Venv) (*GitRunner, func() error, error) {
+	v.RequireFS()
+	v.RequireTempDir()
+
+	dir, err := vfs.MkdirTemp(v.FS, v.Platform.TempDir(), "terragrunt-git-")
+	if err != nil {
+		return nil, nil, &WrappedError{
+			Op:      "create_temp_dir",
+			Context: err.Error(),
+			Err:     ErrCreateTempDir,
+		}
+	}
+
+	env := maps.Clone(g.env)
+	env[envCeilingDirectories] = filepath.Dir(dir)
+
+	runner := *g
+	runner.WorkDir = dir
+	runner.env = env
+
+	cleanup := func() error {
+		return v.FS.RemoveAll(dir)
+	}
+
+	return &runner, cleanup, nil
 }
 
 // LsTreeRecursive runs git ls-tree -r and returns all blobs recursively

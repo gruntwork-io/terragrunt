@@ -8,8 +8,15 @@ import ExperimentEntries from '@components/ExperimentEntries.astro';
 import StrictControlEntries from '@components/StrictControlEntries.astro';
 import { getPublishedCommands } from '@lib/commands/published';
 import { sortFaqEntries, type FaqEntry } from '@lib/faq';
-import { HCL_KINDS, referenceMarkdown, type HclEntry } from '@lib/hcl';
-import { getPublishedHclItems } from '@lib/hcl/published';
+import {
+	fieldMarkdown,
+	HCL_KINDS,
+	referenceMarkdown,
+	variableFieldName,
+	type HclEntry,
+	type VariableField,
+} from '@lib/hcl';
+import { getPublishedHclItems, getPublishedVariableFields } from '@lib/hcl/published';
 import { markdownDocument, type MarkdownDetail, type MarkdownPage } from '@lib/markdown-document';
 import {
 	componentToMarkdown,
@@ -136,10 +143,27 @@ export async function hclPage(
 	context: APIContext,
 	detail: MarkdownDetail = 'full',
 ): Promise<MarkdownPage> {
-	const { before, after } = referenceMarkdown(entry);
+	const fields = entry.collection === 'hclVariables' ? await getPublishedVariableFields(entry.data.name) : [];
+	const { before, after } = referenceMarkdown(entry, fields);
 	const body = await entryToMarkdownOrSource(entry, context, detail);
 	const sections = [before, body, after].filter((section) => section.trim());
 	return { title: entry.data.name, description: entry.data.description, body: sections.join('\n\n') };
+}
+
+/** Builds the page of a variable's field, mirroring `HclVariableField.astro`. */
+export async function variableFieldPage(
+	entry: VariableField,
+	context: APIContext,
+	detail: MarkdownDetail = 'full',
+): Promise<MarkdownPage> {
+	const { before, after } = fieldMarkdown(entry);
+	const body = await entryToMarkdownOrSource(entry, context, detail);
+	const sections = [before, body, after].filter((section) => section.trim());
+	return {
+		title: variableFieldName(entry.data),
+		description: entry.data.description,
+		body: sections.join('\n\n'),
+	};
 }
 
 /** Builds the experiments page for a status. */
@@ -225,6 +249,8 @@ export const LLMS_PAGE_SOURCES: LlmsPageSource[] = [
 		const entries = (await Promise.all(HCL_KINDS.map((kind) => getPublishedHclItems(kind)))).flat();
 		return mapInOrder(entries, (entry) => hclPage(entry, context, detail));
 	},
+	async (context, detail) =>
+		mapInOrder(await getPublishedVariableFields(), (entry) => variableFieldPage(entry, context, detail)),
 	async (context, detail) => {
 		const commands = await getPublishedCommands();
 		commands.sort((a, b) => a.data.path.localeCompare(b.data.path, 'en'));

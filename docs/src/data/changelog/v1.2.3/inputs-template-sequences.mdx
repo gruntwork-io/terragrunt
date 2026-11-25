@@ -1,0 +1,49 @@
+---
+version: "v1.2.3"
+category: "bug-fixes"
+---
+
+#### Map and list `inputs` pass `${` and `%{` through as written
+
+A map or list in [`inputs`](/reference/hcl/attributes/inputs/) is passed to OpenTofu/Terraform as JSON. A string in it that contains `%{` (written `%%{` in HCL, or read from a file) failed when the module declared the variable as a map, list, or object:
+
+```hcl
+# terragrunt.hcl
+inputs = {
+  alert_templates = {
+    summary = "%%{ if firing }FIRING%%{ endif }"
+  }
+}
+```
+
+```text
+Error: Invalid template control keyword
+```
+
+When the module declared the variable as `string`, or with no type, and decoded the JSON itself, every `${` in the decoded strings arrived as `$${`:
+
+```hcl
+# terragrunt.hcl
+inputs = {
+  rule = {
+    summary = "Instance $${instance} is down"
+  }
+}
+```
+
+```hcl
+# main.tf
+variable "rule" {
+  type = string
+}
+
+output "summary" {
+  value = jsondecode(var.rule).summary
+}
+```
+
+```text
+summary = "Instance $${instance} is down"
+```
+
+Terragrunt now escapes `%{` as it escapes `${` for a map, list, or object variable, and leaves both unescaped for a variable declared as `string` or with no type. The module receives the string as written in both cases, so the output above is `Instance ${instance} is down`.

@@ -150,6 +150,33 @@ func TestPartialEval(t *testing.T) {
 			contains: []string{"for", "dependency.vpc.outputs.tags"},
 		},
 		{
+			name:     "for collection reads path under a loop variable with the name path",
+			hcl:      `val = [for path in [path.stack] : "${path}-${dependency.vpc.outputs.id}"]`,
+			evalCtx:  buildPathEvalCtx(),
+			contains: []string{`for path in ["/live"] :`, `"${path}-${dependency.vpc.outputs.id}"`},
+			excludes: []string{"path.stack"},
+		},
+		{
+			name:     "nested for collection reads the outer loop variable with the name path",
+			hcl:      `val = [for path in dependency.vpc.outputs.rows : [for path in path.items : path]]`,
+			evalCtx:  buildPathEvalCtx(),
+			contains: []string{`[for path in path.items : path]`},
+		},
+		{
+			name:     "for collection reads a local under a loop variable with the name local",
+			hcl:      `val = [for local in [local.env] : "${local}-${dependency.vpc.outputs.id}"]`,
+			evalCtx:  buildEvalCtx(),
+			contains: []string{`for local in ["production"] :`, `"${local}-${dependency.vpc.outputs.id}"`},
+			excludes: []string{"local.env"},
+		},
+		{
+			name:     "for collection reads a local under a key variable with the name local",
+			hcl:      `val = {for local, v in local.names : local => "${v}-${dependency.vpc.outputs.id}"}`,
+			evalCtx:  buildEvalCtx(),
+			contains: []string{`for local, v in ["a", "b"] :`, `local => "${v}-${dependency.vpc.outputs.id}"`},
+			excludes: []string{"local.names"},
+		},
+		{
 			name:     "binary op with deferred",
 			hcl:      `val = local.count + dependency.vpc.outputs.count`,
 			evalCtx:  buildEvalCtx(),
@@ -1180,6 +1207,21 @@ func TestPartialEval_ObjectKeyUndefinedReferenceFails(t *testing.T) {
 	}
 }
 
+func TestPartialEval_ForCollectionWithUndefinedRootFails(t *testing.T) {
+	t.Parallel()
+
+	expr, srcBytes := parseFirstAttrExpr(t, `val = [for path in [path.stack] : "${path}-${dependency.vpc.outputs.id}"]`)
+
+	_, err := hclparse.PartialEval(
+		expr,
+		&hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: buildEvalCtx(), Deferred: testDeferred},
+	)
+
+	var unresolved hclparse.PartialEvalUnresolvedError
+
+	require.ErrorAs(t, err, &unresolved)
+}
+
 // TestPartialEval_TemplateDirectives pins that a %{ for }/%{ if } directive on the structural path is emitted verbatim as a unit (re-emitting it inside ${...} would corrupt the output) while the template's other parts still partially evaluate, and that a generate-time-knowable directive template resolves on the fast path.
 func TestPartialEval_TemplateDirectives(t *testing.T) {
 	t.Parallel()
@@ -1312,6 +1354,14 @@ func buildEvalCtx() *hcl.EvalContext {
 				"flag":   cty.BoolVal(true),
 				"names":  cty.TupleVal([]cty.Value{cty.StringVal("a"), cty.StringVal("b")}),
 			}),
+		},
+	}
+}
+
+func buildPathEvalCtx() *hcl.EvalContext {
+	return &hcl.EvalContext{
+		Variables: map[string]cty.Value{
+			"path": cty.ObjectVal(map[string]cty.Value{"stack": cty.StringVal("/live")}),
 		},
 	}
 }

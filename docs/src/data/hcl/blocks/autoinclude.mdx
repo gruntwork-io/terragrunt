@@ -152,6 +152,8 @@ inputs = {
 
 </SideBySide>
 
+Terragrunt also writes as is a `%{ if }` or `%{ for }` template directive that reads a `dependency` output, and the part after `[*]` in a splat expression that reads one. The generated unit resolves these parts, so a variable of the stack file, e.g. `local.env`, is not defined in them.
+
 ### Component path variables
 
 Each `unit` and `stack` block gets a variable, `unit.<name>.path` or `stack.<name>.path`, with the full path of the directory `stack generate` writes it to:

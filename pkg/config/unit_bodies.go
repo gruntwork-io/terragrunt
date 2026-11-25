@@ -351,15 +351,15 @@ func (e *ErrorsHCL) readsDependency() bool {
 
 // withRequestedRunParts returns a copy of c with only the run parts that a section of decodeList decodes and that
 // read no `dependency`. It keeps the engine block, which the queue
-// decodes with `dependency` unknown whatever the decode list.
+// decodes with `dependency` unknown whatever the decode list, and the terraform body for [moduleDirAttributes].
 func (c *UnitConfig) withRequestedRunParts(decodeList []PartialDecodeSectionType) *UnitConfig {
 	requested := *c
 	requested.Inputs = nil
 	requested.GenerateAttrs = nil
 	requested.GenerateBlocks = nil
 	requested.VariablesBlocks = nil
-	requested.runAttrs = nil
-	requested.terraformRunPart = false
+	requested.runAttrs = c.moduleDirRunAttrs(decodeList)
+	requested.terraformRunPart = c.terraformRunPart && slices.Contains(decodeList, moduleDirAttributes)
 	requested.errorsRunPart = false
 
 	if c.Catalog != nil && c.Catalog.readsDependency() {
@@ -514,7 +514,18 @@ func bodyTraversals(body hcl.Body) ([]hcl.Traversal, hcl.Diagnostics) {
 
 // decodesRunParts reports whether section decodes run parts, which [UnitConfig.withRequestedRunParts] keeps.
 func decodesRunParts(section PartialDecodeSectionType) bool {
-	return section == RemoteStateBlock || section == TerraformBlock || section == TerraformExtraArgs
+	return section == RemoteStateBlock || section == TerraformBlock || section == TerraformExtraArgs ||
+		section == moduleDirAttributes
+}
+
+// moduleDirRunAttrs returns the download_dir run attribute of c when decodeList names [moduleDirAttributes].
+func (c *UnitConfig) moduleDirRunAttrs(decodeList []PartialDecodeSectionType) map[string]*hcl.Attribute {
+	attr, found := c.runAttrs[attrDownloadDir]
+	if !found || !slices.Contains(decodeList, moduleDirAttributes) {
+		return nil
+	}
+
+	return map[string]*hcl.Attribute{attrDownloadDir: attr}
 }
 
 // dropDependencyReaders returns a copy of items without those whose remain body, which decodes into B, reads the

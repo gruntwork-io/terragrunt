@@ -617,6 +617,26 @@ func (err CASSourceInsideStackError) Error() string {
 	)
 }
 
+// CASRewriteRequiredError is returned when the CAS fails to fetch a component that sets
+// update_source_with_cas. The standard getter would copy those sources unrewritten, and they
+// resolve only inside the component's own repository.
+type CASRewriteRequiredError struct {
+	Err       error
+	Component string
+}
+
+func (err CASRewriteRequiredError) Error() string {
+	return fmt.Sprintf(
+		"%s sets update_source_with_cas, which only the CAS can rewrite, and fetching it through the CAS failed: %v",
+		err.Component,
+		err.Err,
+	)
+}
+
+func (err CASRewriteRequiredError) Unwrap() error {
+	return err.Err
+}
+
 // TerragruntOutputListEncodingError reports outputs of a config's dependencies that could not be combined
 // into one cty value.
 type TerragruntOutputListEncodingError struct {
@@ -720,6 +740,34 @@ type TerraformSourceReferencesDependencyError struct {
 func (err TerraformSourceReferencesDependencyError) Error() string {
 	return fmt.Sprintf(
 		"terraform.source in %s cannot reference dependency outputs; the module source must be resolvable before dependencies are evaluated",
+		err.ConfigPath,
+	)
+}
+
+// ModuleDirReferencesDependencyError reports a module directory attribute that references the `dependency` namespace.
+type ModuleDirReferencesDependencyError struct {
+	ConfigPath string
+	Attribute  string
+}
+
+func (err ModuleDirReferencesDependencyError) Error() string {
+	return fmt.Sprintf(
+		"%s in %s cannot reference dependency outputs when path.download is read; the directory must be resolvable before dependencies are evaluated",
+		err.Attribute,
+		err.ConfigPath,
+	)
+}
+
+// PathDownloadInLocalsError reports a local that reads `path.download`.
+type PathDownloadInLocalsError struct {
+	ConfigPath string
+	Local      string
+}
+
+func (err PathDownloadInLocalsError) Error() string {
+	return fmt.Sprintf(
+		"local %s in %s reads path.download, which is not available in locals; read path.download in inputs or in a hook of the terraform block",
+		err.Local,
 		err.ConfigPath,
 	)
 }

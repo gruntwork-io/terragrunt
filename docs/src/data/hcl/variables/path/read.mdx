@@ -1,0 +1,24 @@
+---
+name: read
+variable: path
+type: string
+description: The absolute path of the file that `read_terragrunt_config` reads, e.g. `/path/to/env.hcl`.
+configs: [unit, stack]
+since: v1.2.3
+experiment: path-variable
+examples:
+  - description: A read file loads a data file beside itself.
+    code: |
+      # env.hcl
+      locals {
+        settings = yamldecode(file("${dirname(path.read)}/settings.yml"))
+      }
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip" title="Experimental">
+  `path.read` needs the [`path-variable`](/reference/experiments/active#path-variable) experiment. Enable it with `--experiment path-variable` or `TG_EXPERIMENT=path-variable`. Without the experiment, a reference to `path` fails with an error.
+</Aside>
+
+`path.read` is defined in a file that `read_terragrunt_config` reads. When that file has an `include` block, `path.read` has the same value in the included file.

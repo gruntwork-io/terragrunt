@@ -45,8 +45,12 @@ attributes:
 ---
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
+import StatefulTabs from '@components/StatefulTabs.astro';
 
 An `include` block merges another configuration file into the unit's `terragrunt.hcl`, so settings that every unit shares can live in one file:
+
+<StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure', 'GCP']}>
+<Fragment slot="aws">
 
 ```hcl
 # root.hcl
@@ -66,6 +70,50 @@ remote_state {
   }
 }
 ```
+
+</Fragment>
+<Fragment slot="azure">
+
+```hcl
+# root.hcl
+
+remote_state {
+  backend = "azurerm"
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite_terragrunt"
+  }
+  config = {
+    resource_group_name  = "my-tofu-state"
+    storage_account_name = "mytofustate"
+    container_name       = "tfstate"
+    key                  = "${path_relative_to_include()}/tofu.tfstate"
+    use_azuread_auth     = true
+  }
+}
+```
+
+</Fragment>
+<Fragment slot="gcp">
+
+```hcl
+# root.hcl
+
+remote_state {
+  backend = "gcs"
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite_terragrunt"
+  }
+  config = {
+    bucket = "my-tofu-state"
+    prefix = path_relative_to_include()
+  }
+}
+```
+
+</Fragment>
+</StatefulTabs>
 
 ```hcl
 # vpc/terragrunt.hcl

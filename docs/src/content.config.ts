@@ -65,7 +65,7 @@ const flags = defineCollection({
 	}),
 });
 
-// The configuration files an HCL block, attribute, or function is valid in:
+// The configuration files an HCL block, attribute, function, or variable is valid in:
 // `unit` for `terragrunt.hcl` and the files it includes, `stack` for
 // `terragrunt.stack.hcl`.
 const hclConfigs = z.array(z.enum(["unit", "stack"])).nonempty();
@@ -222,6 +222,27 @@ const hclFunctions = defineCollection({
 	}),
 });
 
+const hclVariables = defineCollection({
+	loader: glob({ pattern: "*.mdx", base: "src/data/hcl/variables" }),
+	schema: z.object({
+		...hclItem,
+		examples: hclExamples.optional(),
+	}),
+});
+
+// A field of a variable, in `src/data/hcl/variables/<variable>/<name>.mdx`,
+// e.g. `path/unit.mdx` for `path.unit`. Its page is at
+// `/reference/hcl/variables/<variable>/<name>/`. `configs` is where the field
+// is defined.
+const hclVariableFields = defineCollection({
+	loader: glob({ pattern: "*/*.mdx", base: "src/data/hcl/variables" }),
+	schema: z.object({
+		...hclItem,
+		variable: z.string().regex(/^[a-z][a-z0-9_]*$/),
+		type: z.string(),
+	}),
+});
+
 const faq = defineCollection({
 	loader: glob({ pattern: ["**/*.{md,mdx}", "!README.md"], base: "src/data/faq" }),
 	schema: z.object({
@@ -308,6 +329,8 @@ export const collections = {
 	hclAttributes,
 	hclBlocks,
 	hclFunctions,
+	hclVariableFields,
+	hclVariables,
 	patterns,
 	strictControls,
 };
