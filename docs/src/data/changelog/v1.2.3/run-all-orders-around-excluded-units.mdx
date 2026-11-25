@@ -5,6 +5,8 @@ category: "bug-fixes"
 
 #### `run --all` waits on the dependencies of excluded units
 
-When `a` depends on `b`, `b` depends on `c`, and `b` is excluded from the run, `run --all` now starts `a` only after `c` finishes, and a failure in `c` stops `a`. `run --all destroy` reverses the order. It destroys `a` before `c`, and a failure in `a` stops `c`. This holds however `b` is excluded: [`--queue-exclude-dir`](/reference/cli/commands/run#queue-exclude-dir), a negative [`--filter`](/features/filter), or an [`exclude`](/reference/hcl/blocks/exclude) block.
+When `a` depends on `b`, `b` depends on `c`, and `b` is excluded from the run, `run --all` started `a` without waiting for `c`.
 
-Units in the run that depend on one another in a cycle through excluded units now fail with `cycle detected during queue construction`.
+`run --all` now starts `a` only after `c` finishes, and a failure in `c` stops `a`. `run --all destroy` reverses the order. It destroys `a` before `c`, and a failure in `a` stops `c`. The same applies when `b` is excluded by [`--queue-exclude-dir`](/reference/cli/commands/run#queue-exclude-dir), a negative [`--filter`](/features/filter), or an [`exclude`](/reference/hcl/blocks/exclude) block.
+
+Units in the run that depend on one another in a cycle through excluded units now fail with `cycle detected during queue construction`. Remove one of the dependencies in the cycle.

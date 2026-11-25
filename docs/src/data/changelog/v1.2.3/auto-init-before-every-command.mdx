@@ -1,0 +1,15 @@
+---
+version: "v1.2.3"
+category: "bug-fixes"
+---
+
+#### Auto-init no longer runs `init` before every command
+
+Auto-init ran `init` before every command in two kinds of unit:
+
+- A unit that uses no provider, e.g. one whose configuration declares only outputs. `init` gives such a unit no `.terraform.lock.hcl` and no `.terraform/providers` directory, and auto-init read their absence as `init` never having run.
+- Since v0.88.1, a unit whose root module calls no modules, when a subdirectory such as `examples/` contained a `module` block or a comment mentioned one. Auto-init searched every `.tf` and `.tofu` file under the working directory for the text `module "..."`. With [`--no-auto-init`](/features/units/auto-init#disabling-auto-init), every run warned that `init` was needed.
+
+Terragrunt now runs `init` again only when a change affects what `init` does, e.g. a change to a `terraform` or `module` block, to the providers the configuration uses, to a local module it calls, or to the lock file. It reads only the files OpenTofu/Terraform load for the root module, so module calls in `.tf.json` and `.tofu.json` files, which the text search missed, now trigger `init`.
+
+Terragrunt detects these changes only after an `init` it ran itself. If you run `tofu init` directly, run `terragrunt init` afterwards. See [Auto-init](/features/units/auto-init).

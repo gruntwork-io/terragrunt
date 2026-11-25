@@ -1,0 +1,10 @@
+---
+version: "v1.2.3"
+category: "bug-fixes"
+---
+
+#### `--config` with `--all` selects only files with that name
+
+`terragrunt run --all --config main.hcl -- plan` ran the units configured by a `main.hcl` file and also the units configured by a `terragrunt.hcl` file.
+
+With `--all`, only files with the name you pass to [`--config`](/reference/cli/commands/run#config) are now unit configurations. The command above skips a directory that has a `terragrunt.hcl` and no `main.hcl`.
