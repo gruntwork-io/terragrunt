@@ -41,7 +41,7 @@ jobs:
 
       - name: Use mise to install bun
         if: steps.check_release.outputs.exists == 'false'
-        uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+        uses: jdx/mise-action@236a21c3b91f5db6d4e174b348674a0f0caac06d # v5.2.9
         with:
           version: 2026.11.0
           install_args: bun

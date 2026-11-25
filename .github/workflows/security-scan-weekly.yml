@@ -29,7 +29,7 @@ jobs:
           fetch-depth: 0
 
       - name: Use mise to install dependencies
-        uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+        uses: jdx/mise-action@236a21c3b91f5db6d4e174b348674a0f0caac06d # v5.2.9
         with:
           version: 2026.11.0
           cache_save: ${{ github.ref == 'refs/heads/main' }}
