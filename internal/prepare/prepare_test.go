@@ -51,43 +51,77 @@ func TestPrepareSourceInPlaceKeepsWorkingDir(t *testing.T) {
 
 	root := t.TempDir()
 	unitDir := filepath.Join(root, "unit")
+	configPath := filepath.Join(root, "configs", config.DefaultTerragruntConfigPath)
 
-	opts, err := options.NewTerragruntOptionsWithConfigPath(
-		filepath.Join(root, "configs", config.DefaultTerragruntConfigPath),
-	)
+	fsys := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(fsys, configPath, []byte(""), 0o644))
+	require.NoError(t, vfs.WriteFile(fsys, filepath.Join(unitDir, "main.tf"), []byte(""), 0o644))
+
+	opts, err := options.NewTerragruntOptionsWithConfigPath(configPath)
 	require.NoError(t, err)
-	require.NoError(t, opts.Experiments.EnableExperiment(experiment.NoDotTerragruntCache))
 
 	opts.WorkingDir = unitDir
 
-	cfg := &config.TerragruntConfig{Terraform: &config.TerraformConfig{NoDotTerragruntCache: new(true)}}
-
-	updatedOpts, _, err := prepare.PrepareSource(
-		run.WithRunVersionCache(t.Context()), logger.CreateLogger(), venv.MemVenv(), opts, cfg, report.NewReport(),
-	)
-	require.NoError(t, err)
+	updatedOpts := prepareSourceInPlace(t, fsys, opts)
 
 	assert.Equal(t, unitDir, updatedOpts.WorkingDir)
 	assert.NotSame(t, opts, updatedOpts)
 }
 
+func TestPrepareSourceInPlaceKeepsConfigDirWithTFFiles(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	unitDir := filepath.Join(root, "unit")
+
+	fsys := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(fsys, filepath.Join(unitDir, "main.tf"), []byte(""), 0o644))
+
+	opts, err := options.NewTerragruntOptionsWithConfigPath(filepath.Join(unitDir, config.DefaultTerragruntConfigPath))
+	require.NoError(t, err)
+
+	opts.WorkingDir = root
+
+	updatedOpts := prepareSourceInPlace(t, fsys, opts)
+
+	assert.Equal(t, unitDir, updatedOpts.WorkingDir)
+}
+
 func TestPrepareSourceInPlaceReturnsAbsoluteConfigPath(t *testing.T) {
 	t.Parallel()
 
-	configPath := filepath.Join(t.TempDir(), config.DefaultTerragruntConfigPath)
+	unitDir := t.TempDir()
+	configPath := filepath.Join(unitDir, config.DefaultTerragruntConfigPath)
+
+	fsys := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(fsys, filepath.Join(unitDir, "main.tf"), []byte(""), 0o644))
 
 	opts, err := options.NewTerragruntOptionsWithConfigPath(configPath)
 	require.NoError(t, err)
-	require.NoError(t, opts.Experiments.EnableExperiment(experiment.NoDotTerragruntCache))
 
 	opts.TerragruntConfigPath = config.DefaultTerragruntConfigPath
+
+	updatedOpts := prepareSourceInPlace(t, fsys, opts)
+
+	assert.Equal(t, configPath, updatedOpts.TerragruntConfigPath)
+}
+
+func prepareSourceInPlace(t *testing.T, fsys vfs.FS, opts *options.TerragruntOptions) *options.TerragruntOptions {
+	t.Helper()
+
+	require.NoError(t, opts.Experiments.EnableExperiment(experiment.NoDotTerragruntCache))
 
 	cfg := &config.TerragruntConfig{Terraform: &config.TerraformConfig{NoDotTerragruntCache: new(true)}}
 
 	updatedOpts, _, err := prepare.PrepareSource(
-		run.WithRunVersionCache(t.Context()), logger.CreateLogger(), venv.MemVenv(), opts, cfg, report.NewReport(),
+		run.WithRunVersionCache(t.Context()),
+		logger.CreateLogger(),
+		venv.MemVenv().WithFS(fsys),
+		opts,
+		cfg,
+		report.NewReport(),
 	)
 	require.NoError(t, err)
 
-	assert.Equal(t, configPath, updatedOpts.TerragruntConfigPath)
+	return updatedOpts
 }

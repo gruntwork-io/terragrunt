@@ -177,7 +177,14 @@ func PrepareSource(
 			return nil, impl, err
 		}
 
-		updatedTerragruntOptions.WorkingDir = opts.WorkingDir
+		configDirHasCode, err := util.DirContainsTFFiles(v.FS, updatedTerragruntOptions.WorkingDir)
+		if err != nil {
+			return nil, impl, err
+		}
+
+		if !configDirHasCode {
+			updatedTerragruntOptions.WorkingDir = opts.WorkingDir
+		}
 
 		return updatedTerragruntOptions, impl, nil
 	}

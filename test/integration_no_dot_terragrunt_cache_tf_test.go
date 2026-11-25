@@ -113,6 +113,29 @@ func TestTFNoDotTerragruntCacheRunsInWorkingDirWithConfigElsewhere(t *testing.T)
 	assert.Equal(t, unitPath, info.WorkingDir)
 }
 
+func TestTFNoDotTerragruntCacheExecRunsInConfigDirWithTFFiles(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNoDotTerragruntCacheWorkingDir)
+	unitsPath := filepath.Join(tmpEnvPath, testFixtureNoDotTerragruntCacheWorkingDir, "units")
+	unitPath := filepath.Join(unitsPath, "a")
+	flags := noDotTerragruntCacheFlags + unitsPath +
+		" --config " + filepath.Join(unitPath, config.DefaultTerragruntConfigPath)
+
+	helpers.RunTerragrunt(t, "terragrunt exec --in-download-dir"+flags+" -- touch exec.out")
+
+	assert.FileExists(t, filepath.Join(unitPath, "exec.out"))
+	assert.NoFileExists(t, filepath.Join(unitsPath, "exec.out"))
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt info print"+flags)
+	require.NoError(t, err)
+
+	var info print.InfoOutput
+
+	require.NoError(t, json.Unmarshal([]byte(stdout), &info))
+	assert.Equal(t, unitPath, info.WorkingDir)
+}
+
 func TestTFNoDotTerragruntCacheRunAllRunsEachUnitInPlace(t *testing.T) {
 	t.Parallel()
 
