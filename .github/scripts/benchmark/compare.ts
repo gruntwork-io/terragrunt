@@ -19,6 +19,7 @@
  * Environment:
  *   BENCH_COMPARISON             Label for the report, such as `push, fast suite`.
  *   BENCH_BASE_SHA, BENCH_HEAD_SHA
+ *   BENCH_BASE_DESCRIPTION       Why the base is that commit, in Markdown, from resolve-refs.sh.
  *   BENCH_TIME_THRESHOLD_PCT     Smallest change in a time metric to flag (default 5).
  *   BENCH_MEMORY_THRESHOLD_PCT   Smallest change in peak RSS to flag (default 10).
  *   BENCH_ALLOC_THRESHOLD_PCT    Smallest change in B/op or allocs/op to flag (default 2).
@@ -400,13 +401,18 @@ const HEADLINE_NOUNS: Record<MetricKind, string> = {
 
 export function renderSummary(
   report: Report,
-  extras: { benchstat?: string; profileDiffs?: Map<string, ProfileDiffs>; repoUrl?: string },
+  extras: {
+    benchstat?: string;
+    profileDiffs?: Map<string, ProfileDiffs>;
+    repoUrl?: string;
+    baseDescription?: string;
+  },
 ): string {
   const flagged = flaggedMetrics(report);
   const lines = [
     `## Benchmark: ${report.comparison}`,
     "",
-    `${comparedCommits(report, extras.repoUrl)}. ` +
+    `${comparedCommits(report, extras)}. ` +
       `${report.regressions} regressed and ${report.improvements} improved metrics across ` +
       `${report.scenarios.length} scenarios.`,
     "",
@@ -415,7 +421,13 @@ export function renderSummary(
   ];
 
   if (flagged.length > 0) {
-    lines.push("| Scenario | Metric | Base | Head | Change | p |", "|---|---|---:|---:|---:|---:|");
+    lines.push(
+      "`p` is the probability of a difference at least this large if base and head performed the same, from a " +
+        "Mann-Whitney U test. Lower is stronger evidence of a real change.",
+      "",
+      "| Scenario | Metric | Base | Head | Change | p |",
+      "|---|---|---:|---:|---:|---:|",
+    );
 
     for (const { id, metric } of flagged) {
       lines.push(
@@ -576,17 +588,23 @@ function flaggedMetrics(report: Report): FlaggedMetric[] {
 }
 
 /**
- * Names the base and head commits of a report. Links the commits between them
- * when the repository is known and the two sides differ.
+ * Names the base and head commits of a report, and says why the base is that
+ * commit when `baseDescription` is given. Links the commits between them when
+ * the repository is known and the two sides differ.
  */
-function comparedCommits(report: Report, repoUrl?: string): string {
-  const commits = `Base \`${report.baseSha.slice(0, 12)}\`, head \`${report.headSha.slice(0, 12)}\``;
+function comparedCommits(report: Report, extras: { repoUrl?: string; baseDescription?: string }): string {
+  const base = `\`${report.baseSha.slice(0, 12)}\``;
+  const head = `\`${report.headSha.slice(0, 12)}\``;
 
-  if (!repoUrl || report.baseSha === report.headSha) {
+  const commits = extras.baseDescription
+    ? `Base ${base} is ${extras.baseDescription}. Head ${head} is the commit under test`
+    : `Base ${base}, head ${head}`;
+
+  if (!extras.repoUrl || report.baseSha === report.headSha) {
     return commits;
   }
 
-  return `${commits} ([compare](${repoUrl}/compare/${report.baseSha}...${report.headSha}))`;
+  return `${commits} ([compare](${extras.repoUrl}/compare/${report.baseSha}...${report.headSha}))`;
 }
 
 function flaggingRule(report: Report): string {
@@ -864,7 +882,15 @@ function main(): void {
   const profileDiffs = values.profiles && existsSync(values.profiles) ? readProfileDiffs(values.profiles, 20) : undefined;
 
   writeFileSync(values.out, `${JSON.stringify(report, null, 2)}\n`);
-  writeFileSync(values.summary, renderSummary(report, { benchstat, profileDiffs, repoUrl: repoUrlFromEnv() }));
+  writeFileSync(
+    values.summary,
+    renderSummary(report, {
+      benchstat,
+      profileDiffs,
+      repoUrl: repoUrlFromEnv(),
+      baseDescription: process.env.BENCH_BASE_DESCRIPTION || undefined,
+    }),
+  );
 
   if (values.comment) {
     const profiled = flaggedScenarios(report).filter((id) => profileDiffs?.has(id));

@@ -311,6 +311,7 @@ describe("renderSummary", () => {
     });
 
     expect(summary).toContain("1 regressed and 0 improved metrics across 1 scenarios");
+    expect(summary).toContain("`p` is the probability of a difference at least this large");
     expect(summary).toContain("| `find.flat.10` | hyperfine time_wall_clock | 1.00 s | 1.20 s | +20.0% |");
     expect(summary).toContain("<summary>CPU profile diff for <code>find.flat.10</code></summary>");
     expect(summary).toContain("runtime.scanObject");
@@ -339,6 +340,7 @@ describe("renderSummary", () => {
     const summary = renderSummary(report(hyperfineSamples(steady, steady)), {});
 
     expect(summary).not.toContain("| Scenario | Metric |");
+    expect(summary).not.toContain("`p` is the probability");
     expect(summary).toContain("| `find.flat.10` | 1.00 s +0.0% |");
   });
 
@@ -349,6 +351,19 @@ describe("renderSummary", () => {
 
     expect(summary).toContain(
       `Base \`${"a".repeat(12)}\`, head \`${"b".repeat(12)}\` ` +
+        `([compare](https://github.com/gruntwork-io/terragrunt/compare/${"a".repeat(40)}...${"b".repeat(40)})). `,
+    );
+  });
+
+  test("says why the base is that commit", () => {
+    const summary = renderSummary(report(hyperfineSamples(steady, steady)), {
+      repoUrl: "https://github.com/gruntwork-io/terragrunt",
+      baseDescription: "the latest release, `v1.2.2`",
+    });
+
+    expect(summary).toContain(
+      `Base \`${"a".repeat(12)}\` is the latest release, \`v1.2.2\`. ` +
+        `Head \`${"b".repeat(12)}\` is the commit under test ` +
         `([compare](https://github.com/gruntwork-io/terragrunt/compare/${"a".repeat(40)}...${"b".repeat(40)})). `,
     );
   });
