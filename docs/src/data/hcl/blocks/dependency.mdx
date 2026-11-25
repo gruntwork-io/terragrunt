@@ -107,7 +107,6 @@ attributes:
 
 import { Aside } from '@astrojs/starlight/components';
 import FileTree from '@components/vendored/starlight/FileTree.astro';
-import Since from '@components/Since.astro';
 import StatefulTabs from '@components/StatefulTabs.astro';
 
 A `dependency` block reads another unit's outputs:
@@ -150,11 +149,7 @@ dependency "vpc" {
 }
 ```
 
-<Since version="v1.2.3">
-
 `mock_outputs` overrides the mock values of an [`outputs`](/reference/hcl/blocks/outputs#with-a-dependency-block) block the dependency declares, key by key.
-
-</Since>
 
 A `dependency` block can contain an [`expansion`](/reference/hcl/blocks/expansion/) block, which repeats it once per element of a collection, e.g. `dependency.aurora["web"].outputs.id`.
 
