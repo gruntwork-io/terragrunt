@@ -56,6 +56,6 @@ Criteria for moving `mutable-generate` to a stable release:
 
 - [x] A `mutable` attribute on the `generate` block, parsed from both the block and attribute forms.
 - [x] Deduplication of non-mutable generated files through the CAS store, materialized as read-only hard links.
-- [ ] Confirmation that read-only generated files break no established workflow, including hooks and IaC engines.
+- [x] Confirmation that read-only generated files break no established workflow, including hooks and IaC engines.
 - [x] `remote_state.generate` stays out of the CAS and writes its backend file directly into each unit.
 - [x] Community feedback on the disk savings actually observed at scale.
