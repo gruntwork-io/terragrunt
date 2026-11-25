@@ -103,10 +103,12 @@ function linkUrls(markdown: string): string[] {
 // Returns the path of the page rendered from a data file, given its path
 // relative to `src/data/`, or undefined when no page is.
 function dataPagePath(file: string, data: Record<string, unknown>): string | undefined {
-  const [collection, kind] = file.split(path.sep);
+  const [collection, kind, ...rest] = file.split(path.sep);
   if (collection === "commands") return `/reference/cli/commands/${data.path}`;
-  if (collection === "hcl" && isHclKind(kind)) return `/${hclItemSlug(kind, String(data.name))}`;
-  return undefined;
+  if (collection !== "hcl" || !isHclKind(kind)) return undefined;
+  // A file one directory below a kind is a field of a variable, e.g. `variables/path/unit.mdx`.
+  if (rest.length > 1) return `/${hclItemSlug(kind, String(data.variable))}/${data.name}`;
+  return `/${hclItemSlug(kind, String(data.name))}`;
 }
 
 function isHclKind(kind: string | undefined): kind is HclKind {

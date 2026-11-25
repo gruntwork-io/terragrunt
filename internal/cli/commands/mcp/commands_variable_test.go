@@ -9,7 +9,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -37,7 +36,7 @@ func TestRenderConfigToolResolvesCommandsVariableWithExperiment(t *testing.T) {
 		want = append(want, command)
 	}
 
-	assert.Equal(t, want, out.Config.Inputs["vars"])
+	require.Equal(t, want, out.Config.Inputs["vars"])
 }
 
 func TestRenderConfigToolNamesTheCommandsVariableExperimentWhenDisabled(t *testing.T) {
@@ -55,7 +54,7 @@ func TestRenderConfigToolNamesTheCommandsVariableExperimentWhenDisabled(t *testi
 
 	text, ok := res.Content[0].(*mcp.TextContent)
 	require.True(t, ok)
-	assert.Contains(t, text.Text, "--experiment "+experiment.CommandsVariable)
+	require.Contains(t, text.Text, "--experiment "+experiment.CommandsVariable)
 }
 
 func newCommandsVariableSession(t *testing.T, experiments ...string) *mcp.ClientSession {

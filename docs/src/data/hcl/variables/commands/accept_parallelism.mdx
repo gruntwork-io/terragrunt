@@ -1,0 +1,29 @@
+---
+name: accept_parallelism
+variable: commands
+type: list(string)
+description: The OpenTofu/Terraform commands that accept `-parallelism`.
+configs: [unit, stack]
+since: v1.2.4
+experiment: commands-variable
+examples:
+  - description: A unit sets the number of parallel operations for each command that accepts the flag.
+    code: |
+      # terragrunt.hcl
+      terraform {
+        extra_arguments "parallelism" {
+          commands  = commands.accept_parallelism
+          arguments = ["-parallelism=5"]
+        }
+      }
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip" title="Experimental">
+  `commands.accept_parallelism` needs the [`commands-variable`](/reference/experiments/active#commands-variable) experiment. Enable it with `--experiment commands-variable` or `TG_EXPERIMENT=commands-variable`. Without the experiment, `commands` is not defined.
+</Aside>
+
+`commands.accept_parallelism` holds these commands: `apply`, `plan`, and `destroy`.
+
+It has the same value as [`get_terraform_commands_that_need_parallelism()`](/reference/hcl/functions/get_terraform_commands_that_need_parallelism).

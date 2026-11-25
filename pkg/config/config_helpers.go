@@ -391,6 +391,10 @@ func TerragruntEvalVariables(
 func evalVariablesWithoutIncludes(pctx *ParsingContext) map[string]cty.Value {
 	vars := map[string]cty.Value{}
 
+	if pctx.Path != nil {
+		vars[MetadataPath] = *pctx.Path
+	}
+
 	if pctx.Experiments.Evaluate(experiment.CommandsVariable) {
 		vars[MetadataCommands] = commandsVariable()
 	}

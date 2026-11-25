@@ -3,9 +3,9 @@ version: "v1.2.4"
 category: "experiments-added"
 ---
 
-#### `commands-variable` experiment adds the `commands` variable
+#### `commands-variable` — Read the lists of commands by name with the `commands` variable
 
-The lists of OpenTofu/Terraform commands that accept a set of flags come from four functions, e.g. `get_terraform_commands_that_need_vars()`. Enable the [`commands-variable`](/reference/experiments/active#commands-variable) experiment to read them by name: `commands.accept_vars`, `commands.accept_locking`, `commands.accept_input` and `commands.accept_parallelism`.
+Four functions, e.g. `get_terraform_commands_that_need_vars()`, return the lists of OpenTofu/Terraform commands that accept a set of flags. Enable the [`commands-variable`](/reference/experiments/active#commands-variable) experiment to read them by name: `commands.accept_vars`, `commands.accept_locking`, `commands.accept_input`, and `commands.accept_parallelism`.
 
 ```hcl
 terraform {

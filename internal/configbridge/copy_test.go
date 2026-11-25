@@ -24,6 +24,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zclconf/go-cty/cty"
 )
 
 // TestNewParsingContextCopiesEveryOption pins every bridged option onto the ParsingContext so no flag is dropped.
@@ -267,6 +268,26 @@ func TestStackFuncFactoryScopesFunctionsToStackDir(t *testing.T) {
 	}
 }
 
+func TestStackDirArgsScopesVariablesToStackDir(t *testing.T) {
+	t.Parallel()
+
+	stackDir := venvtest.Root("/mem/root/live/stack-a")
+
+	opts, err := options.NewTerragruntOptionsForTest("/mem/root/live/terragrunt.hcl")
+	require.NoError(t, err)
+	require.NoError(t, opts.Experiments.EnableExperiment(experiment.PathVariable))
+
+	args := configbridge.StackDirArgs(t.Context(), logger.CreateLogger(), venv.MemVenv(), new(config.Store), opts)
+	require.NotNil(t, args.FuncsFor)
+
+	vars, err := args.VarsFor(stackDir)
+	require.NoError(t, err)
+
+	assert.Equal(t, map[string]cty.Value{
+		config.MetadataPath: cty.ObjectVal(map[string]cty.Value{"stack": cty.StringVal(stackDir)}),
+	}, vars)
+}
+
 func TestStackDirArgsVariablesDefineCommandsOnlyWithExperiment(t *testing.T) {
 	t.Parallel()
 
@@ -297,7 +318,7 @@ func TestStackDirArgsVariablesDefineCommandsOnlyWithExperiment(t *testing.T) {
 			require.NoError(t, err)
 
 			_, defined := vars[config.MetadataCommands]
-			assert.Equal(t, tc.defined, defined)
+			require.Equal(t, tc.defined, defined)
 		})
 	}
 }
@@ -320,7 +341,7 @@ func TestStackDirArgsDiscoverUnitPathBuiltFromCommands(t *testing.T) {
 
 	unitName := config.TerraformCommandsNeedParallelism[0] + "-" + config.TerraformCommandsNeedInput[0]
 
-	assert.Equal(t, []string{filepath.Join(stackDir, config.StackDir, unitName)}, unitPaths)
+	require.Equal(t, []string{filepath.Join(stackDir, config.StackDir, unitName)}, unitPaths)
 }
 
 // optionsWithDistinctValues returns options whose every bridged field holds a recognizable non-zero value.

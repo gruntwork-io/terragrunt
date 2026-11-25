@@ -1,0 +1,29 @@
+---
+name: accept_locking
+variable: commands
+type: list(string)
+description: The OpenTofu/Terraform commands that accept `-lock-timeout`.
+configs: [unit, stack]
+since: v1.2.4
+experiment: commands-variable
+examples:
+  - description: A unit sets a lock timeout for each command that locks the state.
+    code: |
+      # terragrunt.hcl
+      terraform {
+        extra_arguments "retry_lock" {
+          commands  = commands.accept_locking
+          arguments = ["-lock-timeout=20m"]
+        }
+      }
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip" title="Experimental">
+  `commands.accept_locking` needs the [`commands-variable`](/reference/experiments/active#commands-variable) experiment. Enable it with `--experiment commands-variable` or `TG_EXPERIMENT=commands-variable`. Without the experiment, `commands` is not defined.
+</Aside>
+
+`commands.accept_locking` holds these commands: `apply`, `destroy`, `import`, `plan`, `refresh`, `taint`, and `untaint`.
+
+It has the same value as [`get_terraform_commands_that_need_locking()`](/reference/hcl/functions/get_terraform_commands_that_need_locking).

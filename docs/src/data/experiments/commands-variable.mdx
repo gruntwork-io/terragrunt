@@ -1,17 +1,17 @@
 ---
 name: commands-variable
-since: "v1.2.3"
+since: "v1.2.4"
 ---
 
-Support for the `commands` variable, which exposes the lists of OpenTofu/Terraform commands that accept a given set of flags by name.
+Support for the `commands` variable. Each field holds the list of OpenTofu/Terraform commands that accept one set of flags.
 
-This experiment is ongoing and disabled by default. A reference to `commands` without the experiment enabled returns an error. It becomes generally available once every item in the stabilization criteria below is met.
+This experiment is ongoing and disabled by default. Without the experiment, `commands` is not defined. It becomes generally available once every item in the stabilization criteria below is met.
 
 ### `commands-variable` - What it does
 
-Functions such as `get_terraform_commands_that_need_vars()` take no arguments and return the same list in every file. With this experiment enabled, each attribute of `commands` holds one of those lists:
+Functions such as `get_terraform_commands_that_need_vars()` take no arguments and return the same list in every file. With this experiment enabled, each field of `commands` holds one of those lists:
 
-| Attribute | Value | Function with the same value |
+| Field | Value | Function with the same value |
 | --- | --- | --- |
 | `commands.accept_vars` | The commands that accept `-var` and `-var-file`. | `get_terraform_commands_that_need_vars()` |
 | `commands.accept_locking` | The commands that accept `-lock-timeout`. | `get_terraform_commands_that_need_locking()` |
@@ -37,7 +37,7 @@ terraform {
 terragrunt run --all --experiment commands-variable -- plan
 ```
 
-`commands` has the same value in a unit, in a file the unit includes or reads, in a `terragrunt.values.hcl` file, and in a `terragrunt.stack.hcl` file. The functions keep their behavior. See the [`commands` variable reference](/reference/hcl/variables/commands/) for each attribute, with examples.
+`commands` has the same value in a unit, in a file that the unit includes or reads, in a `terragrunt.values.hcl` file, and in a `terragrunt.stack.hcl` file. The functions keep their behavior. See the [`commands` variable reference](/reference/hcl/variables/commands/) for each field, with examples.
 
 ### `commands-variable` - How to provide feedback
 
@@ -49,7 +49,7 @@ Provide your feedback in the [Terragrunt GitHub Discussions](https://github.com/
 
 To transition the `commands-variable` feature to a stable release, the following must be addressed:
 
-- [ ] Agree on the attribute names.
+- [ ] Agree on the field names.
 - [x] Add reference documentation for the `commands` variable.
 - [ ] Support the `commands` variable in [`terragrunt-ls`](https://github.com/gruntwork-io/terragrunt-ls).
 - [ ] Serve the `commands` variable reference through the [Terragrunt docs MCP server](/getting-started/install#terragrunt-docs-mcp-server).

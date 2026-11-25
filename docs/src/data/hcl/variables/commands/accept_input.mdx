@@ -1,0 +1,29 @@
+---
+name: accept_input
+variable: commands
+type: list(string)
+description: The OpenTofu/Terraform commands that accept `-input`.
+configs: [unit, stack]
+since: v1.2.4
+experiment: commands-variable
+examples:
+  - description: A unit turns off the prompts of each command that can ask for input.
+    code: |
+      # terragrunt.hcl
+      terraform {
+        extra_arguments "disable_input" {
+          commands  = commands.accept_input
+          arguments = ["-input=false"]
+        }
+      }
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip" title="Experimental">
+  `commands.accept_input` needs the [`commands-variable`](/reference/experiments/active#commands-variable) experiment. Enable it with `--experiment commands-variable` or `TG_EXPERIMENT=commands-variable`. Without the experiment, `commands` is not defined.
+</Aside>
+
+`commands.accept_input` holds these commands: `apply`, `import`, `init`, `plan`, and `refresh`.
+
+It has the same value as [`get_terraform_commands_that_need_input()`](/reference/hcl/functions/get_terraform_commands_that_need_input).

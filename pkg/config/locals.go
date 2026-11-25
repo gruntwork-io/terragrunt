@@ -133,7 +133,7 @@ func evaluateLocals(
 //
 // An attribute that can never be evaluated is left out of the result, along with every attribute that references it.
 // That covers cycles, references to locals the block does not define, and references to variables other than
-// the ones a locals block can reference.
+// `local`, `include`, `feature` and `values`.
 //
 // Returns the locals evaluated so far and the joined errors of the first layer in which an attribute fails to
 // evaluate.
@@ -338,12 +338,19 @@ func canEvaluateLocals(
 // localsRoots lists the variables a locals block can reference.
 var localsRoots = []string{MetadataLocal, MetadataInclude, MetadataFeatureFlag, MetadataValues}
 
+// localsRootsFor returns the variables a locals block parsed with pctx can reference.
 func localsRootsFor(pctx *ParsingContext) []string {
-	if pctx.Experiments.Evaluate(experiment.CommandsVariable) {
-		return append(slices.Clone(localsRoots), MetadataCommands)
+	roots := localsRoots
+
+	if pctx.Experiments.Evaluate(experiment.PathVariable) {
+		roots = append(slices.Clone(roots), MetadataPath)
 	}
 
-	return localsRoots
+	if pctx.Experiments.Evaluate(experiment.CommandsVariable) {
+		roots = append(slices.Clone(roots), MetadataCommands)
+	}
+
+	return roots
 }
 
 // localReference classifies a variable referenced from a locals block. It returns the name of the local the reference
@@ -358,6 +365,10 @@ func localReference(localVar hcl.Traversal, roots []string) (localName, detail s
 			strings.Join(roots, ", "),
 			rootName,
 		)
+
+		if rootName == MetadataPath {
+			detail += pathExperimentHint
+		}
 
 		if rootName == MetadataCommands {
 			detail += commandsExperimentHint

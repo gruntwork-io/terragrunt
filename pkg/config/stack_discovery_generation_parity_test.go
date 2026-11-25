@@ -362,6 +362,7 @@ unit "member" {
 					FuncsFor: func(stackDir string) (map[string]function.Function, error) {
 						return config.EarlyStackParseFunctions(ctx, l, v, new(config.Store), pctx, stackDir)
 					},
+					VarsFor: noStackVars,
 				},
 			)
 			require.NoError(t, err)

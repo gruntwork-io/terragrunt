@@ -2,78 +2,17 @@
 name: commands
 description: Holds the lists of OpenTofu/Terraform commands that accept a given set of flags.
 configs: [unit, stack]
-since: v1.2.3
+since: v1.2.4
 experiment: commands-variable
-attributes:
-  - name: accept_vars
-    type: list(string)
-    configs: [unit, stack]
-    description: |
-      The commands that accept `-var` and `-var-file`: `apply`, `console`, `destroy`, `import`, `plan`, `push`, and `refresh`.
-
-      It has the same value as [`get_terraform_commands_that_need_vars()`](/reference/hcl/functions/get_terraform_commands_that_need_vars).
-    example: |
-      # terragrunt.hcl
-      terraform {
-        extra_arguments "common_vars" {
-          commands  = commands.accept_vars
-          arguments = ["-var-file=${get_terragrunt_dir()}/../common.tfvars"]
-        }
-      }
-  - name: accept_locking
-    type: list(string)
-    configs: [unit, stack]
-    description: |
-      The commands that accept `-lock-timeout`: `apply`, `destroy`, `import`, `plan`, `refresh`, `taint`, and `untaint`.
-
-      It has the same value as [`get_terraform_commands_that_need_locking()`](/reference/hcl/functions/get_terraform_commands_that_need_locking).
-    example: |
-      # terragrunt.hcl
-      terraform {
-        extra_arguments "retry_lock" {
-          commands  = commands.accept_locking
-          arguments = ["-lock-timeout=20m"]
-        }
-      }
-  - name: accept_input
-    type: list(string)
-    configs: [unit, stack]
-    description: |
-      The commands that accept `-input`: `apply`, `import`, `init`, `plan`, and `refresh`.
-
-      It has the same value as [`get_terraform_commands_that_need_input()`](/reference/hcl/functions/get_terraform_commands_that_need_input).
-    example: |
-      # terragrunt.hcl
-      terraform {
-        extra_arguments "disable_input" {
-          commands  = commands.accept_input
-          arguments = ["-input=false"]
-        }
-      }
-  - name: accept_parallelism
-    type: list(string)
-    configs: [unit, stack]
-    description: |
-      The commands that accept `-parallelism`: `apply`, `plan`, and `destroy`.
-
-      It has the same value as [`get_terraform_commands_that_need_parallelism()`](/reference/hcl/functions/get_terraform_commands_that_need_parallelism).
-    example: |
-      # terragrunt.hcl
-      terraform {
-        extra_arguments "parallelism" {
-          commands  = commands.accept_parallelism
-          arguments = ["-parallelism=5"]
-        }
-      }
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
 <Aside type="tip" title="Experimental">
-  The `commands` variable needs the [`commands-variable`](/reference/experiments/active#commands-variable) experiment. Enable it with `--experiment commands-variable` or `TG_EXPERIMENT=commands-variable`. Without the experiment, a reference to `commands` fails with an error.
+  The `commands` variable needs the [`commands-variable`](/reference/experiments/active#commands-variable) experiment. Enable it with `--experiment commands-variable` or `TG_EXPERIMENT=commands-variable`. Without the experiment, `commands` is not defined.
 </Aside>
 
-Each attribute of `commands` is a list of the OpenTofu/Terraform commands that accept one set of flags. Use an attribute as the `commands` of an [`extra_arguments`](/reference/hcl/blocks/terraform#extra_arguments) block or of a [hook](/reference/hcl/blocks/terraform#before_hook):
+Each field of `commands` is a list of the OpenTofu/Terraform commands that accept one set of flags. Use a field as the `commands` of an [`extra_arguments`](/reference/hcl/blocks/terraform#extra_arguments) block or of a [hook](/reference/hcl/blocks/terraform#before_hook):
 
 ```hcl
 # terragrunt.hcl

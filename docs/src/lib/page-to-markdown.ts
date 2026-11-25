@@ -18,6 +18,7 @@ type RenderableEntry = CollectionEntry<
 	| 'hclBlocks'
 	| 'hclAttributes'
 	| 'hclFunctions'
+	| 'hclVariableFields'
 	| 'hclVariables'
 >;
 

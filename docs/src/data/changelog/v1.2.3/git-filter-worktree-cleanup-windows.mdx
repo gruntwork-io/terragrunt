@@ -1,0 +1,10 @@
+---
+version: "v1.2.3"
+category: "bug-fixes"
+---
+
+#### Git-based filters clean up their worktrees on Windows
+
+On Windows, a command with a Git-based filter, e.g. `--filter '[main...HEAD]'`, sometimes logged `failed to cleanup worktrees` with `Permission denied` and left a temporary worktree registered.
+
+Terragrunt removed its temporary worktrees at the same time, and one `git worktree remove` could read the entry of another while Git deleted it. Terragrunt now runs them one at a time.

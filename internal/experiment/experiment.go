@@ -156,6 +156,8 @@ const (
 	// ValuesBlock gates the values block, which declares the values a unit or stack accepts, each with an optional type,
 	// default, description, and nullable setting.
 	ValuesBlock = "values-block"
+	// PathVariable gates the `path` variable, which exposes the paths of a unit and of a stack by name.
+	PathVariable = "path-variable"
 	// CommandsVariable gates the `commands` variable, which exposes the lists of OpenTofu/Terraform commands by name.
 	CommandsVariable = "commands-variable"
 )
@@ -317,6 +319,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: ValuesBlock,
+		},
+		{
+			Name: PathVariable,
 		},
 		{
 			Name: CommandsVariable,

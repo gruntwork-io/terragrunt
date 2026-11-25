@@ -5,6 +5,6 @@ category: "bug-fixes"
 
 #### `render --format json` prints numbers in full
 
-`render --format json` rounded numbers that a 64-bit float cannot represent, with or without `--write`. An input of `111111111111111111` rendered as `111111111111111100`, and a number outside float64 range such as `1e400` failed the render.
+`render --format json` rounded numbers that a 64-bit float cannot represent, with or without `--write`. An input of `111111111111111111` rendered as `111111111111111100`, and a number outside the 64-bit float range such as `1e400` failed the render.
 
-`render --format json` now prints each number in full, matching `render --format hcl` and the value the run passes to OpenTofu. Numbers it did not round change as well. It prints very large and very small magnitudes as plain digits where it printed exponent notation (`1e21` as `1000000000000000000000`, `1e-7` as `0.0000001`), and long fractions such as `1/3` with all their digits. Variable defaults shown by `scaffold` and `catalog` print the same way.
+`render --format json` now prints each number in full, matching `render --format hcl` and the value the run passes to OpenTofu/Terraform. The output also changes for numbers it did not round. Very large and very small magnitudes print as plain digits where they printed in exponent notation (`1e21` as `1000000000000000000000`, `1e-7` as `0.0000001`), and long fractions such as `1/3` print at full precision. Variable defaults shown by `scaffold` and `catalog` print the same way.

@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/hashicorp/hcl/v2"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -29,7 +28,7 @@ func TestCommandsVariableInUnitIncludeAndRead(t *testing.T) {
 
 	inputs := renderCommandsVariableInputs(t, filepath.Join(root, "live", "app"), commandsVariableExperimentFlag)
 
-	assert.Equal(t, map[string]any{
+	require.Equal(t, map[string]any{
 		"vars":                 commandList(config.TerraformCommandsNeedVars),
 		"locking":              commandList(config.TerraformCommandsNeedLocking),
 		"input":                commandList(config.TerraformCommandsNeedInput),
@@ -61,7 +60,7 @@ func TestCommandsVariableInRenderAll(t *testing.T) {
 	rendered, err := os.ReadFile(filepath.Join(workingDir, "json", "terragrunt.rendered.json"))
 	require.NoError(t, err)
 
-	assert.Equal(t, map[string]any{
+	require.Equal(t, map[string]any{
 		"vars":    commandList(config.TerraformCommandsNeedVars),
 		"indexed": commandList(config.TerraformCommandsNeedParallelism),
 	}, commandsVariableInputs(t, rendered))
@@ -76,7 +75,7 @@ func TestCommandsVariableInGeneratedStack(t *testing.T) {
 
 	helpers.RunTerragrunt(t, "terragrunt stack generate --working-dir "+stackDir+commandsVariableExperimentFlag)
 
-	assert.Equal(t, map[string]any{
+	require.Equal(t, map[string]any{
 		"vars":        commandList(config.TerraformCommandsNeedVars),
 		"locking":     commandList(config.TerraformCommandsNeedLocking),
 		"input":       commandList(config.TerraformCommandsNeedInput),
@@ -95,7 +94,7 @@ func TestCommandsVariableInGeneratedAutoIncludeNeedsNoExperiment(t *testing.T) {
 
 	helpers.RunTerragrunt(t, "terragrunt stack generate --working-dir "+stackDir+commandsVariableExperimentFlag)
 
-	assert.Equal(t, map[string]any{
+	require.Equal(t, map[string]any{
 		"unit":      "app",
 		"auto_vars": commandList(config.TerraformCommandsNeedVars),
 	}, renderCommandsVariableInputs(t, unitDir, ""))
@@ -136,7 +135,7 @@ func TestCommandsVariableInStackDependencyDiscovery(t *testing.T) {
 		}
 	}
 
-	assert.Equal(
+	require.Equal(
 		t,
 		map[string][]string{"consumer": {"live/" + config.StackDir + "/" + unitName}},
 		dependencies,
@@ -171,7 +170,7 @@ func TestCommandsVariableRequiresExperiment(t *testing.T) {
 			var diags hcl.Diagnostics
 
 			require.ErrorAs(t, err, &diags)
-			assert.True(t, slices.ContainsFunc(diags, func(diag *hcl.Diagnostic) bool {
+			require.True(t, slices.ContainsFunc(diags, func(diag *hcl.Diagnostic) bool {
 				return strings.Contains(diag.Detail, "--experiment "+experiment.CommandsVariable)
 			}))
 		})

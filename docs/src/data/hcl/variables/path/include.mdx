@@ -1,0 +1,25 @@
+---
+name: include
+variable: path
+type: string
+description: The absolute path of the included file, e.g. `/path/to/root.hcl`.
+configs: [unit, stack]
+since: v1.2.3
+experiment: path-variable
+examples:
+  - description: An included stack file finds its units beside itself.
+    code: |
+      # catalog/components.hcl, included by terragrunt.stack.hcl
+      unit "app" {
+        source = "${dirname(path.include)}/units/app"
+        path   = "app"
+      }
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip" title="Experimental">
+  `path.include` needs the [`path-variable`](/reference/experiments/active#path-variable) experiment. Enable it with `--experiment path-variable` or `TG_EXPERIMENT=path-variable`. Without the experiment, a reference to `path` fails with an error.
+</Aside>
+
+`path.include` is defined in a file that a unit or a `terragrunt.stack.hcl` includes with an `include` block.

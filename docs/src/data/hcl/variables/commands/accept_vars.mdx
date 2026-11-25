@@ -1,0 +1,29 @@
+---
+name: accept_vars
+variable: commands
+type: list(string)
+description: The OpenTofu/Terraform commands that accept `-var` and `-var-file`.
+configs: [unit, stack]
+since: v1.2.4
+experiment: commands-variable
+examples:
+  - description: A unit passes a shared variables file to each command that accepts it.
+    code: |
+      # terragrunt.hcl
+      terraform {
+        extra_arguments "common_vars" {
+          commands  = commands.accept_vars
+          arguments = ["-var-file=${get_terragrunt_dir()}/../common.tfvars"]
+        }
+      }
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip" title="Experimental">
+  `commands.accept_vars` needs the [`commands-variable`](/reference/experiments/active#commands-variable) experiment. Enable it with `--experiment commands-variable` or `TG_EXPERIMENT=commands-variable`. Without the experiment, `commands` is not defined.
+</Aside>
+
+`commands.accept_vars` holds these commands: `apply`, `console`, `destroy`, `import`, `plan`, `push`, and `refresh`.
+
+It has the same value as [`get_terraform_commands_that_need_vars()`](/reference/hcl/functions/get_terraform_commands_that_need_vars).

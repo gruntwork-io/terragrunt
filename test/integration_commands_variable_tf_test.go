@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -31,6 +30,6 @@ func TestTFCommandsVariableSelectsHookAndInputs(t *testing.T) {
 	outputs := map[string]helpers.TerraformOutput{}
 	require.NoError(t, json.Unmarshal([]byte(stdout), &outputs))
 
-	assert.Equal(t, commandList(config.TerraformCommandsNeedVars), outputs["vars"].Value)
-	assert.Equal(t, commandList(config.TerraformCommandsNeedLocking), outputs["root_locking"].Value)
+	require.Equal(t, commandList(config.TerraformCommandsNeedVars), outputs["vars"].Value)
+	require.Equal(t, commandList(config.TerraformCommandsNeedLocking), outputs["root_locking"].Value)
 }

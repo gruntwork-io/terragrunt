@@ -347,15 +347,28 @@ func TestValuesBlockIsOngoing(t *testing.T) {
 	assert.True(t, got.Evaluate(), "values-block must be enabled once explicitly requested")
 }
 
+func TestPathVariableIsOngoing(t *testing.T) {
+	t.Parallel()
+
+	exps := experiment.NewExperiments()
+	got := exps.Find(experiment.PathVariable)
+	require.NotNil(t, got, "path-variable experiment must be registered in NewExperiments()")
+	assert.Equal(t, experiment.StatusOngoing, got.Status, "path-variable must be ongoing")
+	assert.False(t, got.Evaluate(), "path-variable must be disabled by default")
+
+	require.NoError(t, exps.EnableExperiment(experiment.PathVariable))
+	assert.True(t, got.Evaluate(), "path-variable must be enabled once explicitly requested")
+}
+
 func TestCommandsVariableIsOngoing(t *testing.T) {
 	t.Parallel()
 
 	exps := experiment.NewExperiments()
 	got := exps.Find(experiment.CommandsVariable)
 	require.NotNil(t, got, "commands-variable experiment must be registered in NewExperiments()")
-	assert.Equal(t, experiment.StatusOngoing, got.Status, "commands-variable must be ongoing")
-	assert.False(t, got.Evaluate(), "commands-variable must be disabled by default")
+	require.Equal(t, experiment.StatusOngoing, got.Status, "commands-variable must be ongoing")
+	require.False(t, got.Evaluate(), "commands-variable must be disabled by default")
 
 	require.NoError(t, exps.EnableExperiment(experiment.CommandsVariable))
-	assert.True(t, got.Evaluate(), "commands-variable must be enabled once explicitly requested")
+	require.True(t, got.Evaluate(), "commands-variable must be enabled once explicitly requested")
 }

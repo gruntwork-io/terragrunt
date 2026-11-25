@@ -399,14 +399,6 @@ type StackDirArgs struct {
 	MaxDepth int
 }
 
-func (args *StackDirArgs) varsFor(stackDir string) (map[string]cty.Value, error) {
-	if args.VarsFor == nil {
-		return nil, nil
-	}
-
-	return args.VarsFor(stackDir)
-}
-
 // maxDepth returns the recursion bound to enforce, falling back to
 // DefaultMaxStackRecursionDepth when the caller leaves MaxDepth unset.
 func (args *StackDirArgs) maxDepth() int {
@@ -446,6 +438,10 @@ func UnitPathsFromStackDir(
 		)
 	}
 
+	if args.VarsFor == nil {
+		panic(fmt.Sprintf("hclparse.UnitPathsFromStackDir: varsFor is nil (stackDir=%q)", stackDir))
+	}
+
 	return unitPathsFromStackDir(ctx, fsys, stackDir, args, make(map[string]struct{}), 0)
 }
 
@@ -476,6 +472,10 @@ func DirectComponentPaths(
 		panic(fmt.Sprintf("hclparse.DirectComponentPaths: funcsFor is nil (stackDir=%q)", stackDir))
 	}
 
+	if args.VarsFor == nil {
+		panic(fmt.Sprintf("hclparse.DirectComponentPaths: varsFor is nil (stackDir=%q)", stackDir))
+	}
+
 	stackDir = vfs.ResolveForCompare(fsys, stackDir)
 	stackFile := filepath.Join(stackDir, stackFileName)
 
@@ -502,7 +502,7 @@ func DirectComponentPaths(
 		)
 	}
 
-	vars, err := args.varsFor(stackDir)
+	vars, err := args.VarsFor(stackDir)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -579,7 +579,7 @@ func unitPathsFromStackDir(
 		)
 	}
 
-	vars, err := args.varsFor(stackDir)
+	vars, err := args.VarsFor(stackDir)
 	if err != nil {
 		return nil, err
 	}
@@ -684,17 +684,12 @@ func decodeDiscovery(
 
 	srcByFilename := map[string][]byte{stackFile: data}
 
-	mergedRemain, err := mergeIncludes(fsys, parsedFile, stackDir, evalCtx, srcByFilename)
+	bodies, err := scopedBodies(fsys, parsedFile, stackDir, evalCtx, srcByFilename)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	content, _, diags := mergedRemain.PartialContent(componentBlocksSchema())
-	if diags.HasErrors() {
-		return nil, nil, FileDecodeError{Name: stackFile, Err: diags}
-	}
-
-	decoded, err := decodeComponentPaths(ctx, content.Blocks, evalCtx)
+	decoded, err := decodeScopedPaths(ctx, bodies)
 	if err != nil {
 		return nil, nil, FileDecodeError{Name: stackFile, Err: err}
 	}

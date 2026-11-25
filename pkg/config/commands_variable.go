@@ -57,10 +57,10 @@ func commandsExperimentDiagnostics(_ *hcl.File, diags hcl.Diagnostics) (hcl.Diag
 	return hinted, nil
 }
 
-func withCommandsExperimentHint(experiments experiment.Experiments, err error) error {
+func withCommandsExperimentHint(enabled bool, err error) error {
 	var diags hcl.Diagnostics
 
-	if experiments.Evaluate(experiment.CommandsVariable) || !errors.As(err, &diags) {
+	if enabled || !errors.As(err, &diags) {
 		return err
 	}
 
@@ -74,7 +74,15 @@ func withCommandsExperimentHint(experiments experiment.Experiments, err error) e
 }
 
 func needsCommandsExperimentHint(diag *hcl.Diagnostic) bool {
-	return referencesUnknownCommands(diag) && !strings.HasSuffix(diag.Detail, commandsExperimentHint)
+	return readsUnknownCommands(diag) && !strings.HasSuffix(diag.Detail, commandsExperimentHint)
+}
+
+func readsUnknownCommands(diag *hcl.Diagnostic) bool {
+	if causes, held := diag.Extra.(hcl.Diagnostics); held {
+		return slices.ContainsFunc(causes, referencesUnknownCommands)
+	}
+
+	return referencesUnknownCommands(diag)
 }
 
 func referencesUnknownCommands(diag *hcl.Diagnostic) bool {

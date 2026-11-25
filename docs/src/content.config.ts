@@ -223,20 +223,23 @@ const hclFunctions = defineCollection({
 });
 
 const hclVariables = defineCollection({
-	loader: glob({ pattern: "**/*.mdx", base: "src/data/hcl/variables" }),
+	loader: glob({ pattern: "*.mdx", base: "src/data/hcl/variables" }),
 	schema: z.object({
 		...hclItem,
 		examples: hclExamples.optional(),
-		// In page order. `name` is the attribute after the variable's name, e.g.
-		// `unit` for `path.unit`. `configs` is where the attribute is defined.
-		// `description` is Markdown, and `example` is HCL.
-		attributes: z.array(z.object({
-			name: z.string().regex(/^[a-z][a-z0-9_]*$/),
-			type: z.string(),
-			configs: hclConfigs,
-			description: z.string(),
-			example: z.string(),
-		})).nonempty(),
+	}),
+});
+
+// A field of a variable, in `src/data/hcl/variables/<variable>/<name>.mdx`,
+// e.g. `path/unit.mdx` for `path.unit`. Its page is at
+// `/reference/hcl/variables/<variable>/<name>/`. `configs` is where the field
+// is defined.
+const hclVariableFields = defineCollection({
+	loader: glob({ pattern: "*/*.mdx", base: "src/data/hcl/variables" }),
+	schema: z.object({
+		...hclItem,
+		variable: z.string().regex(/^[a-z][a-z0-9_]*$/),
+		type: z.string(),
 	}),
 });
 
@@ -326,6 +329,7 @@ export const collections = {
 	hclAttributes,
 	hclBlocks,
 	hclFunctions,
+	hclVariableFields,
 	hclVariables,
 	patterns,
 	strictControls,

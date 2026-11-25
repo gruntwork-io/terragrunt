@@ -3,12 +3,10 @@ package config_test
 import (
 	"context"
 	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
 
 	"github.com/hashicorp/hcl/v2"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
@@ -29,7 +27,7 @@ func TestCommandsVariableInUnitIncludeAndRead(t *testing.T) {
 
 	cfg := parseCommandsUnit(t, v, cfgPath)
 
-	assert.Equal(t, map[string]any{
+	require.Equal(t, map[string]any{
 		"vars":                 anyList(config.TerraformCommandsNeedVars),
 		"locking":              anyList(config.TerraformCommandsNeedLocking),
 		"input":                anyList(config.TerraformCommandsNeedInput),
@@ -58,8 +56,8 @@ func TestCommandsVariableInHookAndExtraArguments(t *testing.T) {
 	require.Len(t, cfg.Terraform.ExtraArgs, 1)
 	require.Len(t, cfg.Terraform.BeforeHooks, 1)
 
-	assert.Equal(t, config.TerraformCommandsNeedLocking, cfg.Terraform.ExtraArgs[0].Commands)
-	assert.Equal(t, config.TerraformCommandsNeedVars, cfg.Terraform.BeforeHooks[0].Commands)
+	require.Equal(t, config.TerraformCommandsNeedLocking, cfg.Terraform.ExtraArgs[0].Commands)
+	require.Equal(t, config.TerraformCommandsNeedVars, cfg.Terraform.BeforeHooks[0].Commands)
 }
 
 func TestCommandsVariableInJSONConfig(t *testing.T) {
@@ -70,7 +68,7 @@ func TestCommandsVariableInJSONConfig(t *testing.T) {
 
 	cfg := parseCommandsUnit(t, v, cfgPath)
 
-	assert.Equal(t, map[string]any{
+	require.Equal(t, map[string]any{
 		"vars":    anyList(config.TerraformCommandsNeedVars),
 		"indexed": anyList(config.TerraformCommandsNeedParallelism),
 	}, cfg.Inputs)
@@ -84,7 +82,7 @@ func TestCommandsVariableInDependencyBlock(t *testing.T) {
 
 	cfg := parseCommandsUnit(t, v, cfgPath)
 
-	assert.Equal(t, map[string]any{"db_input": anyList(config.TerraformCommandsNeedInput)}, cfg.Inputs)
+	require.Equal(t, map[string]any{"db_input": anyList(config.TerraformCommandsNeedInput)}, cfg.Inputs)
 }
 
 func TestCommandsVariableInPartialParse(t *testing.T) {
@@ -101,7 +99,7 @@ func TestCommandsVariableInPartialParse(t *testing.T) {
 	require.NotNil(t, cfg.Terraform)
 	require.Len(t, cfg.Terraform.BeforeHooks, 1)
 
-	assert.Equal(t, config.TerraformCommandsNeedVars, cfg.Terraform.BeforeHooks[0].Commands)
+	require.Equal(t, config.TerraformCommandsNeedVars, cfg.Terraform.BeforeHooks[0].Commands)
 }
 
 func TestCommandsVariableInValuesFile(t *testing.T) {
@@ -112,7 +110,7 @@ func TestCommandsVariableInValuesFile(t *testing.T) {
 
 	cfg := parseCommandsUnit(t, v, cfgPath)
 
-	assert.Equal(t, map[string]any{"from_values": anyList(config.TerraformCommandsNeedParallelism)}, cfg.Inputs)
+	require.Equal(t, map[string]any{"from_values": anyList(config.TerraformCommandsNeedParallelism)}, cfg.Inputs)
 }
 
 func TestCommandsVariableAsWholeObject(t *testing.T) {
@@ -135,7 +133,7 @@ inputs = {
 
 	cfg := parseCommandsUnit(t, v, cfgPath)
 
-	assert.Equal(t, map[string]any{
+	require.Equal(t, map[string]any{
 		"names": []any{"accept_input", "accept_locking", "accept_parallelism", "accept_vars"},
 		"all": map[string]any{
 			"accept_vars":        anyList(config.TerraformCommandsNeedVars),
@@ -162,7 +160,7 @@ func TestCommandsVariableInStackFile(t *testing.T) {
 	values, err := ctyhelper.ParseCtyValueToMap(*stack.Units[0].Values)
 	require.NoError(t, err)
 
-	assert.Equal(t, map[string]any{
+	require.Equal(t, map[string]any{
 		"vars":    anyList(config.TerraformCommandsNeedVars),
 		"locking": anyList(config.TerraformCommandsNeedLocking),
 		"input":   anyList(config.TerraformCommandsNeedInput),
@@ -180,7 +178,7 @@ func TestCommandsVariableInGeneratedStack(t *testing.T) {
 
 	cfg := parseCommandsUnit(t, v, cfgPath)
 
-	assert.Equal(t, map[string]any{
+	require.Equal(t, map[string]any{
 		"vars":        anyList(config.TerraformCommandsNeedVars),
 		"locking":     anyList(config.TerraformCommandsNeedLocking),
 		"input":       anyList(config.TerraformCommandsNeedInput),
@@ -203,7 +201,7 @@ func TestCommandsVariableInAutoIncludeBlockIsGeneratedAsLiteral(t *testing.T) {
 	cfg, err := new(config.Store).ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, cfgPath)
 	require.NoError(t, err)
 
-	assert.Equal(t, map[string]any{
+	require.Equal(t, map[string]any{
 		"unit":      "app",
 		"auto_vars": anyList(config.TerraformCommandsNeedVars),
 	}, cfg.Inputs)
@@ -223,7 +221,7 @@ func TestCommandsVariableInAutoIncludeBlockRequiresExperiment(t *testing.T) {
 	var diags hcl.Diagnostics
 
 	require.ErrorAs(t, err, &diags)
-	assert.True(t, namesCommandsExperiment(diags))
+	require.Equal(t, 1, maxCommandsExperimentHints(diags))
 }
 
 func TestCommandsVariableInAutoIncludeDependencyExpansion(t *testing.T) {
@@ -241,7 +239,7 @@ func TestCommandsVariableInAutoIncludeDependencyExpansion(t *testing.T) {
 	cfg, err := new(config.Store).ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, cfgPath)
 	require.NoError(t, err)
 
-	assert.ElementsMatch(t, anyList(config.TerraformCommandsNeedParallelism), cfg.Inputs["db_commands"])
+	require.ElementsMatch(t, anyList(config.TerraformCommandsNeedParallelism), cfg.Inputs["db_commands"])
 }
 
 func TestCommandsVariableInAutoIncludeDependencyExpansionRequiresExperiment(t *testing.T) {
@@ -255,7 +253,37 @@ func TestCommandsVariableInAutoIncludeDependencyExpansionRequiresExperiment(t *t
 	var diags hcl.Diagnostics
 
 	require.ErrorAs(t, err, &diags)
-	assert.True(t, namesCommandsExperiment(diags))
+	require.Equal(t, 1, maxCommandsExperimentHints(diags))
+}
+
+func TestCommandsVariableInAutoIncludeDependencyConfigPath(t *testing.T) {
+	t.Parallel()
+
+	v, root := commandsFixture(t)
+	stackDir := filepath.Join(root, "autoinclude-dependency", "live")
+
+	require.NoError(t, generateCommandsStack(t, v, stackDir, experiment.CommandsVariable, experiment.StackDependencies))
+
+	paths, err := inthclparse.AutoIncludeDependencyPaths(v.FS, filepath.Join(stackDir, config.StackDir, "app"))
+	require.NoError(t, err)
+
+	want := filepath.Join(stackDir, config.StackDir, config.TerraformCommandsNeedParallelism[0])
+
+	require.Equal(t, []string{want}, paths)
+}
+
+func TestCommandsVariableInAutoIncludeDependencyConfigPathRequiresExperiment(t *testing.T) {
+	t.Parallel()
+
+	v, root := commandsFixture(t)
+	stackDir := filepath.Join(root, "autoinclude-dependency", "live")
+
+	err := generateCommandsStack(t, v, stackDir, experiment.StackDependencies)
+
+	var diags hcl.Diagnostics
+
+	require.ErrorAs(t, err, &diags)
+	require.Equal(t, 1, maxCommandsExperimentHints(diags))
 }
 
 func TestCommandsVariableInStackLocalsNamesTheExperimentOnlyWhenDisabled(t *testing.T) {
@@ -296,8 +324,8 @@ func TestCommandsVariableInStackLocalsNamesTheExperimentOnlyWhenDisabled(t *test
 			require.Len(t, diags, 1)
 			require.NotNil(t, diags[0].Subject)
 
-			assert.Equal(t, stackPath, diags[0].Subject.Filename)
-			assert.True(t, namesCommandsExperiment(diags))
+			require.Equal(t, stackPath, diags[0].Subject.Filename)
+			require.Equal(t, 1, maxCommandsExperimentHints(diags))
 		})
 	}
 }
@@ -327,7 +355,7 @@ values {
 
 	require.ErrorAs(t, err, &diags)
 	require.NotEmpty(t, diags)
-	assert.False(t, namesCommandsExperiment(diags))
+	require.Zero(t, maxCommandsExperimentHints(diags))
 }
 
 func TestCommandsVariableErrorNamesTheExperimentWhenDisabled(t *testing.T) {
@@ -359,7 +387,7 @@ func TestCommandsVariableErrorNamesTheExperimentWhenDisabled(t *testing.T) {
 			var diags hcl.Diagnostics
 
 			require.ErrorAs(t, err, &diags)
-			assert.True(t, namesCommandsExperiment(diags))
+			require.Equal(t, 1, maxCommandsExperimentHints(diags))
 		})
 	}
 }
@@ -391,7 +419,7 @@ inputs = {
 
 	require.ErrorAs(t, err, &diags)
 	require.NotEmpty(t, diags)
-	assert.False(t, namesCommandsExperiment(diags))
+	require.Zero(t, maxCommandsExperimentHints(diags))
 }
 
 func commandsFixture(t *testing.T) (*venv.Venv, string) {
@@ -456,10 +484,14 @@ func generateCommandsStack(t *testing.T, v *venv.Venv, stackDir string, experime
 	return pool.Wait()
 }
 
-func namesCommandsExperiment(diags hcl.Diagnostics) bool {
-	return slices.ContainsFunc(diags, func(diag *hcl.Diagnostic) bool {
-		return strings.Count(diag.Detail, "--experiment "+experiment.CommandsVariable) == 1
-	})
+func maxCommandsExperimentHints(diags hcl.Diagnostics) int {
+	most := 0
+
+	for _, diag := range diags {
+		most = max(most, strings.Count(diag.Detail, "--experiment "+experiment.CommandsVariable))
+	}
+
+	return most
 }
 
 func anyList(items []string) []any {

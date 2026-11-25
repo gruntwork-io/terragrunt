@@ -9,13 +9,16 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/hclparse"
+	"github.com/gruntwork-io/terragrunt/internal/vendored/opentofu/upstream/lang/funcs"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/ext/tryfunc"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
+	"github.com/zclconf/go-cty/cty/function/stdlib"
 )
 
 // noFuncs is the factory returning an empty HCL function map shared by tests that
@@ -24,6 +27,10 @@ import (
 // intended outcome for these tests.
 func noFuncs(string) (map[string]function.Function, error) {
 	return map[string]function.Function{}, nil
+}
+
+func noVars(string) (map[string]cty.Value, error) {
+	return nil, nil
 }
 
 func TestBuildComponentRefMapExposesPath(t *testing.T) {
@@ -61,7 +68,7 @@ unit "db" {
 		t.Context(),
 		fs,
 		"/test",
-		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+		&hclparse.StackDirArgs{FuncsFor: noFuncs, VarsFor: noVars},
 	)
 	require.NoError(t, err)
 	require.Len(t, paths, 2)
@@ -94,7 +101,7 @@ func TestUnitPathsFromStackDir_RecursesNestedStacks(t *testing.T) {
 		t.Context(),
 		fs,
 		"/test",
-		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+		&hclparse.StackDirArgs{FuncsFor: noFuncs, VarsFor: noVars},
 	)
 	require.NoError(t, err)
 	assert.Equal(
@@ -137,7 +144,7 @@ unit "member" {
 		t.Context(),
 		fs,
 		"/test",
-		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+		&hclparse.StackDirArgs{FuncsFor: noFuncs, VarsFor: noVars},
 	)
 	require.NoError(t, err)
 	assert.Equal(t, []string{filepath.Join("/test", ".terragrunt-stack", "vpc")}, paths)
@@ -168,7 +175,7 @@ unit "vpc" {
 		t.Context(),
 		fs,
 		"/test",
-		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+		&hclparse.StackDirArgs{FuncsFor: noFuncs, VarsFor: noVars},
 	)
 	require.NoError(
 		t,
@@ -200,7 +207,7 @@ unit "vpc" {
 		t.Context(),
 		fs,
 		"/test",
-		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+		&hclparse.StackDirArgs{FuncsFor: noFuncs, VarsFor: noVars},
 	)
 	require.NoError(t, err)
 	assert.Equal(t, []string{filepath.Join("/test", ".terragrunt-stack", "prod-vpc")}, paths)
@@ -228,7 +235,7 @@ unit "vpc" {
 		t.Context(),
 		fs,
 		"/test",
-		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+		&hclparse.StackDirArgs{FuncsFor: noFuncs, VarsFor: noVars},
 	)
 	require.Error(
 		t,
@@ -288,7 +295,7 @@ unit "deep" {
 		t.Context(),
 		fs,
 		"/test",
-		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+		&hclparse.StackDirArgs{FuncsFor: noFuncs, VarsFor: noVars},
 	)
 	require.NoError(t, err)
 	assert.Equal(
@@ -325,7 +332,7 @@ func TestUnitPathsFromStackDir_MalformedValuesFileReturnsError(t *testing.T) {
 		t.Context(),
 		fs,
 		"/test",
-		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+		&hclparse.StackDirArgs{FuncsFor: noFuncs, VarsFor: noVars},
 	)
 	require.Error(t, err)
 
@@ -402,7 +409,7 @@ unit "vpc" {
 				t.Context(),
 				fs,
 				"/test",
-				&hclparse.StackDirArgs{FuncsFor: noFuncs},
+				&hclparse.StackDirArgs{FuncsFor: noFuncs, VarsFor: noVars},
 			)
 			require.NoError(t, err)
 
@@ -488,7 +495,7 @@ unit "vpc" {
 				t.Context(),
 				fs,
 				"/test",
-				&hclparse.StackDirArgs{FuncsFor: noFuncs},
+				&hclparse.StackDirArgs{FuncsFor: noFuncs, VarsFor: noVars},
 			)
 
 			var typed hclparse.FileDecodeError
@@ -531,7 +538,7 @@ unit "vpc" {
 		t.Context(),
 		fs,
 		"/test",
-		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+		&hclparse.StackDirArgs{FuncsFor: noFuncs, VarsFor: noVars},
 	)
 
 	var typed hclparse.IncludeValidationError
@@ -566,7 +573,7 @@ func TestUnitPathsFromStackDir_MergesStackAutoInclude(t *testing.T) {
 		t.Context(),
 		fs,
 		"/test",
-		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+		&hclparse.StackDirArgs{FuncsFor: noFuncs, VarsFor: noVars},
 	)
 	require.NoError(t, err)
 	require.Len(
@@ -606,7 +613,7 @@ func TestUnitPathsFromStackDir_StackAutoIncludePathReferencesSiblingRef(t *testi
 		t.Context(),
 		fs,
 		"/test",
-		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+		&hclparse.StackDirArgs{FuncsFor: noFuncs, VarsFor: noVars},
 	)
 	require.NoError(
 		t,
@@ -649,7 +656,7 @@ func TestUnitPathsFromStackDir_RecursesStackAutoIncludeInjectedStack(t *testing.
 		t.Context(),
 		fs,
 		"/test",
-		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+		&hclparse.StackDirArgs{FuncsFor: noFuncs, VarsFor: noVars},
 	)
 	require.NoError(t, err)
 	assert.Contains(t, paths, filepath.Join("/test", ".terragrunt-stack", "vpc"))
@@ -690,7 +697,7 @@ func TestUnitPathsFromStackDir_StackAutoIncludeDepValuesRejected(t *testing.T) {
 		t.Context(),
 		fs,
 		"/test",
-		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+		&hclparse.StackDirArgs{FuncsFor: noFuncs, VarsFor: noVars},
 	)
 	require.Error(
 		t,
@@ -733,7 +740,7 @@ func TestUnitPathsFromStackDir_StackAutoIncludeSameNameOverrides(t *testing.T) {
 		t.Context(),
 		fs,
 		"/test",
-		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+		&hclparse.StackDirArgs{FuncsFor: noFuncs, VarsFor: noVars},
 	)
 	require.NoError(
 		t,
@@ -774,7 +781,7 @@ func TestUnitPathsFromStackDir_StackAutoIncludeExpandedOverride(t *testing.T) {
 		t.Context(),
 		fs,
 		"/test",
-		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+		&hclparse.StackDirArgs{FuncsFor: noFuncs, VarsFor: noVars},
 	)
 	require.NoError(t, err)
 
@@ -810,7 +817,7 @@ unit "vpc" {
 		t.Context(),
 		fs,
 		"/test",
-		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+		&hclparse.StackDirArgs{FuncsFor: noFuncs, VarsFor: noVars},
 	)
 	require.Error(
 		t,
@@ -854,7 +861,7 @@ unit "vpc" {
 		t.Context(),
 		fs,
 		"/test",
-		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+		&hclparse.StackDirArgs{FuncsFor: noFuncs, VarsFor: noVars},
 	)
 	require.Error(
 		t,
@@ -898,7 +905,7 @@ unit "extra" {
 		t.Context(),
 		fs,
 		"/test",
-		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+		&hclparse.StackDirArgs{FuncsFor: noFuncs, VarsFor: noVars},
 	)
 	require.Error(
 		t,
@@ -937,7 +944,7 @@ unit "extra" {
 		t.Context(),
 		fs,
 		"/test",
-		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+		&hclparse.StackDirArgs{FuncsFor: noFuncs, VarsFor: noVars},
 	)
 	require.Error(
 		t,
@@ -984,7 +991,7 @@ unit "extra" {
 		t.Context(),
 		fs,
 		"/test",
-		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+		&hclparse.StackDirArgs{FuncsFor: noFuncs, VarsFor: noVars},
 	)
 	require.Error(
 		t,
@@ -1032,7 +1039,7 @@ func TestUnitPathsFromStackDir_FuncFactoryRebuiltPerNestedDir(t *testing.T) {
 		t.Context(),
 		fs,
 		stackDir,
-		&hclparse.StackDirArgs{FuncsFor: funcsFor},
+		&hclparse.StackDirArgs{FuncsFor: funcsFor, VarsFor: noVars},
 	)
 	require.NoError(t, err)
 
@@ -1075,7 +1082,7 @@ func TestUnitPathsFromStackDir_NilFuncsFactoryMapPanics(t *testing.T) {
 				t.Context(),
 				fs,
 				stackDir,
-				&hclparse.StackDirArgs{FuncsFor: nilMapFactory},
+				&hclparse.StackDirArgs{FuncsFor: nilMapFactory, VarsFor: noVars},
 			)
 		},
 	)
@@ -1098,7 +1105,7 @@ func TestUnitPathsFromStackDir_CycleTerminates(t *testing.T) {
 		t.Context(),
 		fs,
 		"/test",
-		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+		&hclparse.StackDirArgs{FuncsFor: noFuncs, VarsFor: noVars},
 	)
 	require.NoError(t, err)
 	assert.Empty(t, paths)
@@ -1132,6 +1139,7 @@ func TestUnitPathsFromStackDir_DepthCapReturnsError(t *testing.T) {
 
 	_, err := hclparse.UnitPathsFromStackDir(t.Context(), fs, "/test", &hclparse.StackDirArgs{
 		FuncsFor: noFuncs,
+		VarsFor:  noVars,
 		MaxDepth: maxDepth,
 	})
 	require.Error(t, err)
@@ -1162,7 +1170,7 @@ include "units" {
 		t.Context(),
 		fs,
 		"/test",
-		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+		&hclparse.StackDirArgs{FuncsFor: noFuncs, VarsFor: noVars},
 	)
 	require.NoError(t, err)
 	require.Len(t, paths, 1)
@@ -1185,7 +1193,7 @@ unit "vpc" {
 		t.Context(),
 		fs,
 		"/test",
-		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+		&hclparse.StackDirArgs{FuncsFor: noFuncs, VarsFor: noVars},
 	)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "get_repo_root")
@@ -1201,7 +1209,7 @@ func TestUnitPathsFromStackDir_NotAStack(t *testing.T) {
 		t.Context(),
 		fs,
 		"/test",
-		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+		&hclparse.StackDirArgs{FuncsFor: noFuncs, VarsFor: noVars},
 	)
 	require.NoError(t, err)
 	assert.Nil(t, paths)
@@ -1226,7 +1234,7 @@ func TestUnitPathsFromStackDir_NotAStackSkipsFuncFactory(t *testing.T) {
 		t.Context(),
 		fs,
 		"/test",
-		&hclparse.StackDirArgs{FuncsFor: funcsFor},
+		&hclparse.StackDirArgs{FuncsFor: funcsFor, VarsFor: noVars},
 	)
 	require.NoError(t, err)
 	assert.Nil(t, paths)
@@ -1252,7 +1260,7 @@ func TestDirectComponentPaths_NotAStackSkipsFuncFactory(t *testing.T) {
 		t.Context(),
 		fs,
 		"/test",
-		&hclparse.StackDirArgs{FuncsFor: funcsFor},
+		&hclparse.StackDirArgs{FuncsFor: funcsFor, VarsFor: noVars},
 	)
 	require.NoError(t, err)
 	assert.Nil(t, unitPaths)
@@ -1269,7 +1277,7 @@ func TestUnitPathsFromStackDir_Nonexistent(t *testing.T) {
 		t.Context(),
 		fs,
 		"/nonexistent",
-		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+		&hclparse.StackDirArgs{FuncsFor: noFuncs, VarsFor: noVars},
 	)
 	require.NoError(t, err)
 	assert.Nil(t, paths)
@@ -1289,7 +1297,7 @@ func TestUnitPathsFromStackDir_MalformedReturnsError(t *testing.T) {
 		t.Context(),
 		fs,
 		"/test",
-		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+		&hclparse.StackDirArgs{FuncsFor: noFuncs, VarsFor: noVars},
 	)
 	require.Error(t, err)
 	assert.Nil(t, paths)
@@ -1420,7 +1428,7 @@ unit "vpc" {
 		t.Context(),
 		venvtest.NewOSOverlayFS(),
 		symlinkDir,
-		&hclparse.StackDirArgs{FuncsFor: noFuncs},
+		&hclparse.StackDirArgs{FuncsFor: noFuncs, VarsFor: noVars},
 	)
 	require.NoError(t, err)
 	require.Len(t, paths, 1)
@@ -1504,33 +1512,70 @@ func TestBuildComponentRefMap_WithRefs(t *testing.T) {
 	assert.Equal(t, "app-service", appVal.GetAttr("path").AsString())
 }
 
-// TestParseStackFile_IncludedValuesBlockRejected pins that the phased parse rejects a values block in an included
-// stack file.
-func TestParseStackFile_IncludedValuesBlockRejected(t *testing.T) {
+func TestUnitPathsFromStackDirEvaluatesWithFactoryVariables(t *testing.T) {
 	t.Parallel()
 
-	stackDir := venvtest.Root("/test")
-	fs := writeStackDir(t, stackDir, map[string]string{
-		"shared.hcl": `values {}
-`,
+	fsys, root := venvtest.LoadFS(t, filepath.Join("..", "..", "test", "fixtures", "path-variable"))
+	stackDir := filepath.Join(root, "stack", "live")
+
+	unitPaths, err := hclparse.UnitPathsFromStackDir(t.Context(), fsys, stackDir, &hclparse.StackDirArgs{
+		FuncsFor: noFuncs,
+		VarsFor:  pathVarsFor,
 	})
+	require.NoError(t, err)
 
-	_, err := hclparse.ParseStackFile(
-		t.Context(),
-		fs,
-		&hclparse.ParseStackFileInput{
-			Src: []byte(`include "shared" {
-  path = "./shared.hcl"
+	assert.Equal(t, []string{filepath.Join(stackDir, ".terragrunt-stack", "app")}, unitPaths)
 }
-`),
-			Filename: filepath.Join(stackDir, "terragrunt.stack.hcl"),
-			StackDir: stackDir,
-		},
-	)
 
-	var typed hclparse.IncludeValidationError
-	require.ErrorAs(t, err, &typed)
-	assert.Equal(t, "shared", typed.IncludeName)
+func TestDirectComponentPathsEvaluatesWithFactoryVariables(t *testing.T) {
+	t.Parallel()
+
+	fsys, root := venvtest.LoadFS(t, filepath.Join("..", "..", "test", "fixtures", "path-variable"))
+	stackDir := filepath.Join(root, "stack", "live")
+
+	unitPaths, stackPaths, err := hclparse.DirectComponentPaths(t.Context(), fsys, stackDir, &hclparse.StackDirArgs{
+		FuncsFor: noFuncs,
+		VarsFor:  pathVarsFor,
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{filepath.Join(stackDir, ".terragrunt-stack", "app")}, unitPaths)
+	assert.Empty(t, stackPaths)
+}
+
+func TestDirectComponentPathsEvaluatesValuesFileWithFactoryVariables(t *testing.T) {
+	t.Parallel()
+
+	fsys, root := venvtest.LoadFS(t, filepath.Join("..", "..", "test", "fixtures", "path-variable"))
+	stackDir := filepath.Join(root, "stack-values")
+
+	unitPaths, stackPaths, err := hclparse.DirectComponentPaths(t.Context(), fsys, stackDir, &hclparse.StackDirArgs{
+		FuncsFor: func(string) (map[string]function.Function, error) { return pathFuncs(), nil },
+		VarsFor:  pathVarsFor,
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{filepath.Join(stackDir, ".terragrunt-stack", "app")}, unitPaths)
+	assert.Empty(t, stackPaths)
+}
+
+func TestDirectComponentPathsScopesPathIncludeToIncludedFile(t *testing.T) {
+	t.Parallel()
+
+	fsys, root := venvtest.LoadFS(t, filepath.Join("..", "..", "test", "fixtures", "path-variable"))
+	stackDir := filepath.Join(root, "stack-include", "live")
+
+	unitPaths, stackPaths, err := hclparse.DirectComponentPaths(t.Context(), fsys, stackDir, &hclparse.StackDirArgs{
+		FuncsFor: func(string) (map[string]function.Function, error) { return pathFuncs(), nil },
+		VarsFor:  pathVarsFor,
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{
+		filepath.Join(stackDir, ".terragrunt-stack", "root"),
+		filepath.Join(stackDir, ".terragrunt-stack", "catalog-app"),
+	}, unitPaths)
+	assert.Empty(t, stackPaths)
 }
 
 func TestUnitPathsFromStackDirReadsCommandsFromFactoryVariables(t *testing.T) {
@@ -1545,7 +1590,7 @@ func TestUnitPathsFromStackDirReadsCommandsFromFactoryVariables(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	assert.Equal(t, []string{filepath.Join(stackDir, ".terragrunt-stack", "plan-init")}, unitPaths)
+	require.Equal(t, []string{filepath.Join(stackDir, ".terragrunt-stack", "plan-init")}, unitPaths)
 }
 
 func TestDirectComponentPathsReadsCommandsFromFactoryVariables(t *testing.T) {
@@ -1560,8 +1605,8 @@ func TestDirectComponentPathsReadsCommandsFromFactoryVariables(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	assert.Equal(t, []string{filepath.Join(stackDir, ".terragrunt-stack", "plan-init")}, unitPaths)
-	assert.Empty(t, stackPaths)
+	require.Equal(t, []string{filepath.Join(stackDir, ".terragrunt-stack", "plan-init")}, unitPaths)
+	require.Empty(t, stackPaths)
 }
 
 func TestUnitPathsFromStackDirWithoutFactoryVariablesRejectsCommands(t *testing.T) {
@@ -1570,7 +1615,10 @@ func TestUnitPathsFromStackDirWithoutFactoryVariablesRejectsCommands(t *testing.
 	fsys, root := venvtest.LoadFS(t, filepath.Join("..", "..", "test", "fixtures", "commands-variable"))
 	stackDir := filepath.Join(root, "discovery", "live")
 
-	_, err := hclparse.UnitPathsFromStackDir(t.Context(), fsys, stackDir, &hclparse.StackDirArgs{FuncsFor: noFuncs})
+	_, err := hclparse.UnitPathsFromStackDir(t.Context(), fsys, stackDir, &hclparse.StackDirArgs{
+		FuncsFor: noFuncs,
+		VarsFor:  noVars,
+	})
 
 	var decodeErr hclparse.FileDecodeError
 
@@ -1582,8 +1630,8 @@ func TestUnitPathsFromStackDirWithoutFactoryVariablesRejectsCommands(t *testing.
 	require.NotEmpty(t, diags)
 	require.NotNil(t, diags[0].Subject)
 
-	assert.Equal(t, "Unknown variable", diags[0].Summary)
-	assert.Equal(t, filepath.Join(stackDir, "terragrunt.values.hcl"), diags[0].Subject.Filename)
+	require.Equal(t, "Unknown variable", diags[0].Summary)
+	require.Equal(t, filepath.Join(stackDir, "terragrunt.values.hcl"), diags[0].Subject.Filename)
 }
 
 func TestDirectComponentPathsReturnsVariableFactoryError(t *testing.T) {
@@ -1616,13 +1664,33 @@ func TestUnitPathsFromStackDirReturnsVariableFactoryError(t *testing.T) {
 	require.ErrorIs(t, err, errVars)
 }
 
-func commandsVarsFor(string) (map[string]cty.Value, error) {
-	return map[string]cty.Value{
-		"commands": cty.ObjectVal(map[string]cty.Value{
-			"accept_parallelism": cty.ListVal([]cty.Value{cty.StringVal("plan")}),
-			"accept_input":       cty.ListVal([]cty.Value{cty.StringVal("init")}),
-		}),
-	}, nil
+// TestParseStackFile_IncludedValuesBlockRejected pins that the phased parse rejects a values block in an included
+// stack file.
+func TestParseStackFile_IncludedValuesBlockRejected(t *testing.T) {
+	t.Parallel()
+
+	stackDir := venvtest.Root("/test")
+	fs := writeStackDir(t, stackDir, map[string]string{
+		"shared.hcl": `values {}
+`,
+	})
+
+	_, err := hclparse.ParseStackFile(
+		t.Context(),
+		fs,
+		&hclparse.ParseStackFileInput{
+			Src: []byte(`include "shared" {
+  path = "./shared.hcl"
+}
+`),
+			Filename: filepath.Join(stackDir, "terragrunt.stack.hcl"),
+			StackDir: stackDir,
+		},
+	)
+
+	var typed hclparse.IncludeValidationError
+	require.ErrorAs(t, err, &typed)
+	assert.Equal(t, "shared", typed.IncludeName)
 }
 
 // writeStackDir returns an in-memory filesystem holding files, keyed by slash-separated paths under dir.
@@ -1636,4 +1704,35 @@ func writeStackDir(t *testing.T, dir string, files map[string]string) vfs.FS {
 	}
 
 	return fs
+}
+
+// pathFuncs returns the functions the stack-include fixture calls.
+func pathFuncs() map[string]function.Function {
+	return map[string]function.Function{
+		"basename": funcs.BasenameFunc,
+		"dirname":  funcs.DirnameFunc,
+		"lower":    stdlib.LowerFunc,
+		"try":      tryfunc.TryFunc,
+	}
+}
+
+// pathVars returns the variables of a stack file in stackDir that reads path.stack.
+func pathVars(stackDir string) map[string]cty.Value {
+	return map[string]cty.Value{
+		"path": cty.ObjectVal(map[string]cty.Value{"stack": cty.StringVal(stackDir)}),
+	}
+}
+
+// pathVarsFor is the variable factory of a stack file that reads path.stack.
+func pathVarsFor(stackDir string) (map[string]cty.Value, error) {
+	return pathVars(stackDir), nil
+}
+
+func commandsVarsFor(string) (map[string]cty.Value, error) {
+	return map[string]cty.Value{
+		"commands": cty.ObjectVal(map[string]cty.Value{
+			"accept_parallelism": cty.ListVal([]cty.Value{cty.StringVal("plan")}),
+			"accept_input":       cty.ListVal([]cty.Value{cty.StringVal("init")}),
+		}),
+	}, nil
 }

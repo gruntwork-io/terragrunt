@@ -48,6 +48,12 @@ func emptyStackFuncFactory() inthclparse.StackFuncFactory {
 	}
 }
 
+func emptyStackVarFactory() inthclparse.StackVarFactory {
+	return func(string) (map[string]cty.Value, error) {
+		return nil, nil
+	}
+}
+
 func writeFile(t *testing.T, fsys vfs.FS, path, content string) {
 	t.Helper()
 
@@ -172,7 +178,7 @@ func TestGiveStackNestedGenerateTip(t *testing.T) {
 				t.Context(),
 				l,
 				fs,
-				&inthclparse.StackDirArgs{FuncsFor: emptyStackFuncFactory()},
+				&inthclparse.StackDirArgs{FuncsFor: emptyStackFuncFactory(), VarsFor: emptyStackVarFactory()},
 				workingDir,
 				filter.Filters{parsed},
 				allTips,
@@ -202,34 +208,19 @@ func TestGiveStackNestedGenerateTipNoOp(t *testing.T) {
 	filters := filter.Filters{parsed}
 
 	tcs := []struct {
-		name     string
-		funcsFor inthclparse.StackFuncFactory
-		allTips  tips.Tips
-		filters  filter.Filters
+		name    string
+		allTips tips.Tips
+		filters filter.Filters
 	}{
 		{
-			name:     "no filters",
-			funcsFor: emptyStackFuncFactory(),
-			allTips:  tips.NewTips(),
-			filters:  filter.Filters{},
+			name:    "no filters",
+			allTips: tips.NewTips(),
+			filters: filter.Filters{},
 		},
 		{
-			name:     "nil tips collection",
-			funcsFor: emptyStackFuncFactory(),
-			allTips:  nil,
-			filters:  filters,
-		},
-		{
-			name:     "nil func factory",
-			funcsFor: nil,
-			allTips:  tips.NewTips(),
-			filters:  filters,
-		},
-		{
-			name:     "tip absent from collection",
-			funcsFor: emptyStackFuncFactory(),
-			allTips:  tips.Tips{},
-			filters:  filters,
+			name:    "tip absent from collection",
+			allTips: tips.Tips{},
+			filters: filters,
 		},
 	}
 
@@ -243,13 +234,72 @@ func TestGiveStackNestedGenerateTipNoOp(t *testing.T) {
 				t.Context(),
 				l,
 				vfs.NewMemMapFS(),
-				&inthclparse.StackDirArgs{FuncsFor: tc.funcsFor},
+				&inthclparse.StackDirArgs{FuncsFor: emptyStackFuncFactory(), VarsFor: emptyStackVarFactory()},
 				workingDir,
 				tc.filters,
 				tc.allTips,
 			)
 
 			assert.Empty(t, output.String())
+		})
+	}
+}
+
+func TestGiveStackNestedGenerateTipPanicsOnNilArgument(t *testing.T) {
+	t.Parallel()
+
+	parsed, err := filter.Parse("./my-stack | type=stack")
+	require.NoError(t, err)
+
+	tcs := []struct {
+		args    *inthclparse.StackDirArgs
+		name    string
+		want    string
+		allTips tips.Tips
+	}{
+		{
+			name:    "nil tips collection",
+			args:    &inthclparse.StackDirArgs{FuncsFor: emptyStackFuncFactory(), VarsFor: emptyStackVarFactory()},
+			allTips: nil,
+			want:    "tips.GiveStackNestedGenerateTip: allTips is nil",
+		},
+		{
+			name:    "nil args",
+			args:    nil,
+			allTips: tips.NewTips(),
+			want:    "tips.GiveStackNestedGenerateTip: args is nil",
+		},
+		{
+			name:    "nil func factory",
+			args:    &inthclparse.StackDirArgs{VarsFor: emptyStackVarFactory()},
+			allTips: tips.NewTips(),
+			want:    "tips.GiveStackNestedGenerateTip: args.FuncsFor is nil",
+		},
+		{
+			name:    "nil var factory",
+			args:    &inthclparse.StackDirArgs{FuncsFor: emptyStackFuncFactory()},
+			allTips: tips.NewTips(),
+			want:    "tips.GiveStackNestedGenerateTip: args.VarsFor is nil",
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			l, _ := newTestLogger()
+
+			require.PanicsWithValue(t, tc.want, func() {
+				tips.GiveStackNestedGenerateTip(
+					t.Context(),
+					l,
+					vfs.NewMemMapFS(),
+					tc.args,
+					"/work",
+					filter.Filters{parsed},
+					tc.allTips,
+				)
+			})
 		})
 	}
 }
@@ -287,13 +337,58 @@ func TestGiveStackNestedGenerateTipSkipsOnStatError(t *testing.T) {
 		t.Context(),
 		l,
 		fs,
-		&inthclparse.StackDirArgs{FuncsFor: emptyStackFuncFactory()},
+		&inthclparse.StackDirArgs{FuncsFor: emptyStackFuncFactory(), VarsFor: emptyStackVarFactory()},
 		workingDir,
 		filter.Filters{parsed},
 		tips.NewTips(),
 	)
 
 	assert.NotContains(t, output.String(), tips.StackNestedStacksNotGenerated)
+}
+
+func TestGiveStackNestedGenerateTipEvaluatesWithFactoryVariables(t *testing.T) {
+	t.Parallel()
+
+	const (
+		workingDir   = "/work"
+		stackOfStack = "locals {\n  dir = path.stack\n}\n\nstack \"child\" {\n  source = \"x\"\n  path = \"child\"\n}\n"
+		stackOfUnit  = "unit \"u\" {\n  source = \"x\"\n  path = \"u\"\n}\n"
+	)
+
+	stackDir := filepath.Join(workingDir, "my-stack")
+
+	fsys := vfs.NewMemMapFS()
+	writeFile(t, fsys, filepath.Join(stackDir, "terragrunt.stack.hcl"), stackOfStack)
+	writeFile(
+		t,
+		fsys,
+		filepath.Join(stackDir, ".terragrunt-stack", "child", "terragrunt.stack.hcl"),
+		stackOfUnit,
+	)
+
+	parsed, err := filter.Parse("./my-stack | type=stack")
+	require.NoError(t, err)
+
+	l, output := newTestLogger()
+
+	tips.GiveStackNestedGenerateTip(
+		t.Context(),
+		l,
+		fsys,
+		&inthclparse.StackDirArgs{
+			FuncsFor: emptyStackFuncFactory(),
+			VarsFor: func(dir string) (map[string]cty.Value, error) {
+				return map[string]cty.Value{
+					"path": cty.ObjectVal(map[string]cty.Value{"stack": cty.StringVal(dir)}),
+				}, nil
+			},
+		},
+		workingDir,
+		filter.Filters{parsed},
+		tips.NewTips(),
+	)
+
+	assert.Contains(t, output.String(), tips.StackNestedStacksNotGenerated)
 }
 
 func TestGiveStackNestedGenerateTipReadsCommandsFromFactoryVariables(t *testing.T) {
@@ -349,5 +444,5 @@ func TestGiveStackNestedGenerateTipReadsCommandsFromFactoryVariables(t *testing.
 
 	tip.OnceShow.Do(func() { shown = false })
 
-	assert.True(t, shown)
+	require.True(t, shown)
 }
