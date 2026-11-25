@@ -208,7 +208,7 @@ outputs {
 			config: `
 outputs {
   output "vpc_id" {
-    type = string
+    sensitive = true
   }
 }
 `,

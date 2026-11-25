@@ -1083,6 +1083,30 @@ func (err DeclaredOutputMissingError) Error() string {
 	)
 }
 
+// DeclaredOutputTypeError reports a state output of TargetConfig that does not convert to the type it declares.
+type DeclaredOutputTypeError struct {
+	Err          error
+	TargetConfig string
+	Output       string
+	Type         string
+}
+
+func (err DeclaredOutputTypeError) Error() string {
+	return fmt.Sprintf(
+		"%s declares output %q with type %s in its outputs block, but the output in its state does not match: %v. "+
+			"Change the type in the declaration, or change the output in its module and apply %s.",
+		err.TargetConfig,
+		err.Output,
+		err.Type,
+		err.Err,
+		err.TargetConfig,
+	)
+}
+
+func (err DeclaredOutputTypeError) Unwrap() error {
+	return err.Err
+}
+
 // UnknownMockValueError reports a mock_value that the units reading the output cannot evaluate.
 type UnknownMockValueError struct {
 	ConfigPath string

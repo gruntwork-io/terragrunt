@@ -119,6 +119,56 @@ func replacedDependencyBlock(block *hclsyntax.Block, replaced map[string]struct{
 	})
 }
 
+// DependencyMockOutput is a literal key of the mock_outputs of a dependency block in a unit, with its value.
+type DependencyMockOutput struct {
+	Value      hcl.Expression
+	Dependency string
+	Output     string
+	Range      hcl.Range
+}
+
+// DependencyMockOutputs returns the literal mock_outputs keys of the dependency blocks in file, in source order.
+func DependencyMockOutputs(file *hclparse.File, replaced map[string]struct{}) []DependencyMockOutput {
+	body, ok := file.Body.(*hclsyntax.Body)
+	if !ok {
+		return nil
+	}
+
+	var mocks []DependencyMockOutput
+
+	for _, block := range body.Blocks {
+		if block.Type != MetadataDependency || len(block.Labels) != 1 || replacedDependencyBlock(block, replaced) {
+			continue
+		}
+
+		attr, ok := block.Body.Attributes["mock_outputs"]
+		if !ok {
+			continue
+		}
+
+		object, ok := attr.Expr.(*hclsyntax.ObjectConsExpr)
+		if !ok {
+			continue
+		}
+
+		for _, item := range object.Items {
+			key, diags := item.KeyExpr.Value(nil)
+			if diags.HasErrors() || key.IsNull() || !key.IsKnown() || !key.Type().Equals(cty.String) {
+				continue
+			}
+
+			mocks = append(mocks, DependencyMockOutput{
+				Value:      item.ValueExpr,
+				Dependency: block.Labels[0],
+				Output:     key.AsString(),
+				Range:      item.KeyExpr.Range(),
+			})
+		}
+	}
+
+	return mocks
+}
+
 // OutputDeclarationRanges returns where each output block of the outputs block in file is declared, by name.
 func OutputDeclarationRanges(file *hclparse.File) map[string]hcl.Range {
 	body, ok := file.Body.(*hclsyntax.Body)

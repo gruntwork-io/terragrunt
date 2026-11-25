@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"slices"
 
+	"github.com/hashicorp/hcl/v2/ext/typeexpr"
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
@@ -18,7 +19,18 @@ import (
 
 type declaredDependency struct {
 	dep     *Dependency
-	outputs *OutputsConfig
+	outputs *declaredOutputs
+}
+
+// declaredOutputs is the outputs block a dependency reads, with the mock values that fill state for one command.
+type declaredOutputs struct {
+	config *OutputsConfig
+	merges []stateMerge
+}
+
+type stateMerge struct {
+	mocks    cty.Value
+	strategy MergeStrategyType
 }
 
 // withDeclaredOutputs returns dep with the mock values and mock strategy that its unit declares filled in.
@@ -38,28 +50,138 @@ func (dep *Dependency) withDeclaredOutputs(
 		return declaredDependency{}, err
 	}
 
+	return dep.withDeclared(pctx, declared), nil
+}
+
+// withDeclared returns dep with the mock values and mock strategy that declared gives the command of pctx.
+func (dep *Dependency) withDeclared(pctx *ParsingContext, declared *OutputsConfig) declaredDependency {
 	if declared == nil {
-		return declaredDependency{dep: dep}, nil
+		return declaredDependency{dep: dep}
 	}
 
 	effective := *dep
 	effective.MockOutputs = mergeDeclaredMockValues(declared.MockValues(), dep.MockOutputs)
 
-	strategy := declared.MockStrategy
-	if strategy == nil {
-		return declaredDependency{dep: &effective, outputs: declared}, nil
+	dependentCommands := dep.MockOutputsAllowedTerraformCommands != nil
+	dependentMerge := dep.MockOutputsMergeStrategyWithState != nil || dep.MockOutputsMergeWithState != nil
+
+	if strategy := declared.MockStrategy; strategy != nil {
+		if !dependentCommands && strategy.AllowedCommands != nil {
+			effective.MockOutputsAllowedTerraformCommands = strategy.AllowedCommands
+		}
+
+		if !dependentMerge && strategy.MergeWithState != nil {
+			effective.MockOutputsMergeStrategyWithState = strategy.MergeWithState
+		}
 	}
 
-	if dep.MockOutputsAllowedTerraformCommands == nil && strategy.AllowedCommands != nil {
-		effective.MockOutputsAllowedTerraformCommands = strategy.AllowedCommands
+	read := &declaredOutputs{config: declared}
+
+	values, keyed := mockValueMap(effective.MockOutputs)
+	if !keyed || len(values) == 0 {
+		read.merges = effective.stateMerges(pctx)
+
+		return declaredDependency{dep: &effective, outputs: read}
 	}
 
-	if dep.MockOutputsMergeStrategyWithState == nil && dep.MockOutputsMergeWithState == nil &&
-		strategy.MergeWithState != nil {
-		effective.MockOutputsMergeStrategyWithState = strategy.MergeWithState
+	fallback := make(map[string]cty.Value, len(values))
+	merges := map[MergeStrategyType]map[string]cty.Value{}
+	render := isRenderJSONCommand(pctx) || isRenderCommand(pctx)
+
+	for key, value := range values {
+		commands := effective.MockOutputsAllowedTerraformCommands
+		merge := effective.getMockOutputsMergeStrategy()
+		own := declared.outputStrategy(key)
+
+		if !dependentCommands && own.AllowedCommands != nil {
+			commands = own.AllowedCommands
+		}
+
+		if !dependentMerge && own.MergeWithState != nil {
+			merge = *own.MergeWithState
+		}
+
+		allowed := mockCommandAllowed(pctx, commands)
+		if allowed || render {
+			fallback[key] = value
+		}
+
+		if !allowed || merge == NoMerge {
+			continue
+		}
+
+		if merges[merge] == nil {
+			merges[merge] = map[string]cty.Value{}
+		}
+
+		merges[merge][key] = value
 	}
 
-	return declaredDependency{dep: &effective, outputs: declared}, nil
+	for _, strategy := range slices.Sorted(maps.Keys(merges)) {
+		read.merges = append(read.merges, stateMerge{strategy: strategy, mocks: cty.ObjectVal(merges[strategy])})
+	}
+
+	effective.MockOutputsAllowedTerraformCommands = nil
+	effective.MockOutputs = keptMockValues(effective.MockOutputs, fallback, len(values))
+
+	return declaredDependency{dep: &effective, outputs: read}
+}
+
+// stackUnitRead returns how dependencyConfig reads the stack unit at unitConfigPath, as it is without an outputs block.
+func stackUnitRead(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	s *Store,
+	pctx *ParsingContext,
+	dependencyConfig *Dependency,
+	unitConfigPath string,
+	unitAddress []string,
+) (declaredDependency, error) {
+	if !pctx.Experiments.Evaluate(experiment.OutputsBlock) {
+		return declaredDependency{dep: dependencyConfig}, nil
+	}
+
+	unitDep := *dependencyConfig
+	unitDep.ConfigPath = cty.StringVal(unitConfigPath)
+	unitDep.MockOutputs = nil
+
+	declared, err := unitDep.DeclaredOutputs(ctx, l, v, s, pctx)
+	if err != nil {
+		return declaredDependency{}, err
+	}
+
+	if declared == nil {
+		return declaredDependency{dep: dependencyConfig}, nil
+	}
+
+	mock, ok, err := stackMockOutput(dependencyConfig, unitAddress)
+	if err != nil {
+		return declaredDependency{}, err
+	}
+
+	if ok {
+		unitDep.MockOutputs = &mock
+	}
+
+	return unitDep.withDeclared(pctx, declared), nil
+}
+
+// stackUnitMock returns the mock value of the stack unit at address, false when the command reads none.
+func (d declaredDependency) stackUnitMock(
+	pctx *ParsingContext,
+	dependencyConfig *Dependency,
+	address []string,
+) (cty.Value, bool, error) {
+	if d.outputs == nil {
+		return stackMockOutput(dependencyConfig, address)
+	}
+
+	if d.dep.MockOutputs == nil || !d.dep.shouldReturnMockOutputs(pctx) {
+		return cty.NilVal, false, nil
+	}
+
+	return *d.dep.MockOutputs, true, nil
 }
 
 // DeclaredOutputs returns the outputs block of the unit dep reads, nil when there is none, or [DependencyBlockError].
@@ -183,11 +305,10 @@ func UnitsWithoutOutputs(
 	return slices.Compact(targets), nil
 }
 
-// checkDeclaredOutputs returns a [DeclaredOutputMissingError] for each declared output missing from stateOutputs.
+// checkDeclaredOutputs converts each state output to the type it declares, or reports the outputs state lacks.
 func checkDeclaredOutputs(
 	pctx *ParsingContext,
-	dep *Dependency,
-	declared *OutputsConfig,
+	declared *declaredOutputs,
 	targetConfig string,
 	stateOutputs map[string]cty.Value,
 ) error {
@@ -195,37 +316,106 @@ func checkDeclaredOutputs(
 		return nil
 	}
 
-	mocks := stateFillingMocks(pctx, dep)
-	names := declared.Names()
-	errs := make([]error, 0, len(names))
+	filled := declared.filledOutputs()
+	errs := make([]error, 0, len(declared.config.Outputs))
 
-	for _, name := range names {
-		if _, ok := stateOutputs[name]; ok {
+	for _, output := range declared.config.Outputs {
+		value, inState := stateOutputs[output.Name]
+		if !inState {
+			if _, ok := filled[output.Name]; !ok {
+				errs = append(errs, DeclaredOutputMissingError{TargetConfig: targetConfig, Output: output.Name})
+			}
+
 			continue
 		}
 
-		if _, ok := mocks[name]; ok {
+		conformed, err := output.Conform(value)
+		if err != nil {
+			errs = append(errs, DeclaredOutputTypeError{
+				TargetConfig: targetConfig,
+				Output:       output.Name,
+				Type:         typeexpr.TypeString(output.Type),
+				Err:          err,
+			})
+
 			continue
 		}
 
-		errs = append(errs, DeclaredOutputMissingError{TargetConfig: targetConfig, Output: name})
+		stateOutputs[output.Name] = conformed
 	}
 
 	return errors.Join(errs...)
 }
 
-// stateFillingMocks returns the mock values that stand in for outputs the state lacks, none unless dep merges them.
-func stateFillingMocks(pctx *ParsingContext, dep *Dependency) map[string]cty.Value {
-	if !dep.shouldMergeMockOutputsWithState(pctx) {
+// mergedWithState returns state with the mock values of d that fill it for the command.
+func (d *declaredOutputs) mergedWithState(state cty.Value) (*cty.Value, error) {
+	merged := state
+
+	for _, merge := range d.merges {
+		filled, err := mergeMockOutputsWithState(merge.strategy, merged, merge.mocks)
+		if err != nil {
+			return nil, err
+		}
+
+		merged = withDeclaredMockMarks(merge.strategy, *filled, merge.mocks, merged)
+	}
+
+	return &merged, nil
+}
+
+// filledOutputs returns the names of the outputs whose mock values stand in for outputs the state lacks.
+func (d *declaredOutputs) filledOutputs() map[string]struct{} {
+	filled := map[string]struct{}{}
+
+	for i := range d.merges {
+		values, ok := mockValueMap(&d.merges[i].mocks)
+		if !ok {
+			continue
+		}
+
+		for name := range values {
+			filled[name] = struct{}{}
+		}
+	}
+
+	return filled
+}
+
+// stateMerges returns the merge of the mock values of dep with state, none when the command merges nothing.
+func (dep *Dependency) stateMerges(pctx *ParsingContext) []stateMerge {
+	if dep.MockOutputs == nil || !dep.shouldMergeMockOutputsWithState(pctx) {
 		return nil
 	}
 
-	values, ok := mockValueMap(dep.MockOutputs)
-	if !ok {
+	return []stateMerge{{strategy: dep.getMockOutputsMergeStrategy(), mocks: *dep.MockOutputs}}
+}
+
+// outputStrategy returns the mock_strategy of the output named name, or an empty one when it sets none.
+func (c *OutputsConfig) outputStrategy(name string) OutputsMockStrategy {
+	declaration := c.Declaration(name)
+	if declaration == nil || declaration.MockStrategy == nil {
+		return OutputsMockStrategy{}
+	}
+
+	return *declaration.MockStrategy
+}
+
+// mockCommandAllowed reports whether commands lets the command of pctx read mock values.
+func mockCommandAllowed(pctx *ParsingContext, commands *[]string) bool {
+	return commands == nil || len(*commands) == 0 || slices.Contains(*commands, pctx.OriginalTofuCommand)
+}
+
+// keptMockValues returns mocks when kept holds each of its total values, the kept ones otherwise, nil for none.
+func keptMockValues(mocks *cty.Value, kept map[string]cty.Value, total int) *cty.Value {
+	if len(kept) == total {
+		return mocks
+	}
+
+	if len(kept) == 0 {
 		return nil
 	}
 
-	return values
+	return new(cty.ObjectVal(kept))
 }
 
 // mergeDeclaredMockValues returns the mock values a dependent reads, each key of overrides winning over declared.

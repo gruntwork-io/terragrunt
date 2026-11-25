@@ -1032,7 +1032,7 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(
 	s *Store,
 	pctx *ParsingContext,
 	dependencyConfig *Dependency,
-	declared *OutputsConfig,
+	declared *declaredOutputs,
 ) (*cty.Value, error) {
 	if dependencyConfig.isDisabled() {
 		l.Debugf("Skipping outputs reading for disabled dependency %s", dependencyConfig.Name)
@@ -1045,21 +1045,19 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(
 			return nil, err
 		}
 
+		if !isEmpty && declared != nil {
+			return declared.mergedWithState(*outputVal)
+		}
+
 		if !isEmpty && dependencyConfig.shouldMergeMockOutputsWithState(pctx) &&
 			dependencyConfig.MockOutputs != nil {
 			state, mocks := *outputVal, *dependencyConfig.MockOutputs
-			strategy := dependencyConfig.getMockOutputsMergeStrategy()
 
-			merged, err := mergeMockOutputsWithState(strategy, state, mocks)
-			if err != nil || declared == nil {
-				return merged, err
-			}
+			return mergeMockOutputsWithState(dependencyConfig.getMockOutputsMergeStrategy(), state, mocks)
+		}
 
-			marked := withDeclaredMockMarks(strategy, *merged, mocks, state)
-
-			return &marked, nil
-		} else if !isEmpty {
-			return outputVal, err
+		if !isEmpty {
+			return outputVal, nil
 		}
 	}
 
@@ -1137,7 +1135,7 @@ func getTerragruntOutput(
 	s *Store,
 	pctx *ParsingContext,
 	dependencyConfig *Dependency,
-	declared *OutputsConfig,
+	declared *declaredOutputs,
 ) (*cty.Value, bool, error) {
 	// target config check: make sure the target config exists
 	targetConfigPath := getCleanedTargetConfigPath(
@@ -1199,7 +1197,7 @@ func getTerragruntOutput(
 	}
 
 	if fromState && !isEmpty {
-		if err := checkDeclaredOutputs(pctx, dependencyConfig, declared, targetConfigPath, outputMap); err != nil {
+		if err := checkDeclaredOutputs(pctx, declared, targetConfigPath, outputMap); err != nil {
 			return nil, isEmpty, DependencyBlockError{
 				Name:       dependencyConfig.Name,
 				ConfigPath: pctx.TerragruntConfigPath,
@@ -1378,14 +1376,19 @@ func collectUnitOutput(
 		return cty.NilVal, false, nil
 	}
 
+	read, err := stackUnitRead(ctx, l, v, s, pctx, dependencyConfig, unitConfigPath, unitAddress)
+	if err != nil {
+		return cty.NilVal, false, err
+	}
+
 	jsonBytes, err := getOutputJSONWithCaching(ctx, l, v, s, pctx, unitConfigPath)
 	if err != nil {
 		if !shouldFallBackToMockOutputs(pctx, err) ||
-			!dependencyConfig.shouldReturnMockOutputs(pctx) {
+			!dependencyConfig.shouldReturnMockOutputs(pctx) && !read.dep.shouldReturnMockOutputs(pctx) {
 			return cty.NilVal, false, StackUnitOutputFetchError{UnitName: unit.Name, Err: err}
 		}
 
-		mock, ok, mockErr := stackMockOutput(dependencyConfig, unitAddress)
+		mock, ok, mockErr := read.stackUnitMock(pctx, dependencyConfig, unitAddress)
 		if mockErr != nil {
 			return cty.NilVal, false, mockErr
 		}
@@ -1412,8 +1415,20 @@ func collectUnitOutput(
 		)
 	}
 
-	if len(outputMap) == 0 {
+	if len(outputMap) == 0 && read.outputs == nil {
 		return cty.NilVal, false, nil
+	}
+
+	if len(outputMap) == 0 {
+		return read.stackUnitMock(pctx, dependencyConfig, unitAddress)
+	}
+
+	if err := checkDeclaredOutputs(pctx, read.outputs, unitConfigPath, outputMap); err != nil {
+		return cty.NilVal, false, DependencyBlockError{
+			Name:       dependencyConfig.Name,
+			ConfigPath: pctx.TerragruntConfigPath,
+			Err:        err,
+		}
 	}
 
 	convertedOutput, err := gocty.ToCtyValue(outputMap, generateTypeFromValuesMap(outputMap))
@@ -1425,7 +1440,16 @@ func collectUnitOutput(
 		)
 	}
 
-	return convertedOutput, true, nil
+	if read.outputs == nil {
+		return convertedOutput, true, nil
+	}
+
+	merged, err := read.outputs.mergedWithState(convertedOutput)
+	if err != nil {
+		return cty.NilVal, false, err
+	}
+
+	return *merged, true, nil
 }
 
 // stackOutputs accumulates one stack level's outputs under the names dependency.<stack>.outputs
@@ -2946,7 +2970,7 @@ func ValidateDependencyConfigPaths(fsys vfs.FS, cfg *TerragruntConfig, configPat
 }
 
 // logMockOutputsFallback logs the fall back to mock outputs, at debug level for the mocks an outputs block declares.
-func logMockOutputsFallback(l log.Logger, pctx *ParsingContext, targetConfig string, declared *OutputsConfig) {
+func logMockOutputsFallback(l log.Logger, pctx *ParsingContext, targetConfig string, declared *declaredOutputs) {
 	if declared != nil {
 		logf := l.Infof
 		if pctx.SkipOutput || isRenderCommand(pctx) || isRenderJSONCommand(pctx) {

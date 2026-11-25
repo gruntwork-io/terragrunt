@@ -171,7 +171,7 @@ type OutputsHCL struct {
 	Output       []OutputHCL      `hcl:"output,block"`
 }
 
-// MockStrategyHCL is the mock_strategy block of an outputs block.
+// MockStrategyHCL is the mock_strategy block of an outputs block or of an output block.
 type MockStrategyHCL struct {
 	AllowedCommands *[]string          `hcl:"allowed_commands,attr"`
 	MergeWithState  *MergeStrategyType `hcl:"merge_with_state,attr"`
@@ -179,8 +179,10 @@ type MockStrategyHCL struct {
 
 // OutputHCL is an output block of an outputs block.
 type OutputHCL struct {
-	MockValue *hcl.Attribute `hcl:"mock_value,optional"`
-	Name      string         `hcl:"name,label"`
+	MockValue    *hcl.Attribute   `hcl:"mock_value,optional"`
+	Type         *hcl.Attribute   `hcl:"type,optional"`
+	MockStrategy *MockStrategyHCL `hcl:"mock_strategy,block"`
+	Name         string           `hcl:"name,label"`
 }
 
 // FeatureFlagHCL is a feature block.

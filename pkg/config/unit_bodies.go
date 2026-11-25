@@ -1,15 +1,18 @@
 package config
 
 import (
+	"fmt"
 	"maps"
 	"reflect"
 	"slices"
 	"sync"
 
 	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/ext/typeexpr"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
+	"github.com/zclconf/go-cty/cty/convert"
 )
 
 // QueueBodies is the parts of a [UnitConfig] beyond its tagged fields that discovery reads, decoded. The parse
@@ -112,13 +115,56 @@ func (c *UnitConfig) decodeMockValues(evalCtx *hcl.EvalContext, target *[]*cty.V
 
 	values := make([]*cty.Value, len(c.Outputs.Output))
 
-	for i, output := range c.Outputs.Output {
-		diags = append(diags, decodeAttr(evalCtx, output.MockValue, &values[i])...)
+	for i := range c.Outputs.Output {
+		diags = append(diags, c.Outputs.Output[i].decodeMockValue(evalCtx, &values[i])...)
 	}
 
 	*target = values
 
 	return diags
+}
+
+// decodeMockValue evaluates the mock value of d with evalCtx into *target, converted to the type of d.
+func (d *OutputHCL) decodeMockValue(evalCtx *hcl.EvalContext, target **cty.Value) hcl.Diagnostics {
+	ty, diags := d.typeConstraint()
+	diags = append(diags, decodeAttr(evalCtx, d.MockValue, target)...)
+
+	if diags.HasErrors() || *target == nil || ty == cty.NilType {
+		return diags
+	}
+
+	converted, err := convert.Convert(**target, ty)
+	if err != nil {
+		return append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  "Invalid mock value",
+			Detail: fmt.Sprintf(
+				"The mock_value of output %q does not match its type %s: %s. Change the mock_value or the type.",
+				d.Name,
+				typeexpr.TypeString(ty),
+				err,
+			),
+			Subject: d.MockValue.Expr.Range().Ptr(),
+		})
+	}
+
+	*target = &converted
+
+	return diags
+}
+
+// typeConstraint returns the type constraint of d, or [cty.NilType] when d sets none or it does not parse.
+func (d *OutputHCL) typeConstraint() (cty.Type, hcl.Diagnostics) {
+	if d.Type == nil {
+		return cty.NilType, nil
+	}
+
+	ty, diags := typeexpr.TypeConstraint(d.Type.Expr)
+	if diags.HasErrors() {
+		return cty.NilType, diags
+	}
+
+	return ty, diags
 }
 
 // decodeQueueEngine decodes the engine block of c with evalCtx and `dependency` unknown. It decodes nothing when c
