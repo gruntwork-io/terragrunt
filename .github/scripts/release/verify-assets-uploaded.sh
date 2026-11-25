@@ -14,98 +14,164 @@ set -euo pipefail
 source "$(dirname "$0")/lib-release-config.sh"
 
 readonly MAX_RETRIES=10
+readonly RETRY_DELAY_SECONDS=5
+readonly SPOT_CHECK_FILE="SHA256SUMS"
 
 function main {
 	local -r bin_dir="${1:-bin}"
-	local -r clobber="${CLOBBER:-false}"
 
-	# Validate required environment variables
 	: "${VERSION:?ERROR: VERSION is a required environment variable}"
 	: "${GH_TOKEN:?ERROR: GH_TOKEN is a required environment variable}"
 	verify_config_file
 
-	# Build upload command with optional --clobber flag
-	local clobber_flag=""
-	if [[ "$clobber" == "true" ]]; then
-		clobber_flag="--clobber"
-	fi
-
-	echo "Verifying all assets are accessible..."
-
-	# Get list of assets in the release
-	local assets
-	assets=$(gh release view "$VERSION" --json 'assets' --jq '.assets[].name')
-
-	local asset_count
-	asset_count=$(wc -l <<<"$assets")
-
-	echo "Found $asset_count assets in release"
-
-	# Get expected files from centralized configuration
-	local expected_files
+	local -a expected_files
 	mapfile -t expected_files < <(get_all_expected_files)
 
-	# Check each expected file
-	for expected_file in "${expected_files[@]}"; do
-		echo "Checking $expected_file..."
+	echo "Verifying all assets are present..."
+	upload_missing_assets "$bin_dir" "${expected_files[@]}"
+	assert_no_missing_assets "${expected_files[@]}"
 
-		# Check if file exists in release
-		if ! grep -q "^${expected_file}$" <<<"$assets"; then
-			echo "$expected_file not found in release, uploading..."
-
-			# Upload the missing file
-			if [[ -f "$bin_dir/$expected_file" ]]; then
-				local i
-				for ((i = 0; i < MAX_RETRIES; i++)); do
-					if gh release upload "$VERSION" "$bin_dir/$expected_file" $clobber_flag; then
-						echo "Uploaded $expected_file"
-						break
-					fi
-
-					echo "Upload attempt $((i + 1))/$MAX_RETRIES failed" >&2
-					sleep 5
-				done
-
-				if ((i == MAX_RETRIES)); then
-					echo "Failed to upload $expected_file after $MAX_RETRIES retries" >&2
-					exit 1
-				fi
-			else
-				echo "File $bin_dir/$expected_file not found locally" >&2
-				exit 1
-			fi
-		else
-			echo "$expected_file present"
-		fi
-	done
-
-	# Verify we can download assets (spot check)
 	echo ""
-	echo "Verifying asset downloads (spot check)..."
-	local download_url
-	download_url=$(gh release view "$VERSION" --json 'assets' --jq '.assets[0].url')
+	echo "Verifying asset download (spot check)..."
+	assert_download_matches_local "$bin_dir/$SPOT_CHECK_FILE"
 
-	if curl -sILf "$download_url" >/dev/null; then
-		echo "Assets are downloadable"
-	else
-		echo "Warning: Could not verify asset download URL" >&2
-	fi
-
-	local expected_count
-	expected_count=$(get_total_file_count)
-	local binary_count
-	binary_count=$(get_binary_count)
+	local asset_count
+	asset_count=$(list_assets | wc -l)
 
 	echo ""
 	echo "All required assets verified!"
-	echo "Expected files: $expected_count ($binary_count binaries + archives + checksums)"
-	echo "Actual files: $asset_count"
-
-	if [[ "$asset_count" -lt "$expected_count" ]]; then
-		echo "Warning: Expected $expected_count files, found $asset_count" >&2
-	fi
+	echo "Expected files: ${#expected_files[@]} ($(get_binary_count) binaries + archives + checksums)"
+	echo "Release assets: $asset_count"
 
 	return 0
+}
+
+# Upload each expected file that the release lacks
+# Usage: upload_missing_assets <bin-directory> <expected-file>...
+function upload_missing_assets {
+	local -r bin_dir="$1"
+	shift
+
+	local missing
+	missing=$(missing_assets "$@")
+
+	if [[ -z "$missing" ]]; then
+		echo "All $# expected files present"
+		return 0
+	fi
+
+	local file
+	while IFS= read -r file; do
+		echo "$file not found in release, uploading..."
+		upload_asset "$bin_dir/$file"
+	done <<<"$missing"
+
+	return 0
+}
+
+# Exit with an error naming each expected file that the release lacks
+# Usage: assert_no_missing_assets <expected-file>...
+function assert_no_missing_assets {
+	local missing
+	missing=$(missing_assets "$@")
+
+	if [[ -z "$missing" ]]; then
+		return 0
+	fi
+
+	local -a missing_files
+	mapfile -t missing_files <<<"$missing"
+
+	echo "ERROR: Release $VERSION is missing ${#missing_files[@]} of $# expected files:" >&2
+	printf '  %s\n' "${missing_files[@]}" >&2
+	exit 1
+}
+
+# Exit with an error unless the release's copy of a file downloads and matches the local one
+function assert_download_matches_local {
+	local -r local_file="$1"
+	local -r name="$(basename "$local_file")"
+
+	if ! retry download_matches_local "$local_file"; then
+		echo "ERROR: Downloaded $name does not match $local_file" >&2
+		exit 1
+	fi
+
+	echo "$name downloads and matches the local file"
+
+	return 0
+}
+
+# Print each of the given files that is not an asset on the release, one per line
+function missing_assets {
+	local assets
+	assets=$(list_assets) || return 1
+
+	local expected_file
+	for expected_file in "$@"; do
+		if ! grep -qxF -- "$expected_file" <<<"$assets"; then
+			echo "$expected_file"
+		fi
+	done
+
+	return 0
+}
+
+# Print the name of every asset on the release, one per line
+function list_assets {
+	gh release view "$VERSION" --json 'assets' --jq '.assets[].name'
+}
+
+# Upload one local file to the release, retrying on failure
+function upload_asset {
+	local -r local_file="$1"
+	local -r name="$(basename "$local_file")"
+
+	if [[ ! -f "$local_file" ]]; then
+		echo "ERROR: File $local_file not found locally" >&2
+		exit 1
+	fi
+
+	local -a upload_flags=()
+	if [[ "${CLOBBER:-false}" == "true" ]]; then
+		upload_flags+=(--clobber)
+	fi
+
+	if ! retry gh release upload "$VERSION" "$local_file" "${upload_flags[@]}"; then
+		echo "ERROR: Failed to upload $name after $MAX_RETRIES attempts" >&2
+		exit 1
+	fi
+
+	echo "Uploaded $name"
+
+	return 0
+}
+
+# Download one asset from the release and compare it to the local file of the same name
+function download_matches_local {
+	local -r local_file="$1"
+
+	# A draft release serves assets only to authenticated requests, which gh sends.
+	gh release download "$VERSION" --pattern "$(basename "$local_file")" --output - |
+		cmp -s - "$local_file"
+}
+
+# Run a command until it succeeds, up to MAX_RETRIES attempts
+function retry {
+	local attempt
+	for ((attempt = 1; attempt <= MAX_RETRIES; attempt++)); do
+		if "$@"; then
+			return 0
+		fi
+
+		echo "Attempt $attempt/$MAX_RETRIES failed" >&2
+
+		if ((attempt < MAX_RETRIES)); then
+			sleep "$RETRY_DELAY_SECONDS"
+		fi
+	done
+
+	return 1
 }
 
 main "$@"
