@@ -124,7 +124,7 @@ func (tlm *Telemeter) Shutdown(ctx context.Context) error {
 // OpenTelemetry log bridge derives trace and span IDs from the logger's context,
 // so records correlate with their span only when the logger carries it. Pass
 // childL onward to any code whose logs should resolve to this span.
-// If ctx has no span, records from loggers without a span use the new root span.
+// If ctx has no span and no root span is set, records from loggers without a span use the new root span.
 func (tlm *Telemeter) Collect(
 	ctx context.Context, l log.Logger, name string, attrs map[string]any,
 	fn func(childCtx context.Context, childL log.Logger) error,
