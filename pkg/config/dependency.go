@@ -1169,7 +1169,7 @@ func getTerragruntOutput(
 	fromState := err == nil
 
 	if err != nil {
-		if !shouldFallBackToMockOutputs(pctx, err) {
+		if !shouldFallBackToMockOutputs(pctx, err) && !dependencyConfig.shouldReturnMockOutputs(pctx) {
 			return nil, true, err
 		}
 
