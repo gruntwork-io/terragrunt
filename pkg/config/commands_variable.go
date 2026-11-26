@@ -36,45 +36,27 @@ var commandsVariable = sync.OnceValue(func() cty.Value {
 })
 
 func commandsExperimentDiagnostics(_ *hcl.File, diags hcl.Diagnostics) (hcl.Diagnostics, error) {
-	if !slices.ContainsFunc(diags, needsCommandsExperimentHint) {
-		return diags, nil
-	}
+	hintUnknownCommands(diags)
 
-	hinted := make(hcl.Diagnostics, 0, len(diags))
-
-	for _, diag := range diags {
-		if !needsCommandsExperimentHint(diag) {
-			hinted = append(hinted, diag)
-
-			continue
-		}
-
-		withHint := *diag
-		withHint.Detail += commandsExperimentHint
-		hinted = append(hinted, &withHint)
-	}
-
-	return hinted, nil
+	return diags, nil
 }
 
 func withCommandsExperimentHint(enabled bool, err error) error {
 	var diags hcl.Diagnostics
 
-	if enabled || !errors.As(err, &diags) {
-		return err
-	}
-
-	for _, diag := range diags {
-		if needsCommandsExperimentHint(diag) {
-			diag.Detail += commandsExperimentHint
-		}
+	if !enabled && errors.As(err, &diags) {
+		hintUnknownCommands(diags)
 	}
 
 	return err
 }
 
-func needsCommandsExperimentHint(diag *hcl.Diagnostic) bool {
-	return readsUnknownCommands(diag) && !strings.HasSuffix(diag.Detail, commandsExperimentHint)
+func hintUnknownCommands(diags hcl.Diagnostics) {
+	for _, diag := range diags {
+		if readsUnknownCommands(diag) && !strings.HasSuffix(diag.Detail, commandsExperimentHint) {
+			diag.Detail += commandsExperimentHint
+		}
+	}
 }
 
 func readsUnknownCommands(diag *hcl.Diagnostic) bool {

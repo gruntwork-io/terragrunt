@@ -2,6 +2,7 @@ package mcp_test
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 
 	tgmcp "github.com/gruntwork-io/terragrunt/internal/cli/commands/mcp"
@@ -54,7 +55,7 @@ func TestRenderConfigToolNamesTheCommandsVariableExperimentWhenDisabled(t *testi
 
 	text, ok := res.Content[0].(*mcp.TextContent)
 	require.True(t, ok)
-	require.Contains(t, text.Text, "--experiment "+experiment.CommandsVariable)
+	require.Equal(t, 1, strings.Count(text.Text, "--experiment "+experiment.CommandsVariable))
 }
 
 func newCommandsVariableSession(t *testing.T, experiments ...string) *mcp.ClientSession {

@@ -354,7 +354,8 @@ values {
 	var diags hcl.Diagnostics
 
 	require.ErrorAs(t, err, &diags)
-	require.NotEmpty(t, diags)
+	require.Len(t, diags, 1)
+	require.Equal(t, "Variables not allowed", diags[0].Summary)
 	require.Zero(t, maxCommandsExperimentHints(diags))
 }
 
@@ -418,7 +419,8 @@ inputs = {
 	var diags hcl.Diagnostics
 
 	require.ErrorAs(t, err, &diags)
-	require.NotEmpty(t, diags)
+	require.Len(t, diags, 1)
+	require.Equal(t, "Unsupported attribute", diags[0].Summary)
 	require.Zero(t, maxCommandsExperimentHints(diags))
 }
 

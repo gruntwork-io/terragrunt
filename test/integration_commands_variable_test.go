@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
 
@@ -83,6 +82,58 @@ func TestCommandsVariableInGeneratedStack(t *testing.T) {
 	}, renderCommandsVariableInputs(t, unitDir, commandsVariableExperimentFlag))
 }
 
+func TestCommandsVariableInFileReadByGeneratedStack(t *testing.T) {
+	t.Parallel()
+
+	root := copyCommandsVariableFixture(t)
+	stackDir := filepath.Join(root, "stack-read", "live")
+	unitDir := filepath.Join(stackDir, config.StackDir, "app")
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --working-dir "+stackDir+commandsVariableExperimentFlag)
+
+	require.Equal(t, map[string]any{
+		"read_vars":  commandList(config.TerraformCommandsNeedVars),
+		"read_input": commandList(config.TerraformCommandsNeedInput),
+	}, renderCommandsVariableInputs(t, unitDir, commandsVariableExperimentFlag))
+}
+
+func TestCommandsVariableInGeneratedStackInclude(t *testing.T) {
+	t.Parallel()
+
+	root := copyCommandsVariableFixture(t)
+	stackDir := filepath.Join(root, "stack-include", "live")
+	rootDir := filepath.Join(stackDir, config.StackDir, "root")
+	appDir := filepath.Join(stackDir, config.StackDir, "catalog-"+config.TerraformCommandsNeedParallelism[0])
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --working-dir "+stackDir+commandsVariableExperimentFlag)
+
+	require.Equal(
+		t,
+		map[string]any{"list": commandList(config.TerraformCommandsNeedLocking)},
+		renderCommandsVariableInputs(t, rootDir, commandsVariableExperimentFlag),
+	)
+	require.Equal(
+		t,
+		map[string]any{"list": commandList(config.TerraformCommandsNeedInput)},
+		renderCommandsVariableInputs(t, appDir, commandsVariableExperimentFlag),
+	)
+}
+
+func TestCommandsVariableInStackIncludeDiscovery(t *testing.T) {
+	t.Parallel()
+
+	root := copyCommandsVariableFixture(t)
+	units := "live/" + config.StackDir + "/"
+
+	require.Equal(
+		t,
+		map[string][]string{
+			"consumer": {units + "root", units + "catalog-" + config.TerraformCommandsNeedParallelism[0]},
+		},
+		findCommandsVariableDependencies(t, filepath.Join(root, "stack-include")),
+	)
+}
+
 func TestCommandsVariableInGeneratedAutoIncludeNeedsNoExperiment(t *testing.T) {
 	t.Parallel()
 
@@ -112,33 +163,10 @@ func TestCommandsVariableInStackDependencyDiscovery(t *testing.T) {
 		"terragrunt stack generate --working-dir "+filepath.Join(workingDir, "live")+commandsVariableExperimentFlag,
 	)
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
-		t,
-		"terragrunt find --dag --dependencies --json --non-interactive --working-dir "+workingDir+
-			commandsVariableExperimentFlag,
-	)
-	require.NoError(t, err)
-
-	var components []struct {
-		Path         string   `json:"path"`
-		Dependencies []string `json:"dependencies"`
-	}
-
-	require.NoError(t, json.Unmarshal([]byte(stdout), &components))
-
-	dependencies := map[string][]string{}
-
-	for _, component := range components {
-		for _, dependency := range component.Dependencies {
-			path := filepath.ToSlash(component.Path)
-			dependencies[path] = append(dependencies[path], filepath.ToSlash(dependency))
-		}
-	}
-
 	require.Equal(
 		t,
 		map[string][]string{"consumer": {"live/" + config.StackDir + "/" + unitName}},
-		dependencies,
+		findCommandsVariableDependencies(t, workingDir),
 	)
 }
 
@@ -170,11 +198,48 @@ func TestCommandsVariableRequiresExperiment(t *testing.T) {
 			var diags hcl.Diagnostics
 
 			require.ErrorAs(t, err, &diags)
-			require.True(t, slices.ContainsFunc(diags, func(diag *hcl.Diagnostic) bool {
-				return strings.Contains(diag.Detail, "--experiment "+experiment.CommandsVariable)
-			}))
+			require.Equal(t, 1, maxCommandsVariableHints(diags))
 		})
 	}
+}
+
+func findCommandsVariableDependencies(t *testing.T, workingDir string) map[string][]string {
+	t.Helper()
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt find --dag --dependencies --json --non-interactive --working-dir "+workingDir+
+			commandsVariableExperimentFlag,
+	)
+	require.NoError(t, err)
+
+	var components []struct {
+		Path         string   `json:"path"`
+		Dependencies []string `json:"dependencies"`
+	}
+
+	require.NoError(t, json.Unmarshal([]byte(stdout), &components))
+
+	dependencies := map[string][]string{}
+
+	for _, component := range components {
+		for _, dependency := range component.Dependencies {
+			path := filepath.ToSlash(component.Path)
+			dependencies[path] = append(dependencies[path], filepath.ToSlash(dependency))
+		}
+	}
+
+	return dependencies
+}
+
+func maxCommandsVariableHints(diags hcl.Diagnostics) int {
+	most := 0
+
+	for _, diag := range diags {
+		most = max(most, strings.Count(diag.Detail, "--experiment "+experiment.CommandsVariable))
+	}
+
+	return most
 }
 
 func copyCommandsVariableFixture(t *testing.T) string {
