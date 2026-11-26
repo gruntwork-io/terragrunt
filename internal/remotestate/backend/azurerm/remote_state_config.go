@@ -81,6 +81,9 @@ type RemoteStateConfigAzurerm struct {
 	Environment        string `mapstructure:"environment"`
 	MSIResourceID      string `mapstructure:"msi_resource_id"`
 	OIDCTokenFilePath  string `mapstructure:"oidc_token_file_path"`
+	OIDCToken          string `mapstructure:"oidc_token"`
+	// ADOServiceConnectionID is the Azure DevOps service connection that issues the OIDC token.
+	ADOServiceConnectionID string `mapstructure:"ado_service_connection_id"`
 	// Snapshot is a valid azurerm backend boolean argument. It is declared here
 	// (even though Terragrunt does not act on it) so NormalizeBoolValues coerces
 	// a string "true"/"false" into a real bool before forwarding to `tofu init`.
@@ -112,20 +115,22 @@ func (cfg *ExtendedRemoteStateConfigAzurerm) GetAzureSessionConfig() *azurehelpe
 	rs := cfg.RemoteStateConfigAzurerm
 
 	return &azurehelper.AzureSessionConfig{
-		SubscriptionID:     rs.SubscriptionID,
-		TenantID:           rs.TenantID,
-		ClientID:           rs.ClientID,
-		ClientSecret:       rs.ClientSecret,
-		StorageAccountName: rs.StorageAccountName,
-		ResourceGroupName:  rs.ResourceGroupName,
-		MSIResourceID:      rs.MSIResourceID,
-		SasToken:           rs.SasToken,
-		AccessKey:          rs.AccessKey,
-		OIDCTokenFilePath:  rs.OIDCTokenFilePath,
-		CloudEnvironment:   rs.Environment,
-		UseAzureADAuth:     rs.UseAzureADAuth,
-		UseMSI:             rs.UseMSI,
-		UseOIDC:            rs.UseOIDC,
+		SubscriptionID:         rs.SubscriptionID,
+		TenantID:               rs.TenantID,
+		ClientID:               rs.ClientID,
+		ClientSecret:           rs.ClientSecret,
+		StorageAccountName:     rs.StorageAccountName,
+		ResourceGroupName:      rs.ResourceGroupName,
+		MSIResourceID:          rs.MSIResourceID,
+		SasToken:               rs.SasToken,
+		AccessKey:              rs.AccessKey,
+		OIDCTokenFilePath:      rs.OIDCTokenFilePath,
+		OIDCToken:              rs.OIDCToken,
+		ADOServiceConnectionID: rs.ADOServiceConnectionID,
+		CloudEnvironment:       rs.Environment,
+		UseAzureADAuth:         rs.UseAzureADAuth,
+		UseMSI:                 rs.UseMSI,
+		UseOIDC:                rs.UseOIDC,
 	}
 }
 
@@ -179,7 +184,7 @@ func (cfg *ExtendedRemoteStateConfigAzurerm) normalize() {
 		&rs.StorageAccountName, &rs.ContainerName, &rs.Key, &rs.ResourceGroupName,
 		&rs.SubscriptionID, &rs.TenantID, &rs.ClientID, &rs.ClientSecret,
 		&rs.SasToken, &rs.AccessKey, &rs.Environment, &rs.MSIResourceID,
-		&rs.OIDCTokenFilePath,
+		&rs.OIDCTokenFilePath, &rs.OIDCToken, &rs.ADOServiceConnectionID,
 		&cfg.Location, &cfg.AccountTier, &cfg.AccountReplicationType,
 		&cfg.AccountKind, &cfg.AccessTier, &cfg.MinimumTLSVersion, &cfg.PrincipalID,
 	} {

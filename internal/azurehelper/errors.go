@@ -138,6 +138,19 @@ func (e *OIDCTokenFieldMissingError) Error() string {
 	return fmt.Sprintf("OIDC token response did not contain a %q value", e.Field)
 }
 
+// OIDCTokenMismatchError is returned when the OIDC token and the contents of the OIDC token file differ.
+type OIDCTokenMismatchError struct {
+	TokenFilePath string
+}
+
+func (e *OIDCTokenMismatchError) Error() string {
+	return fmt.Sprintf(
+		"the OIDC token and the contents of the OIDC token file %s do not match; "+
+			"make them the same value or set only one of oidc_token and oidc_token_file_path",
+		e.TokenFilePath,
+	)
+}
+
 // StorageAccountNotFoundError is returned when a storage account cannot be
 // found in the subscription being searched.
 type StorageAccountNotFoundError struct {

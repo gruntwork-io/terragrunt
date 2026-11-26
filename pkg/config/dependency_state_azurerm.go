@@ -21,6 +21,7 @@ import (
 // azureTrimmedStringConfigKeys reach the native backend verbatim, so surrounding whitespace selects a different identity or blob.
 var azureTrimmedStringConfigKeys = []string{
 	"access_key",
+	"ado_service_connection_id",
 	"client_id",
 	"client_secret",
 	"container_name",
@@ -36,7 +37,6 @@ var azureTrimmedStringConfigKeys = []string{
 
 // azureUnsupportedConfigKeys are backend config keys whose mere presence requires the native backend path.
 var azureUnsupportedConfigKeys = []string{
-	"ado_service_connection_id",
 	"client_certificate",
 	"client_certificate_password",
 	"client_certificate_path",
@@ -76,9 +76,11 @@ var azureSDKAmbientEnvKeys = []string{
 // azureTrimmedEnvKeys reach the native backend verbatim, so surrounding whitespace selects a different identity.
 var azureTrimmedEnvKeys = []string{
 	"ARM_ACCESS_KEY",
+	"ARM_ADO_PIPELINE_SERVICE_CONNECTION_ID",
 	"ARM_CLIENT_ID",
 	"ARM_CLIENT_SECRET",
 	"ARM_ENVIRONMENT",
+	"ARM_OIDC_AZURE_SERVICE_CONNECTION_ID",
 	"ARM_OIDC_TOKEN_FILE_PATH",
 	"ARM_SAS_TOKEN",
 	"ARM_SUBSCRIPTION_ID",
@@ -87,12 +89,19 @@ var azureTrimmedEnvKeys = []string{
 	"ARM_USE_CLI",
 	"ARM_USE_MSI",
 	"ARM_USE_OIDC",
+	"AZURESUBSCRIPTION_SERVICE_CONNECTION_ID",
 	"AZURE_FEDERATED_TOKEN_FILE",
+}
+
+// azureDevOpsServiceConnectionEnvKeys name the Azure DevOps service connection, first match wins.
+var azureDevOpsServiceConnectionEnvKeys = []string{
+	"ARM_ADO_PIPELINE_SERVICE_CONNECTION_ID",
+	"ARM_OIDC_AZURE_SERVICE_CONNECTION_ID",
+	"AZURESUBSCRIPTION_SERVICE_CONNECTION_ID",
 }
 
 // azureUnsupportedEnvKeys select native authentication, endpoint, timeout, or encryption behavior azurehelper does not mirror.
 var azureUnsupportedEnvKeys = []string{
-	"ARM_ADO_PIPELINE_SERVICE_CONNECTION_ID",
 	"ARM_CLIENT_CERTIFICATE",
 	"ARM_CLIENT_CERTIFICATE_PASSWORD",
 	"ARM_CLIENT_CERTIFICATE_PATH",
@@ -104,8 +113,6 @@ var azureUnsupportedEnvKeys = []string{
 	"ARM_METADATA_HOSTNAME",
 	"ARM_MSI_ENDPOINT",
 	"ARM_MSI_RESOURCE_ID",
-	"ARM_OIDC_AZURE_SERVICE_CONNECTION_ID",
-	"ARM_OIDC_REQUEST_TOKEN",
 	"ARM_OIDC_REQUEST_URL",
 	"ARM_OIDC_TOKEN",
 	"ARM_RESOURCE_GROUP_NAME",
@@ -114,7 +121,6 @@ var azureUnsupportedEnvKeys = []string{
 	"ARM_USE_AKS_WORKLOAD_IDENTITY",
 	"ARM_USE_AZUREAD_AUTH",
 	"ARM_USE_DNS_ZONE_ENDPOINT",
-	"AZURESUBSCRIPTION_SERVICE_CONNECTION_ID",
 	"AZURE_CLIENT_ID",
 	"AZURE_CLIENT_SECRET",
 	"AZURE_ENVIRONMENT",
@@ -128,8 +134,6 @@ var azureUnsupportedEnvKeys = []string{
 	"AZURE_TENANT_ID",
 	"ACTIONS_ID_TOKEN_REQUEST_TOKEN",
 	"ACTIONS_ID_TOKEN_REQUEST_URL",
-	"SYSTEM_ACCESSTOKEN",
-	"SYSTEM_OIDCREQUESTURI",
 }
 
 // azureManagedIdentityEnvKeys steer managed-identity discovery, which the in-process SDK reads from the Terragrunt process, not the venv.
@@ -153,14 +157,15 @@ var azureWorkloadIdentityEnvKeys = []string{
 
 // azureConfigEnvFallbacks maps a backend config key to the environment variables the native backend falls back to when it is absent.
 var azureConfigEnvFallbacks = map[string][]string{
-	"access_key":           {"ARM_ACCESS_KEY"},
-	"client_id":            {"ARM_CLIENT_ID"},
-	"client_secret":        {"ARM_CLIENT_SECRET"},
-	"environment":          {"ARM_ENVIRONMENT"},
-	"oidc_token_file_path": {"ARM_OIDC_TOKEN_FILE_PATH", "AZURE_FEDERATED_TOKEN_FILE"},
-	"sas_token":            {"ARM_SAS_TOKEN"},
-	"subscription_id":      {"ARM_SUBSCRIPTION_ID"},
-	"tenant_id":            {"ARM_TENANT_ID"},
+	"access_key":                {"ARM_ACCESS_KEY"},
+	"ado_service_connection_id": azureDevOpsServiceConnectionEnvKeys,
+	"client_id":                 {"ARM_CLIENT_ID"},
+	"client_secret":             {"ARM_CLIENT_SECRET"},
+	"environment":               {"ARM_ENVIRONMENT"},
+	"oidc_token_file_path":      {"ARM_OIDC_TOKEN_FILE_PATH", "AZURE_FEDERATED_TOKEN_FILE"},
+	"sas_token":                 {"ARM_SAS_TOKEN"},
+	"subscription_id":           {"ARM_SUBSCRIPTION_ID"},
+	"tenant_id":                 {"ARM_TENANT_ID"},
 }
 
 // azureSupportedCloudEnvironments are the cloud aliases azurehelper resolves to the same endpoints as the native backend.
@@ -181,6 +186,19 @@ type azureCredentials struct {
 	clientSecret   string
 	tenantID       string
 	subscriptionID string
+	adoConnection  string
+	adoRequestURL  string
+	adoToken       string
+}
+
+// adoPresent reports whether any Azure DevOps service connection input is set.
+func (c *azureCredentials) adoPresent() bool {
+	return c.adoConnection != "" || c.adoRequestURL != "" || c.adoToken != ""
+}
+
+// adoComplete reports whether every Azure DevOps service connection input is set.
+func (c *azureCredentials) adoComplete() bool {
+	return c.adoConnection != "" && c.adoRequestURL != "" && c.adoToken != ""
 }
 
 // azureDirectStateReadSupported reports whether azurehelper reads this state with the identity and validation the native azurerm backend would.
@@ -410,6 +428,16 @@ func azureResolveCredentials(
 		return nil, false
 	}
 
+	adoConnection, valid := backendConfigStringWithEnv(
+		config,
+		"ado_service_connection_id",
+		env,
+		azureDevOpsServiceConnectionEnvKeys...,
+	)
+	if !valid {
+		return nil, false
+	}
+
 	return &azureCredentials{
 		accessKey:      accessKey,
 		sasToken:       sasToken,
@@ -417,6 +445,9 @@ func azureResolveCredentials(
 		clientSecret:   clientSecret,
 		tenantID:       tenantID,
 		subscriptionID: subscriptionID,
+		adoConnection:  adoConnection,
+		adoRequestURL:  env["SYSTEM_OIDCREQUESTURI"],
+		adoToken:       firstNonEmptyFromMap(env, "ARM_OIDC_REQUEST_TOKEN", "SYSTEM_ACCESSTOKEN"),
 	}, true
 }
 
@@ -488,9 +519,14 @@ func azureCredentialMethodSupported(
 ) bool {
 	hasSharedKey := creds.accessKey != "" || creds.sasToken != ""
 	hasServicePrincipal := creds.clientID != "" && creds.clientSecret != "" && creds.tenantID != ""
+	usesTokenCredential := !hasSharedKey && !hasServicePrincipal
 
-	if !hasSharedKey && !hasServicePrincipal &&
-		!azureTokenCredentialComplete(toggles, creds, tokenFile) {
+	if usesTokenCredential && !azureTokenCredentialComplete(toggles, creds, tokenFile) {
+		return false
+	}
+
+	// The Azure DevOps inputs keep the native path unless they select the credential.
+	if creds.adoPresent() && (!usesTokenCredential || !toggles.useOIDC || !creds.adoComplete()) {
 		return false
 	}
 
@@ -509,7 +545,10 @@ func azureTokenCredentialComplete(
 	tokenFile string,
 ) bool {
 	if toggles.useOIDC {
-		return tokenFile != "" && creds.clientID != "" && creds.tenantID != ""
+		// OpenTofu and Terraform pick different sources when a token file and a service connection are both set.
+		hasOneSource := (tokenFile != "") != creds.adoComplete()
+
+		return hasOneSource && creds.clientID != "" && creds.tenantID != ""
 	}
 
 	// The native backend's remaining default is Azure CLI only, while azurehelper falls back to a broader credential chain.

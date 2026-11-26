@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
 
 // Common test fixtures used across azurehelper unit tests.
@@ -423,13 +424,72 @@ func TestBuild_OIDC(t *testing.T) {
 	}
 }
 
+func TestBuild_OIDCTokenFromEnvironment(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := azurehelper.NewAzureConfigBuilder().
+		WithSessionConfig(&azurehelper.AzureSessionConfig{
+			StorageAccountName: testAccount,
+			TenantID:           "tid",
+			ClientID:           "cid",
+		}).
+		Build(logger.CreateLogger(), isolatedEnv("ARM_USE_OIDC", "true", "ARM_OIDC_TOKEN", "assertion-jwt"))
+	require.NoError(t, err)
+	assert.Equal(t, azurehelper.AuthMethodOIDC, cfg.Method)
+	assert.NotNil(t, cfg.Credential)
+}
+
+func TestBuild_OIDCTokenDoesNotImplyOIDC(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := azurehelper.NewAzureConfigBuilder().
+		WithSessionConfig(&azurehelper.AzureSessionConfig{
+			StorageAccountName: testAccount,
+			TenantID:           "tid",
+			ClientID:           "cid",
+		}).
+		Build(logger.CreateLogger(), isolatedEnv("ARM_OIDC_TOKEN", "assertion-jwt"))
+	require.NoError(t, err)
+	assert.Equal(t, azurehelper.AuthMethodAzureAD, cfg.Method)
+}
+
+func TestBuild_CredentialFingerprintCoversOIDCSources(t *testing.T) {
+	t.Parallel()
+
+	fingerprint := func(token, serviceConnectionID string) string {
+		cfg, err := azurehelper.NewAzureConfigBuilder().
+			WithSessionConfig(&azurehelper.AzureSessionConfig{
+				StorageAccountName:     testAccount,
+				TenantID:               "tid",
+				ClientID:               "cid",
+				UseOIDC:                new(true),
+				OIDCToken:              token,
+				ADOServiceConnectionID: serviceConnectionID,
+			}).
+			Build(logger.CreateLogger(), isolatedEnv())
+		require.NoError(t, err)
+
+		return cfg.CredentialFingerprint
+	}
+
+	base := fingerprint("first-jwt", "first-connection")
+
+	assert.Equal(t, base, fingerprint("first-jwt", "first-connection"))
+	assert.NotEqual(t, base, fingerprint("second-jwt", "first-connection"))
+	assert.NotEqual(t, base, fingerprint("first-jwt", "second-connection"))
+	assert.NotContains(t, base, "first-jwt")
+}
+
 // TestBuild_CredentialConstructionErrors verifies an SDK constructor failure
 // names the auth method being built. Entra tenant ids allow only alphanumerics,
 // '-' and '.', so the SDK rejects this one without any network call.
 func TestBuild_CredentialConstructionErrors(t *testing.T) {
 	t.Parallel()
 
-	const badTenant = "bad tenant!"
+	const (
+		badTenant     = "bad tenant!"
+		assertionFile = "/var/run/secrets/azure/tokens/azure-identity-token"
+	)
 
 	tests := []struct {
 		env  *venv.Venv
@@ -461,6 +521,76 @@ func TestBuild_CredentialConstructionErrors(t *testing.T) {
 				OIDCTokenFilePath: "/var/run/secrets/azure/tokens/azure-identity-token",
 			},
 			env:  isolatedEnv(),
+			want: "creating OIDC workload identity credential",
+		},
+		{
+			name: "oidc token",
+			cfg:  azurehelper.AzureSessionConfig{UseOIDC: new(true), TenantID: badTenant, ClientID: "cid"},
+			env:  isolatedEnv("ARM_OIDC_TOKEN", "assertion-jwt"),
+			want: "creating OIDC client assertion credential",
+		},
+		{
+			name: "oidc token wins over token file",
+			cfg: azurehelper.AzureSessionConfig{
+				UseOIDC:           new(true),
+				TenantID:          badTenant,
+				ClientID:          "cid",
+				OIDCTokenFilePath: assertionFile,
+			},
+			env:  isolatedEnv("ARM_OIDC_TOKEN", "assertion-jwt"),
+			want: "creating OIDC client assertion credential",
+		},
+		{
+			name: "oidc token file wins over request url",
+			cfg: azurehelper.AzureSessionConfig{
+				UseOIDC:           new(true),
+				TenantID:          badTenant,
+				ClientID:          "cid",
+				OIDCTokenFilePath: assertionFile,
+			},
+			env: isolatedEnv(
+				"ACTIONS_ID_TOKEN_REQUEST_URL", "https://pipelines.example/token",
+				"ACTIONS_ID_TOKEN_REQUEST_TOKEN", "runner-token",
+			),
+			want: "creating OIDC workload identity credential",
+		},
+		{
+			name: "federated token file wins over request url",
+			cfg:  azurehelper.AzureSessionConfig{UseOIDC: new(true), TenantID: badTenant, ClientID: "cid"},
+			env: isolatedEnv(
+				"AZURE_FEDERATED_TOKEN_FILE", assertionFile,
+				"ACTIONS_ID_TOKEN_REQUEST_URL", "https://pipelines.example/token",
+				"ACTIONS_ID_TOKEN_REQUEST_TOKEN", "runner-token",
+			),
+			want: "creating OIDC workload identity credential",
+		},
+		{
+			name: "azure devops service connection wins over token file",
+			cfg: azurehelper.AzureSessionConfig{
+				UseOIDC:           new(true),
+				TenantID:          badTenant,
+				ClientID:          "cid",
+				OIDCTokenFilePath: assertionFile,
+			},
+			env: isolatedEnv(
+				"ARM_ADO_PIPELINE_SERVICE_CONNECTION_ID", "service-connection",
+				"SYSTEM_OIDCREQUESTURI", "https://dev.azure.example/oidc",
+				"ARM_OIDC_REQUEST_TOKEN", "request-token",
+			),
+			want: "creating OIDC client assertion credential",
+		},
+		{
+			name: "azure devops service connection without a request token leaves the token file",
+			cfg: azurehelper.AzureSessionConfig{
+				UseOIDC:           new(true),
+				TenantID:          badTenant,
+				ClientID:          "cid",
+				OIDCTokenFilePath: assertionFile,
+			},
+			env: isolatedEnv(
+				"ARM_ADO_PIPELINE_SERVICE_CONNECTION_ID", "service-connection",
+				"SYSTEM_OIDCREQUESTURI", "https://dev.azure.example/oidc",
+			),
 			want: "creating OIDC workload identity credential",
 		},
 	}

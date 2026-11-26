@@ -54,6 +54,10 @@ type AzureSessionConfig struct {
 	AccessKey string
 	// OIDCTokenFilePath points at a federated identity token file for UseOIDC.
 	OIDCTokenFilePath string
+	// OIDCToken is a federated identity token for UseOIDC.
+	OIDCToken string
+	// ADOServiceConnectionID selects an Azure DevOps service connection for UseOIDC.
+	ADOServiceConnectionID string
 	// CloudEnvironment selects the cloud: "" / "public", "usgovernment", "china".
 	CloudEnvironment string
 }
@@ -62,7 +66,10 @@ type AzureSessionConfig struct {
 // so callers can tell two credentials apart without holding either.
 func credentialFingerprint(cfg *AzureSessionConfig) string {
 	sum := sha256.New()
-	for _, secret := range []string{cfg.ClientSecret, cfg.SasToken, cfg.AccessKey, cfg.OIDCTokenFilePath} {
+	for _, secret := range []string{
+		cfg.ClientSecret, cfg.SasToken, cfg.AccessKey,
+		cfg.OIDCTokenFilePath, cfg.OIDCToken, cfg.ADOServiceConnectionID,
+	} {
 		sum.Write([]byte(secret))
 		sum.Write([]byte{0})
 	}
@@ -110,7 +117,7 @@ const (
 	AuthMethodAccessKey AuthMethod = "access-key"
 	// AuthMethodServicePrincipal authenticates with a client ID, client secret, and tenant ID.
 	AuthMethodServicePrincipal AuthMethod = "service-principal"
-	// AuthMethodOIDC authenticates with a federated OIDC token, from a token request URL or a token file.
+	// AuthMethodOIDC authenticates with a federated OIDC token.
 	AuthMethodOIDC AuthMethod = "oidc"
 	// AuthMethodMSI authenticates with an Azure managed identity.
 	AuthMethodMSI AuthMethod = "msi"
@@ -254,11 +261,7 @@ func (b *AzureConfigBuilder) Build(l log.Logger, v *venv.Venv) (*AzureConfig, er
 		return out, validate(out, &resolved)
 
 	case util.Deref(resolved.UseOIDC):
-		// A request-URL flow (GitHub Actions, Azure DevOps) takes precedence
-		// over the token file, matching the native azurerm backend. Without
-		// this, a CI config that authenticates fine during `tofu init` would
-		// fail during Terragrunt's own lifecycle operations.
-		if getAssertion := oidcAssertionProvider(v); getAssertion != nil {
+		if getAssertion := oidcAssertionSource(l, v, &resolved); getAssertion != nil {
 			cred, err := azidentity.NewClientAssertionCredential(
 				resolved.TenantID, resolved.ClientID, getAssertion,
 				&azidentity.ClientAssertionCredentialOptions{ClientOptions: clientOpts},
@@ -270,7 +273,7 @@ func (b *AzureConfigBuilder) Build(l log.Logger, v *venv.Venv) (*AzureConfig, er
 			out.Method = AuthMethodOIDC
 			out.Credential = cred
 
-			l.Debugf("azurehelper: using OIDC authentication via a federated token request url")
+			l.Debugf("azurehelper: using OIDC authentication via a client assertion")
 
 			return out, validate(out, &resolved)
 		}
@@ -419,6 +422,12 @@ func applyEnvFallbacks(env map[string]string, cfg *AzureSessionConfig) {
 		{&cfg.AccessKey, []string{"ARM_ACCESS_KEY", "AZURE_STORAGE_KEY"}},
 		{&cfg.MSIResourceID, []string{"ARM_MSI_RESOURCE_ID", "AZURE_MSI_RESOURCE_ID"}},
 		{&cfg.OIDCTokenFilePath, []string{"ARM_OIDC_TOKEN_FILE_PATH", "AZURE_FEDERATED_TOKEN_FILE"}},
+		{&cfg.OIDCToken, []string{"ARM_OIDC_TOKEN"}},
+		{&cfg.ADOServiceConnectionID, []string{
+			"ARM_ADO_PIPELINE_SERVICE_CONNECTION_ID",
+			"ARM_OIDC_AZURE_SERVICE_CONNECTION_ID",
+			"AZURESUBSCRIPTION_SERVICE_CONNECTION_ID",
+		}},
 		{&cfg.CloudEnvironment, []string{"ARM_ENVIRONMENT", "AZURE_ENVIRONMENT"}},
 	}
 

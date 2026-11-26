@@ -4,16 +4,21 @@ import (
 	"context"
 	"errors"
 	"io"
+	"io/fs"
 	"net/http"
 	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+const testAssertionFile = "/var/run/secrets/azure/tokens/azure-identity-token"
 
 // The assertion provider is tested directly rather than through
 // ClientAssertionCredential: the SDK performs Entra instance discovery over the
@@ -223,6 +228,237 @@ func TestFetchOIDCAssertion_Failures(t *testing.T) {
 			require.ErrorContains(t, err, tc.want)
 		})
 	}
+}
+
+func TestOIDCAssertionSource_TokenWinsOverRequestURL(t *testing.T) {
+	t.Parallel()
+
+	v := oidcTestVenv(map[string]string{
+		"ACTIONS_ID_TOKEN_REQUEST_URL":   "https://pipelines.example/token",
+		"ACTIONS_ID_TOKEN_REQUEST_TOKEN": "runner-token",
+	}, func(_ context.Context, _ *http.Request) (*http.Response, error) {
+		require.Fail(t, "no request must be made when a token is set")
+
+		return nil, nil
+	})
+
+	getAssertion := oidcAssertionSource(logger.CreateLogger(), v, &AzureSessionConfig{OIDCToken: "assertion-jwt"})
+	require.NotNil(t, getAssertion)
+
+	assertion, err := getAssertion(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, "assertion-jwt", assertion)
+}
+
+func TestOIDCAssertionSource_TokenFileWinsOverRequestURL(t *testing.T) {
+	t.Parallel()
+
+	v := oidcTestVenv(map[string]string{
+		"ACTIONS_ID_TOKEN_REQUEST_URL":   "https://pipelines.example/token",
+		"ACTIONS_ID_TOKEN_REQUEST_TOKEN": "runner-token",
+	}, nil)
+
+	cfg := &AzureSessionConfig{OIDCTokenFilePath: testAssertionFile}
+
+	assert.Nil(t, oidcAssertionSource(logger.CreateLogger(), v, cfg))
+}
+
+func TestOIDCAssertionSource_RequestURLWithoutTokenOrTokenFile(t *testing.T) {
+	t.Parallel()
+
+	v := oidcTestVenv(map[string]string{
+		"ACTIONS_ID_TOKEN_REQUEST_URL":   "https://pipelines.example/token",
+		"ACTIONS_ID_TOKEN_REQUEST_TOKEN": "runner-token",
+	}, func(_ context.Context, _ *http.Request) (*http.Response, error) {
+		return oidcJSON(http.StatusOK, `{"value":"assertion-jwt"}`), nil
+	})
+
+	getAssertion := oidcAssertionSource(logger.CreateLogger(), v, &AzureSessionConfig{})
+	require.NotNil(t, getAssertion)
+
+	assertion, err := getAssertion(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, "assertion-jwt", assertion)
+}
+
+func TestOIDCAssertionSource_TokenMustMatchTokenFile(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		check    func(t *testing.T, assertion string, err error)
+		name     string
+		contents string
+		write    bool
+	}{
+		{
+			name:     "same value",
+			contents: "assertion-jwt",
+			write:    true,
+			check: func(t *testing.T, assertion string, err error) {
+				t.Helper()
+
+				require.NoError(t, err)
+				assert.Equal(t, "assertion-jwt", assertion)
+			},
+		},
+		{
+			name:     "different value",
+			contents: "other-jwt",
+			write:    true,
+			check: func(t *testing.T, _ string, err error) {
+				t.Helper()
+
+				var mismatch *OIDCTokenMismatchError
+				require.ErrorAs(t, err, &mismatch)
+				assert.Equal(t, testAssertionFile, mismatch.TokenFilePath)
+			},
+		},
+		{
+			name: "missing token file",
+			check: func(t *testing.T, _ string, err error) {
+				t.Helper()
+
+				require.ErrorIs(t, err, fs.ErrNotExist)
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			fsys := vfs.NewMemMapFS()
+			if tc.write {
+				require.NoError(t, vfs.WriteFile(fsys, testAssertionFile, []byte(tc.contents), 0o600))
+			}
+
+			v := oidcTestVenv(map[string]string{}, nil).WithFS(fsys)
+			cfg := &AzureSessionConfig{OIDCToken: "assertion-jwt", OIDCTokenFilePath: testAssertionFile}
+
+			getAssertion := oidcAssertionSource(logger.CreateLogger(), v, cfg)
+			require.NotNil(t, getAssertion)
+
+			assertion, err := getAssertion(t.Context())
+			tc.check(t, assertion, err)
+		})
+	}
+}
+
+func TestOIDCAssertionSource_AzureDevOpsServiceConnection(t *testing.T) {
+	t.Parallel()
+
+	var got *http.Request
+
+	v := oidcTestVenv(map[string]string{
+		"SYSTEM_OIDCREQUESTURI":          "https://dev.azure.example/oidc",
+		"ARM_OIDC_REQUEST_TOKEN":         "request-token",
+		"SYSTEM_ACCESSTOKEN":             "ado-token",
+		"ACTIONS_ID_TOKEN_REQUEST_URL":   "https://pipelines.example/token",
+		"ACTIONS_ID_TOKEN_REQUEST_TOKEN": "runner-token",
+	}, func(_ context.Context, req *http.Request) (*http.Response, error) {
+		got = req
+
+		return oidcJSON(http.StatusOK, `{"oidcToken":"assertion-jwt"}`), nil
+	})
+
+	cfg := &AzureSessionConfig{
+		ADOServiceConnectionID: "service-connection",
+		OIDCToken:              "token-jwt",
+		OIDCTokenFilePath:      testAssertionFile,
+	}
+
+	getAssertion := oidcAssertionSource(logger.CreateLogger(), v, cfg)
+	require.NotNil(t, getAssertion)
+
+	assertion, err := getAssertion(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, "assertion-jwt", assertion)
+
+	require.NotNil(t, got)
+	assert.Equal(t, http.MethodPost, got.Method)
+	assert.Equal(t, "dev.azure.example", got.URL.Host)
+	assert.Equal(t, "7.1", got.URL.Query().Get("api-version"))
+	assert.Equal(t, "service-connection", got.URL.Query().Get("serviceConnectionId"))
+	assert.Equal(t, "Bearer request-token", got.Header.Get("Authorization"))
+	assert.Equal(t, "Suppress", got.Header.Get("X-Tfs-Fedauthredirect"))
+}
+
+func TestOIDCAssertionSource_AzureDevOpsServiceConnectionFailures(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		check  func(t *testing.T, err error)
+		name   string
+		body   string
+		status int
+	}{
+		{
+			name:   "rejected request token",
+			status: http.StatusUnauthorized,
+			body:   "denied",
+			check: func(t *testing.T, err error) {
+				t.Helper()
+
+				var failed *OIDCTokenRequestFailedError
+				require.ErrorAs(t, err, &failed)
+				assert.Equal(t, http.StatusUnauthorized, failed.StatusCode)
+			},
+		},
+		{
+			name:   "response without the token field",
+			status: http.StatusOK,
+			body:   `{"value":"assertion-jwt"}`,
+			check: func(t *testing.T, err error) {
+				t.Helper()
+
+				var missing *OIDCTokenFieldMissingError
+				require.ErrorAs(t, err, &missing)
+				assert.Equal(t, "oidcToken", missing.Field)
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v := oidcTestVenv(map[string]string{
+				"SYSTEM_OIDCREQUESTURI": "https://dev.azure.example/oidc",
+				"SYSTEM_ACCESSTOKEN":    "ado-token",
+			}, func(_ context.Context, _ *http.Request) (*http.Response, error) {
+				return oidcJSON(tc.status, tc.body), nil
+			})
+
+			cfg := &AzureSessionConfig{ADOServiceConnectionID: "service-connection"}
+
+			getAssertion := oidcAssertionSource(logger.CreateLogger(), v, cfg)
+			require.NotNil(t, getAssertion)
+
+			_, err := getAssertion(t.Context())
+			tc.check(t, err)
+		})
+	}
+}
+
+func TestOIDCAssertionSource_IncompleteServiceConnectionUsesToken(t *testing.T) {
+	t.Parallel()
+
+	v := oidcTestVenv(map[string]string{
+		"SYSTEM_OIDCREQUESTURI": "https://dev.azure.example/oidc",
+	}, func(_ context.Context, _ *http.Request) (*http.Response, error) {
+		require.Fail(t, "no request must be made without a request token")
+
+		return nil, nil
+	})
+
+	cfg := &AzureSessionConfig{ADOServiceConnectionID: "service-connection", OIDCToken: "assertion-jwt"}
+
+	getAssertion := oidcAssertionSource(logger.CreateLogger(), v, cfg)
+	require.NotNil(t, getAssertion)
+
+	assertion, err := getAssertion(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, "assertion-jwt", assertion)
 }
 
 func oidcTestVenv(env map[string]string, h vhttp.Handler) *venv.Venv {

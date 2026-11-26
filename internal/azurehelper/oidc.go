@@ -1,10 +1,4 @@
-// OIDC federated-credential assertion providers.
-//
-// The native azurerm backend accepts a federated token three ways: a token
-// file (workload identity), a GitHub Actions request URL, and an Azure DevOps
-// service-connection request URL. Supporting only the token file would make a
-// CI configuration that works during `tofu init` fail during Terragrunt's own
-// lifecycle operations, so all three are resolved here.
+// OIDC federated-credential assertion sources.
 
 package azurehelper
 
@@ -14,16 +8,22 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // oidcExchangeAudience is the audience Microsoft Entra expects for a
 // federated credential assertion.
 const oidcExchangeAudience = "api://AzureADTokenExchange"
+
+// adoOIDCAPIVersion is the Azure DevOps REST API version of the OIDC token endpoint.
+const adoOIDCAPIVersion = "7.1"
 
 // maxOIDCTokenResponseBytes bounds the token-endpoint response so a
 // misconfigured URL cannot stream an unbounded body into memory.
@@ -33,11 +33,40 @@ const maxOIDCTokenResponseBytes = 1 << 20
 // Microsoft Entra to exchange for an access token.
 type assertionProvider func(ctx context.Context) (string, error)
 
-// oidcAssertionProvider resolves the assertion source from the environment,
-// mirroring the native azurerm backend's precedence: an explicitly configured
-// request URL wins, then GitHub Actions, then Azure DevOps. It returns nil when
-// no request-URL flow is configured, leaving the token-file (workload identity)
-// path to handle it.
+// oidcTokenRequest describes one request for a federated token.
+type oidcTokenRequest struct {
+	query  url.Values
+	header http.Header
+	method string
+	url    string
+	token  string
+	field  string
+}
+
+// oidcAssertionSource picks a service connection, a token, then a request url; nil selects the token file.
+func oidcAssertionSource(l log.Logger, v *venv.Venv, cfg *AzureSessionConfig) assertionProvider {
+	if request := adoTokenRequest(v.Env, cfg.ADOServiceConnectionID); request != nil {
+		l.Debugf("azurehelper: OIDC assertion source is an Azure DevOps service connection")
+
+		return func(ctx context.Context) (string, error) {
+			return sendOIDCTokenRequest(ctx, v, request)
+		}
+	}
+
+	if cfg.OIDCToken != "" {
+		l.Debugf("azurehelper: OIDC assertion source is a token")
+
+		return tokenAssertion(v, cfg.OIDCToken, cfg.OIDCTokenFilePath)
+	}
+
+	if cfg.OIDCTokenFilePath != "" {
+		return nil
+	}
+
+	return oidcAssertionProvider(v)
+}
+
+// oidcAssertionProvider picks the request url source: explicit, GitHub Actions, then Azure DevOps; nil for none.
 func oidcAssertionProvider(v *venv.Venv) assertionProvider {
 	// GitHub Actions injects both variables into every job that requests the
 	// id-token permission.
@@ -67,29 +96,88 @@ func fetchOIDCAssertion(
 	ctx context.Context,
 	v *venv.Venv,
 	requestURL, bearerToken, field string,
-) (_ string, err error) {
-	if bearerToken == "" {
-		return "", &OIDCRequestTokenMissingError{RequestURL: requestURL}
+) (string, error) {
+	return sendOIDCTokenRequest(ctx, v, &oidcTokenRequest{
+		query:  url.Values{"audience": {oidcExchangeAudience}},
+		method: http.MethodGet,
+		url:    requestURL,
+		token:  bearerToken,
+		field:  field,
+	})
+}
+
+// adoTokenRequest returns the Azure DevOps service connection request, or nil when an input is missing.
+func adoTokenRequest(env map[string]string, serviceConnectionID string) *oidcTokenRequest {
+	requestURL := firstEnv(env, "SYSTEM_OIDCREQUESTURI")
+	token := firstEnv(env, "ARM_OIDC_REQUEST_TOKEN", "ACTIONS_ID_TOKEN_REQUEST_TOKEN", "SYSTEM_ACCESSTOKEN")
+
+	if serviceConnectionID == "" || requestURL == "" || token == "" {
+		return nil
+	}
+
+	header := http.Header{}
+	// Azure DevOps answers 401 in place of a sign-in redirect when this header is set.
+	header.Set("X-Tfs-Fedauthredirect", "Suppress")
+
+	return &oidcTokenRequest{
+		query: url.Values{
+			"api-version":         {adoOIDCAPIVersion},
+			"serviceConnectionId": {serviceConnectionID},
+		},
+		header: header,
+		method: http.MethodPost,
+		url:    requestURL,
+		token:  token,
+		field:  "oidcToken",
+	}
+}
+
+// tokenAssertion returns token, which must equal the contents of tokenFile when one is set.
+func tokenAssertion(v *venv.Venv, token, tokenFile string) assertionProvider {
+	return func(context.Context) (string, error) {
+		if tokenFile == "" {
+			return token, nil
+		}
+
+		v.RequireFS()
+
+		contents, err := vfs.ReadFile(v.FS, tokenFile)
+		if err != nil {
+			return "", fmt.Errorf("reading OIDC token file %s: %w", tokenFile, err)
+		}
+
+		if string(contents) != token {
+			return "", &OIDCTokenMismatchError{TokenFilePath: tokenFile}
+		}
+
+		return token, nil
+	}
+}
+
+// sendOIDCTokenRequest sends r and returns the assertion from the JSON field that r names.
+func sendOIDCTokenRequest(ctx context.Context, v *venv.Venv, r *oidcTokenRequest) (_ string, err error) {
+	if r.token == "" {
+		return "", &OIDCRequestTokenMissingError{RequestURL: r.url}
 	}
 
 	v.RequireHTTP()
 
-	parsed, err := url.Parse(requestURL)
+	parsed, err := url.Parse(r.url)
 	if err != nil {
 		return "", fmt.Errorf("parsing OIDC request url: %w", err)
 	}
 
-	// The audience identifies Entra as the intended consumer of the assertion.
 	query := parsed.Query()
-	query.Set("audience", oidcExchangeAudience)
+	maps.Copy(query, r.query)
 	parsed.RawQuery = query.Encode()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, parsed.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, r.method, parsed.String(), nil)
 	if err != nil {
 		return "", fmt.Errorf("building OIDC token request: %w", err)
 	}
 
-	req.Header.Set("Authorization", "Bearer "+bearerToken)
+	maps.Copy(req.Header, r.header)
+	req.Header.Set("Authorization", "Bearer "+r.token)
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := v.HTTP.Do(req)
@@ -120,9 +208,9 @@ func fetchOIDCAssertion(
 		return "", fmt.Errorf("decoding OIDC token response: %w", err)
 	}
 
-	assertion, _ := payload[field].(string)
+	assertion, _ := payload[r.field].(string)
 	if assertion == "" {
-		return "", &OIDCTokenFieldMissingError{Field: field}
+		return "", &OIDCTokenFieldMissingError{Field: r.field}
 	}
 
 	return assertion, nil

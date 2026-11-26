@@ -17,6 +17,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
+	"github.com/gruntwork-io/terragrunt/internal/remotestate"
+	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -513,6 +515,180 @@ func TestDependencyStateUnsupportedConfigFallsBackToNativeOutput(t *testing.T) {
 			assert.True(t, slices.ContainsFunc(invocations, func(inv vexec.Invocation) bool {
 				return slices.Contains(inv.Args, "output") && slices.Contains(inv.Args, "-json")
 			}))
+		})
+	}
+}
+
+func TestShouldFetchDependencyOutputFromStateAzureDevOpsOIDC(t *testing.T) {
+	t.Parallel()
+
+	const (
+		connectionEnv = "ARM_ADO_PIPELINE_SERVICE_CONNECTION_ID"
+		requestURLEnv = "SYSTEM_OIDCREQUESTURI"
+		requestURL    = "https://dev.azure.example/oidc"
+	)
+
+	tokenFile := venvtest.Root("/tokens/azure-identity-token")
+
+	envOf := func(pairs ...string) map[string]string {
+		env := make(map[string]string, len(pairs)/2)
+		for i := 0; i+1 < len(pairs); i += 2 {
+			env[pairs[i]] = pairs[i+1]
+		}
+
+		return env
+	}
+
+	devOpsEnv := func(extra ...string) map[string]string {
+		return envOf(append([]string{
+			connectionEnv, "service-connection",
+			requestURLEnv, requestURL,
+			"ARM_OIDC_REQUEST_TOKEN", "request-token",
+		}, extra...)...)
+	}
+
+	testCases := []struct {
+		config backend.Config
+		env    map[string]string
+		name   string
+		want   bool
+	}{
+		{
+			name: "service connection from the environment",
+			env:  devOpsEnv(),
+			want: true,
+		},
+		{
+			name:   "service connection from the backend config",
+			config: backend.Config{"ado_service_connection_id": "service-connection"},
+			env:    envOf(requestURLEnv, requestURL, "SYSTEM_ACCESSTOKEN", "ado-token"),
+			want:   true,
+		},
+		{
+			name: "service connection from the task variable",
+			env: envOf(
+				"AZURESUBSCRIPTION_SERVICE_CONNECTION_ID", "service-connection",
+				requestURLEnv, requestURL,
+				"SYSTEM_ACCESSTOKEN", "ado-token",
+			),
+			want: true,
+		},
+		{
+			name:   "microsoft entra blob authorization without a subscription",
+			config: backend.Config{"subscription_id": "", "use_azuread_auth": true},
+			env:    devOpsEnv(),
+			want:   true,
+		},
+		{
+			name:   "token file without azure devops inputs",
+			config: backend.Config{"oidc_token_file_path": tokenFile},
+			env:    envOf(),
+			want:   true,
+		},
+		{
+			name: "no request token",
+			env:  envOf(connectionEnv, "service-connection", requestURLEnv, requestURL),
+			want: false,
+		},
+		{
+			name: "no request url",
+			env:  envOf(connectionEnv, "service-connection", "ARM_OIDC_REQUEST_TOKEN", "request-token"),
+			want: false,
+		},
+		{
+			name: "no service connection",
+			env:  envOf(requestURLEnv, requestURL, "ARM_OIDC_REQUEST_TOKEN", "request-token"),
+			want: false,
+		},
+		{
+			name:   "use_oidc is off",
+			config: backend.Config{"use_oidc": false},
+			env:    devOpsEnv(),
+			want:   false,
+		},
+		{
+			name:   "no client id",
+			config: backend.Config{"client_id": ""},
+			env:    devOpsEnv(),
+			want:   false,
+		},
+		{
+			name:   "token file is also set",
+			config: backend.Config{"oidc_token_file_path": tokenFile},
+			env:    devOpsEnv(),
+			want:   false,
+		},
+		{
+			name:   "token file with a stray request url",
+			config: backend.Config{"oidc_token_file_path": tokenFile},
+			env:    envOf(requestURLEnv, requestURL),
+			want:   false,
+		},
+		{
+			name: "client secret is also set",
+			env:  devOpsEnv("ARM_CLIENT_SECRET", "secret"),
+			want: false,
+		},
+		{
+			name: "access key is also set",
+			env:  devOpsEnv("ARM_ACCESS_KEY", "key"),
+			want: false,
+		},
+		{
+			name: "token is also set",
+			env:  devOpsEnv("ARM_OIDC_TOKEN", "assertion-jwt"),
+			want: false,
+		},
+		{
+			name: "explicit request url is also set",
+			env:  devOpsEnv("ARM_OIDC_REQUEST_URL", "https://pipelines.example/token"),
+			want: false,
+		},
+		{
+			name: "github actions request token is also set",
+			env:  devOpsEnv("ACTIONS_ID_TOKEN_REQUEST_TOKEN", "runner-token"),
+			want: false,
+		},
+		{
+			name: "padded service connection",
+			env:  devOpsEnv(connectionEnv, " service-connection"),
+			want: false,
+		},
+		{
+			name:   "empty service connection in the backend config",
+			config: backend.Config{"ado_service_connection_id": ""},
+			env:    devOpsEnv(),
+			want:   false,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			fsys := vfs.NewMemMapFS()
+			require.NoError(t, vfs.WriteFile(fsys, tokenFile, []byte("assertion-jwt"), 0o600))
+
+			backendConfig := backend.Config{
+				"client_id":            "cid",
+				"container_name":       "state",
+				"key":                  "service.tfstate",
+				"resource_group_name":  "rg-state",
+				"storage_account_name": "stateaccount",
+				"subscription_id":      "00000000-0000-0000-0000-000000000000",
+				"tenant_id":            "tid",
+				"use_oidc":             true,
+			}
+			maps.Copy(backendConfig, testCase.config)
+
+			remoteState := remotestate.New(&remotestate.Config{
+				BackendName:   "azurerm",
+				BackendConfig: backendConfig,
+			})
+			v := &venv.Venv{Env: testCase.env, FS: fsys}
+
+			got := config.ShouldFetchDependencyOutputFromState(v, &config.ParsingContext{}, remoteState)
+			assert.Equal(t, testCase.want, got)
 		})
 	}
 }
