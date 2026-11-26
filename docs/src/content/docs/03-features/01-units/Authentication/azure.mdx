@@ -7,6 +7,7 @@ sidebar:
   order: 7
 ---
 
+import Since from '@components/Since.astro';
 import StatefulTabs from '@components/StatefulTabs.astro';
 
 Terragrunt reads Azure credentials from the sources below to bootstrap, migrate, and delete the [`azurerm` state backend](/features/units/state-backend/azurerm). Set the same `ARM_*` variables for the OpenTofu/Terraform backend and providers.
@@ -57,6 +58,14 @@ terragrunt apply
 ```
 
 On AKS, the workload identity webhook injects `AZURE_FEDERATED_TOKEN_FILE`, which Terragrunt also accepts.
+
+<Since version="v1.3.0">
+
+Where the CI system issues the token itself, e.g. GitLab CI, pass it in `ARM_OIDC_TOKEN`.
+
+In Azure DevOps, set `ARM_ADO_PIPELINE_SERVICE_CONNECTION_ID` to the ID of a workload identity federation service connection, and `ARM_OIDC_REQUEST_TOKEN` to `$(System.AccessToken)`.
+
+</Since>
 
 </Fragment>
 <Fragment slot="managed-identity">
