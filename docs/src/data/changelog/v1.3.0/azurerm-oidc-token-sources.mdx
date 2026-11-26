@@ -15,4 +15,4 @@ Terragrunt now reads `oidc_token` and `ARM_OIDC_TOKEN`.
 
 It also uses a token or a token file before a token request URL, as OpenTofu does. With `AZURE_FEDERATED_TOKEN_FILE` and a request URL both set, Terragrunt authenticates with the file.
 
-In Azure DevOps, Terragrunt requests the token for the service connection in `ado_service_connection_id` or `ARM_ADO_PIPELINE_SERVICE_CONNECTION_ID`. It reads dependency outputs from state with that identity. Before this release, it ran `init` and `output` for every dependency. See [Authenticating with Azure](/features/units/authentication/azure).
+In Azure DevOps, Terragrunt requests the token for the service connection in `ado_service_connection_id` or `ARM_ADO_PIPELINE_SERVICE_CONNECTION_ID`. A service connection comes before a token and a token file. With `ARM_ADO_PIPELINE_SERVICE_CONNECTION_ID`, Terragrunt also reads dependency outputs from state. Before this release, it ran `init` and `output` for every dependency. See [Authenticating with Azure](/features/units/authentication/azure).

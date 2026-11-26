@@ -113,10 +113,12 @@ to any values not set in the config:
 
 With `use_oidc`, Terragrunt uses the first of these token sources that is set, as OpenTofu does:
 
-1. Azure DevOps service connection (`ado_service_connection_id`)
+1. Azure DevOps service connection (`ado_service_connection_id`, with `SYSTEM_OIDCREQUESTURI` and a request token)
 2. Token (`oidc_token`)
 3. Token file (`oidc_token_file_path`)
 4. Token request URL, e.g. the one GitHub Actions sets
+
+If a token and a token file are both set, the file must be empty or hold the same token.
 
 </Since>
 

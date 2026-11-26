@@ -21,7 +21,6 @@ import (
 // azureTrimmedStringConfigKeys reach the native backend verbatim, so surrounding whitespace selects a different identity or blob.
 var azureTrimmedStringConfigKeys = []string{
 	"access_key",
-	"ado_service_connection_id",
 	"client_id",
 	"client_secret",
 	"container_name",
@@ -37,6 +36,7 @@ var azureTrimmedStringConfigKeys = []string{
 
 // azureUnsupportedConfigKeys are backend config keys whose mere presence requires the native backend path.
 var azureUnsupportedConfigKeys = []string{
+	"ado_service_connection_id",
 	"client_certificate",
 	"client_certificate_password",
 	"client_certificate_path",
@@ -93,11 +93,10 @@ var azureTrimmedEnvKeys = []string{
 	"AZURE_FEDERATED_TOKEN_FILE",
 }
 
-// azureDevOpsServiceConnectionEnvKeys name the Azure DevOps service connection, first match wins.
+// azureDevOpsServiceConnectionEnvKeys name the service connection for OpenTofu and Terraform alike, first match wins.
 var azureDevOpsServiceConnectionEnvKeys = []string{
 	"ARM_ADO_PIPELINE_SERVICE_CONNECTION_ID",
 	"ARM_OIDC_AZURE_SERVICE_CONNECTION_ID",
-	"AZURESUBSCRIPTION_SERVICE_CONNECTION_ID",
 }
 
 // azureUnsupportedEnvKeys select native authentication, endpoint, timeout, or encryption behavior azurehelper does not mirror.
@@ -157,15 +156,14 @@ var azureWorkloadIdentityEnvKeys = []string{
 
 // azureConfigEnvFallbacks maps a backend config key to the environment variables the native backend falls back to when it is absent.
 var azureConfigEnvFallbacks = map[string][]string{
-	"access_key":                {"ARM_ACCESS_KEY"},
-	"ado_service_connection_id": azureDevOpsServiceConnectionEnvKeys,
-	"client_id":                 {"ARM_CLIENT_ID"},
-	"client_secret":             {"ARM_CLIENT_SECRET"},
-	"environment":               {"ARM_ENVIRONMENT"},
-	"oidc_token_file_path":      {"ARM_OIDC_TOKEN_FILE_PATH", "AZURE_FEDERATED_TOKEN_FILE"},
-	"sas_token":                 {"ARM_SAS_TOKEN"},
-	"subscription_id":           {"ARM_SUBSCRIPTION_ID"},
-	"tenant_id":                 {"ARM_TENANT_ID"},
+	"access_key":           {"ARM_ACCESS_KEY"},
+	"client_id":            {"ARM_CLIENT_ID"},
+	"client_secret":        {"ARM_CLIENT_SECRET"},
+	"environment":          {"ARM_ENVIRONMENT"},
+	"oidc_token_file_path": {"ARM_OIDC_TOKEN_FILE_PATH", "AZURE_FEDERATED_TOKEN_FILE"},
+	"sas_token":            {"ARM_SAS_TOKEN"},
+	"subscription_id":      {"ARM_SUBSCRIPTION_ID"},
+	"tenant_id":            {"ARM_TENANT_ID"},
 }
 
 // azureSupportedCloudEnvironments are the cloud aliases azurehelper resolves to the same endpoints as the native backend.
@@ -290,6 +288,11 @@ func azureEnvSupported(v *venv.Venv, pctx *ParsingContext) bool {
 		if env[key] != "" {
 			return false
 		}
+	}
+
+	// OpenTofu and Terraform build different requests from a request url with a query.
+	if strings.Contains(env["SYSTEM_OIDCREQUESTURI"], "?") {
+		return false
 	}
 
 	_, configured := env["AZURE_REGIONAL_AUTHORITY_NAME"]
@@ -428,13 +431,10 @@ func azureResolveCredentials(
 		return nil, false
 	}
 
-	adoConnection, valid := backendConfigStringWithEnv(
-		config,
-		"ado_service_connection_id",
-		env,
-		azureDevOpsServiceConnectionEnvKeys...,
-	)
-	if !valid {
+	adoConnection := firstNonEmptyFromMap(env, azureDevOpsServiceConnectionEnvKeys...)
+
+	openTofuOnlyConnection := adoConnection == "" && env["AZURESUBSCRIPTION_SERVICE_CONNECTION_ID"] != ""
+	if openTofuOnlyConnection {
 		return nil, false
 	}
 

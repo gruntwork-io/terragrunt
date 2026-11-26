@@ -562,7 +562,13 @@ func TestShouldFetchDependencyOutputFromStateAzureDevOpsOIDC(t *testing.T) {
 			name:   "service connection from the backend config",
 			config: backend.Config{"ado_service_connection_id": "service-connection"},
 			env:    envOf(requestURLEnv, requestURL, "SYSTEM_ACCESSTOKEN", "ado-token"),
-			want:   true,
+			want:   false,
+		},
+		{
+			name:   "service connection in the backend config and the environment",
+			config: backend.Config{"ado_service_connection_id": "service-connection"},
+			env:    devOpsEnv(),
+			want:   false,
 		},
 		{
 			name: "service connection from the task variable",
@@ -571,7 +577,31 @@ func TestShouldFetchDependencyOutputFromStateAzureDevOpsOIDC(t *testing.T) {
 				requestURLEnv, requestURL,
 				"SYSTEM_ACCESSTOKEN", "ado-token",
 			),
+			want: false,
+		},
+		{
+			name: "task variable beside the pipeline variable",
+			env:  devOpsEnv("AZURESUBSCRIPTION_SERVICE_CONNECTION_ID", "task-connection"),
 			want: true,
+		},
+		{
+			name: "request token from the system access token",
+			env: envOf(
+				connectionEnv, "service-connection",
+				requestURLEnv, requestURL,
+				"SYSTEM_ACCESSTOKEN", "ado-token",
+			),
+			want: true,
+		},
+		{
+			name: "request url names another service connection",
+			env:  devOpsEnv(requestURLEnv, requestURL+"?serviceConnectionId=other-connection"),
+			want: false,
+		},
+		{
+			name: "request url with a query",
+			env:  devOpsEnv(requestURLEnv, requestURL+"?api-version=7.1"),
+			want: false,
 		},
 		{
 			name:   "microsoft entra blob authorization without a subscription",

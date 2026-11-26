@@ -488,7 +488,9 @@ func TestBuild_CredentialFingerprintCoversAzureDevOpsRequest(t *testing.T) {
 		firstToken = "first-request-token"
 	)
 
-	fingerprint := func(pairs ...string) string {
+	fingerprint := func(t *testing.T, pairs ...string) string {
+		t.Helper()
+
 		cfg, err := azurehelper.NewAzureConfigBuilder().
 			WithSessionConfig(&azurehelper.AzureSessionConfig{
 				StorageAccountName:     testAccount,
@@ -503,9 +505,9 @@ func TestBuild_CredentialFingerprintCoversAzureDevOpsRequest(t *testing.T) {
 		return cfg.CredentialFingerprint
 	}
 
-	base := fingerprint("SYSTEM_OIDCREQUESTURI", firstURL, "SYSTEM_ACCESSTOKEN", firstToken)
+	base := fingerprint(t, "SYSTEM_OIDCREQUESTURI", firstURL, "SYSTEM_ACCESSTOKEN", firstToken)
 
-	require.Equal(t, base, fingerprint("SYSTEM_OIDCREQUESTURI", firstURL, "SYSTEM_ACCESSTOKEN", firstToken))
+	require.Equal(t, base, fingerprint(t, "SYSTEM_OIDCREQUESTURI", firstURL, "SYSTEM_ACCESSTOKEN", firstToken))
 	require.NotContains(t, base, firstToken)
 
 	tests := []struct {
@@ -537,7 +539,7 @@ func TestBuild_CredentialFingerprintCoversAzureDevOpsRequest(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			require.NotEqual(t, base, fingerprint(tc.env...))
+			require.NotEqual(t, base, fingerprint(t, tc.env...))
 		})
 	}
 }
