@@ -480,6 +480,68 @@ func TestBuild_CredentialFingerprintCoversOIDCSources(t *testing.T) {
 	require.NotContains(t, base, "first-jwt")
 }
 
+func TestBuild_CredentialFingerprintCoversAzureDevOpsRequest(t *testing.T) {
+	t.Parallel()
+
+	const (
+		firstURL   = "https://dev.azure.example/first/oidctoken"
+		firstToken = "first-request-token"
+	)
+
+	fingerprint := func(pairs ...string) string {
+		cfg, err := azurehelper.NewAzureConfigBuilder().
+			WithSessionConfig(&azurehelper.AzureSessionConfig{
+				StorageAccountName:     testAccount,
+				TenantID:               "tid",
+				ClientID:               "cid",
+				UseOIDC:                new(true),
+				ADOServiceConnectionID: "connection",
+			}).
+			Build(logger.CreateLogger(), isolatedEnv(pairs...))
+		require.NoError(t, err)
+
+		return cfg.CredentialFingerprint
+	}
+
+	base := fingerprint("SYSTEM_OIDCREQUESTURI", firstURL, "SYSTEM_ACCESSTOKEN", firstToken)
+
+	require.Equal(t, base, fingerprint("SYSTEM_OIDCREQUESTURI", firstURL, "SYSTEM_ACCESSTOKEN", firstToken))
+	require.NotContains(t, base, firstToken)
+
+	tests := []struct {
+		name string
+		env  []string
+	}{
+		{
+			name: "request url",
+			env: []string{
+				"SYSTEM_OIDCREQUESTURI", "https://dev.azure.example/second/oidctoken",
+				"SYSTEM_ACCESSTOKEN", firstToken,
+			},
+		},
+		{
+			name: "access token",
+			env:  []string{"SYSTEM_OIDCREQUESTURI", firstURL, "SYSTEM_ACCESSTOKEN", "second-request-token"},
+		},
+		{
+			name: "request token",
+			env: []string{
+				"SYSTEM_OIDCREQUESTURI", firstURL,
+				"SYSTEM_ACCESSTOKEN", firstToken,
+				"ARM_OIDC_REQUEST_TOKEN", "second-request-token",
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			require.NotEqual(t, base, fingerprint(tc.env...))
+		})
+	}
+}
+
 // TestBuild_CredentialConstructionErrors verifies an SDK constructor failure
 // names the auth method being built. Entra tenant ids allow only alphanumerics,
 // '-' and '.', so the SDK rejects this one without any network call.

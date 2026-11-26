@@ -64,12 +64,18 @@ type AzureSessionConfig struct {
 
 // credentialFingerprint hashes the secret material a config authenticates with,
 // so callers can tell two credentials apart without holding either.
-func credentialFingerprint(cfg *AzureSessionConfig) string {
-	sum := sha256.New()
-	for _, secret := range []string{
+func credentialFingerprint(cfg *AzureSessionConfig, env map[string]string) string {
+	secrets := []string{
 		cfg.ClientSecret, cfg.SasToken, cfg.AccessKey,
 		cfg.OIDCTokenFilePath, cfg.OIDCToken, cfg.ADOServiceConnectionID,
-	} {
+	}
+
+	if request := adoTokenRequest(env, cfg.ADOServiceConnectionID); request != nil {
+		secrets = append(secrets, request.url, request.token)
+	}
+
+	sum := sha256.New()
+	for _, secret := range secrets {
 		sum.Write([]byte(secret))
 		sum.Write([]byte{0})
 	}
@@ -204,7 +210,7 @@ func (b *AzureConfigBuilder) Build(l log.Logger, v *venv.Venv) (*AzureConfig, er
 		TenantID:              resolved.TenantID,
 		ClientID:              resolved.ClientID,
 		MSIResourceID:         resolved.MSIResourceID,
-		CredentialFingerprint: credentialFingerprint(&resolved),
+		CredentialFingerprint: credentialFingerprint(&resolved, v.Env),
 		AccountName:           resolved.StorageAccountName,
 		ResourceGroup:         resolved.ResourceGroupName,
 		CloudConfig:           cloudCfg,
