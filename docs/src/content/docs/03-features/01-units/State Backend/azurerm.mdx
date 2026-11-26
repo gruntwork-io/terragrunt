@@ -111,7 +111,7 @@ to any values not set in the config:
 
 <Since version="v1.3.0">
 
-With `use_oidc`, Terragrunt takes the token from the first of these that is set, as OpenTofu does:
+With `use_oidc`, Terragrunt uses the first of these token sources that is set, as OpenTofu does:
 
 1. Azure DevOps service connection (`ado_service_connection_id`)
 2. Token (`oidc_token`)

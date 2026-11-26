@@ -61,9 +61,9 @@ On AKS, the workload identity webhook injects `AZURE_FEDERATED_TOKEN_FILE`, whic
 
 <Since version="v1.3.0">
 
-Where the CI system issues the token itself, e.g. GitLab CI, pass it in `ARM_OIDC_TOKEN`.
+In a CI system that issues the token itself, e.g. GitLab CI, pass it in `ARM_OIDC_TOKEN`.
 
-In Azure DevOps, set `ARM_ADO_PIPELINE_SERVICE_CONNECTION_ID` to the ID of a workload identity federation service connection, and `ARM_OIDC_REQUEST_TOKEN` to `$(System.AccessToken)`.
+In Azure DevOps, use a service connection with workload identity federation. Set `ARM_ADO_PIPELINE_SERVICE_CONNECTION_ID` to its ID and `ARM_OIDC_REQUEST_TOKEN` to `$(System.AccessToken)`.
 
 </Since>
 
