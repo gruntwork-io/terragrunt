@@ -247,7 +247,7 @@ func TestOIDCAssertionSource_TokenWinsOverRequestURL(t *testing.T) {
 
 	assertion, err := getAssertion(t.Context())
 	require.NoError(t, err)
-	assert.Equal(t, "assertion-jwt", assertion)
+	require.Equal(t, "assertion-jwt", assertion)
 }
 
 func TestOIDCAssertionSource_TokenFileWinsOverRequestURL(t *testing.T) {
@@ -260,7 +260,7 @@ func TestOIDCAssertionSource_TokenFileWinsOverRequestURL(t *testing.T) {
 
 	cfg := &AzureSessionConfig{OIDCTokenFilePath: testAssertionFile}
 
-	assert.Nil(t, oidcAssertionSource(logger.CreateLogger(), v, cfg))
+	require.Nil(t, oidcAssertionSource(logger.CreateLogger(), v, cfg))
 }
 
 func TestOIDCAssertionSource_RequestURLWithoutTokenOrTokenFile(t *testing.T) {
@@ -278,7 +278,7 @@ func TestOIDCAssertionSource_RequestURLWithoutTokenOrTokenFile(t *testing.T) {
 
 	assertion, err := getAssertion(t.Context())
 	require.NoError(t, err)
-	assert.Equal(t, "assertion-jwt", assertion)
+	require.Equal(t, "assertion-jwt", assertion)
 }
 
 func TestOIDCAssertionSource_TokenMustMatchTokenFile(t *testing.T) {
@@ -298,7 +298,17 @@ func TestOIDCAssertionSource_TokenMustMatchTokenFile(t *testing.T) {
 				t.Helper()
 
 				require.NoError(t, err)
-				assert.Equal(t, "assertion-jwt", assertion)
+				require.Equal(t, "assertion-jwt", assertion)
+			},
+		},
+		{
+			name:  "empty token file",
+			write: true,
+			check: func(t *testing.T, assertion string, err error) {
+				t.Helper()
+
+				require.NoError(t, err)
+				require.Equal(t, "assertion-jwt", assertion)
 			},
 		},
 		{
@@ -310,7 +320,7 @@ func TestOIDCAssertionSource_TokenMustMatchTokenFile(t *testing.T) {
 
 				var mismatch *OIDCTokenMismatchError
 				require.ErrorAs(t, err, &mismatch)
-				assert.Equal(t, testAssertionFile, mismatch.TokenFilePath)
+				require.Equal(t, testAssertionFile, mismatch.TokenFilePath)
 			},
 		},
 		{
@@ -372,15 +382,15 @@ func TestOIDCAssertionSource_AzureDevOpsServiceConnection(t *testing.T) {
 
 	assertion, err := getAssertion(t.Context())
 	require.NoError(t, err)
-	assert.Equal(t, "assertion-jwt", assertion)
+	require.Equal(t, "assertion-jwt", assertion)
 
 	require.NotNil(t, got)
-	assert.Equal(t, http.MethodPost, got.Method)
-	assert.Equal(t, "dev.azure.example", got.URL.Host)
-	assert.Equal(t, "7.1", got.URL.Query().Get("api-version"))
-	assert.Equal(t, "service-connection", got.URL.Query().Get("serviceConnectionId"))
-	assert.Equal(t, "Bearer request-token", got.Header.Get("Authorization"))
-	assert.Equal(t, "Suppress", got.Header.Get("X-Tfs-Fedauthredirect"))
+	require.Equal(t, http.MethodPost, got.Method)
+	require.Equal(t, "dev.azure.example", got.URL.Host)
+	require.Equal(t, "7.1", got.URL.Query().Get("api-version"))
+	require.Equal(t, "service-connection", got.URL.Query().Get("serviceConnectionId"))
+	require.Equal(t, "Bearer request-token", got.Header.Get("Authorization"))
+	require.Equal(t, "Suppress", got.Header.Get("X-Tfs-Fedauthredirect"))
 }
 
 func TestOIDCAssertionSource_AzureDevOpsServiceConnectionFailures(t *testing.T) {
@@ -401,7 +411,7 @@ func TestOIDCAssertionSource_AzureDevOpsServiceConnectionFailures(t *testing.T) 
 
 				var failed *OIDCTokenRequestFailedError
 				require.ErrorAs(t, err, &failed)
-				assert.Equal(t, http.StatusUnauthorized, failed.StatusCode)
+				require.Equal(t, http.StatusUnauthorized, failed.StatusCode)
 			},
 		},
 		{
@@ -413,7 +423,7 @@ func TestOIDCAssertionSource_AzureDevOpsServiceConnectionFailures(t *testing.T) 
 
 				var missing *OIDCTokenFieldMissingError
 				require.ErrorAs(t, err, &missing)
-				assert.Equal(t, "oidcToken", missing.Field)
+				require.Equal(t, "oidcToken", missing.Field)
 			},
 		},
 	}
@@ -458,7 +468,7 @@ func TestOIDCAssertionSource_IncompleteServiceConnectionUsesToken(t *testing.T) 
 
 	assertion, err := getAssertion(t.Context())
 	require.NoError(t, err)
-	assert.Equal(t, "assertion-jwt", assertion)
+	require.Equal(t, "assertion-jwt", assertion)
 }
 
 func oidcTestVenv(env map[string]string, h vhttp.Handler) *venv.Venv {

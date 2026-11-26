@@ -138,8 +138,8 @@ func TestGetAzureSessionConfig_MapsOIDCSources(t *testing.T) {
 	require.NoError(t, err)
 
 	sess := ext.GetAzureSessionConfig()
-	assert.Equal(t, "assertion-jwt", sess.OIDCToken)
-	assert.Equal(t, "service-connection", sess.ADOServiceConnectionID)
+	require.Equal(t, "assertion-jwt", sess.OIDCToken)
+	require.Equal(t, "service-connection", sess.ADOServiceConnectionID)
 }
 
 func TestGetTFInitArgs_ForwardsOIDCSources(t *testing.T) {
@@ -150,8 +150,8 @@ func TestGetTFInitArgs_ForwardsOIDCSources(t *testing.T) {
 	cfg["ado_service_connection_id"] = "service-connection"
 
 	args := cfg.GetTFInitArgs()
-	assert.Equal(t, "assertion-jwt", args["oidc_token"])
-	assert.Equal(t, "service-connection", args["ado_service_connection_id"])
+	require.Equal(t, "assertion-jwt", args["oidc_token"])
+	require.Equal(t, "service-connection", args["ado_service_connection_id"])
 }
 
 func TestStorageAccountConfig_MapsMinimumTLSVersion(t *testing.T) {

@@ -687,8 +687,8 @@ func TestShouldFetchDependencyOutputFromStateAzureDevOpsOIDC(t *testing.T) {
 			})
 			v := &venv.Venv{Env: testCase.env, FS: fsys}
 
-			got := config.ShouldFetchDependencyOutputFromState(v, &config.ParsingContext{}, remoteState)
-			assert.Equal(t, testCase.want, got)
+			got := config.ShouldFetchDependencyOutputFromState(v, config.NewParsingContext(), remoteState)
+			require.Equal(t, testCase.want, got)
 		})
 	}
 }

@@ -132,7 +132,7 @@ func adoTokenRequest(env map[string]string, serviceConnectionID string) *oidcTok
 	}
 }
 
-// tokenAssertion returns token, which must equal the contents of tokenFile when one is set.
+// tokenAssertion returns token, which must equal the contents of tokenFile when the file is not empty.
 func tokenAssertion(v *venv.Venv, token, tokenFile string) assertionProvider {
 	return func(context.Context) (string, error) {
 		if tokenFile == "" {
@@ -146,7 +146,7 @@ func tokenAssertion(v *venv.Venv, token, tokenFile string) assertionProvider {
 			return "", fmt.Errorf("reading OIDC token file %s: %w", tokenFile, err)
 		}
 
-		if string(contents) != token {
+		if len(contents) != 0 && string(contents) != token {
 			return "", &OIDCTokenMismatchError{TokenFilePath: tokenFile}
 		}
 

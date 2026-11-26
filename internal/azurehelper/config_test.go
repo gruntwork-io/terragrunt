@@ -435,8 +435,8 @@ func TestBuild_OIDCTokenFromEnvironment(t *testing.T) {
 		}).
 		Build(logger.CreateLogger(), isolatedEnv("ARM_USE_OIDC", "true", "ARM_OIDC_TOKEN", "assertion-jwt"))
 	require.NoError(t, err)
-	assert.Equal(t, azurehelper.AuthMethodOIDC, cfg.Method)
-	assert.NotNil(t, cfg.Credential)
+	require.Equal(t, azurehelper.AuthMethodOIDC, cfg.Method)
+	require.NotNil(t, cfg.Credential)
 }
 
 func TestBuild_OIDCTokenDoesNotImplyOIDC(t *testing.T) {
@@ -450,7 +450,7 @@ func TestBuild_OIDCTokenDoesNotImplyOIDC(t *testing.T) {
 		}).
 		Build(logger.CreateLogger(), isolatedEnv("ARM_OIDC_TOKEN", "assertion-jwt"))
 	require.NoError(t, err)
-	assert.Equal(t, azurehelper.AuthMethodAzureAD, cfg.Method)
+	require.Equal(t, azurehelper.AuthMethodAzureAD, cfg.Method)
 }
 
 func TestBuild_CredentialFingerprintCoversOIDCSources(t *testing.T) {
@@ -474,10 +474,10 @@ func TestBuild_CredentialFingerprintCoversOIDCSources(t *testing.T) {
 
 	base := fingerprint("first-jwt", "first-connection")
 
-	assert.Equal(t, base, fingerprint("first-jwt", "first-connection"))
-	assert.NotEqual(t, base, fingerprint("second-jwt", "first-connection"))
-	assert.NotEqual(t, base, fingerprint("first-jwt", "second-connection"))
-	assert.NotContains(t, base, "first-jwt")
+	require.Equal(t, base, fingerprint("first-jwt", "first-connection"))
+	require.NotEqual(t, base, fingerprint("second-jwt", "first-connection"))
+	require.NotEqual(t, base, fingerprint("first-jwt", "second-connection"))
+	require.NotContains(t, base, "first-jwt")
 }
 
 // TestBuild_CredentialConstructionErrors verifies an SDK constructor failure
