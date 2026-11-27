@@ -71,7 +71,11 @@ blocks:
     attributes:
       - name: mock_value
         type: any
-        description: The value dependents read until the unit has a real one. It can use `local` values and functions. It cannot read a `dependency` output, because dependents read this block without resolving the unit's own dependencies. A dependency with `skip_outputs = true` reads the mock value too.
+        description: The value dependents read until the unit has a real one. It can use `local` values and functions. It cannot read a `dependency` output, because dependents read this block without resolving the unit's own dependencies. A dependency with `skip_outputs = true` reads the mock value too, for a command that may use the mock values.
+      - name: nullable
+        type: bool
+        default: "false"
+        description: Set it to `true` for an output whose value can be `null`. OpenTofu/Terraform leaves a `null` output out of the state. When the state has other outputs, dependents read `null` for the output, unless a state merge supplies its `mock_value`, and Terragrunt does not report the output as missing. It has no effect while the state has no outputs. Terragrunt cannot tell such a state from a unit that is not applied, so the rules for mock values apply. Set `mock_value = null` as well to let dependents read `null` under those rules.
     example: |
       # vpc/terragrunt.hcl
 
@@ -97,11 +101,11 @@ The `outputs` block lists the outputs of a unit. Each output can have a mock val
 
 You declare the mock values once, in the unit that produces the outputs. Its dependents need no `mock_outputs` in their [`dependency`](/reference/hcl/blocks/dependency) blocks.
 
-Dependents read the mock values while the unit has no state yet or its state has no outputs. The rules are the same as for `mock_outputs`. Any other error while reading the state fails the run.
+Dependents read the mock values while the unit has no state yet or its state has no outputs. The rules are the same as for `mock_outputs`. Any other error while reading the state fails the run, except for `render`, which falls back to the mock values.
 
 ### With a dependency block
 
-A `dependency` block reads the `outputs` block of the unit it points at. For each output, it takes the value from the unit's state when the state has one, and the declared `mock_value` otherwise.
+A `dependency` block reads the `outputs` block of the unit it points at. It takes the outputs from the unit's state when the state has outputs, and the declared mock values otherwise.
 
 <SideBySide>
 
@@ -136,13 +140,19 @@ Settings on the `dependency` block override the `outputs` block of the unit it r
 - `mock_outputs` overrides `mock_value` one key at a time. A key that `mock_outputs` leaves out keeps its declared mock value.
 - `mock_outputs_allowed_terraform_commands` and `mock_outputs_merge_strategy_with_state` override `mock_strategy` when set.
 
-When the unit has outputs in state, every declared output has to be among them. A missing one is an error, unless `merge_with_state` fills it from `mock_value`. The `render` command does not raise this error.
+When the unit has outputs in state, every declared output has to be among them. A missing one is an error, unless `merge_with_state` fills it from `mock_value` or the output has `nullable = true`. The `render` command does not raise this error.
+
+Terragrunt also checks the unit itself after its `apply` succeeds: the state has to hold every declared output that does not set `nullable = true`. OpenTofu/Terraform leaves a `null` output out of the state, so a missing output there is `null` or is not in the module, and the run fails before a dependent reads it. The check runs only when the `apply` writes the whole module to the state of its backend: not for a saved plan file, and not with `-destroy`, `-refresh-only`, `-target`, `-exclude`, `-target-file`, `-exclude-file`, `-state` or `-state-out`, also when `TF_CLI_ARGS` or `TF_CLI_ARGS_apply` sets one of them. The check also does not run when `TF_CLI_ARGS` or `TF_CLI_ARGS_apply` contains a quote, a backslash or the argument terminator `--`, e.g. `-var="name=value"`, or when the environment has `TF_CLI_ARGS_apply` or the `TF_CLI_ARGS` prefix of a variable name in another letter case, e.g. `TF_CLI_ARGS_APPLY` or `tf_cli_args`. If Terragrunt cannot read the outputs of the unit, it logs a warning and does not fail the run.
+
+A declared output that has no `mock_value`, and no value in the `mock_outputs` of the `dependency` block, has no value before the unit is applied. `hcl validate` reads it as unknown, and so does a run with [`--no-dependency-outputs`](/reference/cli/commands/run#no-dependency-outputs). Any other run that reads it fails.
 
 `render` prints the `dependency` block as you wrote it. The declared mock values appear in the resolved `inputs`.
 
 ### Through include
 
 An included file can declare the `outputs` block. With a `shallow` merge, the unit's own `outputs` block replaces the included one. With a `deep` merge, Terragrunt combines the two blocks by output name. When both declare the same output, the unit's declaration wins.
+
+A `terragrunt.autoinclude.hcl` file beside the unit can declare the `outputs` block too. Its block replaces the `outputs` block of the unit.
 
 ### Checking outputs with hcl validate
 
@@ -151,7 +161,9 @@ An included file can declare the `outputs` block. With a `shallow` merge, the un
 - Every declared output has to exist in the OpenTofu/Terraform module the unit runs.
 - Every `dependency.<name>.outputs.<output>` reference has to name an output that the dependency declares. The check skips a dependency that has no `outputs` block.
 
-Without the flag, `hcl validate` runs neither check.
+The second check reads only literal references. It skips a reference inside `try()` or `can()`. It does not see a read through a function such as `lookup()`, or a reference in a `terragrunt.hcl.json` file.
+
+Without the flag, `hcl validate` runs neither check. A reference to an output that the dependency does not declare can still fail with `Unsupported attribute`. When `hcl validate` uses the mock values of a unit, it reads only the declared outputs and the `mock_outputs` of the dependent, not the state. A run with `--no-dependency-outputs` does the same.
 
 In this example, `eks` reads `subnet_ids`, an output that `vpc` does not declare:
 

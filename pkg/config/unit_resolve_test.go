@@ -42,6 +42,15 @@ outputs {
   output "subnet_ids" {
     mock_value = ["subnet-mock"]
   }
+
+  output "nat_id" {
+    nullable = true
+  }
+
+  output "peer_id" {
+    nullable   = false
+    mock_value = "peer-mock"
+  }
 }
 `,
 		"app/terragrunt.hcl": `
@@ -83,7 +92,10 @@ inputs = {
 				t.Helper()
 
 				require.NoError(t, result.runConfigErr)
-				assert.Equal(t, []string{"vpc_id", "subnet_ids"}, result.cfg.Outputs.Names())
+				require.Equal(t, []string{"vpc_id", "subnet_ids", "nat_id", "peer_id"}, result.cfg.Outputs.Names())
+				require.Nil(t, result.cfg.Outputs.Outputs[0].Nullable)
+				require.Equal(t, new(true), result.cfg.Outputs.Outputs[2].Nullable)
+				require.Equal(t, new(false), result.cfg.Outputs.Outputs[3].Nullable)
 			},
 		},
 		{

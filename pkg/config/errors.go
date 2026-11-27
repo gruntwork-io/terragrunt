@@ -1123,7 +1123,7 @@ func (err DeclaredOutputMissingError) Error() string {
 		"%s declares output %q in its outputs block, but its state has no output %q. "+
 			"Apply %s after adding the output to its module, remove the declaration, "+
 			"or set merge_with_state = \"shallow\" in its mock_strategy block, with the command in allowed_commands, "+
-			"to fill it from mock_value.",
+			"to fill it from mock_value. Set nullable = true on the output if its value can be null.",
 		err.TargetConfig,
 		err.Output,
 		err.Output,

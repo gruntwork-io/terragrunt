@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -47,6 +48,112 @@ outputs {
   }
 
   output "undocumented" {}
+}
+`
+
+const outputsBlockWithoutStrategy = `
+outputs {
+  output "vpc_id" {
+    mock_value = "vpc-mock"
+  }
+
+  output "subnet_ids" {
+    mock_value = ["subnet-mock-1", "subnet-mock-2"]
+  }
+}
+`
+
+const nullableOutputsConfig = `
+outputs {
+  %s
+  output "vpc_id" {
+    mock_value = "vpc-mock"
+  }
+
+  output "nat_id" {
+    nullable   = true
+    mock_value = "nat-mock"
+  }
+}
+`
+
+const nullableInputs = `
+inputs = {
+  vpc_id      = dependency.vpc.outputs.vpc_id
+  nat_id      = dependency.vpc.outputs.nat_id
+  nat_is_null = dependency.vpc.outputs.nat_id == null
+}
+`
+
+const nullableDeclaration = `
+outputs {
+  output "id" {
+    %s
+  }
+}
+`
+
+const nullableReader = `
+locals {
+  declarations = read_terragrunt_config("../declarations.hcl")
+}
+
+inputs = {
+  nullable = try(local.declarations.outputs.output.id.nullable, "unset")
+}
+`
+
+const nullableIncludeReader = `
+include "declarations" {
+  path   = "../declarations.hcl"
+  expose = true
+}
+
+inputs = {
+  nullable = try(include.declarations.outputs.output.id.nullable, "unset")
+}
+`
+
+const nullableWithoutMockConfig = `
+outputs {
+  %s
+  output "vpc_id" {
+    mock_value = "vpc-mock"
+  }
+
+  output "nat_id" {
+    nullable = true
+  }
+}
+`
+
+const nullableOnlyOutputsConfig = `
+outputs {
+  output "nat_id" {
+    nullable = true
+  }
+}
+`
+
+const nullableOnlyOutputsWithMock = `
+outputs {
+  output "nat_id" {
+    nullable   = true
+    mock_value = "nat-mock"
+  }
+}
+`
+
+const natIsNullInput = `
+inputs = {
+  nat_is_null = dependency.vpc.outputs.nat_id == null
+}
+`
+
+const hasSubnetsInputs = `
+inputs = {
+  vpc_id      = dependency.vpc.outputs.vpc_id
+  has_subnets = can(dependency.vpc.outputs.subnet_ids)
 }
 `
 
@@ -316,6 +423,7 @@ include "root" {
 }
 
 outputs {
+  %s
   output "vpc_id" {
     mock_value = "unit-vpc"
   }
@@ -323,24 +431,42 @@ outputs {
 `
 
 	testCases := []struct {
-		name            string
-		mergeStrategy   string
-		expectedVPCMock string
-		expectedNames   []string
-		expectStrategy  bool
+		expectedCommands *[]string
+		expectedMerge    *config.MergeStrategyType
+		name             string
+		mergeStrategy    string
+		unitStrategy     string
+		expectedVPCMock  string
+		expectedNames    []string
 	}{
 		{
-			name:            "deep merge folds the root declarations in",
-			mergeStrategy:   "deep",
-			expectedNames:   []string{"vpc_id", "arn"},
-			expectedVPCMock: "unit-vpc",
-			expectStrategy:  true,
+			name:             "deep merge folds the root declarations in",
+			mergeStrategy:    "deep",
+			expectedNames:    []string{"vpc_id", "arn"},
+			expectedVPCMock:  "unit-vpc",
+			expectedCommands: new([]string{"plan"}),
 		},
 		{
 			name:            "shallow merge keeps the unit block",
 			mergeStrategy:   "shallow",
 			expectedNames:   []string{"vpc_id"},
 			expectedVPCMock: "unit-vpc",
+		},
+		{
+			name:             "shallow merge lets the unit replace a mock_strategy attribute",
+			mergeStrategy:    "shallow",
+			unitStrategy:     `mock_strategy { allowed_commands = ["validate"] }`,
+			expectedNames:    []string{"vpc_id"},
+			expectedVPCMock:  "unit-vpc",
+			expectedCommands: new([]string{"validate"}),
+		},
+		{
+			name:            "shallow merge drops the root attribute the unit mock_strategy leaves unset",
+			mergeStrategy:   "shallow",
+			unitStrategy:    `mock_strategy { merge_with_state = "shallow" }`,
+			expectedNames:   []string{"vpc_id"},
+			expectedVPCMock: "unit-vpc",
+			expectedMerge:   new(config.ShallowMerge),
 		},
 	}
 
@@ -353,7 +479,7 @@ outputs {
 			require.NoError(t, vfs.WriteFile(fsys, filepath.Join(root, "root.hcl"), []byte(rootConfig), 0o644))
 
 			cfgPath := filepath.Join(root, "unit", config.DefaultTerragruntConfigPath)
-			unitHCL := strings.ReplaceAll(unitConfig, "%s", tc.mergeStrategy)
+			unitHCL := fmt.Sprintf(unitConfig, tc.mergeStrategy, tc.unitStrategy)
 			require.NoError(t, vfs.WriteFile(fsys, cfgPath, []byte(unitHCL), 0o644))
 
 			l := createLogger()
@@ -369,7 +495,17 @@ outputs {
 
 			assert.Equal(t, tc.expectedNames, cfg.Outputs.Names())
 			assert.Equal(t, cty.StringVal(tc.expectedVPCMock), *cfg.Outputs.Outputs[0].MockValue)
-			assert.Equal(t, tc.expectStrategy, cfg.Outputs.MockStrategy != nil)
+
+			strategy := cfg.Outputs.MockStrategy
+			if tc.expectedCommands == nil && tc.expectedMerge == nil {
+				require.Nil(t, strategy)
+
+				return
+			}
+
+			require.NotNil(t, strategy)
+			require.Equal(t, tc.expectedCommands, strategy.AllowedCommands)
+			require.Equal(t, tc.expectedMerge, strategy.MergeWithState)
 		})
 	}
 }
@@ -487,6 +623,56 @@ variables {
 		{address: "rds[outputs]", output: "endpoint", line: 20},
 		{address: "vpc", output: "vpc_id", line: 26},
 	}, found)
+}
+
+func TestDependencyOutputReferencesSkipsGuardedReads(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name       string
+		expression string
+		expected   []string
+	}{
+		{name: "try guards its arguments", expression: `try(dependency.vpc.outputs.optional, null)`},
+		{name: "can guards its argument", expression: `can(dependency.vpc.outputs.optional)`},
+		{name: "a call inside try is guarded", expression: `try(upper(dependency.vpc.outputs.optional), "none")`},
+		{
+			name:       "a read beside try is a reference",
+			expression: `[try(dependency.vpc.outputs.optional, null), dependency.vpc.outputs.vpc_id]`,
+			expected:   []string{"vpc_id"},
+		},
+		{
+			name:       "a read in another function is a reference",
+			expression: `upper(dependency.vpc.outputs.vpc_id)`,
+			expected:   []string{"vpc_id"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			l := createLogger()
+			v := venv.MemVenv()
+			_, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
+
+			content := "inputs = {\n  value = " + tc.expression + "\n}\n"
+
+			file, err := pctx.NewParser(l, v).ParseFromString(content, config.DefaultTerragruntConfigPath)
+			require.NoError(t, err)
+
+			refs, err := config.DependencyOutputReferences(file, config.Dependencies{{Name: "vpc"}}, nil)
+			require.NoError(t, err)
+
+			var outputs []string
+
+			for _, ref := range refs {
+				outputs = append(outputs, ref.Output)
+			}
+
+			require.Equal(t, tc.expected, outputs)
+		})
+	}
 }
 
 func TestDependencyOutputReferencesBoundsBlockNesting(t *testing.T) {
@@ -620,6 +806,20 @@ func TestDependencyReadsDeclaredOutputs(t *testing.T) {
   "undocumented": {"sensitive": false, "type": "string", "value": "real"}
 }`
 
+	const vpcStateWithoutUndocumented = `{
+  "vpc_id": {"sensitive": false, "type": "string", "value": "vpc-real"},
+  "subnet_ids": {"sensitive": false, "type": ["list", "string"], "value": ["subnet-real"]}
+}`
+
+	const vpcStateWithOnlyVPC = `{
+  "vpc_id": {"sensitive": false, "type": "string", "value": "vpc-real"}
+}`
+
+	const vpcStateWithNAT = `{
+  "vpc_id": {"sensitive": false, "type": "string", "value": "vpc-real"},
+  "nat_id": {"sensitive": false, "type": "string", "value": "nat-real"}
+}`
+
 	const vpcStateWithToken = `{
   "vpc_id": {"sensitive": false, "type": "string", "value": "vpc-real"},
   "token": {"sensitive": false, "type": ["object", {"id": "string"}], "value": {"id": "token-real"}},
@@ -652,8 +852,10 @@ func TestDependencyReadsDeclaredOutputs(t *testing.T) {
 		command           string
 		vpcState          string
 		inputs            string
+		cliArgs           []string
 		experimentOff     bool
 		ignoreDiagnostics bool
+		skipOutput        bool
 	}{
 		{
 			name:      "declared mocks stand in while the unit has no state",
@@ -735,6 +937,561 @@ func TestDependencyReadsDeclaredOutputs(t *testing.T) {
 
 				require.ErrorAs(t, err, &blockErr)
 				assert.Equal(t, "vpc", blockErr.Name)
+			},
+		},
+		{
+			name:      "a declared output missing from state is an error without a merge for apply",
+			vpcConfig: strings.ReplaceAll(outputsBlockConfig, `merge_with_state = "shallow"`, ""),
+			command:   "apply",
+			vpcState:  vpcStateWithoutSubnets,
+			check:     requireMissingSubnets,
+		},
+		{
+			name:      "a declared output missing from state is an error with no_merge set",
+			vpcConfig: strings.ReplaceAll(outputsBlockConfig, `"shallow"`, `"no_merge"`),
+			command:   "plan",
+			vpcState:  vpcStateWithoutSubnets,
+			check: func(t *testing.T, _ *config.TerragruntConfig, err error) {
+				t.Helper()
+
+				var missingErr config.DeclaredOutputMissingError
+
+				require.ErrorAs(t, err, &missingErr)
+				require.Equal(t, "subnet_ids", missingErr.Output)
+			},
+		},
+		{
+			name:      "a declared output without a mock value missing from state is an error",
+			vpcConfig: strings.ReplaceAll(outputsBlockConfig, `merge_with_state = "shallow"`, ""),
+			command:   "plan",
+			vpcState:  vpcStateWithoutUndocumented,
+			check: func(t *testing.T, _ *config.TerragruntConfig, err error) {
+				t.Helper()
+
+				var missingErr config.DeclaredOutputMissingError
+
+				require.ErrorAs(t, err, &missingErr)
+				require.Equal(t, "undocumented", missingErr.Output)
+			},
+		},
+		{
+			name: "a sensitive declared mock value fills no output missing from state without a merge",
+			vpcConfig: `
+outputs {
+  output "vpc_id" {
+    mock_value = "vpc-mock"
+  }
+
+  output "subnet_ids" {
+    mock_value = sensitive(["subnet-secret"])
+  }
+}
+`,
+			command:  "plan",
+			vpcState: vpcStateWithOnlyVPC,
+			inputs:   sensitivityInputs,
+			check:    requireMissingSubnets,
+		},
+		{
+			name:      "declared mocks without allowed_commands stand in for plan",
+			vpcConfig: outputsBlockWithoutStrategy,
+			command:   "plan",
+			check:     requireDeclaredMocks,
+		},
+		{
+			name:      "declared mocks without allowed_commands stand in for apply",
+			vpcConfig: outputsBlockWithoutStrategy,
+			command:   "apply",
+			check:     requireDeclaredMocks,
+		},
+		{
+			name:      "declared mocks without allowed_commands stand in for destroy",
+			vpcConfig: outputsBlockWithoutStrategy,
+			command:   "destroy",
+			check:     requireDeclaredMocks,
+		},
+		{
+			name:      "declared mocks with an empty allowed_commands stand in for apply",
+			vpcConfig: withMockStrategy("allowed_commands = []"),
+			command:   "apply",
+			check:     requireDeclaredMocks,
+		},
+		{
+			name:      "declared mocks stand in for apply when allowed_commands lists it",
+			vpcConfig: withMockStrategy(`allowed_commands = ["apply"]`),
+			command:   "apply",
+			check:     requireDeclaredMocks,
+		},
+		{
+			name:           "declared mocks stand in for apply when the dependent lists it",
+			vpcConfig:      outputsBlockWithoutStrategy,
+			dependencyBody: `mock_outputs_allowed_terraform_commands = ["apply"]`,
+			command:        "apply",
+			check:          requireDeclaredMocks,
+		},
+		{
+			name:           "an empty dependent list lets declared mocks stand in for apply",
+			vpcConfig:      withMockStrategy(`allowed_commands = ["plan"]`),
+			dependencyBody: `mock_outputs_allowed_terraform_commands = []`,
+			command:        "apply",
+			check:          requireDeclaredMocks,
+		},
+		{
+			name:           "an empty dependent list lets declared mocks stand in for plan",
+			vpcConfig:      withMockStrategy(`allowed_commands = ["validate"]`),
+			dependencyBody: `mock_outputs_allowed_terraform_commands = []`,
+			command:        "plan",
+			check:          requireDeclaredMocks,
+		},
+		{
+			name:           "a dependent list without apply wins over an allowed_commands that lists it",
+			vpcConfig:      withMockStrategy(`allowed_commands = ["apply"]`),
+			dependencyBody: `mock_outputs_allowed_terraform_commands = ["plan"]`,
+			command:        "apply",
+			check:          requireNoOutputs,
+		},
+		{
+			name:           "the dependent's mock_outputs win over the declared mocks key by key for apply",
+			vpcConfig:      outputsBlockWithoutStrategy,
+			dependencyBody: `mock_outputs = { vpc_id = "app-mock" }`,
+			command:        "apply",
+			inputs: `
+inputs = {
+  vpc_id      = dependency.vpc.outputs.vpc_id
+  has_subnets = can(dependency.vpc.outputs.subnet_ids)
+}
+`,
+			check: func(t *testing.T, cfg *config.TerragruntConfig, err error) {
+				t.Helper()
+
+				require.NoError(t, err)
+				require.Equal(t, "app-mock", cfg.Inputs["vpc_id"])
+				require.Equal(t, true, cfg.Inputs["has_subnets"])
+			},
+		},
+		{
+			name:      "a declared output missing from state has no mock value for apply without allowed_commands",
+			vpcConfig: outputsBlockWithoutStrategy,
+			command:   "apply",
+			vpcState:  vpcStateWithOnlyVPC,
+			check: func(t *testing.T, _ *config.TerragruntConfig, err error) {
+				t.Helper()
+
+				var missingErr config.DeclaredOutputMissingError
+
+				require.ErrorAs(t, err, &missingErr)
+				require.Equal(t, "subnet_ids", missingErr.Output)
+			},
+		},
+		{
+			name:      "a unit that declares no mock value has no outputs for apply",
+			vpcConfig: "outputs {\n  output \"vpc_id\" {}\n\n  output \"subnet_ids\" {}\n}\n",
+			command:   "apply",
+			check:     requireNoOutputs,
+		},
+		{
+			name:           "the dependent's mock_outputs fill no declared output missing from state for apply",
+			vpcConfig:      outputsBlockWithoutStrategy,
+			dependencyBody: `mock_outputs = { subnet_ids = ["app-subnet"] }`,
+			command:        "apply",
+			vpcState:       vpcStateWithOnlyVPC,
+			check: func(t *testing.T, _ *config.TerragruntConfig, err error) {
+				t.Helper()
+
+				var missingErr config.DeclaredOutputMissingError
+
+				require.ErrorAs(t, err, &missingErr)
+				require.Equal(t, "subnet_ids", missingErr.Output)
+			},
+		},
+		{
+			name:           "the dependent's mock_outputs fill no declared output missing from state for plan",
+			vpcConfig:      outputsBlockWithoutStrategy,
+			dependencyBody: `mock_outputs = { subnet_ids = ["app-subnet"] }`,
+			command:        "plan",
+			vpcState:       vpcStateWithOnlyVPC,
+			check:          requireMissingSubnets,
+		},
+		{
+			name:      "the dependent's mock_outputs fill no declared output missing from state for a listed apply",
+			vpcConfig: outputsBlockWithoutStrategy,
+			dependencyBody: `mock_outputs = { subnet_ids = ["app-subnet"] }
+  mock_outputs_allowed_terraform_commands = ["apply"]`,
+			command:  "apply",
+			vpcState: vpcStateWithOnlyVPC,
+			check:    requireMissingSubnets,
+		},
+		{
+			name:      "the dependent's mock_outputs fill a declared output missing from state with a shallow merge",
+			vpcConfig: outputsBlockWithoutStrategy,
+			dependencyBody: `mock_outputs = { subnet_ids = ["app-subnet"] }
+  mock_outputs_merge_strategy_with_state = "shallow"`,
+			command:  "plan",
+			vpcState: vpcStateWithOnlyVPC,
+			check:    requireFilledSubnets,
+		},
+		{
+			name:           "a dependent that skips outputs reads the declared mocks for apply without allowed_commands",
+			vpcConfig:      outputsBlockWithoutStrategy,
+			dependencyBody: `skip_outputs = true`,
+			command:        "apply",
+			vpcState:       vpcStateWithAllOutputs,
+			check:          requireDeclaredMocks,
+		},
+		{
+			name:           "a dependent that skips outputs reads the declared mocks for a listed apply",
+			vpcConfig:      withMockStrategy(`allowed_commands = ["apply"]`),
+			dependencyBody: `skip_outputs = true`,
+			command:        "apply",
+			vpcState:       vpcStateWithAllOutputs,
+			check:          requireDeclaredMocks,
+		},
+		{
+			name:           "a state merge of the unit supplies the dependent's mock_outputs for apply",
+			vpcConfig:      withMockStrategy(`merge_with_state = "shallow"`),
+			dependencyBody: `mock_outputs = { subnet_ids = ["app-subnet"] }`,
+			command:        "apply",
+			vpcState:       vpcStateWithOnlyVPC,
+			check:          requireFilledSubnets,
+		},
+		{
+			name:      "a state merge of the unit supplies the declared mock value for apply without allowed_commands",
+			vpcConfig: withMockStrategy(`merge_with_state = "shallow"`),
+			command:   "apply",
+			vpcState:  vpcStateWithOnlyVPC,
+			check: func(t *testing.T, cfg *config.TerragruntConfig, err error) {
+				t.Helper()
+
+				require.NoError(t, err)
+				require.Equal(t, "vpc-real", cfg.Inputs["vpc_id"])
+				require.Equal(t, mockSubnets, cfg.Inputs["subnet_ids"])
+			},
+		},
+		{
+			name:           "apply with a var file named render in a separate value reads no mock a merge supplies",
+			vpcConfig:      outputsBlockConfig,
+			dependencyBody: `mock_outputs = { subnet_ids = ["app-subnet"] }`,
+			command:        "apply",
+			cliArgs:        []string{"apply", "-var-file", "render"},
+			vpcState:       vpcStateWithoutSubnets,
+			check:          requireMissingSubnets,
+		},
+		{
+			name:           "apply with a var file named render in an inline value reads no mock a merge supplies",
+			vpcConfig:      outputsBlockConfig,
+			dependencyBody: `mock_outputs = { subnet_ids = ["app-subnet"] }`,
+			command:        "apply",
+			cliArgs:        []string{"apply", "-var-file=render"},
+			vpcState:       vpcStateWithoutSubnets,
+			check:          requireMissingSubnets,
+		},
+		{
+			name:      "a nullable output without a mock value has no mock value",
+			vpcConfig: strings.Replace(nullableWithoutMockConfig, "%s", "", 1),
+			command:   "plan",
+			inputs:    nullableInputs,
+			check:     requireUnsupportedAttribute,
+		},
+		{
+			name: "a nullable output reads a null mock value",
+			vpcConfig: strings.Replace(
+				strings.Replace(nullableWithoutMockConfig, "%s", "", 1),
+				"nullable = true", "nullable   = true\n    mock_value = null", 1,
+			),
+			command: "plan",
+			inputs:  nullableInputs,
+			check: func(t *testing.T, cfg *config.TerragruntConfig, err error) {
+				t.Helper()
+
+				require.NoError(t, err)
+				require.Equal(t, "vpc-mock", cfg.Inputs["vpc_id"])
+				require.Equal(t, true, cfg.Inputs["nat_is_null"])
+			},
+		},
+		{
+			name:       "a nullable output without a mock value stays unknown when outputs are skipped",
+			vpcConfig:  strings.Replace(nullableWithoutMockConfig, "%s", "", 1),
+			command:    "validate",
+			skipOutput: true,
+			inputs: `
+inputs = {
+  vpc_id = dependency.vpc.outputs.vpc_id
+  nat    = try(dependency.vpc.outputs.nat_id == null ? "null" : "set", "absent")
+}
+`,
+			check: func(t *testing.T, cfg *config.TerragruntConfig, err error) {
+				t.Helper()
+
+				require.NoError(t, err)
+				require.Equal(t, "vpc-mock", cfg.Inputs["vpc_id"])
+				require.Contains(t, cfg.Inputs, "nat")
+				require.Empty(t, cfg.Inputs["nat"])
+			},
+		},
+		{
+			name: "a deep_map_only merge keeps the state value of a nullable output without a mock value",
+			vpcConfig: strings.Replace(
+				nullableWithoutMockConfig, "%s", "mock_strategy {\n    merge_with_state = \"deep_map_only\"\n  }\n", 1,
+			),
+			command:  "plan",
+			vpcState: vpcStateWithNAT,
+			inputs:   nullableInputs,
+			check: func(t *testing.T, cfg *config.TerragruntConfig, err error) {
+				t.Helper()
+
+				require.NoError(t, err)
+				require.Equal(t, "nat-real", cfg.Inputs["nat_id"])
+				require.Equal(t, false, cfg.Inputs["nat_is_null"])
+			},
+		},
+		{
+			name:      "every output nullable keeps a state with no outputs an error for apply",
+			vpcConfig: nullableOnlyOutputsConfig,
+			command:   "apply",
+			inputs:    natIsNullInput,
+			check:     requireNoOutputs,
+		},
+		{
+			name:      "every output nullable keeps a state with no outputs an error for plan without mock values",
+			vpcConfig: nullableOnlyOutputsConfig,
+			command:   "plan",
+			inputs:    natIsNullInput,
+			check:     requireNoOutputs,
+		},
+		{
+			name: "a nullable output lets no command outside allowed_commands read a state with no outputs",
+			vpcConfig: strings.Replace(
+				nullableOnlyOutputsConfig,
+				"outputs {",
+				"outputs {\n  mock_strategy {\n    allowed_commands = [\"validate\", \"plan\"]\n  }\n",
+				1,
+			),
+			command: "apply",
+			inputs:  natIsNullInput,
+			check:   requireNoOutputs,
+		},
+		{
+			name:      "every output nullable reads null from a state with other outputs",
+			vpcConfig: nullableOnlyOutputsConfig,
+			command:   "apply",
+			vpcState:  vpcStateWithOnlyUndocumented,
+			inputs:    natIsNullInput,
+			check:     requireNullOnlyNAT,
+		},
+		{
+			name:      "every output nullable reads the mock values from a state with no outputs for plan",
+			vpcConfig: nullableOnlyOutputsWithMock,
+			command:   "plan",
+			inputs:    natIsNullInput,
+			check: func(t *testing.T, cfg *config.TerragruntConfig, err error) {
+				t.Helper()
+
+				require.NoError(t, err)
+				require.Equal(t, false, cfg.Inputs["nat_is_null"])
+			},
+		},
+		{
+			name: "an output that is not nullable keeps a state with no outputs an error for apply",
+			vpcConfig: strings.Replace(
+				nullableOutputsConfig, "%s", "mock_strategy {\n    allowed_commands = [\"plan\"]\n  }\n", 1,
+			),
+			command: "apply",
+			inputs:  nullableInputs,
+			check:   requireNoOutputs,
+		},
+		{
+			name:           "a dependent that skips outputs reads no null for outputs that are all nullable",
+			vpcConfig:      nullableOnlyOutputsConfig,
+			dependencyBody: `skip_outputs = true`,
+			command:        "apply",
+			vpcState:       vpcStateWithOnlyUndocumented,
+			inputs:         natIsNullInput,
+			check:          requireUnsupportedAttribute,
+		},
+		{
+			name:      "render fills no declared output missing from state without a merge",
+			vpcConfig: outputsBlockWithoutStrategy,
+			command:   "render",
+			vpcState:  vpcStateWithOnlyVPC,
+			inputs:    hasSubnetsInputs,
+			check:     requireNoSubnets,
+		},
+		{
+			name:      "render reads null for a nullable output missing from state",
+			vpcConfig: strings.Replace(nullableOutputsConfig, "%s", "", 1),
+			command:   "render",
+			vpcState:  vpcStateWithOnlyVPC,
+			inputs:    nullableInputs,
+			check:     requireNullNAT,
+		},
+		{
+			name:      "render reads no mock value from a shallow merge when allowed_commands omits render",
+			vpcConfig: outputsBlockConfig,
+			command:   "render",
+			vpcState:  vpcStateWithoutSubnets,
+			inputs:    hasSubnetsInputs,
+			check:     requireNoSubnets,
+		},
+		{
+			name: "render reads no mock value from a deep_map_only merge when allowed_commands omits render",
+			vpcConfig: withMockStrategy(
+				"allowed_commands = [\"plan\"]\n    merge_with_state = \"deep_map_only\"",
+			),
+			command:  "render",
+			vpcState: vpcStateWithOnlyVPC,
+			inputs:   hasSubnetsInputs,
+			check:    requireNoSubnets,
+		},
+		{
+			name: "render reads null for a nullable output when allowed_commands omits render",
+			vpcConfig: strings.Replace(
+				nullableOutputsConfig,
+				"%s",
+				"mock_strategy {\n    allowed_commands = [\"plan\"]\n    merge_with_state = \"shallow\"\n  }\n",
+				1,
+			),
+			command:  "render",
+			vpcState: vpcStateWithOnlyVPC,
+			inputs:   nullableInputs,
+			check:    requireNullNAT,
+		},
+		{
+			name:      "render fills no declared output missing from state with no_merge set",
+			vpcConfig: withMockStrategy(`merge_with_state = "no_merge"`),
+			command:   "render",
+			vpcState:  vpcStateWithOnlyVPC,
+			inputs:    hasSubnetsInputs,
+			check:     requireNoSubnets,
+		},
+		{
+			name:      "render reports no declared output missing from state",
+			vpcConfig: outputsBlockConfig,
+			command:   "render",
+			vpcState:  vpcStateWithoutUndocumented,
+			check: func(t *testing.T, cfg *config.TerragruntConfig, err error) {
+				t.Helper()
+
+				require.NoError(t, err)
+				require.Equal(t, "vpc-real", cfg.Inputs["vpc_id"])
+			},
+		},
+		{
+			name:      "a nullable output missing from state reads null",
+			vpcConfig: strings.Replace(nullableOutputsConfig, "%s", "", 1),
+			command:   "apply",
+			vpcState:  vpcStateWithOnlyVPC,
+			inputs:    nullableInputs,
+			check:     requireNullNAT,
+		},
+		{
+			name:      "a nullable output missing from state reads null for a command that reads mocks",
+			vpcConfig: strings.Replace(nullableOutputsConfig, "%s", "", 1),
+			command:   "plan",
+			vpcState:  vpcStateWithOnlyVPC,
+			inputs:    nullableInputs,
+			check:     requireNullNAT,
+		},
+		{
+			name:      "a nullable output in the state reads the state value",
+			vpcConfig: strings.Replace(nullableOutputsConfig, "%s", "", 1),
+			command:   "apply",
+			vpcState:  vpcStateWithNAT,
+			inputs:    nullableInputs,
+			check: func(t *testing.T, cfg *config.TerragruntConfig, err error) {
+				t.Helper()
+
+				require.NoError(t, err)
+				require.Equal(t, "nat-real", cfg.Inputs["nat_id"])
+				require.Equal(t, false, cfg.Inputs["nat_is_null"])
+			},
+		},
+		{
+			name: "a merge fills a nullable output missing from state with its mock value",
+			vpcConfig: strings.Replace(
+				nullableOutputsConfig, "%s", "mock_strategy {\n    merge_with_state = \"shallow\"\n  }\n", 1,
+			),
+			command:  "plan",
+			vpcState: vpcStateWithOnlyVPC,
+			inputs:   nullableInputs,
+			check: func(t *testing.T, cfg *config.TerragruntConfig, err error) {
+				t.Helper()
+
+				require.NoError(t, err)
+				require.Equal(t, "nat-mock", cfg.Inputs["nat_id"])
+				require.Equal(t, false, cfg.Inputs["nat_is_null"])
+			},
+		},
+		{
+			name:       "a declared output without a mock value is unknown when outputs are skipped",
+			vpcConfig:  outputsBlockConfig,
+			command:    "validate",
+			skipOutput: true,
+			inputs: `
+inputs = {
+  vpc_id       = dependency.vpc.outputs.vpc_id
+  undocumented = try(dependency.vpc.outputs.undocumented == null ? "null" : "set", "absent")
+}
+`,
+			check: requireUnknownUndocumented,
+		},
+		{
+			name:       "a declared output without a mock value is unknown for a run that skips outputs",
+			vpcConfig:  outputsBlockConfig,
+			command:    "plan",
+			skipOutput: true,
+			inputs: `
+inputs = {
+  vpc_id       = dependency.vpc.outputs.vpc_id
+  undocumented = try(dependency.vpc.outputs.undocumented == null ? "null" : "set", "absent")
+}
+`,
+			check: requireUnknownUndocumented,
+		},
+		{
+			name:           "a declared output is unknown beside the dependent's mock_outputs when outputs are skipped",
+			vpcConfig:      "outputs {\n  output \"vpc_id\" {}\n\n  output \"undocumented\" {}\n}\n",
+			dependencyBody: `mock_outputs = { vpc_id = "vpc-mock" }`,
+			command:        "validate",
+			skipOutput:     true,
+			inputs: `
+inputs = {
+  vpc_id       = dependency.vpc.outputs.vpc_id
+  undocumented = try(dependency.vpc.outputs.undocumented == null ? "null" : "set", "absent")
+}
+`,
+			check: requireUnknownUndocumented,
+		},
+		{
+			name:       "a unit without mock values reads an undeclared output as unknown when outputs are skipped",
+			vpcConfig:  "outputs {\n  output \"vpc_id\" {}\n}\n",
+			command:    "validate",
+			skipOutput: true,
+			inputs: `
+inputs = {
+  undocumented = try(dependency.vpc.outputs.undocumented == null ? "null" : "set", "absent")
+}
+`,
+			check: func(t *testing.T, cfg *config.TerragruntConfig, err error) {
+				t.Helper()
+
+				require.NoError(t, err)
+				require.Contains(t, cfg.Inputs, "undocumented")
+				require.Empty(t, cfg.Inputs["undocumented"])
+			},
+		},
+		{
+			name:      "a declared output without a mock value has no stand-in while the unit has no state",
+			vpcConfig: outputsBlockConfig,
+			command:   "plan",
+			inputs: `
+inputs = {
+  undocumented = dependency.vpc.outputs.undocumented
+}
+`,
+			check: func(t *testing.T, _ *config.TerragruntConfig, err error) {
+				t.Helper()
+
+				requireDiagnostic(t, err, "Unsupported attribute")
 			},
 		},
 		{
@@ -1145,6 +1902,20 @@ outputs {
 			},
 		},
 		{
+			name:           "an outputs block in the autoinclude file replaces the mock_strategy of the unit block",
+			vpcConfig:      withMockStrategy(`allowed_commands = ["validate"]`),
+			vpcAutoInclude: outputsBlockWithoutStrategy,
+			command:        "plan",
+			check:          requireDeclaredMocks,
+		},
+		{
+			name:           "an outputs block in the autoinclude file reads its mocks for a command of the unit block",
+			vpcConfig:      withMockStrategy(`allowed_commands = ["validate"]`),
+			vpcAutoInclude: outputsBlockWithoutStrategy,
+			command:        "validate",
+			check:          requireDeclaredMocks,
+		},
+		{
 			name:           "an outputs block in the autoinclude file of the unit is read",
 			vpcAutoInclude: outputsBlockConfig,
 			command:        "plan",
@@ -1236,6 +2007,11 @@ inputs = {
 			}
 
 			pctx.Parser.IgnoreDiagnostics = tc.ignoreDiagnostics
+			pctx.SkipOutput = tc.skipOutput
+
+			if tc.cliArgs != nil {
+				pctx.TerraformCliArgs = iacargs.New(tc.cliArgs...)
+			}
 
 			s := new(config.Store)
 
@@ -1794,6 +2570,79 @@ outputs {
 	assert.Equal(t, cty.ListValEmpty(cty.String), strategy.GetAttr("allowed_commands"))
 }
 
+func TestOutputsBlockRendersNullable(t *testing.T) {
+	t.Parallel()
+
+	cfg := parseOutputsConfig(t, strings.Replace(nullableOutputsConfig, "%s", "", 1), true)
+
+	require.Len(t, cfg.Outputs.Outputs, 2)
+	require.Nil(t, cfg.Outputs.Outputs[0].Nullable)
+	require.Equal(t, new(true), cfg.Outputs.Outputs[1].Nullable)
+	require.Equal(t, new(true), cfg.Outputs.Clone().Outputs[1].Nullable)
+
+	var rendered bytes.Buffer
+
+	_, err := cfg.WriteTo(&rendered)
+	require.NoError(t, err)
+
+	roundTrip := parseOutputsConfig(t, rendered.String(), true)
+	require.Equal(t, cfg.Outputs, roundTrip.Outputs)
+
+	ctyVal, err := config.TerragruntConfigAsCty(cfg)
+	require.NoError(t, err)
+
+	declarations := ctyVal.GetAttr(config.MetadataOutputs).GetAttr(config.MetadataOutput)
+	require.Equal(t, cty.True, declarations.GetAttr("nat_id").GetAttr("nullable"))
+	require.False(t, declarations.GetAttr("vpc_id").Type().HasAttribute("nullable"))
+}
+
+func TestOutputsBlockKeepsNullableAsWritten(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		expected  any
+		name      string
+		attribute string
+	}{
+		{name: "unset", expected: "unset"},
+		{name: "explicit false", attribute: "nullable = false", expected: false},
+		{name: "explicit true", attribute: "nullable = true", expected: true},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			declarations := strings.Replace(nullableDeclaration, "%s", tc.attribute, 1)
+			declared := parseOutputsConfig(t, declarations, true)
+
+			var rendered bytes.Buffer
+
+			_, err := declared.WriteTo(&rendered)
+			require.NoError(t, err)
+			require.Equal(t, declared.Outputs, parseOutputsConfig(t, rendered.String(), true).Outputs)
+
+			root := venvtest.Root("/fixture")
+			fsys := vfs.NewMemMapFS()
+			require.NoError(t, vfs.WriteFile(fsys, filepath.Join(root, "declarations.hcl"), []byte(declarations), 0o644))
+
+			for _, reader := range []string{nullableReader, nullableIncludeReader} {
+				cfgPath := filepath.Join(root, "app", config.DefaultTerragruntConfigPath)
+				require.NoError(t, vfs.WriteFile(fsys, cfgPath, []byte(reader), 0o644))
+
+				ctx, pctx := newTestParsingContext(t, cfgPath)
+				require.NoError(t, pctx.Experiments.EnableExperiment(experiment.OutputsBlock))
+
+				v := venv.MemVenv().WithFS(fsys)
+
+				cfg, err := new(config.Store).ResolveRunConfig(ctx, createLogger(), v, pctx, cfgPath)
+				require.NoError(t, err)
+				require.Equal(t, tc.expected, cfg.Inputs["nullable"])
+			}
+		})
+	}
+}
+
 // TestOutputsBlockRendersSensitiveMockValue expects a sensitive() mock value rendered plain and marked as a value.
 func TestOutputsBlockRendersSensitiveMockValue(t *testing.T) {
 	t.Parallel()
@@ -1822,6 +2671,56 @@ outputs {
 		GetAttr("token").
 		GetAttr("mock_value")
 	assert.True(t, mockValue.IsMarked(), "the value read_terragrunt_config exposes keeps the mark")
+}
+
+func TestOutputsBlockToRunConfigRequiresTheOutputsThatAreNotNullable(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		config   string
+		expected []string
+	}{
+		{name: "a unit with no outputs block requires no outputs"},
+		{
+			name: "a nullable output is not required",
+			config: `
+outputs {
+  output "vpc_id" {}
+
+  output "subnet_ids" {
+    nullable = false
+  }
+
+  output "nat_id" {
+    nullable = true
+  }
+}
+`,
+			expected: []string{"subnet_ids", "vpc_id"},
+		},
+		{
+			name: "a block of nullable outputs requires no outputs",
+			config: `
+outputs {
+  output "nat_id" {
+    nullable = true
+  }
+}
+`,
+			expected: []string{},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			runCfg := parseOutputsConfig(t, tc.config, true).ToRunConfig(createLogger(), venv.MemVenv().FS)
+
+			require.Equal(t, tc.expected, runCfg.RequiredOutputs)
+		})
+	}
 }
 
 // parseOutputsConfig parses content as a unit config, with the outputs-block experiment on when enabled.
@@ -1868,6 +2767,96 @@ func tofuOutputStub(state map[string]string) vexec.Handler {
 
 		return vexec.Result{Stdout: []byte("{}")}
 	}
+}
+
+// withMockStrategy returns outputsBlockWithoutStrategy with a mock_strategy block that sets attribute.
+func withMockStrategy(attribute string) string {
+	return strings.Replace(
+		outputsBlockWithoutStrategy,
+		"outputs {",
+		"outputs {\n  mock_strategy {\n    "+attribute+"\n  }\n",
+		1,
+	)
+}
+
+// requireDeclaredMocks requires that the dependent read the mock values of outputsBlockWithoutStrategy.
+func requireDeclaredMocks(t *testing.T, cfg *config.TerragruntConfig, err error) {
+	t.Helper()
+
+	require.NoError(t, err)
+	require.Equal(t, "vpc-mock", cfg.Inputs["vpc_id"])
+	require.Equal(t, []any{"subnet-mock-1", "subnet-mock-2"}, cfg.Inputs["subnet_ids"])
+}
+
+// requireFilledSubnets requires that the dependent read vpc_id from state and subnet_ids from its mock_outputs.
+func requireFilledSubnets(t *testing.T, cfg *config.TerragruntConfig, err error) {
+	t.Helper()
+
+	require.NoError(t, err)
+	require.Equal(t, "vpc-real", cfg.Inputs["vpc_id"])
+	require.Equal(t, []any{"app-subnet"}, cfg.Inputs["subnet_ids"])
+}
+
+// requireUnknownUndocumented requires the mock value of vpc_id and an undocumented output that reads as unknown.
+func requireUnknownUndocumented(t *testing.T, cfg *config.TerragruntConfig, err error) {
+	t.Helper()
+
+	require.NoError(t, err)
+	require.Equal(t, "vpc-mock", cfg.Inputs["vpc_id"])
+	require.Contains(t, cfg.Inputs, "undocumented")
+	require.Empty(t, cfg.Inputs["undocumented"])
+}
+
+// requireNoSubnets requires that the dependent read vpc_id from state and no subnet_ids.
+func requireNoSubnets(t *testing.T, cfg *config.TerragruntConfig, err error) {
+	t.Helper()
+
+	require.NoError(t, err)
+	require.Equal(t, "vpc-real", cfg.Inputs["vpc_id"])
+	require.Equal(t, false, cfg.Inputs["has_subnets"])
+}
+
+// requireUnsupportedAttribute requires that the dependent read an output that the dependency does not have.
+func requireUnsupportedAttribute(t *testing.T, _ *config.TerragruntConfig, err error) {
+	t.Helper()
+
+	requireDiagnostic(t, err, "Unsupported attribute")
+}
+
+// requireMissingSubnets requires a [config.DeclaredOutputMissingError] for subnet_ids.
+func requireMissingSubnets(t *testing.T, _ *config.TerragruntConfig, err error) {
+	t.Helper()
+
+	var missingErr config.DeclaredOutputMissingError
+
+	require.ErrorAs(t, err, &missingErr)
+	require.Equal(t, "subnet_ids", missingErr.Output)
+}
+
+// requireNullOnlyNAT requires that the dependent read null for nat_id.
+func requireNullOnlyNAT(t *testing.T, cfg *config.TerragruntConfig, err error) {
+	t.Helper()
+
+	require.NoError(t, err)
+	require.Equal(t, true, cfg.Inputs["nat_is_null"])
+}
+
+// requireNoOutputs requires that the dependency resolved to no outputs and no mock values.
+func requireNoOutputs(t *testing.T, _ *config.TerragruntConfig, err error) {
+	t.Helper()
+
+	var noOutputsErr config.TerragruntOutputTargetNoOutputs
+
+	require.ErrorAs(t, err, &noOutputsErr)
+}
+
+// requireNullNAT requires that the dependent read the state value of vpc_id and null for nat_id.
+func requireNullNAT(t *testing.T, cfg *config.TerragruntConfig, err error) {
+	t.Helper()
+
+	require.NoError(t, err)
+	require.Equal(t, "vpc-real", cfg.Inputs["vpc_id"])
+	require.Equal(t, true, cfg.Inputs["nat_is_null"])
 }
 
 // requireDiagnostic requires that err carries HCL diagnostics, one of which has summary.

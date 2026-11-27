@@ -1,8 +1,10 @@
 package validate_test
 
 import (
+	"cmp"
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"maps"
 	"net/http"
@@ -60,6 +62,18 @@ inputs = {
 }
 `,
 }
+
+const includedOutputs = `
+outputs {
+  output "vpc_id" {
+    mock_value = "vpc-mock"
+  }
+
+  output "nat_id" {
+    mock_value = "nat-mock"
+  }
+}
+`
 
 const generatedOutputsConfig = `
 generate "subnets" {
@@ -221,6 +235,66 @@ inputs = {
 			expectedSummary: "Undeclared dependency output",
 			expectedFile:    "app/terragrunt.hcl",
 			expectedLine:    11,
+		},
+		{
+			name: "a reference to a declared output without a mock value holds",
+			overrides: map[string]string{
+				"vpc/terragrunt.hcl": `
+outputs {
+  output "vpc_id" {}
+
+  output "subnet_ids" {
+    mock_value = []
+  }
+}
+`,
+			},
+		},
+		{
+			name: "a reference guarded by try is not reported",
+			overrides: map[string]string{
+				"app/terragrunt.hcl": `
+dependency "vpc" {
+  config_path = "../vpc"
+}
+
+inputs = {
+  vpc_id = dependency.vpc.outputs.vpc_id
+  nat_id = try(dependency.vpc.outputs.nat_id, null)
+}
+`,
+			},
+		},
+		{
+			name: "a declared output missing from the module is reported at its declaration in an include",
+			overrides: map[string]string{
+				"root.hcl": `
+outputs {
+  output "vpc_id" {
+    mock_value = "vpc-mock"
+  }
+
+  output "nat_id" {
+    mock_value = "nat-mock"
+  }
+}
+`,
+				"vpc/terragrunt.hcl": `
+include "root" {
+  path           = find_in_parent_folders("root.hcl")
+  merge_strategy = "deep"
+}
+
+outputs {
+  output "subnet_ids" {
+    mock_value = []
+  }
+}
+`,
+			},
+			expectedSummary: "Declared output not in module",
+			expectedFile:    "root.hcl",
+			expectedLine:    7,
 		},
 		{
 			name: "a dependency without an outputs block is not checked",
@@ -1918,6 +1992,393 @@ func TestRunValidateChecksOutputsContractsOnlyWithTheFlag(t *testing.T) {
 	}
 }
 
+func TestRunValidateReadsDeclaredOutputWithoutMockValue(t *testing.T) {
+	t.Parallel()
+
+	files := withFiles(outputsContractFiles, map[string]string{
+		"vpc/terragrunt.hcl": `
+outputs {
+  output "vpc_id" {}
+
+  output "subnet_ids" {
+    mock_value = []
+  }
+}
+`,
+	})
+
+	result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}})
+
+	require.NoError(t, result.err)
+	require.Empty(t, result.diags)
+}
+
+func TestRunValidateOutputsContractsNamesAnEmptyOutputsBlock(t *testing.T) {
+	t.Parallel()
+
+	files := withFiles(outputsContractFiles, map[string]string{"vpc/terragrunt.hcl": "outputs {}\n"})
+
+	result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}, outputs: true})
+
+	require.Error(t, result.err)
+	require.Len(t, result.diags, 1)
+	require.Equal(t, "Undeclared dependency output", result.diags[0].Summary)
+	require.Contains(t, result.diags[0].Detail, "Declared outputs: none.")
+}
+
+func TestRunValidateOutputsContractsPointsAtTheEffectiveDeclaration(t *testing.T) {
+	t.Parallel()
+
+	const autoIncludeOutputs = `
+outputs {
+  output "vpc_id" {
+    mock_value = "vpc-mock"
+  }
+}
+`
+
+	const includeBlock = `
+include "%s" {
+  path           = find_in_parent_folders("%s.hcl")
+  merge_strategy = "%s"
+  expose         = true
+}
+`
+
+	const jsonUnitWithDeepInclude = `
+{
+  "include": {
+    "z": {
+      "path": "${find_in_parent_folders(\"z.hcl\")}",
+      "merge_strategy": "deep"
+    }
+  }
+}
+`
+
+	const jsonUnitWithOutputs = `
+{
+  "outputs": {
+    "output": {
+      "vpc_id": {"mock_value": "vpc-mock"},
+      "nat_id": {"mock_value": "nat-mock"}
+    }
+  }
+}
+`
+
+	const sharedInclude = `
+include "shared" {
+  path           = find_in_parent_folders("shared/%s")
+  merge_strategy = "deep"
+}
+`
+
+	const originInclude = `
+include "origin" {
+  path           = "${get_terragrunt_dir()}/origin.hcl"
+  merge_strategy = "deep"
+}
+`
+
+	testCases := []struct {
+		files        map[string]string
+		name         string
+		unit         string
+		unitFile     string
+		autoInclude  string
+		expectedFile string
+		expectedLine int
+	}{
+		{
+			name: "the autoinclude file beside an include replaces the outputs block of the include",
+			unit: fmt.Sprintf(sharedInclude, "z.hcl"),
+			files: map[string]string{
+				"shared/z.hcl":                      includedOutputs,
+				"shared/terragrunt.autoinclude.hcl": includedOutputs,
+			},
+			expectedFile: "shared/terragrunt.autoinclude.hcl",
+		},
+		{
+			name: "the autoinclude file beside an include resolves its own include as the unit",
+			unit: fmt.Sprintf(sharedInclude, "z.hcl"),
+			files: map[string]string{
+				"shared/z.hcl":                      `inputs = {}`,
+				"shared/terragrunt.autoinclude.hcl": autoIncludeOutputs + originInclude,
+				"vpc/origin.hcl":                    includedOutputs,
+			},
+			expectedFile: "vpc/origin.hcl",
+		},
+		{
+			name: "an include with the name of a stack autoinclude file merges no autoinclude file beside it",
+			unit: fmt.Sprintf(sharedInclude, config.DefaultAutoIncludeStackFile),
+			files: map[string]string{
+				"shared/" + config.DefaultAutoIncludeStackFile: includedOutputs,
+				"shared/terragrunt.autoinclude.hcl":            includedOutputs,
+			},
+			expectedFile: "shared/" + config.DefaultAutoIncludeStackFile,
+		},
+		{
+			name:        "the include of the autoinclude file merges no autoinclude file beside it",
+			unit:        `inputs = {}`,
+			autoInclude: fmt.Sprintf(sharedInclude, "z.hcl"),
+			files: map[string]string{
+				"shared/z.hcl":                      includedOutputs,
+				"shared/terragrunt.autoinclude.hcl": includedOutputs,
+			},
+			expectedFile: "shared/z.hcl",
+		},
+		{
+			name:         "an exposed no_merge include is not the origin",
+			unit:         fmt.Sprintf(includeBlock, "a", "a", "no_merge") + fmt.Sprintf(includeBlock, "z", "z", "deep"),
+			expectedFile: "z.hcl",
+		},
+		{
+			name:         "the later of two merged includes is the origin",
+			unit:         fmt.Sprintf(includeBlock, "a", "a", "deep") + fmt.Sprintf(includeBlock, "z", "z", "deep"),
+			expectedFile: "z.hcl",
+		},
+		{
+			name:         "the later of two merged includes is the origin in the other order",
+			unit:         fmt.Sprintf(includeBlock, "z", "z", "deep") + fmt.Sprintf(includeBlock, "a", "a", "deep"),
+			expectedFile: "a.hcl",
+		},
+		{
+			name: "a shallow include that the unit block replaces is not the origin",
+			unit: fmt.Sprintf(includeBlock, "z", "z", "deep") + fmt.Sprintf(includeBlock, "a", "a", "shallow") + `
+outputs {
+  output "subnet_ids" {
+    mock_value = []
+  }
+}
+`,
+			expectedFile: "z.hcl",
+		},
+		{
+			name:         "the outputs block of the autoinclude file replaces the unit block",
+			unit:         includedOutputs,
+			autoInclude:  includedOutputs,
+			expectedFile: "vpc/terragrunt.autoinclude.hcl",
+		},
+		{
+			name:         "a deep include keeps its declarations under the outputs block of the autoinclude file",
+			unit:         fmt.Sprintf(includeBlock, "z", "z", "deep"),
+			autoInclude:  autoIncludeOutputs,
+			expectedFile: "z.hcl",
+		},
+		{
+			name:         "a shallow include that the autoinclude block replaces is not the origin",
+			unit:         fmt.Sprintf(includeBlock, "z", "z", "deep") + fmt.Sprintf(includeBlock, "a", "a", "shallow"),
+			autoInclude:  autoIncludeOutputs,
+			expectedFile: "z.hcl",
+		},
+		{
+			name:         "a JSON unit keeps the declarations of a deep include",
+			unit:         jsonUnitWithDeepInclude,
+			unitFile:     "vpc/terragrunt.hcl.json",
+			expectedFile: "z.hcl",
+		},
+		{
+			name:         "a JSON unit is the origin of its own declarations",
+			unit:         jsonUnitWithOutputs,
+			unitFile:     "vpc/terragrunt.hcl.json",
+			expectedFile: "vpc/terragrunt.hcl.json",
+			expectedLine: 6,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			files := withFiles(outputsContractFiles, map[string]string{"a.hcl": includedOutputs, "z.hcl": includedOutputs})
+			delete(files, "vpc/terragrunt.hcl")
+			files[cmp.Or(tc.unitFile, "vpc/terragrunt.hcl")] = tc.unit
+			maps.Copy(files, tc.files)
+
+			if tc.autoInclude != "" {
+				files["vpc/terragrunt.autoinclude.hcl"] = tc.autoInclude
+			}
+
+			result := runValidate(t, &validateRun{files: files, experiments: []string{experiment.OutputsBlock}, outputs: true})
+
+			require.Error(t, result.err)
+			require.Len(t, result.diags, 1)
+
+			diag := result.diags[0]
+
+			require.Equal(t, "Declared output not in module", diag.Summary)
+			require.NotNil(t, diag.Range)
+			require.Equal(
+				t,
+				filepath.Join(result.root, filepath.FromSlash(tc.expectedFile)),
+				filepath.Clean(diag.Range.Filename),
+			)
+			require.Equal(t, cmp.Or(tc.expectedLine, 7), diag.Range.Start.Line)
+		})
+	}
+}
+
+func TestRunValidateOutputsContractsResolvesTheIncludesOfTheAutoincludeAsTheUnit(t *testing.T) {
+	t.Parallel()
+
+	const unitWithSource = `
+terraform {
+  source = "${get_terragrunt_dir()}/../modules/vpc"
+}
+
+outputs {
+  output "vpc_id" {
+    mock_value = "vpc-mock"
+  }
+}
+`
+
+	const autoIncludeWithWorkingDir = `
+include "origin" {
+  path = "${get_working_dir()}/origin.hcl"
+}
+`
+
+	files := withFiles(outputsContractFiles, map[string]string{
+		"vpc/terragrunt.hcl":     unitWithSource,
+		"modules/vpc/main.tf":    outputsContractFiles["vpc/main.tf"],
+		"modules/vpc/origin.hcl": includedOutputs,
+	})
+	delete(files, "vpc/main.tf")
+
+	v := venv.MemVenv()
+	root := venvtest.Root("/repo")
+	run := &validateRun{files: files, experiments: []string{experiment.OutputsBlock}, outputs: true}
+
+	require.NoError(t, runValidateIn(t, v, root, run).err)
+
+	run.files = map[string]string{"vpc/terragrunt.autoinclude.hcl": autoIncludeWithWorkingDir}
+	result := runValidateIn(t, v, root, run)
+
+	require.Error(t, result.err)
+	require.Len(t, result.diags, 1)
+
+	diag := result.diags[0]
+
+	require.Equal(t, "Declared output not in module", diag.Summary)
+	require.NotNil(t, diag.Range)
+
+	cached := filepath.Join(root, "vpc", ".terragrunt-cache", "*", "*", "origin.hcl")
+	matched, err := filepath.Match(cached, filepath.Clean(diag.Range.Filename))
+
+	require.NoError(t, err)
+	require.True(t, matched, diag.Range.Filename)
+	require.Equal(t, 7, diag.Range.Start.Line)
+}
+
+func TestRunValidateOutputsContractsIgnoresAnAutoincludeFileThatFailsItsStat(t *testing.T) {
+	t.Parallel()
+
+	root := venvtest.Root("/repo")
+	fsys := deniedFS{FS: vfs.NewMemMapFS(), denied: filepath.Join(root, "vpc", config.DefaultAutoIncludeFile)}
+	files := withFiles(outputsContractFiles, map[string]string{"vpc/terragrunt.hcl": includedOutputs})
+
+	result := runValidateIn(t, venv.MemVenv().WithFS(fsys), root, &validateRun{
+		files:       files,
+		experiments: []string{experiment.OutputsBlock},
+		outputs:     true,
+	})
+
+	require.Error(t, result.err)
+	require.Len(t, result.diags, 1)
+
+	diag := result.diags[0]
+
+	require.Equal(t, "Declared output not in module", diag.Summary)
+	require.NotNil(t, diag.Range)
+	require.Equal(t, filepath.Join(root, "vpc", config.DefaultTerragruntConfigPath), diag.Range.Filename)
+	require.Equal(t, 7, diag.Range.Start.Line)
+}
+
+func TestRunValidateInputsAndOutputsPointsAtTheDeclarationOfABareInclude(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		unitFile string
+		unit     string
+	}{
+		{
+			name:     "HCL unit",
+			unitFile: "vpc/terragrunt.hcl",
+			unit: `
+include {
+  path           = find_in_parent_folders("z.hcl")
+  merge_strategy = "deep"
+}
+`,
+		},
+		{
+			name:     "HCL unit with a bare include and a named include",
+			unitFile: "vpc/terragrunt.hcl",
+			unit: `
+include {
+  path           = find_in_parent_folders("a.hcl")
+  merge_strategy = "deep"
+}
+
+include "z" {
+  path           = find_in_parent_folders("z.hcl")
+  merge_strategy = "deep"
+}
+`,
+		},
+		{
+			name:     "JSON unit",
+			unitFile: "vpc/terragrunt.hcl.json",
+			unit: `
+{
+  "include": {
+    "path": "${find_in_parent_folders(\"z.hcl\")}",
+    "merge_strategy": "deep"
+  }
+}
+`,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			files := withFiles(outputsContractFiles, map[string]string{
+				"a.hcl": "outputs {\n  output \"vpc_id\" {\n    mock_value = \"vpc-mock\"\n  }\n}\n",
+				"z.hcl": includedOutputs,
+			})
+			delete(files, "vpc/terragrunt.hcl")
+			files[tc.unitFile] = tc.unit
+
+			result := runValidate(t, &validateRun{
+				files:       files,
+				experiments: []string{experiment.OutputsBlock},
+				inputs:      true,
+				outputs:     true,
+			})
+
+			require.Error(t, result.err)
+
+			var subjects []*hcl.Range
+
+			for _, leaf := range joinedLeaves(result.err) {
+				diag, ok := errors.AsType[*hcl.Diagnostic](leaf)
+				if ok && diag.Summary == "Declared output not in module" {
+					subjects = append(subjects, diag.Subject)
+				}
+			}
+
+			require.Len(t, subjects, 1)
+			require.Equal(t, filepath.Join(result.root, "z.hcl"), subjects[0].Filename)
+			require.Equal(t, 7, subjects[0].Start.Line)
+		})
+	}
+}
+
 // TestRunOutputsFlagRequiresExperiment expects --outputs to fail while the outputs-block experiment is off.
 func TestRunOutputsFlagRequiresExperiment(t *testing.T) {
 	t.Parallel()
@@ -2050,6 +2511,20 @@ inputs = {
 
 	assert.Positive(t, without)
 	assert.Equal(t, without, with)
+}
+
+// deniedFS fails the stat of one path with a permission error.
+type deniedFS struct {
+	vfs.FS
+	denied string
+}
+
+func (fsys deniedFS) Stat(name string) (fs.FileInfo, error) {
+	if filepath.Clean(name) == fsys.denied {
+		return nil, &fs.PathError{Op: "stat", Path: name, Err: fs.ErrPermission}
+	}
+
+	return fsys.FS.Stat(name)
 }
 
 func newOpenCountingFS() *openCountingFS {

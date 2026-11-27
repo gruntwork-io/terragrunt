@@ -16,6 +16,14 @@ import (
 
 const maxBlockNesting = 32
 
+var (
+	guardFunctions     = []string{"try", "can"}
+	outputsBlockSchema = &hcl.BodySchema{Blocks: []hcl.BlockHeaderSchema{{Type: MetadataOutputs}}}
+	outputBlockSchema  = &hcl.BodySchema{
+		Blocks: []hcl.BlockHeaderSchema{{Type: MetadataOutput, LabelNames: []string{"name"}}},
+	}
+)
+
 // DependencyOutputReference is a reference to a dependency output in a unit, with the range of the expression.
 type DependencyOutputReference struct {
 	Instance   hclparse.InstanceKey
@@ -73,7 +81,16 @@ func bodyDependencyOutputReferences(
 	var refs []DependencyOutputReference
 
 	for _, attr := range body.Attributes {
+		guards, err := guardedRanges(attr.Expr)
+		if err != nil {
+			return nil, err
+		}
+
 		for _, traversal := range attr.Expr.Variables() {
+			if guardedBy(traversal.SourceRange(), guards) {
+				continue
+			}
+
 			if ref, ok := dependencyOutputReference(traversal, walk.expanded); ok {
 				refs = append(refs, ref)
 			}
@@ -104,6 +121,32 @@ func bodyDependencyOutputReferences(
 	return refs, nil
 }
 
+// guardedRanges returns the ranges of the try and can calls in expr, whose arguments may fail to evaluate.
+func guardedRanges(expr hclsyntax.Expression) ([]hcl.Range, error) {
+	var guards []hcl.Range
+
+	diags := hclsyntax.VisitAll(expr, func(node hclsyntax.Node) hcl.Diagnostics {
+		call, ok := node.(*hclsyntax.FunctionCallExpr)
+		if ok && slices.Contains(guardFunctions, call.Name) {
+			guards = append(guards, call.Range())
+		}
+
+		return nil
+	})
+	if diags.HasErrors() {
+		return nil, diags
+	}
+
+	return guards, nil
+}
+
+// guardedBy reports whether rng lies inside one of guards.
+func guardedBy(rng hcl.Range, guards []hcl.Range) bool {
+	return slices.ContainsFunc(guards, func(guard hcl.Range) bool {
+		return rng.Start.Byte >= guard.Start.Byte && rng.End.Byte <= guard.End.Byte
+	})
+}
+
 // replacedDependencyBlock reports whether block is an unexpanded dependency block labeled in replaced.
 func replacedDependencyBlock(block *hclsyntax.Block, replaced map[string]struct{}) bool {
 	if block.Type != MetadataDependency || len(block.Labels) != 1 {
@@ -121,25 +164,22 @@ func replacedDependencyBlock(block *hclsyntax.Block, replaced map[string]struct{
 
 // OutputDeclarationRanges returns where each output block of the outputs block in file is declared, by name.
 func OutputDeclarationRanges(file *hclparse.File) map[string]hcl.Range {
-	body, ok := file.Body.(*hclsyntax.Body)
-	if !ok {
-		return nil
-	}
-
 	ranges := map[string]hcl.Range{}
 
-	for _, block := range body.Blocks {
-		if block.Type != MetadataOutputs {
+	outputs, _, diags := file.Body.PartialContent(outputsBlockSchema)
+	if diags.HasErrors() {
+		return ranges
+	}
+
+	for _, block := range outputs.Blocks {
+		declared, _, diags := block.Body.PartialContent(outputBlockSchema)
+		if diags.HasErrors() {
 			continue
 		}
 
-		for _, output := range block.Body.Blocks {
-			if output.Type != MetadataOutput || len(output.Labels) != 1 {
-				continue
-			}
-
+		for _, output := range declared.Blocks {
 			if _, seen := ranges[output.Labels[0]]; !seen {
-				ranges[output.Labels[0]] = output.DefRange()
+				ranges[output.Labels[0]] = output.DefRange
 			}
 		}
 	}

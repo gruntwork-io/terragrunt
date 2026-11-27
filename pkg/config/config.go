@@ -778,6 +778,10 @@ func outputsBlock(outputs *OutputsConfig) *hclwrite.Block {
 			outputBlock.Body().SetAttributeRaw("mock_value", hclhelper.TokensForValue(mockValue))
 		}
 
+		if output.Nullable != nil {
+			outputBlock.Body().SetAttributeValue("nullable", cty.BoolVal(*output.Nullable))
+		}
+
 		body.AppendBlock(outputBlock)
 	}
 

@@ -43,7 +43,7 @@ func (dep *Dependency) withDeclaredOutputs(
 	}
 
 	effective := *dep
-	effective.MockOutputs = mergeDeclaredMockValues(declared.MockValues(), dep.MockOutputs)
+	effective.MockOutputs = mergeDeclaredMockValues(declaredMockValues(pctx, dep, declared), dep.MockOutputs)
 
 	strategy := declared.MockStrategy
 	if strategy == nil {
@@ -183,7 +183,7 @@ func UnitsWithoutOutputs(
 	return slices.Compact(targets), nil
 }
 
-// checkDeclaredOutputs returns a [DeclaredOutputMissingError] for each declared output missing from stateOutputs.
+// checkDeclaredOutputs sets null for each nullable declared output stateOutputs lacks and reports each other one.
 func checkDeclaredOutputs(
 	pctx *ParsingContext,
 	dep *Dependency,
@@ -191,24 +191,34 @@ func checkDeclaredOutputs(
 	targetConfig string,
 	stateOutputs map[string]cty.Value,
 ) error {
-	if declared == nil || isRenderJSONCommand(pctx) || isRenderCommand(pctx) {
+	if declared == nil {
 		return nil
 	}
 
+	renders := isRenderJSONCommand(pctx) || isRenderCommand(pctx)
 	mocks := stateFillingMocks(pctx, dep)
-	names := declared.Names()
-	errs := make([]error, 0, len(names))
+	errs := make([]error, 0, len(declared.Outputs))
 
-	for _, name := range names {
-		if _, ok := stateOutputs[name]; ok {
+	for _, output := range declared.Outputs {
+		if _, ok := stateOutputs[output.Name]; ok {
 			continue
 		}
 
-		if _, ok := mocks[name]; ok {
+		if _, ok := mocks[output.Name]; ok {
 			continue
 		}
 
-		errs = append(errs, DeclaredOutputMissingError{TargetConfig: targetConfig, Output: name})
+		if output.Nullable != nil && *output.Nullable {
+			stateOutputs[output.Name] = cty.NullVal(cty.DynamicPseudoType)
+
+			continue
+		}
+
+		if renders {
+			continue
+		}
+
+		errs = append(errs, DeclaredOutputMissingError{TargetConfig: targetConfig, Output: output.Name})
 	}
 
 	return errors.Join(errs...)
@@ -226,6 +236,16 @@ func stateFillingMocks(pctx *ParsingContext, dep *Dependency) map[string]cty.Val
 	}
 
 	return values
+}
+
+// declaredMockValues returns the mock values declared sets, with unknown for the rest when skipped outputs read mocks.
+func declaredMockValues(pctx *ParsingContext, dep *Dependency, declared *OutputsConfig) *cty.Value {
+	mocks := declared.MockValues()
+	if !pctx.SkipOutput || (mocks == nil && dep.MockOutputs == nil) {
+		return mocks
+	}
+
+	return declared.mockValuesOrUnknown()
 }
 
 // mergeDeclaredMockValues returns the mock values a dependent reads, each key of overrides winning over declared.

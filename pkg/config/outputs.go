@@ -35,6 +35,7 @@ type OutputsMockStrategy struct {
 // OutputDeclaration is an output block of an outputs block.
 type OutputDeclaration struct {
 	MockValue *cty.Value `hcl:"mock_value,optional"`
+	Nullable  *bool      `hcl:"nullable,optional"`
 	Name      string     `hcl:"name,label"`
 }
 
@@ -161,6 +162,27 @@ func (c *OutputsConfig) MockValues() *cty.Value {
 	return &object
 }
 
+// mockValuesOrUnknown returns an object of every declared output, unknown for each that sets no mock value.
+func (c *OutputsConfig) mockValuesOrUnknown() *cty.Value {
+	values := make(map[string]cty.Value, len(c.Outputs))
+
+	for _, output := range c.Outputs {
+		values[output.Name] = cty.DynamicVal
+
+		if output.MockValue != nil {
+			values[output.Name] = *output.MockValue
+		}
+	}
+
+	if len(values) == 0 {
+		return nil
+	}
+
+	object := cty.ObjectVal(values)
+
+	return &object
+}
+
 // Clone returns a deep copy of s.
 func (s *OutputsMockStrategy) Clone() *OutputsMockStrategy {
 	if s == nil {
@@ -201,6 +223,10 @@ func (d *OutputDeclaration) Clone() *OutputDeclaration {
 
 	if d.MockValue != nil {
 		clone.MockValue = new(*d.MockValue)
+	}
+
+	if d.Nullable != nil {
+		clone.Nullable = new(*d.Nullable)
 	}
 
 	return clone

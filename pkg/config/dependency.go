@@ -1638,7 +1638,7 @@ func isRenderJSONCommand(pctx *ParsingContext) bool {
 		return false
 	}
 
-	return pctx.TerraformCliArgs.Contains(renderJSONCommand)
+	return pctx.TerraformCliArgs.Command == renderJSONCommand
 }
 
 // isRenderCommand will return true if terragrunt was invoked with render
@@ -1647,7 +1647,7 @@ func isRenderCommand(pctx *ParsingContext) bool {
 		return false
 	}
 
-	return pctx.TerraformCliArgs.Contains(renderCommand)
+	return pctx.TerraformCliArgs.Command == renderCommand
 }
 
 type dependencyNameKey struct{}

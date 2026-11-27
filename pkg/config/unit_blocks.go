@@ -180,6 +180,7 @@ type MockStrategyHCL struct {
 // OutputHCL is an output block of an outputs block.
 type OutputHCL struct {
 	MockValue *hcl.Attribute `hcl:"mock_value,optional"`
+	Nullable  *bool          `hcl:"nullable,optional"`
 	Name      string         `hcl:"name,label"`
 }
 

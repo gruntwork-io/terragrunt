@@ -1,10 +1,10 @@
 package validate
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
-	"io/fs"
 	"maps"
 	"path/filepath"
 	"slices"
@@ -12,6 +12,7 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 	hclparser "github.com/hashicorp/hcl/v2/hclparse"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
@@ -38,6 +39,13 @@ const (
 	summaryDeclaredOutputNotInModule  = "Declared output not in module"
 	summaryUndeclaredDependencyOutput = "Undeclared dependency output"
 	summaryUnknownMockValue           = "Unknown mock value"
+)
+
+var (
+	includeBlockSchema = &hcl.BodySchema{
+		Blocks: []hcl.BlockHeaderSchema{{Type: config.MetadataInclude, LabelNames: []string{"name"}}},
+	}
+	outputsBlockSchema = &hcl.BodySchema{Blocks: []hcl.BlockHeaderSchema{{Type: config.MetadataOutputs}}}
 )
 
 type contractDiagnostics struct {
@@ -251,7 +259,7 @@ func syntaxTree(
 	return s.ParseUnitAST(ctx, v.FS, path, info, pctx.NewParser(l, v))
 }
 
-// autoIncludeTree returns the syntax tree of the autoinclude file beside configPath, or nil when there is none.
+// autoIncludeTree returns the syntax tree of the autoinclude file a parse merges beside configPath, or nil.
 func autoIncludeTree(
 	ctx context.Context,
 	l log.Logger,
@@ -260,18 +268,17 @@ func autoIncludeTree(
 	pctx *config.ParsingContext,
 	configPath string,
 ) (*hclparse.File, error) {
-	autoInclude := filepath.Join(filepath.Dir(configPath), config.DefaultAutoIncludeFile)
-
-	info, err := v.FS.Stat(autoInclude)
-	if errors.Is(err, fs.ErrNotExist) {
+	base := filepath.Base(configPath)
+	if base == config.DefaultAutoIncludeFile || base == config.DefaultAutoIncludeStackFile {
 		return nil, nil
 	}
 
-	if err != nil {
-		return nil, err
+	autoInclude := filepath.Join(filepath.Dir(configPath), config.DefaultAutoIncludeFile)
+	if !vfs.Exists(v.FS, autoInclude) {
+		return nil, nil
 	}
 
-	return s.ParseUnitAST(ctx, v.FS, autoInclude, info, pctx.NewParser(l, v))
+	return syntaxTree(ctx, l, v, s, pctx, autoInclude)
 }
 
 // includedFiles returns the merged or exposed include files of the unit, its autoinclude file and theirs.
@@ -293,25 +300,12 @@ func includedFiles(
 		return paths, nil
 	}
 
-	l, autoPctx, err := pctx.WithConfigPath(l, autoInclude.ConfigPath)
+	autoIncludes, err := autoIncludeIncludes(ctx, l, v, s, pctx, autoInclude)
 	if err != nil {
 		return nil, err
 	}
 
-	autoPctx.SkipAutoIncludeMerge = true
-
-	autoCfg, err := s.ResolvePartialConfig(
-		ctx,
-		l,
-		v,
-		autoPctx.WithDecodeList(config.TerragruntFlags),
-		autoInclude.ConfigPath,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	autoPaths, err := mergedIncludePaths(autoCfg.ProcessedIncludes)
+	autoPaths, err := mergedIncludePaths(autoIncludes)
 	if err != nil {
 		return nil, err
 	}
@@ -319,6 +313,26 @@ func includedFiles(
 	paths = append(paths, autoInclude.ConfigPath)
 
 	return append(paths, autoPaths...), nil
+}
+
+// autoIncludeIncludes returns the includes of the autoinclude file by name.
+func autoIncludeIncludes(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	s *config.Store,
+	pctx *config.ParsingContext,
+	autoInclude *hclparse.File,
+) (config.IncludeConfigsMap, error) {
+	autoPctx := pctx.WithDecodeList(config.TerragruntFlags)
+	autoPctx.SkipAutoIncludeMerge = true
+
+	autoCfg, err := s.ResolvePartialConfig(ctx, l, v, autoPctx, autoInclude.ConfigPath)
+	if err != nil {
+		return nil, err
+	}
+
+	return autoCfg.ProcessedIncludes, nil
 }
 
 // mergedIncludePaths returns the paths of the includes that are merged or exposed, in label order.
@@ -426,21 +440,201 @@ func declaredOutputsChecks(
 		return nil, nil
 	}
 
-	file, err := syntaxTree(ctx, l, v, s, pctx, opts.TerragruntConfigPath)
+	files, err := declarationFiles(ctx, l, v, s, pctx, cfg, opts.TerragruntConfigPath)
 	if err != nil {
 		return nil, err
 	}
 
-	return []contractDiagnostics{{file: file, diags: missingOutputDiagnostics(file, module.dir, missing)}}, nil
+	return missingOutputDiagnostics(files, module.dir, missing), nil
 }
 
-// missingOutputDiagnostics returns a diagnostic at the declaration in file of each output the module at dir lacks.
-func missingOutputDiagnostics(file *hclparse.File, dir string, missing []string) hcl.Diagnostics {
-	ranges := config.OutputDeclarationRanges(file)
-	diags := make(hcl.Diagnostics, 0, len(missing))
+// declarationFiles returns the files whose output declarations the unit keeps, each before the files it overrides.
+func declarationFiles(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	s *config.Store,
+	pctx *config.ParsingContext,
+	cfg *config.TerragruntConfig,
+	configPath string,
+) ([]*hclparse.File, error) {
+	unit, err := syntaxTree(ctx, l, v, s, pctx, configPath)
+	if err != nil {
+		return nil, err
+	}
+
+	files, err := autoIncludeDeclarationFiles(ctx, l, v, s, pctx, configPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if !slices.ContainsFunc(files, declaresOutputs) {
+		files = []*hclparse.File{unit}
+	}
+
+	siblings, err := siblingDeclarationFiles(ctx, l, v, s, pctx, cfg.ProcessedIncludes)
+	if err != nil {
+		return nil, err
+	}
+
+	return withMergedIncludes(ctx, l, v, s, pctx, files, unit, cfg.ProcessedIncludes, siblings)
+}
+
+// siblingDeclarationFiles returns the autoinclude files that declare outputs beside each include, by the include path.
+func siblingDeclarationFiles(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	s *config.Store,
+	pctx *config.ParsingContext,
+	includes config.IncludeConfigsMap,
+) (map[string][]*hclparse.File, error) {
+	paths, err := mergedIncludePaths(includes)
+	if err != nil {
+		return nil, err
+	}
+
+	siblings := make(map[string][]*hclparse.File, len(paths))
+
+	for _, path := range paths {
+		files, err := autoIncludeDeclarationFiles(ctx, l, v, s, pctx, path)
+		if err != nil {
+			return nil, err
+		}
+
+		if slices.ContainsFunc(files, declaresOutputs) {
+			siblings[path] = files
+		}
+	}
+
+	return siblings, nil
+}
+
+// autoIncludeDeclarationFiles returns the autoinclude file beside configPath, then its merged includes, or none.
+func autoIncludeDeclarationFiles(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	s *config.Store,
+	pctx *config.ParsingContext,
+	configPath string,
+) ([]*hclparse.File, error) {
+	autoInclude, err := autoIncludeTree(ctx, l, v, s, pctx, configPath)
+	if err != nil || autoInclude == nil {
+		return nil, err
+	}
+
+	includes, err := autoIncludeIncludes(ctx, l, v, s, pctx, autoInclude)
+	if err != nil {
+		return nil, err
+	}
+
+	return withMergedIncludes(ctx, l, v, s, pctx, []*hclparse.File{autoInclude}, autoInclude, includes, nil)
+}
+
+// withMergedIncludes returns files, then each merged include of owner or its siblings entry, the last one first.
+func withMergedIncludes(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	s *config.Store,
+	pctx *config.ParsingContext,
+	files []*hclparse.File,
+	owner *hclparse.File,
+	includes config.IncludeConfigsMap,
+	siblings map[string][]*hclparse.File,
+) ([]*hclparse.File, error) {
+	declared := slices.ContainsFunc(files, declaresOutputs)
+
+	for _, name := range slices.Backward(includeNames(owner)) {
+		include, ok := includes[name]
+		if !ok {
+			continue
+		}
+
+		strategy, err := include.GetMergeStrategy()
+		if err != nil {
+			return nil, err
+		}
+
+		if strategy == config.NoMerge || strategy == config.ShallowMerge && declared {
+			continue
+		}
+
+		kept := siblings[include.Path]
+
+		if len(kept) == 0 {
+			included, err := syntaxTree(ctx, l, v, s, pctx, include.Path)
+			if err != nil {
+				return nil, err
+			}
+
+			kept = []*hclparse.File{included}
+		}
+
+		files = append(files, kept...)
+		declared = declared || slices.ContainsFunc(kept, declaresOutputs)
+	}
+
+	return files, nil
+}
+
+// includeNames returns the name of each include block of file in source order, empty for a bare include.
+func includeNames(file *hclparse.File) []string {
+	body, ok := file.Body.(*hclsyntax.Body)
+	if !ok {
+		return jsonIncludeNames(file)
+	}
+
+	var names []string
+
+	for _, block := range body.Blocks {
+		if block.Type == config.MetadataInclude {
+			names = append(names, strings.Join(block.Labels, ""))
+		}
+	}
+
+	return names
+}
+
+// jsonIncludeNames returns the include names of a JSON file in source order, one empty name for a bare include.
+func jsonIncludeNames(file *hclparse.File) []string {
+	content, _, diags := file.Body.PartialContent(includeBlockSchema)
+	if diags.HasErrors() {
+		return []string{""}
+	}
+
+	names := make([]string, 0, len(content.Blocks))
+	for _, block := range content.Blocks {
+		names = append(names, block.Labels[0])
+	}
+
+	return names
+}
+
+// declaresOutputs reports whether file has an outputs block.
+func declaresOutputs(file *hclparse.File) bool {
+	content, _, diags := file.Body.PartialContent(outputsBlockSchema)
+
+	return !diags.HasErrors() && len(content.Blocks) > 0
+}
+
+// missingOutputDiagnostics reports each output the module at dir lacks, at its first declaration in files.
+func missingOutputDiagnostics(files []*hclparse.File, dir string, missing []string) []contractDiagnostics {
+	checks := make([]contractDiagnostics, len(files))
+	ranges := make([]map[string]hcl.Range, len(files))
+
+	for i, file := range files {
+		checks[i].file = file
+		ranges[i] = config.OutputDeclarationRanges(file)
+	}
 
 	for _, name := range missing {
-		diags = append(diags, &hcl.Diagnostic{
+		declaredIn := max(0, slices.IndexFunc(ranges, func(declared map[string]hcl.Range) bool {
+			return !declared[name].Empty()
+		}))
+
+		checks[declaredIn].diags = append(checks[declaredIn].diags, &hcl.Diagnostic{
 			Severity: hcl.DiagError,
 			Summary:  summaryDeclaredOutputNotInModule,
 			Detail: fmt.Sprintf(
@@ -450,11 +644,13 @@ func missingOutputDiagnostics(file *hclparse.File, dir string, missing []string)
 				dir,
 				name,
 			),
-			Subject: declarationSubject(file, ranges, name),
+			Subject: declarationSubject(files[declaredIn], ranges[declaredIn], name),
 		})
 	}
 
-	return diags
+	return slices.DeleteFunc(checks, func(check contractDiagnostics) bool {
+		return len(check.diags) == 0
+	})
 }
 
 // moduleParseDiagnostics reports each of files in moduleFS that fails to parse, or moduleDiags when none does.
@@ -774,7 +970,7 @@ func dependencyOutputReferenceDiagnostics(
 					"Fix the reference or add output %q to the outputs block of the dependency.",
 				address,
 				reference.Output,
-				strings.Join(contract.declared.Names(), ", "),
+				cmp.Or(strings.Join(contract.declared.Names(), ", "), "none"),
 				reference.Output,
 			),
 			Subject: &reference.Range,

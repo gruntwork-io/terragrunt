@@ -851,6 +851,10 @@ func outputsConfigAsCty(config *OutputsConfig) cty.Value {
 			values["mock_value"] = *declared.MockValue
 		}
 
+		if declared.Nullable != nil {
+			values["nullable"] = goboolToCty(*declared.Nullable)
+		}
+
 		declarations[declared.Name] = cty.ObjectVal(values)
 	}
 

@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 )
 
@@ -19,6 +20,9 @@ const (
 	testFixtureOutputsBlockInvalid   = "fixtures/outputs-block-invalid"
 	testFixtureOutputsBlockVariables = "fixtures/outputs-block-variables"
 	testFixtureOutputsBlockMerge     = "fixtures/outputs-block-merge"
+	testFixtureOutputsBlockDefaults  = "fixtures/outputs-block-defaults"
+	testFixtureOutputsBlockNullable  = "fixtures/outputs-block-nullable"
+	testFixtureOutputsBlockNull      = "fixtures/outputs-block-null"
 )
 
 func TestTFOutputsBlockDeclaredMocksStandInBeforeApply(t *testing.T) {
@@ -168,6 +172,10 @@ func TestTFOutputsBlockMergesMocksWithState(t *testing.T) {
 	)
 	require.NoError(t, err)
 
+	for _, name := range []string{"main.tf", "terragrunt.hcl"} {
+		helpers.CopyFile(t, filepath.Join(rootPath, "vpc-with-nat", name), filepath.Join(rootPath, "vpc", name))
+	}
+
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		"terragrunt plan --experiment outputs-block --non-interactive --working-dir "+filepath.Join(rootPath, "app"),
@@ -182,4 +190,74 @@ func TestTFOutputsBlockMergesMocksWithState(t *testing.T) {
 			filepath.Join(rootPath, "app"),
 	)
 	require.ErrorContains(t, err, `has no output "nat_id"`)
+}
+
+func TestTFOutputsBlockDeclaredMocksReachEveryCommandWithoutAllowedCommands(t *testing.T) {
+	t.Parallel()
+
+	rootPath := filepath.Join(helpers.CopyEnvironment(t, testFixtureOutputsBlockDefaults), testFixtureOutputsBlockDefaults)
+	appPath := filepath.Join(rootPath, "app")
+
+	for _, command := range []string{"plan", "apply -auto-approve"} {
+		stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+			t,
+			"terragrunt "+command+" --experiment outputs-block --non-interactive --working-dir "+appPath,
+		)
+		require.NoError(t, err)
+		require.Contains(t, stdout, "vpc-mock")
+	}
+}
+
+func TestTFOutputsBlockNullableOutputReadsNull(t *testing.T) {
+	t.Parallel()
+
+	rootPath := filepath.Join(helpers.CopyEnvironment(t, testFixtureOutputsBlockNullable), testFixtureOutputsBlockNullable)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all apply --experiment outputs-block --non-interactive --working-dir "+rootPath,
+	)
+	require.NoError(t, err)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt output -json --experiment outputs-block --non-interactive --working-dir "+filepath.Join(rootPath, "app"),
+	)
+	require.NoError(t, err)
+
+	var outputs map[string]struct {
+		Value any `json:"value"`
+	}
+
+	require.NoError(t, json.Unmarshal([]byte(stdout), &outputs))
+	require.Equal(t, "vpc-real", outputs["vpc_id"].Value)
+	require.Equal(t, true, outputs["nat_is_null"].Value)
+}
+
+func TestTFOutputsBlockApplyFailsOnANullOutputThatIsNotNullable(t *testing.T) {
+	t.Parallel()
+
+	rootPath := filepath.Join(helpers.CopyEnvironment(t, testFixtureOutputsBlockNull), testFixtureOutputsBlockNull)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all apply --experiment outputs-block --non-interactive --working-dir "+rootPath,
+	)
+
+	var missing run.RequiredOutputsMissingError
+
+	require.ErrorAs(t, err, &missing)
+	require.Equal(t, []string{"nat_id"}, missing.Names)
+	require.Len(t, appliedStates(t, rootPath, "vpc"), 1)
+	require.Empty(t, appliedStates(t, rootPath, "app"))
+}
+
+// appliedStates returns the state files that the unit in rootPath wrote.
+func appliedStates(t *testing.T, rootPath, unit string) []string {
+	t.Helper()
+
+	matches, err := filepath.Glob(filepath.Join(rootPath, unit, ".terragrunt-cache", "*", "*", "terraform.tfstate"))
+	require.NoError(t, err)
+
+	return matches
 }

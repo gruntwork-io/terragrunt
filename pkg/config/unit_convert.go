@@ -257,6 +257,7 @@ func (d *OutputHCL) convert(mockValue **cty.Value) *OutputDeclaration {
 	return &OutputDeclaration{
 		MockValue: clonePtr(*mockValue),
 		Name:      d.Name,
+		Nullable:  clonePtr(d.Nullable),
 	}
 }
 

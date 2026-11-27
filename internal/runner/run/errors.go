@@ -87,6 +87,23 @@ func (err UndeclaredInputsError) Error() string {
 	)
 }
 
+// RequiredOutputsMissingError reports the declared outputs that the state of ConfigPath lacks after an apply.
+type RequiredOutputsMissingError struct {
+	ConfigPath string
+	Names      []string
+}
+
+func (err RequiredOutputsMissingError) Error() string {
+	return fmt.Sprintf(
+		"%s declares outputs in its outputs block that its state does not have after apply: %s. "+
+			"OpenTofu/Terraform leaves an output with a null value out of the state. "+
+			"Set nullable = true on an output whose value can be null, "+
+			"or remove the declaration of an output that the module does not have.",
+		err.ConfigPath,
+		strings.Join(err.Names, ", "),
+	)
+}
+
 // ModuleIsProtected is returned by [CheckProtectedModuleRunCfg] for a destroy of a unit that sets prevent_destroy.
 type ModuleIsProtected struct {
 	ConfigPath string

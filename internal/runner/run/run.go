@@ -4,6 +4,7 @@
 package run
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -48,6 +49,8 @@ const (
 	varsFileMode       = 0o600
 	tofuCPUProfileName = "tofu_cpu.prof"
 	tofuProfileDirMode = 0o700
+	// envNameTFInput names the variable that stops OpenTofu/Terraform prompts for input when it is "0".
+	envNameTFInput = "TF_INPUT"
 )
 
 // TerraformCommandsThatUseState lists the tofu commands that read or write state. Only these commands bootstrap
@@ -216,13 +219,19 @@ func Run(
 		return err
 	}
 
+	var applied appliedOutputs
+
 	if err := opts.RunWithErrorHandling(ctx, l, v.FS, r, func() error {
-		return runTerragruntWithConfig(ctx, l, v, opts, updatedOpts, cfg, r)
+		applied = nil
+
+		return runTerragruntWithConfig(ctx, l, v, opts, updatedOpts, cfg, r, &applied)
 	}); err != nil {
 		return err
 	}
 
-	return nil
+	return opts.RunWithErrorHandling(ctx, l, v.FS, r, func() error {
+		return requireOutputs(updatedOpts, cfg, applied)
+	})
 }
 
 // GenerateConfig handles code generation using config types (for backwards compatibility).
@@ -299,6 +308,7 @@ func runTerragruntWithConfig(
 	opts *Options,
 	cfg *runcfg.RunConfig,
 	r *report.Report,
+	applied *appliedOutputs,
 ) error {
 	v.RequireEnv()
 
@@ -422,6 +432,8 @@ func runTerragruntWithConfig(
 
 				return errors.Join(runTerraformError, lockFileError)
 			}
+
+			*applied = readAppliedOutputs(childCtx, l, v, opts, cfg)
 
 			var recordInitError error
 			if opts.TerraformCliArgs.First() == tf.CommandNameInit {
@@ -1123,6 +1135,7 @@ func runTerraformInitRunCfg(
 		initOptions,
 		cfg,
 		r,
+		new(appliedOutputs),
 	)
 }
 
@@ -1270,4 +1283,170 @@ func tofuCPUProfileFileName(command string) string {
 	}
 
 	return "tofu_cpu_" + command + ".prof"
+}
+
+// unverifiableApplyFlags names the apply flags that can keep an output of the module out of the state output reads.
+var unverifiableApplyFlags = []string{
+	"target", "exclude", "target-file", "exclude-file", "state", "state-out", "refresh-only", "help", "h",
+}
+
+// errOutputsNotProven is the read error for a stdout that does not prove to hold the object of the outputs.
+var errOutputsNotProven = errors.New("the stdout of the output command is not the JSON object of the outputs")
+
+// appliedOutputs holds the names of the outputs that a verifiable apply wrote, and is nil when none were read.
+type appliedOutputs map[string]struct{}
+
+// outputEntry is one entry of the JSON object that the output command prints.
+type outputEntry struct {
+	Sensitive *bool           `json:"sensitive"`
+	Type      json.RawMessage `json:"type"`
+	Value     json.RawMessage `json:"value"`
+}
+
+// requireOutputs returns [RequiredOutputsMissingError] for the required outputs of cfg that applied lacks.
+func requireOutputs(opts *Options, cfg *runcfg.RunConfig, applied appliedOutputs) error {
+	if applied == nil {
+		return nil
+	}
+
+	missing := slices.DeleteFunc(slices.Clone(cfg.RequiredOutputs), func(name string) bool {
+		_, ok := applied[name]
+
+		return ok
+	})
+	if len(missing) == 0 {
+		return nil
+	}
+
+	return RequiredOutputsMissingError{ConfigPath: opts.OriginalTerragruntConfigPath, Names: missing}
+}
+
+// readAppliedOutputs returns the outputs after a verifiable apply of a unit with required outputs, or nil.
+func readAppliedOutputs(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	opts *Options,
+	cfg *runcfg.RunConfig,
+) appliedOutputs {
+	if len(cfg.RequiredOutputs) == 0 || opts.TerraformCliArgs.First() != tf.CommandNameApply {
+		return nil
+	}
+
+	if !verifiableApply(opts.TerraformCliArgs, v.Env) {
+		l.Debugf(
+			"Skipping the check of the declared outputs of %s, because this apply can leave outputs out of the state",
+			opts.OriginalTerragruntConfigPath,
+		)
+
+		return nil
+	}
+
+	outputs, err := readOutputs(ctx, l, v, opts)
+	if err != nil {
+		l.Warnf(
+			"Skipping the check of the declared outputs of %s after apply, because the read of its outputs failed: %v",
+			opts.OriginalTerragruntConfigPath,
+			err,
+		)
+
+		return nil
+	}
+
+	return outputs
+}
+
+// readOutputs runs the output command in the environment of the apply and returns the names of the outputs.
+func readOutputs(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) (appliedOutputs, error) {
+	env := maps.Clone(v.Env)
+	maps.DeleteFunc(env, func(name, _ string) bool {
+		return name == tf.EnvNameTofuCPUProfile || strings.HasPrefix(name, tf.EnvNameTFCLIArgs)
+	})
+
+	env[envNameTFInput] = "0"
+
+	outputV := v.WithWriter(io.Discard)
+	outputV.Env = env
+
+	args := iacargs.New(tf.CommandNameOutput, tf.FlagNameJSON)
+
+	tfOpts := opts.tfRunOptions(v.Exec, env)
+	tfOpts.TerraformCliArgs = args
+
+	out, err := tf.RunCommandWithOutput(tf.ContextWithTerraformCommandHook(ctx, nil), l, outputV, tfOpts, args.Slice()...)
+	if err != nil {
+		return nil, err
+	}
+
+	return parseOutputs(out.Stdout.Bytes())
+}
+
+// parseOutputs returns the names in the object of outputs of stdout, or an error when no object proves to be it.
+func parseOutputs(stdout []byte) (appliedOutputs, error) {
+	object, err := tf.ExtractFirstJSONObject(stdout)
+	if err != nil {
+		return nil, err
+	}
+
+	entries := map[string]outputEntry{}
+	if err := json.Unmarshal(object, &entries); err != nil {
+		return nil, err
+	}
+
+	text := bytes.TrimSpace(stdout)
+	if len(entries) == 0 && string(text) != "{}" && !bytes.HasPrefix(text, []byte("{}\n")) {
+		return nil, errOutputsNotProven
+	}
+
+	outputs := make(appliedOutputs, len(entries))
+
+	for name, entry := range entries {
+		if entry.Sensitive == nil || entry.Type == nil || entry.Value == nil {
+			return nil, errOutputsNotProven
+		}
+
+		outputs[name] = struct{}{}
+	}
+
+	return outputs, nil
+}
+
+// verifiableApply reports whether args with env run an apply that writes every output to the state output reads.
+func verifiableApply(args *iacargs.IacArgs, env map[string]string) bool {
+	fromEnv := env[tf.EnvNameTFCLIArgs+"_"+tf.CommandNameApply] + " " + env[tf.EnvNameTFCLIArgs]
+	if args.First() != tf.CommandNameApply || strings.ContainsAny(fromEnv, `"'\`) || respelledCLIArgs(env) {
+		return false
+	}
+
+	all := iacargs.New(slices.Concat(
+		[]string{tf.CommandNameApply},
+		strings.Fields(fromEnv),
+		args.Flags,
+		args.Arguments,
+	)...)
+
+	positional := len(args.SubCommand) + len(all.SubCommand) + len(all.Arguments)
+	if positional > 0 || slices.Contains(all.Flags, "--") || all.IsDestroy(tf.CommandNameApply) {
+		return false
+	}
+
+	return !slices.ContainsFunc(unverifiableApplyFlags, all.HasFlag)
+}
+
+// respelledCLIArgs reports whether env names a TF_CLI_ARGS variable in a letter case that only Windows reads.
+func respelledCLIArgs(env map[string]string) bool {
+	applyArgs := tf.EnvNameTFCLIArgs + "_" + tf.CommandNameApply
+
+	for name := range env {
+		if name != applyArgs && strings.EqualFold(name, applyArgs) {
+			return true
+		}
+
+		upper := strings.ToUpper(name)
+		if !strings.HasPrefix(name, tf.EnvNameTFCLIArgs) && strings.HasPrefix(upper, tf.EnvNameTFCLIArgs) {
+			return true
+		}
+	}
+
+	return false
 }
