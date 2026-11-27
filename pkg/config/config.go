@@ -46,6 +46,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/ext/typeexpr"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/zclconf/go-cty/cty"
@@ -756,29 +757,42 @@ func outputsBlock(outputs *OutputsConfig) *hclwrite.Block {
 	block := hclwrite.NewBlock(MetadataOutputs, nil)
 	body := block.Body()
 
-	if strategy := outputs.MockStrategy; strategy != nil {
-		strategyBlock := hclwrite.NewBlock(MetadataMockStrategy, nil)
-
-		if strategy.AllowedCommands != nil {
-			strategyBlock.Body().SetAttributeValue("allowed_commands", stringListVal(*strategy.AllowedCommands))
-		}
-
-		if strategy.MergeWithState != nil {
-			strategyBlock.Body().SetAttributeValue("merge_with_state", cty.StringVal(string(*strategy.MergeWithState)))
-		}
-
-		body.AppendBlock(strategyBlock)
+	if outputs.MockStrategy != nil {
+		body.AppendBlock(mockStrategyBlock(outputs.MockStrategy))
 	}
 
 	for _, output := range outputs.Outputs {
 		outputBlock := hclwrite.NewBlock(MetadataOutput, []string{output.Name})
+
+		if output.Type != cty.NilType {
+			outputBlock.Body().SetAttributeRaw("type", hclwrite.TokensForIdentifier(typeexpr.TypeString(output.Type)))
+		}
 
 		if output.MockValue != nil {
 			mockValue, _ := output.MockValue.UnmarkDeep()
 			outputBlock.Body().SetAttributeRaw("mock_value", hclhelper.TokensForValue(mockValue))
 		}
 
+		if output.MockStrategy != nil {
+			outputBlock.Body().AppendBlock(mockStrategyBlock(output.MockStrategy))
+		}
+
 		body.AppendBlock(outputBlock)
+	}
+
+	return block
+}
+
+// mockStrategyBlock renders a mock_strategy block.
+func mockStrategyBlock(strategy *OutputsMockStrategy) *hclwrite.Block {
+	block := hclwrite.NewBlock(MetadataMockStrategy, nil)
+
+	if strategy.AllowedCommands != nil {
+		block.Body().SetAttributeValue("allowed_commands", stringListVal(*strategy.AllowedCommands))
+	}
+
+	if strategy.MergeWithState != nil {
+		block.Body().SetAttributeValue("merge_with_state", cty.StringVal(string(*strategy.MergeWithState)))
 	}
 
 	return block

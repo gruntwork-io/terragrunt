@@ -136,7 +136,7 @@ func TestSchemaMatchesPkgConfig(t *testing.T) {
 			block:  config.MetadataOutput,
 			v1:     reflect.TypeFor[config.OutputDeclaration](),
 			header: reflect.TypeFor[config.OutputHCL](),
-			bodies: []reflect.Type{reflect.TypeFor[outputMockValue]()},
+			bodies: []reflect.Type{reflect.TypeFor[outputMockValue](), reflect.TypeFor[outputType]()},
 		},
 		{
 			block:  config.MetadataGenerateConfigs,
@@ -587,6 +587,11 @@ func labelNames(ty reflect.Type) []string {
 // not through a body, so no body type declares it.
 type outputMockValue struct {
 	MockValue *cty.Value
+}
+
+// outputType is what [config.OutputHCL.Type] decodes into.
+type outputType struct {
+	Type cty.Type
 }
 
 // attributeTypes maps each attribute of header and body to its field type. A header [hcl.Attribute] field takes the

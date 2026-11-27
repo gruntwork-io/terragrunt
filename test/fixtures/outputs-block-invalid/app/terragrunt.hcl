@@ -1,5 +1,9 @@
 dependency "vpc" {
   config_path = "../vpc"
+
+  mock_outputs = {
+    ghost = "ghost-mock"
+  }
 }
 
 inputs = {

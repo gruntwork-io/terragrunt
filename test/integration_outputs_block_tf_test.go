@@ -19,6 +19,8 @@ const (
 	testFixtureOutputsBlockInvalid   = "fixtures/outputs-block-invalid"
 	testFixtureOutputsBlockVariables = "fixtures/outputs-block-variables"
 	testFixtureOutputsBlockMerge     = "fixtures/outputs-block-merge"
+	testFixtureOutputsBlockTyped     = "fixtures/outputs-block-typed"
+	testFixtureOutputsBlockStack     = "fixtures/outputs-block-stack"
 )
 
 func TestTFOutputsBlockDeclaredMocksStandInBeforeApply(t *testing.T) {
@@ -154,6 +156,8 @@ func TestTFOutputsBlockHCLValidateChecksContracts(t *testing.T) {
 	assert.Contains(t, stdout, `"nat_id"`)
 	assert.Contains(t, stdout, "Undeclared dependency output")
 	assert.Contains(t, stdout, `"nope"`)
+	assert.Contains(t, stdout, "Undeclared mock output")
+	assert.Contains(t, stdout, `"ghost"`)
 }
 
 func TestTFOutputsBlockMergesMocksWithState(t *testing.T) {
@@ -182,4 +186,77 @@ func TestTFOutputsBlockMergesMocksWithState(t *testing.T) {
 			filepath.Join(rootPath, "app"),
 	)
 	require.ErrorContains(t, err, `has no output "nat_id"`)
+}
+
+func TestTFOutputsBlockTypedOutputsFollowOutputStrategies(t *testing.T) {
+	t.Parallel()
+
+	rootPath := filepath.Join(helpers.CopyEnvironment(t, testFixtureOutputsBlockTyped), testFixtureOutputsBlockTyped)
+	appPath := filepath.Join(rootPath, "app")
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt plan --experiment outputs-block --non-interactive --working-dir "+appPath,
+	)
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "vpc-mock")
+	assert.Contains(t, stdout, `"8080"`)
+	assert.Contains(t, stdout, "no-mock-for-secret")
+	assert.NotContains(t, stdout, "secret-mock")
+
+	_, _, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt apply -auto-approve --experiment outputs-block --non-interactive --working-dir "+
+			filepath.Join(rootPath, "vpc"),
+	)
+	require.NoError(t, err)
+
+	stdout, _, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt plan --experiment outputs-block --non-interactive --working-dir "+appPath,
+	)
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "vpc-real")
+	assert.Contains(t, stdout, `"443"`)
+	assert.Contains(t, stdout, "secret-real")
+}
+
+func TestTFOutputsBlockStackUnitsGiveDeclaredMocks(t *testing.T) {
+	t.Parallel()
+
+	rootPath := filepath.Join(helpers.CopyEnvironment(t, testFixtureOutputsBlockStack), testFixtureOutputsBlockStack)
+	livePath := filepath.Join(rootPath, "live")
+	appPath := filepath.Join(rootPath, "app")
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt stack generate --experiment outputs-block --non-interactive --working-dir "+livePath,
+	)
+	require.NoError(t, err)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt plan --experiment outputs-block --non-interactive --working-dir "+appPath,
+	)
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "vpc-mock")
+
+	_, _, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt apply -auto-approve --experiment outputs-block --non-interactive --working-dir "+appPath,
+	)
+	require.Error(t, err)
+
+	_, _, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt stack run apply --experiment outputs-block --non-interactive --working-dir "+livePath,
+	)
+	require.NoError(t, err)
+
+	stdout, _, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt plan --experiment outputs-block --non-interactive --working-dir "+appPath,
+	)
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "vpc-real")
 }

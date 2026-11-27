@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 
+	"github.com/hashicorp/hcl/v2/ext/typeexpr"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/gocty"
 
@@ -829,26 +830,24 @@ func outputsConfigAsCty(config *OutputsConfig) cty.Value {
 
 	output := map[string]cty.Value{}
 
-	if strategy := config.MockStrategy; strategy != nil {
-		strategyValues := map[string]cty.Value{}
-
-		if strategy.AllowedCommands != nil {
-			strategyValues["allowed_commands"] = stringListVal(*strategy.AllowedCommands)
-		}
-
-		if strategy.MergeWithState != nil {
-			strategyValues["merge_with_state"] = cty.StringVal(string(*strategy.MergeWithState))
-		}
-
-		output[MetadataMockStrategy] = cty.ObjectVal(strategyValues)
+	if config.MockStrategy != nil {
+		output[MetadataMockStrategy] = mockStrategyAsCty(config.MockStrategy)
 	}
 
 	declarations := make(map[string]cty.Value, len(config.Outputs))
 
 	for _, declared := range config.Outputs {
 		values := map[string]cty.Value{}
+		if declared.Type != cty.NilType {
+			values["type"] = cty.StringVal(typeexpr.TypeString(declared.Type))
+		}
+
 		if declared.MockValue != nil {
 			values["mock_value"] = *declared.MockValue
+		}
+
+		if declared.MockStrategy != nil {
+			values[MetadataMockStrategy] = mockStrategyAsCty(declared.MockStrategy)
 		}
 
 		declarations[declared.Name] = cty.ObjectVal(values)
@@ -857,6 +856,21 @@ func outputsConfigAsCty(config *OutputsConfig) cty.Value {
 	output[MetadataOutput] = cty.ObjectVal(declarations)
 
 	return cty.ObjectVal(output)
+}
+
+// mockStrategyAsCty returns a mock_strategy block as an object of the attributes it sets.
+func mockStrategyAsCty(strategy *OutputsMockStrategy) cty.Value {
+	values := map[string]cty.Value{}
+
+	if strategy.AllowedCommands != nil {
+		values["allowed_commands"] = stringListVal(*strategy.AllowedCommands)
+	}
+
+	if strategy.MergeWithState != nil {
+		values["merge_with_state"] = cty.StringVal(string(*strategy.MergeWithState))
+	}
+
+	return cty.ObjectVal(values)
 }
 
 // ignoreBlocksAsCty returns the blocks as cty.TupleVal. gocty infers each

@@ -254,10 +254,17 @@ func (s *MockStrategyHCL) convert() *OutputsMockStrategy {
 }
 
 func (d *OutputHCL) convert(mockValue **cty.Value) *OutputDeclaration {
-	return &OutputDeclaration{
-		MockValue: clonePtr(*mockValue),
-		Name:      d.Name,
+	declaration := &OutputDeclaration{
+		MockValue:    clonePtr(*mockValue),
+		MockStrategy: d.MockStrategy.convert(),
+		Name:         d.Name,
 	}
+
+	if ty, diags := d.typeConstraint(); !diags.HasErrors() {
+		declaration.Type = ty
+	}
+
+	return declaration
 }
 
 func (f *FeatureFlagHCL) convert() *FeatureFlag {
