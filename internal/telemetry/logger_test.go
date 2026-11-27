@@ -415,11 +415,37 @@ func TestTelemeterShutdownReportsLogRecordsOfFailedExport(t *testing.T) {
 		l.Infof("record %d", i)
 	}
 
-	var lost *telemetry.ErrorLogRecordsNotExported
+	var unconfirmed *telemetry.ErrorLogRecordsNotConfirmed
 
-	require.ErrorAs(t, tlm.Shutdown(t.Context()), &lost)
-	assert.Equal(t, uint64(total), lost.Emitted)
-	assert.Equal(t, uint64(total), lost.Lost)
+	require.ErrorAs(t, tlm.Shutdown(t.Context()), &unconfirmed)
+	assert.Equal(t, uint64(total), unconfirmed.Emitted)
+	assert.Equal(t, uint64(total), unconfirmed.Unconfirmed)
+}
+
+func TestTelemeterShutdownReportsLogRecordsOfPartialSuccessWarning(t *testing.T) {
+	collector := newGRPCCollector(t)
+	collector.warn("accepted with a warning")
+	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", collector.endpoint)
+
+	opts := options.NewTerragruntOptions()
+	opts.Telemetry.LogsExporter = "otlpGrpc"
+	opts.Telemetry.LogsExporterInsecureEndpoint = true
+
+	l := discardLogger()
+	tlm := newTestTelemeter(t, l, opts, nil)
+
+	const total = 3
+
+	for i := range total {
+		l.Infof("record %d", i)
+	}
+
+	var unconfirmed *telemetry.ErrorLogRecordsNotConfirmed
+
+	require.ErrorAs(t, tlm.Shutdown(t.Context()), &unconfirmed)
+	assert.Len(t, collector.records(), total)
+	assert.Equal(t, uint64(total), unconfirmed.Emitted)
+	assert.Equal(t, uint64(total), unconfirmed.Unconfirmed)
 }
 
 func TestTelemeterShutdownReportsLogRecordsDroppedFromFullQueue(t *testing.T) {
@@ -448,12 +474,12 @@ func TestTelemeterShutdownReportsLogRecordsDroppedFromFullQueue(t *testing.T) {
 
 	close(writer.release)
 
-	var lost *telemetry.ErrorLogRecordsNotExported
+	var unconfirmed *telemetry.ErrorLogRecordsNotConfirmed
 
-	require.ErrorAs(t, tlm.Shutdown(t.Context()), &lost)
-	assert.Equal(t, uint64(total), lost.Emitted)
-	assert.Positive(t, lost.Lost)
-	assert.Equal(t, uint64(total), lost.Lost+writer.records())
+	require.ErrorAs(t, tlm.Shutdown(t.Context()), &unconfirmed)
+	assert.Equal(t, uint64(total), unconfirmed.Emitted)
+	assert.Positive(t, unconfirmed.Unconfirmed)
+	assert.Equal(t, uint64(total), unconfirmed.Unconfirmed+writer.records())
 }
 
 // otlpCollector is a fake collector that records OTLP log exports over HTTP or gRPC.
@@ -463,6 +489,7 @@ type otlpCollector struct {
 	env       map[string]string
 	endpoint  string
 	encoding  string
+	warning   string
 	auth      []string
 	batches   [][]exportedLog
 	mu        sync.Mutex
@@ -567,7 +594,12 @@ func (c *otlpCollector) Export(
 ) (*collogspb.ExportLogsServiceResponse, error) {
 	c.record(metadata.ValueFromIncomingContext(ctx, "authorization"), "", req)
 
-	return &collogspb.ExportLogsServiceResponse{}, nil
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return &collogspb.ExportLogsServiceResponse{
+		PartialSuccess: &collogspb.ExportLogsPartialSuccess{ErrorMessage: c.warning},
+	}, nil
 }
 
 // ServeHTTP implements the OTLP/HTTP endpoints, decoding only /v1/logs.
@@ -649,6 +681,14 @@ func (c *otlpCollector) contentEncoding() string {
 	defer c.mu.Unlock()
 
 	return c.encoding
+}
+
+// warn makes each gRPC export answer with a partial-success warning that rejects no records.
+func (c *otlpCollector) warn(msg string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.warning = msg
 }
 
 func (c *otlpCollector) records() []exportedLog {

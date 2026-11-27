@@ -111,7 +111,7 @@ func (tlm *Telemeter) Shutdown(ctx context.Context) error {
 	wg.Wait()
 
 	if logsShutdown {
-		errs[len(shutdowns)] = tlm.Logger.lostRecords()
+		errs[len(shutdowns)] = tlm.Logger.unconfirmedRecords()
 	}
 
 	return errors.Join(errs...)

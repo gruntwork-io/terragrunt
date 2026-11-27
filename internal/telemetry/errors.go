@@ -33,15 +33,15 @@ func (e *ErrorInvalidEnvVariable) Error() string {
 	return fmt.Sprintf("invalid value %q for %s: set a whole number greater than 0", e.Value, e.Name)
 }
 
-// ErrorLogRecordsNotExported is the error for log records that the exporter did not confirm.
-type ErrorLogRecordsNotExported struct {
-	Lost    uint64
-	Emitted uint64
+// ErrorLogRecordsNotConfirmed is the error for log records that the exporter did not confirm.
+type ErrorLogRecordsNotConfirmed struct {
+	Unconfirmed uint64
+	Emitted     uint64
 }
 
-func (e *ErrorLogRecordsNotExported) Error() string {
+func (e *ErrorLogRecordsNotConfirmed) Error() string {
 	return fmt.Sprintf(
-		"%d of %d log records were not exported: check the collector, or raise %s and %s",
-		e.Lost, e.Emitted, maxQueueSizeEnvName, maxBatchSizeEnvName,
+		"%d of %d log records were not confirmed by the exporter: check the collector, or raise %s and %s",
+		e.Unconfirmed, e.Emitted, maxQueueSizeEnvName, maxBatchSizeEnvName,
 	)
 }

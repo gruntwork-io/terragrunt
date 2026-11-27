@@ -103,8 +103,8 @@ func NewLogsExporter(ctx context.Context, writer io.Writer, opts *Options) (log.
 	}
 }
 
-// lostRecords returns [ErrorLogRecordsNotExported] when the exporter confirmed fewer records than the hook emitted.
-func (logger *Logger) lostRecords() error {
+// unconfirmedRecords returns [ErrorLogRecordsNotConfirmed] when the exporter confirmed fewer records than emitted.
+func (logger *Logger) unconfirmedRecords() error {
 	emitted := logger.hook.emitted.Load()
 	exported := logger.exporter.exported.Load()
 
@@ -112,10 +112,10 @@ func (logger *Logger) lostRecords() error {
 		return nil
 	}
 
-	return &ErrorLogRecordsNotExported{Lost: emitted - exported, Emitted: emitted}
+	return &ErrorLogRecordsNotConfirmed{Unconfirmed: emitted - exported, Emitted: emitted}
 }
 
-// countingExporter counts the records that its exporter accepted.
+// countingExporter counts the records of each Export call that returns no error.
 type countingExporter struct {
 	log.Exporter
 	exported atomic.Uint64
