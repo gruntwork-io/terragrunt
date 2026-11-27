@@ -65,23 +65,24 @@ type RemoteStateConfigAzurerm struct {
 	// The auth toggles are pointers so an explicitly configured false is
 	// distinguishable from an absent key. Only an absent key may be turned on
 	// by an ARM_USE_* environment variable.
-	UseAzureADAuth     *bool  `mapstructure:"use_azuread_auth"`
-	UseMSI             *bool  `mapstructure:"use_msi"`
-	UseOIDC            *bool  `mapstructure:"use_oidc"`
-	StorageAccountName string `mapstructure:"storage_account_name"`
-	ContainerName      string `mapstructure:"container_name"`
-	Key                string `mapstructure:"key"`
-	ResourceGroupName  string `mapstructure:"resource_group_name"`
-	SubscriptionID     string `mapstructure:"subscription_id"`
-	TenantID           string `mapstructure:"tenant_id"`
-	ClientID           string `mapstructure:"client_id"`
-	ClientSecret       string `mapstructure:"client_secret"`
-	SasToken           string `mapstructure:"sas_token"`
-	AccessKey          string `mapstructure:"access_key"`
-	Environment        string `mapstructure:"environment"`
-	MSIResourceID      string `mapstructure:"msi_resource_id"`
-	OIDCTokenFilePath  string `mapstructure:"oidc_token_file_path"`
-	OIDCToken          string `mapstructure:"oidc_token"`
+	UseAzureADAuth         *bool  `mapstructure:"use_azuread_auth"`
+	UseMSI                 *bool  `mapstructure:"use_msi"`
+	UseOIDC                *bool  `mapstructure:"use_oidc"`
+	UseAKSWorkloadIdentity *bool  `mapstructure:"use_aks_workload_identity"`
+	StorageAccountName     string `mapstructure:"storage_account_name"`
+	ContainerName          string `mapstructure:"container_name"`
+	Key                    string `mapstructure:"key"`
+	ResourceGroupName      string `mapstructure:"resource_group_name"`
+	SubscriptionID         string `mapstructure:"subscription_id"`
+	TenantID               string `mapstructure:"tenant_id"`
+	ClientID               string `mapstructure:"client_id"`
+	ClientSecret           string `mapstructure:"client_secret"`
+	SasToken               string `mapstructure:"sas_token"`
+	AccessKey              string `mapstructure:"access_key"`
+	Environment            string `mapstructure:"environment"`
+	MSIResourceID          string `mapstructure:"msi_resource_id"`
+	OIDCTokenFilePath      string `mapstructure:"oidc_token_file_path"`
+	OIDCToken              string `mapstructure:"oidc_token"`
 	// ADOServiceConnectionID is the Azure DevOps service connection that issues the OIDC token.
 	ADOServiceConnectionID string `mapstructure:"ado_service_connection_id"`
 	// Snapshot is a valid azurerm backend boolean argument. It is declared here
@@ -131,6 +132,7 @@ func (cfg *ExtendedRemoteStateConfigAzurerm) GetAzureSessionConfig() *azurehelpe
 		UseAzureADAuth:         rs.UseAzureADAuth,
 		UseMSI:                 rs.UseMSI,
 		UseOIDC:                rs.UseOIDC,
+		UseAKSWorkloadIdentity: rs.UseAKSWorkloadIdentity,
 	}
 }
 

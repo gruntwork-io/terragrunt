@@ -8,6 +8,7 @@ import (
 	"maps"
 	"net/http"
 	"net/url"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -721,6 +722,336 @@ func TestShouldFetchDependencyOutputFromStateAzureDevOpsOIDC(t *testing.T) {
 			require.Equal(t, testCase.want, got)
 		})
 	}
+}
+
+func TestShouldFetchDependencyOutputFromStateAKSWorkloadIdentity(t *testing.T) {
+	t.Parallel()
+
+	const (
+		flagEnv   = "ARM_USE_AKS_WORKLOAD_IDENTITY"
+		clientEnv = "AZURE_CLIENT_ID"
+		tenantEnv = "AZURE_TENANT_ID"
+		fileEnv   = "AZURE_FEDERATED_TOKEN_FILE"
+		podClient = "pod-client"
+		podTenant = "pod-tenant"
+	)
+
+	const relativeTokenFile = "tokens/azure-identity-token"
+
+	tokenDir := venvtest.Root("/var/run/secrets/azure/tokens")
+	tokenFile := filepath.Join(tokenDir, "azure-identity-token")
+
+	podEnv := func(pairs ...string) map[string]string {
+		env := map[string]string{
+			flagEnv:                "true",
+			clientEnv:              podClient,
+			tenantEnv:              podTenant,
+			fileEnv:                tokenFile,
+			"AZURE_AUTHORITY_HOST": "https://login.microsoftonline.com/",
+		}
+
+		for i := 0; i+1 < len(pairs); i += 2 {
+			env[pairs[i]] = pairs[i+1]
+		}
+
+		return env
+	}
+
+	testCases := []struct {
+		config backend.Config
+		env    map[string]string
+		name   string
+		want   bool
+	}{
+		{
+			name: "pod identity from the webhook",
+			env:  podEnv(),
+			want: true,
+		},
+		{
+			name:   "flag in the backend config",
+			config: backend.Config{"use_aks_workload_identity": true},
+			env:    podEnv(flagEnv, ""),
+			want:   true,
+		},
+		{
+			name:   "flag is off in the backend config",
+			config: backend.Config{"use_aks_workload_identity": false},
+			env:    podEnv(),
+			want:   false,
+		},
+		{
+			name: "flag is not a boolean",
+			env:  map[string]string{flagEnv: "enabled", "ARM_ACCESS_KEY": "key"},
+			want: false,
+		},
+		{
+			name: "access key without the flag",
+			env:  podEnv(flagEnv, "", "ARM_ACCESS_KEY", "key"),
+			want: false,
+		},
+		{
+			name: "access key with the flag off and no pod identity",
+			env:  map[string]string{flagEnv: "false", "ARM_ACCESS_KEY": "key"},
+			want: true,
+		},
+		{
+			name: "access key beside the pod identity",
+			env:  podEnv("ARM_ACCESS_KEY", "key"),
+			want: true,
+		},
+		{
+			name: "no client id from the webhook",
+			env:  podEnv(clientEnv, ""),
+			want: false,
+		},
+		{
+			name: "no tenant id from the webhook",
+			env:  podEnv(tenantEnv, ""),
+			want: false,
+		},
+		{
+			name: "no token file from the webhook",
+			env:  podEnv(fileEnv, ""),
+			want: false,
+		},
+		{
+			name: "token file does not exist",
+			env:  podEnv(fileEnv, filepath.Join(tokenDir, "missing-token")),
+			want: false,
+		},
+		{
+			name: "token file is a directory",
+			env:  podEnv(fileEnv, tokenDir),
+			want: false,
+		},
+		{
+			name: "token file path is relative",
+			env:  podEnv(fileEnv, relativeTokenFile),
+			want: false,
+		},
+		{
+			name: "padded client id from the webhook",
+			env:  podEnv(clientEnv, " "+podClient),
+			want: false,
+		},
+		{
+			name: "padded tenant id from the webhook",
+			env:  podEnv(tenantEnv, podTenant+" "),
+			want: false,
+		},
+		{
+			name: "padded token file from the webhook",
+			env:  podEnv(fileEnv, tokenFile+" "),
+			want: false,
+		},
+		{
+			name:   "client id names the pod identity",
+			config: backend.Config{"client_id": podClient},
+			env:    podEnv(),
+			want:   true,
+		},
+		{
+			name:   "client id names another identity",
+			config: backend.Config{"client_id": "other-client"},
+			env:    podEnv(),
+			want:   false,
+		},
+		{
+			name: "client id in the environment names another identity",
+			env:  podEnv("ARM_CLIENT_ID", "other-client"),
+			want: false,
+		},
+		{
+			name:   "tenant id names the pod tenant",
+			config: backend.Config{"tenant_id": podTenant},
+			env:    podEnv(),
+			want:   true,
+		},
+		{
+			name:   "tenant id names another tenant",
+			config: backend.Config{"tenant_id": "other-tenant"},
+			env:    podEnv(),
+			want:   false,
+		},
+		{
+			name: "client secret is also set",
+			env:  podEnv("ARM_CLIENT_SECRET", "secret"),
+			want: false,
+		},
+		{
+			name: "use_oidc is also on",
+			config: backend.Config{
+				"client_id":            podClient,
+				"oidc_token_file_path": tokenFile,
+				"tenant_id":            podTenant,
+				"use_oidc":             true,
+			},
+			env:  podEnv(),
+			want: false,
+		},
+		{
+			name:   "use_msi is also on",
+			config: backend.Config{"use_msi": true},
+			env:    podEnv(),
+			want:   false,
+		},
+		{
+			name:   "oidc token file is also set",
+			config: backend.Config{"oidc_token_file_path": tokenFile},
+			env:    podEnv(),
+			want:   false,
+		},
+		{
+			name: "token proxy is set",
+			env:  podEnv("AZURE_KUBERNETES_TOKEN_PROXY", "https://proxy.example"),
+			want: false,
+		},
+		{
+			name:   "azure cli is off beside the pod identity",
+			config: backend.Config{"use_cli": false},
+			env:    podEnv(),
+			want:   true,
+		},
+		{
+			name:   "azure cli is off without the flag",
+			config: backend.Config{"use_cli": false},
+			env:    map[string]string{"ARM_ACCESS_KEY": "key"},
+			want:   false,
+		},
+		{
+			name:   "azure cli setting is not a boolean",
+			config: backend.Config{"use_cli": "false"},
+			env:    podEnv(),
+			want:   false,
+		},
+		{
+			name: "github actions token request beside the pod identity",
+			env: podEnv(
+				"ACTIONS_ID_TOKEN_REQUEST_URL", "https://pipelines.example/token",
+				"ACTIONS_ID_TOKEN_REQUEST_TOKEN", "runner-token",
+			),
+			want: true,
+		},
+		{
+			name: "github actions token request without the flag",
+			env: map[string]string{
+				"ACTIONS_ID_TOKEN_REQUEST_URL":   "https://pipelines.example/token",
+				"ACTIONS_ID_TOKEN_REQUEST_TOKEN": "runner-token",
+				"ARM_ACCESS_KEY":                 "key",
+			},
+			want: false,
+		},
+		{
+			name: "azure devops request url is also set",
+			env:  podEnv("SYSTEM_OIDCREQUESTURI", "https://dev.azure.example/oidc"),
+			want: false,
+		},
+		{
+			name:   "storage key lookup without a resource group",
+			config: backend.Config{"use_azuread_auth": false},
+			env:    podEnv(),
+			want:   false,
+		},
+		{
+			name: "storage key lookup with a resource group and a subscription",
+			config: backend.Config{
+				"resource_group_name": "rg-state",
+				"subscription_id":     "00000000-0000-0000-0000-000000000000",
+				"use_azuread_auth":    false,
+			},
+			env:  podEnv(),
+			want: true,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			fsys := vfs.NewMemMapFS()
+			for _, path := range []string{tokenFile, tokenFile + " ", relativeTokenFile} {
+				require.NoError(t, vfs.WriteFile(fsys, path, []byte("assertion-jwt"), 0o600))
+			}
+
+			backendConfig := backend.Config{
+				"container_name":       "state",
+				"key":                  "service.tfstate",
+				"storage_account_name": "stateaccount",
+				"use_azuread_auth":     true,
+			}
+			maps.Copy(backendConfig, testCase.config)
+
+			remoteState := remotestate.New(&remotestate.Config{
+				BackendName:   "azurerm",
+				BackendConfig: backendConfig,
+			})
+			v := &venv.Venv{Env: testCase.env, FS: fsys}
+
+			got := config.ShouldFetchDependencyOutputFromState(v, config.NewParsingContext(), remoteState)
+			require.Equal(t, testCase.want, got)
+		})
+	}
+}
+
+func TestDependencyStateAzureAKSWorkloadIdentityReadsStateDirectly(t *testing.T) {
+	t.Parallel()
+
+	tokenFile := filepath.Join(t.TempDir(), "azure-identity-token")
+	require.NoError(t, os.WriteFile(tokenFile, []byte("pod-assertion"), 0o600))
+
+	const authority = "https://login.microsoftonline.com/pod-tenant"
+
+	recorder := newDependencyStateRecorder(t, http.StatusOK, nil)
+	recorder.respond = func(req *http.Request) *http.Response {
+		headers := http.Header{"Content-Type": []string{"application/json"}}
+
+		switch {
+		case strings.HasSuffix(req.URL.Path, "/openid-configuration"):
+			return vhttp.Respond(http.StatusOK, []byte(fmt.Sprintf(
+				`{"issuer":"%[1]s/v2.0","authorization_endpoint":"%[1]s/oauth2/v2.0/authorize",`+
+					`"token_endpoint":"%[1]s/oauth2/v2.0/token"}`,
+				authority,
+			)), headers)
+		case strings.HasSuffix(req.URL.Path, "/token"):
+			return vhttp.Respond(http.StatusOK, []byte(
+				`{"token_type":"Bearer","expires_in":3600,"access_token":"pod-access-token"}`,
+			), headers)
+		}
+
+		return vhttp.Respond(http.StatusOK, terraformState("from-direct"), nil)
+	}
+
+	ctx, v, pctx, configPath := prepareDependencyStateFixture(
+		t,
+		recorder,
+		"azurerm",
+		`container_name       = "state"
+        key                  = "service.tfstate"
+        storage_account_name = "stateaccount"
+        use_azuread_auth     = true`,
+		map[string]string{
+			"ARM_USE_AKS_WORKLOAD_IDENTITY": "true",
+			"AZURE_AUTHORITY_HOST":          "https://login.microsoftonline.com/",
+			"AZURE_CLIENT_ID":               "pod-client",
+			"AZURE_FEDERATED_TOKEN_FILE":    tokenFile,
+			"AZURE_TENANT_ID":               "pod-tenant",
+		},
+		"",
+	)
+	require.NoError(t, vfs.WriteFile(v.FS, tokenFile, []byte("pod-assertion"), 0o600))
+
+	cfg, err := new(config.Store).ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, configPath)
+	require.NoError(t, err)
+	require.Equal(t, "from-direct", cfg.Inputs["result"])
+	require.Empty(t, recorder.invocations())
+
+	requests := recorder.requestPaths()
+	require.Contains(t, requests, "login.microsoftonline.com/pod-tenant/oauth2/v2.0/token")
+
+	stateRequest := slices.Index(requests, "stateaccount.blob.core.windows.net/state/service.tfstate")
+	require.NotEqual(t, -1, stateRequest)
+	require.Equal(t, "Bearer pod-access-token", recorder.requestHeaders()[stateRequest].Get("Authorization"))
 }
 
 func TestDependencyStateGCSCustomerEncryptionKey(t *testing.T) {

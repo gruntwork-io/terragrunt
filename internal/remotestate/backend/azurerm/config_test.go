@@ -154,6 +154,45 @@ func TestGetTFInitArgs_ForwardsOIDCSources(t *testing.T) {
 	require.Equal(t, "service-connection", args["ado_service_connection_id"])
 }
 
+func TestGetAzureSessionConfig_MapsAKSWorkloadIdentity(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		value any
+		want  *bool
+		name  string
+	}{
+		{name: "absent"},
+		{name: "true", value: true, want: new(true)},
+		{name: "false", value: false, want: new(false)},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := fullConfig()
+			if tc.value != nil {
+				cfg["use_aks_workload_identity"] = tc.value
+			}
+
+			ext, err := cfg.ExtendedAzurermConfig()
+			require.NoError(t, err)
+			require.Equal(t, tc.want, ext.GetAzureSessionConfig().UseAKSWorkloadIdentity)
+		})
+	}
+}
+
+func TestGetTFInitArgs_ForwardsAKSWorkloadIdentity(t *testing.T) {
+	t.Parallel()
+
+	cfg := fullConfig()
+	cfg["use_aks_workload_identity"] = "true"
+
+	args := cfg.GetTFInitArgs()
+	require.Equal(t, true, args["use_aks_workload_identity"])
+}
+
 func TestStorageAccountConfig_MapsMinimumTLSVersion(t *testing.T) {
 	t.Parallel()
 

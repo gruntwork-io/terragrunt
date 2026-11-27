@@ -1,0 +1,12 @@
+---
+version: "v1.3.0"
+category: "bug-fixes"
+---
+
+#### `azurerm` dependency outputs are read from state with AKS workload identity
+
+With `use_aks_workload_identity` or `ARM_USE_AKS_WORKLOAD_IDENTITY=true`, Terragrunt ran `init` and `output` for every dependency.
+
+Terragrunt now reads the outputs from state. It signs in as the identity that the AKS workload identity webhook injects, as OpenTofu and Terraform do.
+
+Bootstrapping the backend uses the same identity. Before this release, with `use_azuread_auth = true`, Terragrunt tried the Azure CLI first. See [Authenticating with Azure](/features/units/authentication/azure).

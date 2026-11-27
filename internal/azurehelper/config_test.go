@@ -1,15 +1,26 @@
 package azurehelper_test
 
 import (
+	"context"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 
 	"github.com/gruntwork-io/terragrunt/internal/azurehelper"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -17,9 +28,11 @@ import (
 
 // Common test fixtures used across azurehelper unit tests.
 const (
-	testAccount  = "acct"
-	testSub      = "sub"
-	testSASToken = "sv=x"
+	testAccount   = "acct"
+	testSub       = "sub"
+	testSASToken  = "sv=x"
+	testPodClient = "pod-client"
+	testPodTenant = "pod-tenant"
 )
 
 func TestBuild_AuthMethodPrecedence(t *testing.T) {
@@ -453,6 +466,347 @@ func TestBuild_OIDCTokenDoesNotImplyOIDC(t *testing.T) {
 	require.Equal(t, azurehelper.AuthMethodAzureAD, cfg.Method)
 }
 
+func TestBuild_AKSWorkloadIdentity(t *testing.T) {
+	t.Parallel()
+
+	podEnv := func(pairs ...string) *venv.Venv {
+		return isolatedEnv(append([]string{
+			"AZURE_CLIENT_ID", testPodClient,
+			"AZURE_TENANT_ID", testPodTenant,
+			"AZURE_FEDERATED_TOKEN_FILE", "/var/run/secrets/azure/tokens/azure-identity-token",
+		}, pairs...)...)
+	}
+
+	tests := []struct {
+		env      *venv.Venv
+		name     string
+		method   azurehelper.AuthMethod
+		clientID string
+		tenantID string
+		cfg      azurehelper.AzureSessionConfig
+	}{
+		{
+			name:     "flag in the config",
+			cfg:      azurehelper.AzureSessionConfig{UseAzureADAuth: new(true), UseAKSWorkloadIdentity: new(true)},
+			env:      podEnv(),
+			method:   azurehelper.AuthMethodOIDC,
+			clientID: testPodClient,
+			tenantID: testPodTenant,
+		},
+		{
+			name:     "flag in the environment",
+			cfg:      azurehelper.AzureSessionConfig{UseAzureADAuth: new(true)},
+			env:      podEnv("ARM_USE_AKS_WORKLOAD_IDENTITY", "true"),
+			method:   azurehelper.AuthMethodOIDC,
+			clientID: testPodClient,
+			tenantID: testPodTenant,
+		},
+		{
+			name: "another client and tenant in the config",
+			cfg: azurehelper.AzureSessionConfig{
+				UseAzureADAuth:         new(true),
+				UseAKSWorkloadIdentity: new(true),
+				ClientID:               "cid",
+				TenantID:               "tid",
+			},
+			env:      podEnv(),
+			method:   azurehelper.AuthMethodOIDC,
+			clientID: testPodClient,
+			tenantID: testPodTenant,
+		},
+		{
+			name:     "use_oidc is off",
+			cfg:      azurehelper.AzureSessionConfig{UseOIDC: new(false), UseAKSWorkloadIdentity: new(true)},
+			env:      podEnv(),
+			method:   azurehelper.AuthMethodOIDC,
+			clientID: testPodClient,
+			tenantID: testPodTenant,
+		},
+		{
+			name: "use_oidc is on",
+			cfg: azurehelper.AzureSessionConfig{
+				UseOIDC:                new(true),
+				UseAKSWorkloadIdentity: new(true),
+				ClientID:               "cid",
+				TenantID:               "tid",
+			},
+			env:      podEnv(),
+			method:   azurehelper.AuthMethodOIDC,
+			clientID: "cid",
+			tenantID: "tid",
+		},
+		{
+			name: "flag is off in the config",
+			cfg: azurehelper.AzureSessionConfig{
+				UseAzureADAuth:         new(true),
+				UseAKSWorkloadIdentity: new(false),
+				ClientID:               "cid",
+				TenantID:               "tid",
+			},
+			env:      podEnv("ARM_USE_AKS_WORKLOAD_IDENTITY", "true"),
+			method:   azurehelper.AuthMethodAzureAD,
+			clientID: "cid",
+			tenantID: "tid",
+		},
+		{
+			name: "flag alone with another client and tenant in the config",
+			cfg: azurehelper.AzureSessionConfig{
+				UseAKSWorkloadIdentity: new(true),
+				ClientID:               "cid",
+				TenantID:               "tid",
+			},
+			env:      podEnv(),
+			method:   azurehelper.AuthMethodOIDC,
+			clientID: testPodClient,
+			tenantID: testPodTenant,
+		},
+		{
+			name:     "flag alone with another client in the environment",
+			cfg:      azurehelper.AzureSessionConfig{UseAKSWorkloadIdentity: new(true)},
+			env:      podEnv("ARM_CLIENT_ID", "other-client"),
+			method:   azurehelper.AuthMethodOIDC,
+			clientID: testPodClient,
+			tenantID: testPodTenant,
+		},
+		{
+			name: "flag alone with a token request and another client in the environment",
+			cfg:  azurehelper.AzureSessionConfig{UseAKSWorkloadIdentity: new(true)},
+			env: podEnv(
+				"ACTIONS_ID_TOKEN_REQUEST_URL", "https://pipelines.example/token",
+				"ACTIONS_ID_TOKEN_REQUEST_TOKEN", "runner-token",
+				"ARM_CLIENT_ID", "other-client",
+				"ARM_TENANT_ID", "other-tenant",
+			),
+			method:   azurehelper.AuthMethodOIDC,
+			clientID: testPodClient,
+			tenantID: testPodTenant,
+		},
+		{
+			name: "managed identity",
+			cfg: azurehelper.AzureSessionConfig{
+				UseMSI:                 new(true),
+				UseAKSWorkloadIdentity: new(true),
+				ClientID:               "cid",
+				TenantID:               "tid",
+			},
+			env:      podEnv(),
+			method:   azurehelper.AuthMethodMSI,
+			clientID: "cid",
+			tenantID: "tid",
+		},
+		{
+			name: "service principal",
+			cfg: azurehelper.AzureSessionConfig{
+				UseAKSWorkloadIdentity: new(true),
+				ClientID:               "cid",
+				ClientSecret:           "sec",
+				TenantID:               "tid",
+			},
+			env:      podEnv(),
+			method:   azurehelper.AuthMethodServicePrincipal,
+			clientID: "cid",
+			tenantID: "tid",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tc.cfg.StorageAccountName = testAccount
+
+			cfg, err := azurehelper.NewAzureConfigBuilder().
+				WithSessionConfig(&tc.cfg).
+				Build(logger.CreateLogger(), tc.env)
+			require.NoError(t, err)
+			require.Equal(t, tc.method, cfg.Method)
+			require.Equal(t, tc.clientID, cfg.ClientID)
+			require.Equal(t, tc.tenantID, cfg.TenantID)
+			require.NotNil(t, cfg.Credential)
+		})
+	}
+}
+
+func TestBuild_AKSWorkloadIdentityWithoutPodIdentity(t *testing.T) {
+	t.Parallel()
+
+	const tokenFile = "/var/run/secrets/azure/tokens/azure-identity-token"
+
+	tests := []struct {
+		env    *venv.Venv
+		name   string
+		method azurehelper.AuthMethod
+		cfg    azurehelper.AzureSessionConfig
+	}{
+		{
+			name:   "no client id",
+			cfg:    azurehelper.AzureSessionConfig{UseAzureADAuth: new(true), UseAKSWorkloadIdentity: new(true)},
+			env:    isolatedEnv("AZURE_TENANT_ID", testPodTenant, "AZURE_FEDERATED_TOKEN_FILE", tokenFile),
+			method: azurehelper.AuthMethodAzureAD,
+		},
+		{
+			name: "client id only in the config",
+			cfg: azurehelper.AzureSessionConfig{
+				UseAzureADAuth:         new(true),
+				UseAKSWorkloadIdentity: new(true),
+				ClientID:               "cid",
+			},
+			env:    isolatedEnv("AZURE_TENANT_ID", testPodTenant, "AZURE_FEDERATED_TOKEN_FILE", tokenFile),
+			method: azurehelper.AuthMethodAzureAD,
+		},
+		{
+			name:   "no tenant id",
+			cfg:    azurehelper.AzureSessionConfig{UseAzureADAuth: new(true), UseAKSWorkloadIdentity: new(true)},
+			env:    isolatedEnv("AZURE_CLIENT_ID", testPodClient, "AZURE_FEDERATED_TOKEN_FILE", tokenFile),
+			method: azurehelper.AuthMethodAzureAD,
+		},
+		{
+			name: "token request url and no token file",
+			cfg:  azurehelper.AzureSessionConfig{UseAKSWorkloadIdentity: new(true)},
+			env: isolatedEnv(
+				"AZURE_CLIENT_ID", testPodClient,
+				"AZURE_TENANT_ID", testPodTenant,
+				"ACTIONS_ID_TOKEN_REQUEST_URL", "https://token.example.com",
+				"ACTIONS_ID_TOKEN_REQUEST_TOKEN", "request-token",
+			),
+			method: azurehelper.AuthMethodOIDC,
+		},
+		{
+			name:   "no webhook variables",
+			cfg:    azurehelper.AzureSessionConfig{UseAKSWorkloadIdentity: new(true)},
+			env:    isolatedEnv(),
+			method: azurehelper.AuthMethodAzureAD,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tc.cfg.StorageAccountName = testAccount
+
+			cfg, err := azurehelper.NewAzureConfigBuilder().
+				WithSessionConfig(&tc.cfg).
+				Build(logger.CreateLogger(), tc.env)
+			require.NoError(t, err)
+			require.Equal(t, tc.method, cfg.Method)
+		})
+	}
+}
+
+func TestBuild_AKSWorkloadIdentitySignsInAsPodIdentity(t *testing.T) {
+	t.Parallel()
+
+	tokenFile := filepath.Join(t.TempDir(), "azure-identity-token")
+	require.NoError(t, os.WriteFile(tokenFile, []byte("pod-assertion"), 0o600))
+
+	otherTokenFile := filepath.Join(t.TempDir(), "other-token")
+	require.NoError(t, os.WriteFile(otherTokenFile, []byte("other-assertion"), 0o600))
+
+	var (
+		mu       sync.Mutex
+		tokenURL string
+		form     url.Values
+	)
+
+	jsonHeader := http.Header{"Content-Type": []string{"application/json"}}
+	authority := "https://login.microsoftonline.com/" + testPodTenant
+
+	entra := vhttp.NewMemClient(func(_ context.Context, req *http.Request) (*http.Response, error) {
+		if strings.HasSuffix(req.URL.Path, "/.well-known/openid-configuration") {
+			metadata := fmt.Sprintf(
+				`{"issuer":"%[1]s/v2.0","authorization_endpoint":"%[1]s/oauth2/v2.0/authorize",`+
+					`"token_endpoint":"%[1]s/oauth2/v2.0/token"}`,
+				authority,
+			)
+
+			return vhttp.Respond(http.StatusOK, []byte(metadata), jsonHeader), nil
+		}
+
+		if !strings.HasSuffix(req.URL.Path, "/oauth2/v2.0/token") {
+			return vhttp.Respond(http.StatusNotFound, nil, nil), nil
+		}
+
+		body, err := io.ReadAll(req.Body)
+		if err != nil {
+			return nil, err
+		}
+
+		values, err := url.ParseQuery(string(body))
+		if err != nil {
+			return nil, err
+		}
+
+		mu.Lock()
+		defer mu.Unlock()
+
+		tokenURL, form = req.URL.String(), values
+
+		const response = `{"token_type":"Bearer","expires_in":3600,"access_token":"pod-access-token"}`
+
+		return vhttp.Respond(http.StatusOK, []byte(response), jsonHeader), nil
+	})
+
+	cfg, err := azurehelper.NewAzureConfigBuilder().
+		WithSessionConfig(&azurehelper.AzureSessionConfig{
+			StorageAccountName: testAccount,
+			UseAzureADAuth:     new(true),
+			ClientID:           "cid",
+			TenantID:           "tid",
+		}).
+		Build(logger.CreateLogger(), isolatedEnv(
+			"ARM_USE_AKS_WORKLOAD_IDENTITY", "true",
+			"AZURE_CLIENT_ID", testPodClient,
+			"AZURE_TENANT_ID", testPodTenant,
+			"AZURE_FEDERATED_TOKEN_FILE", tokenFile,
+			"ARM_OIDC_TOKEN_FILE_PATH", otherTokenFile,
+		).WithHTTP(entra))
+	require.NoError(t, err)
+
+	token, err := cfg.Credential.GetToken(t.Context(), policy.TokenRequestOptions{
+		Scopes: []string{"https://storage.azure.com/.default"},
+	})
+	require.NoError(t, err)
+	require.Equal(t, "pod-access-token", token.Token)
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	require.Equal(t, authority+"/oauth2/v2.0/token", tokenURL)
+	require.Equal(t, testPodClient, form.Get("client_id"))
+	require.Equal(t, "pod-assertion", form.Get("client_assertion"))
+}
+
+func TestBuild_AKSWorkloadIdentityFingerprintCoversPodTokenFile(t *testing.T) {
+	t.Parallel()
+
+	fingerprint := func(t *testing.T, podTokenFile string, pairs ...string) string {
+		t.Helper()
+
+		cfg, err := azurehelper.NewAzureConfigBuilder().
+			WithSessionConfig(&azurehelper.AzureSessionConfig{
+				StorageAccountName:     testAccount,
+				UseAzureADAuth:         new(true),
+				UseAKSWorkloadIdentity: new(true),
+			}).
+			Build(logger.CreateLogger(), isolatedEnv(append([]string{
+				"AZURE_CLIENT_ID", testPodClient,
+				"AZURE_TENANT_ID", testPodTenant,
+				"AZURE_FEDERATED_TOKEN_FILE", podTokenFile,
+			}, pairs...)...))
+		require.NoError(t, err)
+
+		return cfg.CredentialFingerprint
+	}
+
+	const podTokenFile = "/var/run/secrets/azure/tokens/azure-identity-token"
+
+	base := fingerprint(t, podTokenFile)
+
+	require.Equal(t, base, fingerprint(t, podTokenFile, "ARM_OIDC_TOKEN_FILE_PATH", "/var/run/secrets/other/token"))
+	require.NotEqual(t, base, fingerprint(t, "/var/run/secrets/other/token"))
+}
+
 func TestBuild_CredentialFingerprintCoversOIDCSources(t *testing.T) {
 	t.Parallel()
 
@@ -777,7 +1131,7 @@ func isolatedEnv(pairs ...string) *venv.Venv {
 		m[pairs[i]] = pairs[i+1]
 	}
 
-	return (&venv.Venv{}).WithEnv(m)
+	return (&venv.Venv{FS: vfs.NewMemMapFS()}).WithEnv(m)
 }
 
 // TestBuild_CarriesAuthorizationMode pins that the blob authorization mode the
