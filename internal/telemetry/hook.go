@@ -2,11 +2,14 @@ package telemetry
 
 import (
 	"context"
+	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/bridges/otellogrus"
+	"go.opentelemetry.io/otel/attribute"
 	otellog "go.opentelemetry.io/otel/log"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -48,14 +51,19 @@ func newOtelLogHook(name, version string, provider otellog.LoggerProvider) *otel
 			otellogrus.WithVersion(version),
 			otellogrus.WithLoggerProvider(provider),
 		),
+		logger: provider.Logger(name, otellog.WithInstrumentationVersion(version)),
 	}
 }
 
 type otelLogHook struct {
 	// inner is the otellogrus bridge.
 	inner *otellogrus.Hook
-	// rootSpan is used for entries whose logger has no span.
+	// logger emits the records that have no log entry.
+	logger otellog.Logger
+	// rootSpan is the root command span, set while the root command runs.
 	rootSpan atomic.Pointer[trace.SpanContext]
+	// emitted counts the records given to the logger provider.
+	emitted atomic.Uint64
 }
 
 // Levels implements the [logrus.Hook] interface method.
@@ -67,22 +75,42 @@ func (hook *otelLogHook) Levels() []logrus.Level {
 func (hook *otelLogHook) Fire(entry *logrus.Entry) error {
 	e := *entry
 	e.Level = stdLogrusLevels[log.FromLogrusLevel(entry.Level)]
-	// Strip the ANSI color codes in OpenTofu/Terraform output.
-	e.Message = log.RemoveAllASCISeq(entry.Message)
+	e.Message = recordBody(entry.Message)
 
-	if rootSpan := hook.rootSpan.Load(); rootSpan != nil && !trace.SpanContextFromContext(e.Context).IsValid() {
+	rootSpan := hook.rootSpan.Load()
+	if rootSpan != nil && rootSpan.IsValid() && !trace.SpanContextFromContext(e.Context).IsValid() {
 		e.Context = trace.ContextWithSpanContext(context.Background(), *rootSpan)
 	}
+
+	hook.emitted.Add(1)
 
 	return hook.inner.Fire(&e)
 }
 
-// bindRootSpan sets the span used for entries whose logger has no span.
-func (hook *otelLogHook) bindRootSpan(span trace.SpanContext) {
-	hook.rootSpan.Store(&span)
+// emitError exports msg as an error record of the span in ctx.
+func (hook *otelLogHook) emitError(ctx context.Context, msg string) {
+	var record otellog.Record
+
+	record.SetTimestamp(time.Now())
+	record.SetBody(attribute.StringValue(recordBody(msg)))
+	record.SetSeverity(otellog.SeverityError)
+	record.SetSeverityText(logrus.ErrorLevel.String())
+
+	hook.emitted.Add(1)
+	hook.logger.Emit(ctx, record)
+}
+
+// bindRootSpan sets the root command span and reports false when one is set.
+func (hook *otelLogHook) bindRootSpan(span trace.SpanContext) bool {
+	return hook.rootSpan.CompareAndSwap(nil, &span)
 }
 
 // unbindRootSpan clears the span set by bindRootSpan.
 func (hook *otelLogHook) unbindRootSpan() {
 	hook.rootSpan.Store(nil)
+}
+
+// recordBody returns msg without ANSI color codes and with invalid UTF-8 replaced.
+func recordBody(msg string) string {
+	return strings.ToValidUTF8(log.RemoveAllASCISeq(msg), "\uFFFD")
 }

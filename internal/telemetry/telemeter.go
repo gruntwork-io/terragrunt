@@ -4,10 +4,12 @@ package telemetry
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"runtime/debug"
 	"sync"
 
+	"github.com/gruntwork-io/terragrunt/internal/errfmt"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -29,6 +31,7 @@ func NewTelemeter(
 	appName, appVersion string,
 	writer io.Writer,
 	opts *Options,
+	env map[string]string,
 	enableLogs bool,
 ) (*Telemeter, error) {
 	tlm := &Telemeter{l: l}
@@ -50,7 +53,7 @@ func NewTelemeter(
 	tlm.Meter = meter
 
 	if enableLogs {
-		logger, err := NewLogger(ctx, appName, appVersion, writer, opts)
+		logger, err := NewLogger(ctx, appName, appVersion, writer, opts, env)
 		if err != nil {
 			return nil, errors.Join(err, tlm.Shutdown(ctx))
 		}
@@ -75,34 +78,41 @@ func (tlm *Telemeter) Shutdown(ctx context.Context) error {
 		return nil
 	}
 
-	var shutdowns []func(context.Context) error
+	var shutdowns []signalShutdown
 
 	if tlm.Tracer != nil && tlm.Tracer.provider != nil {
-		shutdowns = append(shutdowns, tlm.Tracer.provider.Shutdown)
+		shutdowns = append(shutdowns, signalShutdown{signal: "traces", shutdown: tlm.Tracer.provider.Shutdown})
 		tlm.Tracer.provider = nil
 	}
 
 	if tlm.Meter != nil && tlm.Meter.provider != nil {
-		shutdowns = append(shutdowns, tlm.Meter.provider.Shutdown)
+		shutdowns = append(shutdowns, signalShutdown{signal: "metrics", shutdown: tlm.Meter.provider.Shutdown})
 		tlm.Meter.provider = nil
 	}
 
-	if tlm.Logger != nil && tlm.Logger.provider != nil {
-		shutdowns = append(shutdowns, tlm.Logger.provider.Shutdown)
+	logsShutdown := tlm.Logger != nil && tlm.Logger.provider != nil
+	if logsShutdown {
+		shutdowns = append(shutdowns, signalShutdown{signal: "logs", shutdown: tlm.Logger.provider.Shutdown})
 		tlm.Logger.provider = nil
 	}
 
-	errs := make([]error, len(shutdowns))
+	errs := make([]error, len(shutdowns)+1)
 
 	var wg sync.WaitGroup
 
-	for i, shutdown := range shutdowns {
+	for i, s := range shutdowns {
 		wg.Go(func() {
-			errs[i] = shutdown(ctx)
+			if err := s.shutdown(ctx); err != nil {
+				errs[i] = fmt.Errorf("%s: %w", s.signal, err)
+			}
 		})
 	}
 
 	wg.Wait()
+
+	if logsShutdown {
+		errs[len(shutdowns)] = tlm.Logger.unconfirmedRecords()
+	}
 
 	return errors.Join(errs...)
 }
@@ -114,7 +124,7 @@ func (tlm *Telemeter) Shutdown(ctx context.Context) error {
 // OpenTelemetry log bridge derives trace and span IDs from the logger's context,
 // so records correlate with their span only when the logger carries it. Pass
 // childL onward to any code whose logs should resolve to this span.
-// If ctx has no span, records from loggers without a span use the new root span.
+// If ctx has no span and no root span is set, records from loggers without a span use the new root span.
 func (tlm *Telemeter) Collect(
 	ctx context.Context, l log.Logger, name string, attrs map[string]any,
 	fn func(childCtx context.Context, childL log.Logger) error,
@@ -137,12 +147,12 @@ func (tlm *Telemeter) Collect(
 
 	// wrap telemetry collection with trace and time metric
 	return tlm.Trace(ctx, name, attrs, func(ctx context.Context) error {
-		if span := trace.SpanContextFromContext(ctx); isRoot && tlm.Logger != nil && span.IsValid() {
-			tlm.Logger.hook.bindRootSpan(span)
+		boundRoot := isRoot && tlm.Logger != nil && tlm.Logger.hook.bindRootSpan(trace.SpanContextFromContext(ctx))
+		if boundRoot {
 			defer tlm.Logger.hook.unbindRootSpan()
 		}
 
-		return tlm.Time(ctx, name, attrs, func(ctx context.Context) error {
+		err := tlm.Time(ctx, name, attrs, func(ctx context.Context) error {
 			// Pure-data spans (e.g. discovery, filtering) have no logger to correlate
 			// and pass nil; only bind the span context when a logger is supplied.
 			childL := l
@@ -152,6 +162,12 @@ func (tlm *Telemeter) Collect(
 
 			return fn(ctx, childL)
 		})
+
+		if err != nil && boundRoot && tlm.l.Level() >= log.ErrorLevel {
+			tlm.Logger.hook.emitError(ctx, errfmt.Format(err))
+		}
+
+		return err
 	})
 }
 
@@ -175,4 +191,10 @@ func telemeterLoggerFromContext(ctx context.Context) log.Logger {
 	}
 
 	return nil
+}
+
+// signalShutdown is the shutdown function of one telemetry signal.
+type signalShutdown struct {
+	shutdown func(context.Context) error
+	signal   string
 }

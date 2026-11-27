@@ -5,6 +5,7 @@ import (
 	"io"
 	"sync"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -142,4 +143,35 @@ func TestOtelLogHookStripsColorCodes(t *testing.T) {
 	records := exporter.Records()
 	require.Len(t, records, 1)
 	assert.Equal(t, "Error: Reference to undeclared input variable", records[0].Body().AsString())
+}
+
+func TestOtelLogHookReplacesInvalidUTF8(t *testing.T) {
+	t.Parallel()
+
+	exporter := &recordingExporter{}
+	provider := sdklog.NewLoggerProvider(
+		sdklog.WithProcessor(sdklog.NewSimpleProcessor(exporter)),
+	)
+
+	t.Cleanup(func() {
+		require.NoError(t, provider.Shutdown(context.WithoutCancel(t.Context())))
+	})
+
+	l := logger.CreateLogger()
+	l.SetOptions(
+		log.WithLevel(log.InfoLevel),
+		log.WithOutput(io.Discard),
+		log.WithHooks(telemetry.NewOtelLogHook("terragrunt", "v0.0.0-test", provider)),
+	)
+
+	const half = "\xe2\x94"
+
+	l.Logf(log.StdoutLevel, "plan line cut in a character "+half)
+
+	records := exporter.Records()
+	require.Len(t, records, 1)
+
+	body := records[0].Body().AsString()
+	assert.True(t, utf8.ValidString(body), "body %q", body)
+	assert.Equal(t, "plan line cut in a character \uFFFD", body)
 }

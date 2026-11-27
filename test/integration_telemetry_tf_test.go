@@ -10,11 +10,15 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/errfmt"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/require"
 )
 
-const testFixtureTelemetryErrorStatus = "fixtures/telemetry-error-status"
+const (
+	testFixtureTelemetryErrorStatus   = "fixtures/telemetry-error-status"
+	testFixtureTelemetryLogsLifecycle = "fixtures/telemetry-logs-lifecycle"
+)
 
 // consoleSpan is the part of a span printed by the console trace exporter that
 // these tests read.
@@ -23,6 +27,9 @@ type consoleSpan struct {
 		TraceID string `json:"TraceID"`
 		SpanID  string `json:"SpanID"`
 	} `json:"SpanContext"`
+	Parent struct {
+		SpanID string `json:"SpanID"`
+	} `json:"Parent"`
 	Name   string `json:"Name"`
 	Status struct {
 		Code        string `json:"Code"`
@@ -44,9 +51,10 @@ type consoleLogRecord struct {
 	Body struct {
 		Value string `json:"Value"`
 	} `json:"Body"`
-	SeverityText string `json:"SeverityText"`
-	TraceID      string `json:"TraceID"`
-	SpanID       string `json:"SpanID"`
+	SeverityText string             `json:"SeverityText"`
+	TraceID      string             `json:"TraceID"`
+	SpanID       string             `json:"SpanID"`
+	Attributes   []consoleAttribute `json:"Attributes"`
 }
 
 // TestTFTelemetryTracesMarkFailedSpans runs real failing commands with the
@@ -175,12 +183,23 @@ func TestTFTelemetryLogsCorrelateWithSpans(t *testing.T) {
 			traceIDs := map[string]struct{}{}
 			spanIDs := map[string]struct{}{}
 
-			for _, span := range parseConsoleSpans(t, stdout) {
+			spans := parseConsoleSpans(t, stdout)
+			for _, span := range spans {
 				traceIDs[span.SpanContext.TraceID] = struct{}{}
 				spanIDs[span.SpanContext.SpanID] = struct{}{}
 			}
 
 			require.Len(t, traceIDs, 1, "all spans of one run must share a trace")
+
+			var rootSpanIDs []string
+
+			for _, span := range spans {
+				if _, ok := spanIDs[span.Parent.SpanID]; !ok {
+					rootSpanIDs = append(rootSpanIDs, span.SpanContext.SpanID)
+				}
+			}
+
+			require.Len(t, rootSpanIDs, 1, "one run must have one root span")
 
 			records := parseConsoleLogs(t, stdout)
 
@@ -193,8 +212,74 @@ func TestTFTelemetryLogsCorrelateWithSpans(t *testing.T) {
 				return record.SeverityText == "error" &&
 					strings.Contains(record.Body.Value, "Reference to undeclared input variable")
 			}), "the OpenTofu error must be exported as an error record")
+
+			finalError := errfmt.Format(err)
+
+			require.True(t, slices.ContainsFunc(records, func(record consoleLogRecord) bool {
+				return record.SeverityText == "error" &&
+					record.SpanID == rootSpanIDs[0] &&
+					record.Body.Value == finalError
+			}), "the final error must be exported as an error record of the root span")
 		})
 	}
+}
+
+// TestTFTelemetryLogsLinkToUnitSpans checks that each record of a unit links to a span of that unit.
+func TestTFTelemetryLogsLinkToUnitSpans(t *testing.T) {
+	t.Parallel()
+
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since the hooks run echo")
+	}
+
+	const parentTraceID = "0af7651916cd43dd8448eb211c80319c"
+
+	helpers.CleanupTerraformFolder(t, testFixtureTelemetryLogsLifecycle)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureTelemetryLogsLifecycle)
+	workingDir := filepath.Join(tmpEnvPath, testFixtureTelemetryLogsLifecycle)
+
+	v := helpers.RunVenv(t)
+	v.Env["TG_TELEMETRY_TRACE_EXPORTER"] = "console"
+	v.Env["TG_TELEMETRY_LOGS_EXPORTER"] = "console"
+	v.Env["TRACEPARENT"] = "00-" + parentTraceID + "-b7ad6b7169203331-01"
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutputWithVenv(
+		t,
+		v,
+		"terragrunt run --all apply --non-interactive --experiment otel-logs -no-color --working-dir "+workingDir,
+	)
+	require.NoError(t, err)
+
+	spans := map[string]consoleSpan{}
+	for _, span := range parseConsoleSpans(t, stdout) {
+		spans[span.SpanContext.SpanID] = span
+	}
+
+	unitRecords := map[string]int{}
+	hookRecords := map[string]int{}
+
+	for _, record := range parseConsoleLogs(t, stdout) {
+		require.Equal(t, parentTraceID, record.TraceID, "record %q", record.Body.Value)
+		require.Contains(t, spans, record.SpanID, "record %q", record.Body.Value)
+
+		unit, ok := findAttribute(record.Attributes, "prefix").(string)
+		if !ok {
+			continue
+		}
+
+		require.Equal(t, unit, unitOfSpan(spans, record.SpanID), "record %q", record.Body.Value)
+
+		unitRecords[unit]++
+
+		if hook, ok := findAttribute(spans[record.SpanID].Attributes, "hook").(string); ok {
+			hookRecords[hook]++
+		}
+	}
+
+	require.Positive(t, unitRecords["dep"], "no records of unit dep")
+	require.Positive(t, unitRecords["app"], "no records of unit app")
+	require.Positive(t, hookRecords["before_apply"], "no records of the before hook")
+	require.Positive(t, hookRecords["after_apply"], "no records of the after hook")
 }
 
 // parseConsoleSpans returns the spans the console trace exporter printed to
@@ -255,12 +340,35 @@ func parseConsoleLogs(t *testing.T, stdout string) []consoleLogRecord {
 // attribute returns the value of the span attribute named key, or nil when the
 // span has no such attribute.
 func (span *consoleSpan) attribute(key string) any {
-	i := slices.IndexFunc(span.Attributes, func(attr consoleAttribute) bool {
+	return findAttribute(span.Attributes, key)
+}
+
+// findAttribute returns the value of the attribute named key, or nil when attrs has none.
+func findAttribute(attrs []consoleAttribute, key string) any {
+	i := slices.IndexFunc(attrs, func(attr consoleAttribute) bool {
 		return attr.Key == key
 	})
 	if i < 0 {
 		return nil
 	}
 
-	return span.Attributes[i].Value.Value
+	return attrs[i].Value.Value
+}
+
+// unitOfSpan returns the unit_name of the nearest span that has one, from spanID up to the root.
+func unitOfSpan(spans map[string]consoleSpan, spanID string) string {
+	for range len(spans) {
+		span, ok := spans[spanID]
+		if !ok {
+			return ""
+		}
+
+		if name, ok := span.attribute("unit_name").(string); ok {
+			return name
+		}
+
+		spanID = span.Parent.SpanID
+	}
+
+	return ""
 }
