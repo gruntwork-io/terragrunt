@@ -1,6 +1,6 @@
 // Clean Markdown for the HCL reference pages rendered by the sibling
-// `[name].astro` route from the `hclBlocks`, `hclAttributes`, and
-// `hclFunctions` collections.
+// `[name].astro` route from the `hclBlocks`, `hclAttributes`, `hclFunctions`,
+// and `hclVariables` collections.
 
 import type { APIRoute, GetStaticPaths } from 'astro';
 import { hclPage, markdownResponse } from '@lib/generated-pages';

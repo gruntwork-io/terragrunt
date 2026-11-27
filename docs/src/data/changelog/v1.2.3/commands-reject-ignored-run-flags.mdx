@@ -24,7 +24,7 @@ Remove the flag from the command. It had no effect.
 | `stack output` | `--fail-fast`, `--source-update`, `--no-hooks`, `--no-auto-retry`, `--no-stack-generate`, `--queue-ignore-errors`, `--queue-ignore-dag-order` |
 | `aws-provider-patch` | `--no-stack-generate`, `--queue-ignore-errors`, `--queue-ignore-dag-order` |
 
-All five also stop accepting `--out-dir`, `--json-out-dir`, `--graph-root`, `--no-auto-approve`, `--destroy-dependencies-check`, `--no-destroy-dependencies-check`, `--disable-command-validation`, `--summary-disable`, `--summary-per-unit`, `--report-file`, `--report-format`, and `--report-schema-file`. `stack run` stops accepting `--graph-root`, and keeps every other flag of `run`. `aws-provider-patch` also rejects flags that no command defines, which it accepted and dropped.
+All five also stop accepting `--out-dir`, `--json-out-dir`, `--graph-root`, `--no-auto-approve`, `--destroy-dependencies-check`, `--no-destroy-dependencies-check`, `--disable-command-validation`, `--summary-disable`, `--summary-per-unit`, `--report-file`, `--report-format`, and `--report-schema-file`. `stack run` stops accepting `--graph-root`, and keeps every other flag of `run`. `aws-provider-patch` also rejects any other flag it does not define, such as `--graph` or `--json`. It accepted those and dropped them.
 
 The flags that select units, such as `--queue-exclude-dir` and `--queue-include-dir`, still work on every one of these commands.
 

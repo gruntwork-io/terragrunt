@@ -222,6 +222,10 @@ func updateGitCheckout(ctx context.Context, fsys vfs.FS, runner *git.GitRunner, 
 		return err
 	}
 
+	if err := runner.Init(ctx); err != nil {
+		return err
+	}
+
 	remote := src.url.String()
 
 	ref := src.ref
@@ -232,10 +236,6 @@ func updateGitCheckout(ctx context.Context, fsys vfs.FS, runner *git.GitRunner, 
 		}
 
 		ref = branch
-	}
-
-	if err := runner.Init(ctx); err != nil {
-		return err
 	}
 
 	if err := runner.RemoteAdd(ctx, "origin", remote); err != nil {

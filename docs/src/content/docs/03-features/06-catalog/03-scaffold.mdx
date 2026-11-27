@@ -6,6 +6,8 @@ sidebar:
   order: 3
 ---
 
+import StatefulTabs from '@components/StatefulTabs.astro';
+
 Terragrunt scaffolding can generate files for you automatically using [boilerplate](https://github.com/gruntwork-io/boilerplate) templates.
 
 Currently, one boilerplate template is supported out-of-the-box, which you can use to generate a best-practices `terragrunt.hcl` that configures an OpenTofu/Terraform module for deployment:
@@ -67,9 +69,29 @@ Important notes:
 
 The example above generates a unit from an OpenTofu/Terraform module. A catalog can also store units and stacks. Those are already Terragrunt configurations, so they are copied verbatim from the catalog: `scaffold` copies their files into your working directory for you to edit in place (which is also what the [Catalog TUI](/features/catalog/tui) does when you press `s` on a unit/stack).
 
+<StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure', 'GCP']}>
+<Fragment slot="aws">
+
 ```bash
 terragrunt scaffold 'github.com/gruntwork-io/terragrunt-scale-catalog//units/aws/oidc/iam-oidc-role'
 ```
+
+</Fragment>
+<Fragment slot="azure">
+
+```bash
+terragrunt scaffold 'github.com/gruntwork-io/terragrunt-scale-catalog//units/azure/oidc/entra-id-service-principal'
+```
+
+</Fragment>
+<Fragment slot="gcp">
+
+```bash
+terragrunt scaffold 'github.com/gruntwork-io/terragrunt-scale-catalog//units/gcp/oidc/service-account'
+```
+
+</Fragment>
+</StatefulTabs>
 
 Every file in the component's directory is copied, as the definition of a unit/stack is the directory containing a `terragrunt.hcl`/`terragrunt.stack.hcl` file respectively.
 

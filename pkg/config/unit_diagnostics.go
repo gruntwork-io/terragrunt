@@ -124,6 +124,8 @@ func sectionItems(section PartialDecodeSectionType) []string {
 		return []string{MetadataErrors}
 	case OutputsBlock:
 		return []string{MetadataOutputs}
+	case moduleDirAttributes:
+		return []string{MetadataDownloadDir}
 	}
 
 	return nil

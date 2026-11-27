@@ -7,6 +7,7 @@ sidebar:
 ---
 
 import { Aside } from "@astrojs/starlight/components";
+import StatefulTabs from '@components/StatefulTabs.astro';
 
 _Before Hooks_, _After Hooks_ and _Error Hooks_ are a feature of terragrunt that make it possible to define custom actions that will be called before/after running an `tofu`/`terraform` command.
 
@@ -145,9 +146,9 @@ aws s3 ls "s3://$BUCKET_NAME"
 
 Hooks can be used to handle operations that need to happen, but are not directly related to the OpenTofu/Terraform.
 
-For example, you may be using Terragrunt to manage an [AWS ECS service](https://aws.amazon.com/ecs/).
+For example, you may be using Terragrunt to manage a container service.
 
-You can use a `before_hook` to build and push a new image to the [Elastic Container Registry (ECR)](https://aws.amazon.com/ecr/) before running `tofu apply`.
+You can use a `before_hook` to build and push a new image to a container registry before running `tofu apply`.
 
 ```hcl
 # terragrunt.hcl
@@ -162,10 +163,14 @@ terraform {
 
 Where `build_and_push_image.sh` is something like:
 
-```bash
-# build_and_push_image.sh
+<StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure', 'GCP']}>
+<Fragment slot="aws">
 
+Push to [Elastic Container Registry (ECR)](https://aws.amazon.com/ecr/):
+
+```bash
 #!/usr/bin/env bash
+# build_and_push_image.sh
 
 set -eou pipefail
 
@@ -174,15 +179,72 @@ REGION="us-east-1"
 REPOSITORY="my-repository"
 TAG="latest"
 
-IMAGE_TAG="${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/${REPOSITORY}:${TAG}"
+REGISTRY="${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com"
+IMAGE_TAG="${REGISTRY}/${REPOSITORY}:${TAG}"
 
 # Build the Docker image
 docker build -t "$IMAGE_TAG" .
 
 # Push the Docker image to ECR
-aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 123456789012.dkr.ecr.us-east-1.amazonaws.com
+aws ecr get-login-password --region "$REGION" | docker login --username AWS --password-stdin "$REGISTRY"
 docker push "$IMAGE_TAG"
 ```
+
+</Fragment>
+<Fragment slot="azure">
+
+Push to [Azure Container Registry (ACR)](https://azure.microsoft.com/products/container-registry):
+
+```bash
+#!/usr/bin/env bash
+# build_and_push_image.sh
+
+set -eou pipefail
+
+REGISTRY_NAME="myregistry"
+REPOSITORY="my-repository"
+TAG="latest"
+
+IMAGE_TAG="${REGISTRY_NAME}.azurecr.io/${REPOSITORY}:${TAG}"
+
+# Build the Docker image
+docker build -t "$IMAGE_TAG" .
+
+# Push the Docker image to ACR
+az acr login --name "$REGISTRY_NAME"
+docker push "$IMAGE_TAG"
+```
+
+</Fragment>
+<Fragment slot="gcp">
+
+Push to [Artifact Registry](https://cloud.google.com/artifact-registry):
+
+```bash
+#!/usr/bin/env bash
+# build_and_push_image.sh
+
+set -eou pipefail
+
+PROJECT_ID="my-project"
+REGION="us-central1"
+REPOSITORY="my-repository"
+IMAGE="my-image"
+TAG="latest"
+
+REGISTRY="${REGION}-docker.pkg.dev"
+IMAGE_TAG="${REGISTRY}/${PROJECT_ID}/${REPOSITORY}/${IMAGE}:${TAG}"
+
+# Build the Docker image
+docker build -t "$IMAGE_TAG" .
+
+# Push the Docker image to Artifact Registry
+gcloud auth configure-docker "$REGISTRY" --quiet
+docker push "$IMAGE_TAG"
+```
+
+</Fragment>
+</StatefulTabs>
 
 The hard-coding of values in the script could be replaced with context, as shown in the previous section.
 

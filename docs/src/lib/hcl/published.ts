@@ -1,7 +1,14 @@
 import { getCollection, getEntry } from 'astro:content';
 import { isCompleted } from '@lib/experiments';
 import { getLatestVersion, isPublished } from '@lib/release';
-import { compareHclItems, HCL_COLLECTIONS, type BlockAttribute, type HclEntry, type HclKind } from '.';
+import {
+	compareHclItems,
+	HCL_COLLECTIONS,
+	type BlockAttribute,
+	type HclEntry,
+	type HclKind,
+	type VariableField,
+} from '.';
 
 /**
  * Returns the entries of one kind whose `since` release has shipped, or every
@@ -19,8 +26,21 @@ export async function getPublishedHclItems(kind: HclKind): Promise<HclEntry[]> {
 		.map(({ entry }) => entry);
 }
 
+/**
+ * Returns the fields whose `since` release has shipped, or every field in dev,
+ * sorted by variable and then by name. `variable` keeps the fields of that
+ * variable only.
+ */
+export async function getPublishedVariableFields(variable?: string): Promise<VariableField[]> {
+	const entries = (await getCollection('hclVariableFields')).filter(
+		(entry) => variable === undefined || entry.data.variable === variable,
+	);
+	const visible = await Promise.all(entries.map((entry) => isPublished(entry.data.since)));
+	return entries.filter((_, i) => visible[i]).sort((a, b) => a.id.localeCompare(b.id, 'en'));
+}
+
 /** Returns true while the experiment named by the entry's `experiment` is active. */
-export async function isExperimental(entry: HclEntry): Promise<boolean> {
+export async function isExperimental(entry: HclEntry | VariableField): Promise<boolean> {
 	const { name, experiment } = entry.data;
 	if (experiment === undefined) return false;
 

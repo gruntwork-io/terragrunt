@@ -47,6 +47,7 @@ commit() {
 	[ "$status" -eq 0 ]
 	grep -qx "base_sha=${HEAD_SHA}" "$GITHUB_OUTPUT"
 	grep -qx "head_sha=${HEAD_SHA}" "$GITHUB_OUTPUT"
+	grep -qx "base_description=the same commit as head, to measure how much two runs of one build differ" "$GITHUB_OUTPUT"
 }
 
 @test "release resolves the latest release tag to its commit" {
@@ -56,6 +57,7 @@ commit() {
 	run "$SCRIPT" release
 	[ "$status" -eq 0 ]
 	grep -qx "base_sha=${OLD}" "$GITHUB_OUTPUT"
+	grep -qxF 'base_description=the latest release, `v1.0.0`' "$GITHUB_OUTPUT"
 }
 
 @test "release skips a release that is HEAD" {
@@ -66,6 +68,7 @@ commit() {
 	run "$SCRIPT" release
 	[ "$status" -eq 0 ]
 	grep -qx "base_sha=${OLD}" "$GITHUB_OUTPUT"
+	grep -qxF 'base_description=the latest release, `v1.0.0`' "$GITHUB_OUTPUT"
 }
 
 @test "release fails when no release is published" {
@@ -80,6 +83,7 @@ commit() {
 	BASE_REF=feature run "$SCRIPT" custom
 	[ "$status" -eq 0 ]
 	grep -qx "base_sha=${OLD}" "$GITHUB_OUTPUT"
+	grep -qxF 'base_description=`feature`' "$GITHUB_OUTPUT"
 }
 
 @test "custom resolves a branch that exists only on the remote" {
@@ -104,6 +108,7 @@ commit() {
 	GITHUB_REF=refs/heads/feature BEFORE_SHA="$HEAD_SHA" run "$SCRIPT" push
 	[ "$status" -eq 0 ]
 	grep -qx "base_sha=${OLD}" "$GITHUB_OUTPUT"
+	grep -qxF 'base_description=where this branch leaves `main`' "$GITHUB_OUTPUT"
 }
 
 @test "push on main uses the tip before the push" {
@@ -112,6 +117,7 @@ commit() {
 	GITHUB_REF=refs/heads/main BEFORE_SHA="$OLD" run "$SCRIPT" push
 	[ "$status" -eq 0 ]
 	grep -qx "base_sha=${OLD}" "$GITHUB_OUTPUT"
+	grep -qxF 'base_description=the tip of `main` before this push' "$GITHUB_OUTPUT"
 }
 
 @test "push on main uses the parent of HEAD when the previous tip is not an ancestor" {
@@ -129,6 +135,7 @@ commit() {
 	GITHUB_REF=refs/heads/main BEFORE_SHA="0000000000000000000000000000000000000000" run "$SCRIPT" push
 	[ "$status" -eq 0 ]
 	grep -qx "base_sha=${OLD}" "$GITHUB_OUTPUT"
+	grep -qxF 'base_description=the parent of head' "$GITHUB_OUTPUT"
 }
 
 @test "an unknown comparison fails" {

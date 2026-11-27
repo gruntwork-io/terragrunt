@@ -22,7 +22,7 @@ import (
 // the parse decodes only the catalog block, and the directory of a generated catalog child; whether get_working_dir
 // is stubbed; whether reads are tracked; whether the parse is partial, and which of the terraform source, the exclude
 // block, and the version constraints it decodes and so rejects `dependency` references in; the environment of v; and
-// whether v discards output.
+// whether v discards output; and whether a partial parse decodes the module directory attributes.
 //
 // It leaves out the experiments, the strict controls, the maximum number of parent folders to check, the engine,
 // the tofu binary and implementation, the provider cache and CAS options, and the telemetry and logging options.
@@ -72,6 +72,7 @@ func runDigest(v *venv.Venv, run *ParsingContext) (string, bool) {
 	d.bool(run.decodes(TerraformSource))
 	d.bool(run.decodes(ExcludeBlock))
 	d.bool(run.decodes(TerragruntVersionConstraints))
+	d.bool(slices.Contains(run.PartialParseDecodeList, moduleDirAttributes))
 	d.uint64(HashEnv(v.Env))
 	d.bool(v.Writers.Writer == io.Discard)
 

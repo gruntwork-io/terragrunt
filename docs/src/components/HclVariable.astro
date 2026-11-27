@@ -1,0 +1,36 @@
+---
+import { LinkCard } from '@astrojs/starlight/components';
+import { render, type CollectionEntry } from 'astro:content';
+import HclConfigs from '@components/HclConfigs.astro';
+import HclExamples from '@components/HclExamples.astro';
+import { variableFieldName, variableFieldPath } from '@lib/hcl';
+import { getPublishedVariableFields } from '@lib/hcl/published';
+
+interface Props {
+	entry: CollectionEntry<'hclVariables'>;
+}
+
+const { entry } = Astro.props;
+const { Content } = await render(entry);
+const fields = await getPublishedVariableFields(entry.data.name);
+---
+
+<HclConfigs configs={entry.data.configs} />
+
+<h2 id="usage">Usage</h2>
+
+<Content />
+
+<h2 id="fields">Fields</h2>
+
+{
+	fields.map((field) => (
+		<LinkCard
+			title={variableFieldName(field.data)}
+			href={variableFieldPath(field.data)}
+			description={field.data.description}
+		/>
+	))
+}
+
+{entry.data.examples && <HclExamples examples={entry.data.examples} />}

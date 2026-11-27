@@ -485,9 +485,16 @@ func (s *Store) prepareBase(
 
 	pc = pc.withInclude(include)
 
+	pathValue, err := PathVariable(ctx, l, v, s, pctx, file, include)
+	if err != nil {
+		return nil, err
+	}
+
+	pc = pc.withPath(pathValue)
+
 	var errs []error
 
-	pc, err := s.withFileIAMRole(ctx, l, v, pc, file)
+	pc, err = s.withFileIAMRole(ctx, l, v, pc, file)
 	if err != nil {
 		errs = append(errs, err)
 	}
@@ -551,13 +558,24 @@ func (s *Store) prepareBase(
 }
 
 // validateDependencyReferences rejects each part of file that a parse with pc decodes and that reads `dependency`
-// where no dependency has run: the terraform source, the exclude block, and the version attributes.
+// where no dependency has run: the terraform source, the exclude block, the version and module directory attributes.
 //
 // Returns [TerraformSourceReferencesDependencyError], [ExcludeReferencesDependencyError], or the diagnostics of
-// [ValidateVersionAttributeReferences] for the first such part.
+// [ValidateVersionAttributeReferences] for the first such part, or [ModuleDirReferencesDependencyError].
 func validateDependencyReferences(pc *ParsingContext, file *hclparse.File) error {
 	if pc.decodes(TerraformSource) && TerraformSourceReferencesDependency(file) {
 		return TerraformSourceReferencesDependencyError{ConfigPath: file.ConfigPath}
+	}
+
+	if slices.Contains(pc.PartialParseDecodeList, moduleDirAttributes) {
+		unmerged, err := includedWithoutMerge(pc)
+		if err != nil {
+			return err
+		}
+
+		if err := moduleDirDependencyError(file); err != nil && !unmerged {
+			return err
+		}
 	}
 
 	if pc.decodes(ExcludeBlock) {
@@ -576,6 +594,7 @@ func validateDependencyReferences(pc *ParsingContext, file *hclparse.File) error
 // withFileIAMRole returns pc with the IAM role options a full parse of file evaluates with: the iam_role and
 // iam_web_identity_token of its config, merged with those of the files it merges, under the options passed on the
 // CLI. A role ARN passed on the CLI wins outright. A partial parse keeps the role of pc.
+// A partial parse that decodes [moduleDirAttributes] takes the IAM role options of file instead.
 //
 // The options come from a partial resolution of file through s, whose errors the full parse reports again.
 //
@@ -587,7 +606,7 @@ func (s *Store) withFileIAMRole(
 	pc *ParsingContext,
 	file *hclparse.File,
 ) (*ParsingContext, error) {
-	if len(pc.PartialParseDecodeList) > 0 {
+	if !pc.decodes(moduleDirAttributes) {
 		return pc, nil
 	}
 
@@ -712,4 +731,18 @@ func absInclude(pc *ParsingContext) *IncludeConfig {
 	abs.Path = filepath.Clean(filepath.Join(filepath.Dir(pc.TerragruntConfigPath), abs.Path))
 
 	return &abs
+}
+
+// includedWithoutMerge reports whether pc parses a file that an include block names with the no_merge strategy.
+func includedWithoutMerge(pc *ParsingContext) (bool, error) {
+	if pc.include == nil {
+		return false, nil
+	}
+
+	strategy, err := pc.include.GetMergeStrategy()
+	if err != nil {
+		return false, err
+	}
+
+	return strategy == NoMerge, nil
 }

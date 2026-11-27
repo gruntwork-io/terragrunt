@@ -10,6 +10,7 @@ sidebar:
 import FileTree from '@components/vendored/starlight/FileTree.astro';
 import { Aside } from '@astrojs/starlight/components';
 import AnchorRedirects from '@components/AnchorRedirects.astro';
+import StatefulTabs from '@components/StatefulTabs.astro';
 
 <AnchorRedirects redirects={{
   's3-backend': '/features/units/state-backend/s3/',
@@ -21,6 +22,9 @@ import AnchorRedirects from '@components/AnchorRedirects.astro';
 }} />
 
 OpenTofu/Terraform supports [remote state storage](https://opentofu.org/docs/language/state/remote/) via various [backends](https://opentofu.org/docs/language/settings/backends/configuration/) that you normally configure in your `.tf` files as follows:
+
+<StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure', 'GCP']}>
+<Fragment slot="aws">
 
 ```hcl
 # main.tf
@@ -34,6 +38,38 @@ terraform {
   }
 }
 ```
+
+</Fragment>
+<Fragment slot="azure">
+
+```hcl
+# main.tf
+terraform {
+  backend "azurerm" {
+    resource_group_name  = "my-tofu-state"
+    storage_account_name = "mytofustate"
+    container_name       = "tfstate"
+    key                  = "frontend-app/tofu.tfstate"
+    use_azuread_auth     = true
+  }
+}
+```
+
+</Fragment>
+<Fragment slot="gcp">
+
+```hcl
+# main.tf
+terraform {
+  backend "gcs" {
+    bucket = "my-tofu-state"
+    prefix = "frontend-app"
+  }
+}
+```
+
+</Fragment>
+</StatefulTabs>
 
 Unfortunately, the `backend` configuration does not currently support expressions, variables, or functions. This makes it hard to keep your code [DRY](/getting-started/terminology/#dont-repeat-yourself-dry) if you have multiple OpenTofu/Terraform modules. For example, consider the following filesystem layout, which uses different OpenTofu/Terraform modules to deploy a backend app, frontend app, MySQL database, and a VPC:
 
@@ -50,9 +86,9 @@ Unfortunately, the `backend` configuration does not currently support expression
 
 </FileTree>
 
-To use remote state with each of these modules, you would have to copy/paste the identical `backend` configuration into each of the `main.tf` files. The only thing that would differ between the configurations would be the `key` parameter: e.g., the `key` for `mysql/main.tf` might be `mysql/tofu.tfstate` and the `key` for `frontend-app/main.tf` might be `frontend-app/tofu.tfstate`.
+To use remote state with each of these modules, you would have to copy/paste the identical `backend` configuration into each of the `main.tf` files. The only thing that would differ between the configurations would be the state path (`key`, or `prefix` for GCS): e.g., the `key` for `mysql/main.tf` might be `mysql/tofu.tfstate` and the `key` for `frontend-app/main.tf` might be `frontend-app/tofu.tfstate`.
 
-In addition, the resources used for remote state will be provisioned _somewhere else_, and that _somewhere else_ needs to be managed. Most users end up using "click-ops" to provision the S3 bucket and DynamoDB table used for AWS remote state (clicking around in the AWS console until they have what they need). This is error-prone, difficult to reproduce, and makes it hard to do the _right thing_ consistently (e.g., enabling versioning, encryption, and access logging).
+In addition, the resources used for remote state will be provisioned _somewhere else_, and that _somewhere else_ needs to be managed. Most users end up using "click-ops" to provision the bucket or storage account that holds state (clicking around in the cloud console until they have what they need). This is error-prone, difficult to reproduce, and makes it hard to do the _right thing_ consistently (e.g., enabling versioning, encryption, and access logging).
 
 Luckily, Terragrunt has built-in tooling to make it easy to manage remote state.
 
@@ -80,6 +116,9 @@ To fill in the settings via Terragrunt, create a `root.hcl` file in the root fol
 
 In your `root.hcl` file, you can define your entire remote state configuration just once in a `generate` block, to generate a `backend.tf` file that includes the backend configuration:
 
+<StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure', 'GCP']}>
+<Fragment slot="aws">
+
 ```hcl
 # root.hcl
 generate "backend" {
@@ -99,28 +138,56 @@ EOF
 }
 ```
 
-<Aside type="tip" title="Windows compatibility">
-
-To ensure compatibility with Windows systems, you may want to use `replace` to ensure that `\` characters are replaced with `/` characters in the `key` parameter.
+</Fragment>
+<Fragment slot="azure">
 
 ```hcl
 # root.hcl
-
 generate "backend" {
   path      = "backend.tf"
   if_exists = "overwrite_terragrunt"
   contents = <<EOF
 terraform {
-  backend "s3" {
-    bucket         = "my-tofu-state"
-    key            = "${replace(path_relative_to_include(), "\\", "/")}/tofu.tfstate"
-    region         = "us-east-1"
-    encrypt        = true
-    dynamodb_table = "my-lock-table"
+  backend "azurerm" {
+    resource_group_name  = "my-tofu-state"
+    storage_account_name = "mytofustate"
+    container_name       = "tfstate"
+    key                  = "${path_relative_to_include()}/tofu.tfstate"
+    use_azuread_auth     = true
   }
 }
 EOF
 }
+```
+
+</Fragment>
+<Fragment slot="gcp">
+
+```hcl
+# root.hcl
+generate "backend" {
+  path      = "backend.tf"
+  if_exists = "overwrite_terragrunt"
+  contents = <<EOF
+terraform {
+  backend "gcs" {
+    bucket = "my-tofu-state"
+    prefix = "${path_relative_to_include()}"
+  }
+}
+EOF
+}
+```
+
+</Fragment>
+</StatefulTabs>
+
+<Aside type="tip" title="Windows compatibility">
+
+To ensure compatibility with Windows systems, you may want to use `replace` to ensure that `\` characters are replaced with `/` characters in the state path:
+
+```hcl
+key = "${replace(path_relative_to_include(), "\\", "/")}/tofu.tfstate"
 ```
 
 </Aside>
@@ -156,8 +223,10 @@ Read [Functions docs](/reference/hcl/functions) for more info.
 
 The `generate` block is useful for allowing you to set up the remote state backend configuration automatically, but
 this introduces a bootstrapping problem: how do you create and manage the underlying storage resources for the remote
-state? For example, when using the [s3 backend](https://opentofu.org/docs/language/settings/backends/s3/), OpenTofu/Terraform
-expects that the S3 bucket already exists for it to upload/download the state objects.
+state? For example, the [s3](https://opentofu.org/docs/language/settings/backends/s3/),
+[azurerm](https://opentofu.org/docs/language/settings/backends/azurerm/), and
+[gcs](https://opentofu.org/docs/language/settings/backends/gcs/) backends expect the bucket or storage account to
+already exist before OpenTofu/Terraform can upload/download the state objects.
 
 Ideally, you can manage the backend resources you use for storing state using OpenTofu/Terraform, but where does the
 state for that module go? How do you create those resources before you run `tofu`/`terraform`, if you need to run
@@ -174,7 +243,10 @@ an equivalent `generate` block for managing the backend.
 
 </Aside>
 
-Here is an example of using the `remote_state` block to configure the S3 backend using both an S3 bucket and a DynamoDB table:
+Here is an example of using the `remote_state` block to configure the backend:
+
+<StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure', 'GCP']}>
+<Fragment slot="aws">
 
 ```hcl
 # root.hcl
@@ -194,10 +266,56 @@ remote_state {
 }
 ```
 
+</Fragment>
+<Fragment slot="azure">
+
+```hcl
+# root.hcl
+remote_state {
+  backend = "azurerm"
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite"
+  }
+  config = {
+    resource_group_name  = "my-tofu-state"
+    storage_account_name = "mytofustate"
+    container_name       = "tfstate"
+    key                  = "${path_relative_to_include()}/tofu.tfstate"
+    location             = "eastus"
+    use_azuread_auth     = true
+  }
+}
+```
+
+</Fragment>
+<Fragment slot="gcp">
+
+```hcl
+# root.hcl
+remote_state {
+  backend = "gcs"
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite"
+  }
+  config = {
+    project  = "my-project"
+    location = "us-central1"
+    bucket   = "my-tofu-state"
+    prefix   = path_relative_to_include()
+  }
+}
+```
+
+</Fragment>
+</StatefulTabs>
+
 Like the approach with `generate` blocks, this will generate a `backend.tf` file that contains the remote state
 configuration. In addition, when you run [`terragrunt backend bootstrap`](/reference/cli/commands/backend/bootstrap) or pass
-`--backend-bootstrap`, Terragrunt creates the S3 bucket `my-tofu-state` and DynamoDB table `my-lock-table` if they
-don't exist in your account, and configures them based on the specified configuration parameters.
+`--backend-bootstrap`, Terragrunt creates the resources that hold state if they don't exist, and configures them based
+on the specified configuration parameters. Settings such as `location` and `project` tell Terragrunt where to create
+them; Terragrunt doesn't pass them to OpenTofu/Terraform.
 
 Terragrunt bootstraps three backends. Each has its own page for what Terragrunt creates, the settings it accepts, and its known limitations:
 
@@ -251,4 +369,4 @@ remote_state {
 - Managing your remote state like this is really valuable when you organize your units into a [stack](/features/stacks). Reading about those concepts will help you understand how to organize your infrastructure such that different units stored in isolated state can interact with each other.
 - See the [`remote_state` block reference](/reference/hcl/blocks/remote_state/) for the full list of supported attributes.
 - See the [`generate` block reference](/reference/hcl/blocks/generate) for details on how code generation works.
-- Check out the [terragrunt-infrastructure-catalog-example](https://github.com/gruntwork-io/terragrunt-infrastructure-catalog-example) and [terragrunt-infrastructure-live-stacks-example](https://github.com/gruntwork-io/terragrunt-infrastructure-live-stacks-example) repos for fully-working sample code that demonstrates how to use Terragrunt to manage remote state.
+- Check out the [terragrunt-infrastructure-catalog-example](https://github.com/gruntwork-io/terragrunt-infrastructure-catalog-example) repo and the live repos for [AWS](https://github.com/gruntwork-io/terragrunt-infrastructure-live-stacks-example), [Azure](https://github.com/gruntwork-io/terragrunt-infrastructure-live-azure-example), and [GCP](https://github.com/gruntwork-io/terragrunt-infrastructure-live-gcp-example) for fully-working sample code that demonstrates how to use Terragrunt to manage remote state.

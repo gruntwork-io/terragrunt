@@ -49,7 +49,7 @@ func EarlyStackParseFunctions(
 ) (map[string]function.Function, error) {
 	stackFilePath := filepath.Join(baseDir, DefaultStackFile)
 
-	_, scoped, err := pctx.WithConfigPath(l, stackFilePath)
+	_, scoped, err := pctx.WithStackConfigPath(l, stackFilePath)
 	if err != nil {
 		return nil, err
 	}

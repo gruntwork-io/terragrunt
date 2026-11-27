@@ -133,6 +133,7 @@ jobs:
       - name: Find scenarios to confirm
         env:
           BENCH_BASE_SHA: ${{ steps.refs.outputs.base_sha }}
+          BENCH_BASE_DESCRIPTION: ${{ steps.refs.outputs.base_description }}
           BENCH_HEAD_SHA: ${{ steps.refs.outputs.head_sha }}
         run: |
           bun ./.github/scripts/benchmark/compare.ts \
@@ -154,6 +155,7 @@ jobs:
       - name: Compare
         env:
           BENCH_BASE_SHA: ${{ steps.refs.outputs.base_sha }}
+          BENCH_BASE_DESCRIPTION: ${{ steps.refs.outputs.base_description }}
           BENCH_HEAD_SHA: ${{ steps.refs.outputs.head_sha }}
         run: |
           bun ./.github/scripts/benchmark/compare.ts \
