@@ -1,0 +1,17 @@
+---
+version: "v1.3.0"
+category: "experiments-updated"
+---
+
+#### `otel-logs` - Records link to the correct span, and unconfirmed records are reported
+
+The [`otel-logs`](/reference/experiments/active#otel-logs) experiment exports Terragrunt's logs as OpenTelemetry log records. This release puts each record under the correct span and reports the records that the exporter does not confirm:
+
+- Each record of a unit, including the output of its hooks, links to a span of that unit. Records logged outside a unit link to the root command span until the command ends.
+- When a command fails, its final error is exported as an error record of the root command span. A declined prompt does not count as a failure.
+- The log buffer holds 32768 records, and one export sends up to 2048 records. Set `OTEL_BLRP_MAX_QUEUE_SIZE` and `OTEL_BLRP_MAX_EXPORT_BATCH_SIZE` to change these sizes.
+- At exit, Terragrunt prints the count of log records that the exporter did not confirm, e.g. records dropped from a full buffer. Each telemetry shutdown error names its signal: `traces`, `metrics` or `logs`.
+- An unknown `TG_TELEMETRY_LOGS_EXPORTER` value or an invalid `OTEL_BLRP_*` size stops the command with an error. Before, an unknown exporter value exported no logs.
+- Invalid UTF-8 in a record body is replaced with the Unicode replacement character.
+
+See [OpenTelemetry](/troubleshooting/open-telemetry) for the settings.

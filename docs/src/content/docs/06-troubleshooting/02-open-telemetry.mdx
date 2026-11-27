@@ -68,8 +68,8 @@ Each record carries the trace and span IDs of the span it was logged in, so logs
 
 Only records at or above the [log level](/reference/logging) are exported, so `--log-level` also controls how many records reach the backend. Record bodies are plain text, without ANSI color codes. Records are sent in batches, and buffered records are flushed when the command exits. This also happens when a run is interrupted, and the flush waits at most 30 seconds. Records that do not fit in the buffer are dropped. These variables tune the buffer:
 
-- `OTEL_BLRP_MAX_QUEUE_SIZE` - the number of records buffered before new records are dropped. Defaults to `2048`.
-- `OTEL_BLRP_MAX_EXPORT_BATCH_SIZE` - the maximum number of records in one export. Defaults to `512`.
+- `OTEL_BLRP_MAX_QUEUE_SIZE` - the number of records buffered before new records are dropped. Defaults to `32768`.
+- `OTEL_BLRP_MAX_EXPORT_BATCH_SIZE` - the maximum number of records in one export. Defaults to `2048`.
 - `OTEL_BLRP_SCHEDULE_DELAY` - the delay in milliseconds between exports. Defaults to `1000`.
 - `OTEL_BLRP_EXPORT_TIMEOUT` - the timeout in milliseconds for one export. Defaults to `30000`.
 
