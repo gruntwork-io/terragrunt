@@ -1,0 +1,18 @@
+---
+version: "v1.3.0"
+category: "bug-fixes"
+---
+
+#### `azurerm` OIDC token sources match OpenTofu
+
+With `ARM_USE_OIDC=true` and the token in `ARM_OIDC_TOKEN`, bootstrapping an `azurerm` backend failed:
+
+```text
+no token file specified. Check pod configuration or set TokenFilePath in the options
+```
+
+Terragrunt now reads `oidc_token` and `ARM_OIDC_TOKEN`.
+
+It also uses a token or a token file before a token request URL, as OpenTofu does. With `AZURE_FEDERATED_TOKEN_FILE` and a request URL both set, Terragrunt authenticates with the file.
+
+In Azure DevOps, Terragrunt requests the token for the service connection in `ado_service_connection_id` or `ARM_ADO_PIPELINE_SERVICE_CONNECTION_ID`. A service connection comes before a token and a token file. With `ARM_ADO_PIPELINE_SERVICE_CONNECTION_ID`, Terragrunt also reads dependency outputs from state. Before this release, it ran `init` and `output` for every dependency. See [Authenticating with Azure](/features/units/authentication/azure).

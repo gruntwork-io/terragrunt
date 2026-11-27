@@ -8,6 +8,7 @@ sidebar:
 ---
 
 import { Aside } from '@astrojs/starlight/components';
+import Since from '@components/Since.astro';
 
 Example configuration:
 
@@ -107,6 +108,19 @@ to any values not set in the config:
 4. Managed identity (`use_msi`, optionally `msi_resource_id`)
 5. OIDC / workload identity (`use_oidc`, `oidc_token_file_path`)
 6. Azure AD (`use_azuread_auth`, or the default credential chain, which honors `az login`)
+
+<Since version="v1.3.0">
+
+With `use_oidc`, Terragrunt uses the first of these token sources that is set, as OpenTofu does:
+
+1. Azure DevOps service connection (`ado_service_connection_id`, with `SYSTEM_OIDCREQUESTURI` and a request token)
+2. Token (`oidc_token`)
+3. Token file (`oidc_token_file_path`)
+4. Token request URL, e.g. the one GitHub Actions sets
+
+If a token and a token file are both set, the file must be empty or hold the same token.
+
+</Since>
 
 For Azure Government, set `environment = "usgovernment"` (or `ARM_ENVIRONMENT=usgovernment`) so Terragrunt
 talks to the Government endpoints for auth, ARM, and blob storage. Credentials must come from that partition
