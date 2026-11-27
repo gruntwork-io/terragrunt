@@ -203,6 +203,22 @@ func TestRunChecksRequiredOutputsAfterApply(t *testing.T) {
 			expectedCommands: []string{"apply"},
 		},
 		{
+			name:             "an apply with TF_CLI_ARGS_apply in another letter case reads no outputs",
+			command:          "apply",
+			args:             []string{"-auto-approve"},
+			env:              map[string]string{"TF_CLI_ARGS_APPLY": "-state-out=custom.tfstate"},
+			required:         []string{"subnet_ids"},
+			expectedCommands: []string{"apply"},
+		},
+		{
+			name:             "an apply with a TF_CLI_ARGS variable in lower case reads no outputs",
+			command:          "apply",
+			args:             []string{"-auto-approve"},
+			env:              map[string]string{"tf_cli_args_output": "-state=custom.tfstate"},
+			required:         []string{"subnet_ids"},
+			expectedCommands: []string{"apply"},
+		},
+		{
 			name:             "an apply with -exclude in TF_CLI_ARGS reads no outputs",
 			command:          "apply",
 			args:             []string{"-auto-approve"},
@@ -494,6 +510,39 @@ func TestRunPassesWhenTheReadOfTheRequiredOutputsFails(t *testing.T) {
 			name:   "the output command prints a JSON log record before the outputs",
 			output: vexec.Result{Stdout: []byte(`{"@level": "info", "@message": "log"}` + "\n" + stateWithVPCID)},
 		},
+		{
+			name:   "the output command prints an empty object in a warning before the outputs",
+			output: vexec.Result{Stdout: []byte(`The file "{}-missing.tfrc" does not exist.` + "\n" + stateWithVPCID)},
+		},
+		{
+			name:   "the output command prints an object without the fields of an output before the outputs",
+			output: vexec.Result{Stdout: []byte(`{"record": {"message": "log"}}` + "\n" + stateWithVPCID)},
+		},
+		{
+			name:   "the output command prints a warning before an empty object",
+			output: vexec.Result{Stdout: []byte("Warning: Deprecated Parameter\n{}\n")},
+		},
+		{
+			name:   "the output command prints an empty object and the outputs on one line",
+			output: vexec.Result{Stdout: []byte("{} " + stateWithVPCID)},
+		},
+		{
+			name:   "the output command prints a brace without JSON before the outputs",
+			output: vexec.Result{Stdout: []byte(`The file "{-missing.tfrc" does not exist.` + "\n" + stateWithVPCID)},
+		},
+		{
+			name:   "the output command prints an output without its type",
+			output: vexec.Result{Stdout: []byte(`{"vpc_id": {"sensitive": false, "value": "vpc-1"}}`)},
+		},
+		{
+			name:   "the output command prints an output without its sensitive flag",
+			output: vexec.Result{Stdout: []byte(`{"vpc_id": {"type": "string", "value": "vpc-1"}}`)},
+		},
+		{
+			name:   "the output command prints an output without its value",
+			output: vexec.Result{Stdout: []byte(`{"vpc_id": {"sensitive": false, "type": "string"}}`)},
+		},
+		{name: "the output command prints null", output: vexec.Result{Stdout: []byte("null")}},
 	}
 
 	for _, tc := range testCases {
@@ -521,6 +570,31 @@ func TestRunReadsRequiredOutputsBesideAWarning(t *testing.T) {
 
 	require.ErrorAs(t, err, &missing)
 	require.Equal(t, []string{"subnet_ids"}, missing.Names)
+}
+
+func TestRunFailsWhenTheOutputCommandPrintsAnEmptyObjectFirst(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name   string
+		stdout string
+	}{
+		{name: "the empty object is alone", stdout: "{}\n"},
+		{name: "a warning follows the empty object", stdout: "{}\nWarning: Deprecated Parameter\n"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := runApplyWithOutputResult(t, &recorder{}, vexec.Result{Stdout: []byte(tc.stdout)})
+
+			var missing run.RequiredOutputsMissingError
+
+			require.ErrorAs(t, err, &missing)
+			require.Equal(t, []string{"subnet_ids"}, missing.Names)
+		})
+	}
 }
 
 func TestRunReadsRequiredOutputsWithABareOutputCommandInTheEnvironmentOfTheApply(t *testing.T) {

@@ -4,6 +4,7 @@
 package run
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -1289,12 +1290,17 @@ var unverifiableApplyFlags = []string{
 	"target", "exclude", "target-file", "exclude-file", "state", "state-out", "refresh-only", "help", "h",
 }
 
-// appliedOutputs holds the outputs by name that a verifiable apply wrote, and is nil when none were read.
-type appliedOutputs map[string]appliedOutput
+// errOutputsNotProven is the read error for a stdout that does not prove to hold the object of the outputs.
+var errOutputsNotProven = errors.New("the stdout of the output command is not the JSON object of the outputs")
 
-// appliedOutput is one entry of the JSON object that the output command prints.
-type appliedOutput struct {
-	Value json.RawMessage `json:"value"`
+// appliedOutputs holds the names of the outputs that a verifiable apply wrote, and is nil when none were read.
+type appliedOutputs map[string]struct{}
+
+// outputEntry is one entry of the JSON object that the output command prints.
+type outputEntry struct {
+	Sensitive *bool           `json:"sensitive"`
+	Type      json.RawMessage `json:"type"`
+	Value     json.RawMessage `json:"value"`
 }
 
 // requireOutputs returns [RequiredOutputsMissingError] for the required outputs of cfg that applied lacks.
@@ -1350,7 +1356,7 @@ func readAppliedOutputs(
 	return outputs
 }
 
-// readOutputs runs the output command in the environment of the apply and returns the outputs by name.
+// readOutputs runs the output command in the environment of the apply and returns the names of the outputs.
 func readOutputs(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) (appliedOutputs, error) {
 	env := maps.Clone(v.Env)
 	maps.DeleteFunc(env, func(name, _ string) bool {
@@ -1372,14 +1378,34 @@ func readOutputs(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options)
 		return nil, err
 	}
 
-	object, err := tf.ExtractFirstJSONObject(out.Stdout.Bytes())
+	return parseOutputs(out.Stdout.Bytes())
+}
+
+// parseOutputs returns the names in the object of outputs of stdout, or an error when no object proves to be it.
+func parseOutputs(stdout []byte) (appliedOutputs, error) {
+	object, err := tf.ExtractFirstJSONObject(stdout)
 	if err != nil {
 		return nil, err
 	}
 
-	outputs := appliedOutputs{}
-	if err := json.Unmarshal(object, &outputs); err != nil {
+	entries := map[string]outputEntry{}
+	if err := json.Unmarshal(object, &entries); err != nil {
 		return nil, err
+	}
+
+	text := bytes.TrimSpace(stdout)
+	if len(entries) == 0 && string(text) != "{}" && !bytes.HasPrefix(text, []byte("{}\n")) {
+		return nil, errOutputsNotProven
+	}
+
+	outputs := make(appliedOutputs, len(entries))
+
+	for name, entry := range entries {
+		if entry.Sensitive == nil || entry.Type == nil || entry.Value == nil {
+			return nil, errOutputsNotProven
+		}
+
+		outputs[name] = struct{}{}
 	}
 
 	return outputs, nil
@@ -1388,7 +1414,7 @@ func readOutputs(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options)
 // verifiableApply reports whether args with env run an apply that writes every output to the state output reads.
 func verifiableApply(args *iacargs.IacArgs, env map[string]string) bool {
 	fromEnv := env[tf.EnvNameTFCLIArgs+"_"+tf.CommandNameApply] + " " + env[tf.EnvNameTFCLIArgs]
-	if args.First() != tf.CommandNameApply || strings.ContainsAny(fromEnv, `"'\`) {
+	if args.First() != tf.CommandNameApply || strings.ContainsAny(fromEnv, `"'\`) || respelledCLIArgs(env) {
 		return false
 	}
 
@@ -1405,4 +1431,22 @@ func verifiableApply(args *iacargs.IacArgs, env map[string]string) bool {
 	}
 
 	return !slices.ContainsFunc(unverifiableApplyFlags, all.HasFlag)
+}
+
+// respelledCLIArgs reports whether env names a TF_CLI_ARGS variable in a letter case that only Windows reads.
+func respelledCLIArgs(env map[string]string) bool {
+	applyArgs := tf.EnvNameTFCLIArgs + "_" + tf.CommandNameApply
+
+	for name := range env {
+		if name != applyArgs && strings.EqualFold(name, applyArgs) {
+			return true
+		}
+
+		upper := strings.ToUpper(name)
+		if !strings.HasPrefix(name, tf.EnvNameTFCLIArgs) && strings.HasPrefix(upper, tf.EnvNameTFCLIArgs) {
+			return true
+		}
+	}
+
+	return false
 }
