@@ -82,6 +82,9 @@ type ParsingContext struct {
 	// stackFile is the stack file that the context evaluates files for, and empty for the files of a unit.
 	stackFile string
 
+	// unitWorkingDir is the working directory of the run of the unit, or empty for WorkingDir.
+	unitWorkingDir string
+
 	// IAMRoleOptions is the IAM role the file's functions and dependency output fetches assume.
 	IAMRoleOptions iam.RoleOptions
 
@@ -472,6 +475,7 @@ func (ctx *ParsingContext) WithConfigPath(
 	}
 
 	c.TerragruntConfigPath = cfgPath
+	c.unitWorkingDir = ctx.runWorkingDir()
 	c.WorkingDir = workingDir
 	c.Path = nil
 
@@ -515,6 +519,7 @@ func (ctx *ParsingContext) WithDependencyConfigPath(
 	c.includes = nil
 	c.catalogOnly = false
 	c.catalogStubDir = ""
+	c.unitWorkingDir = ""
 
 	if c.IAMRoleOptions != c.OriginalIAMRoleOptions {
 		c.IAMRoleOptions = iam.RoleOptions{}
@@ -592,4 +597,13 @@ func (ctx *ParsingContext) forReadTarget() *ParsingContext {
 	c.Features = nil
 
 	return c
+}
+
+// runWorkingDir returns the working directory of the run of the unit that the context parses files for.
+func (ctx *ParsingContext) runWorkingDir() string {
+	if ctx.unitWorkingDir != "" {
+		return ctx.unitWorkingDir
+	}
+
+	return ctx.WorkingDir
 }

@@ -282,6 +282,69 @@ func TestPathVariableModuleOfInPlaceUnit(t *testing.T) {
 	assert.Equal(t, unitDir, cfg.Inputs["module"])
 }
 
+func TestPathVariableModuleOfInPlaceUnitIsTheWorkingDirOfTheRun(t *testing.T) {
+	t.Parallel()
+
+	v, root := pathFixture(t)
+	runDir := filepath.Join(root, "run")
+	cfgPath := filepath.Join(root, "module", "in-place-read", config.DefaultTerragruntConfigPath)
+
+	ctx, pctx := newPathParsingContext(t, cfgPath)
+	pctx.WorkingDir = runDir
+	pctx.RootWorkingDir = runDir
+	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.NoDotTerragruntCache))
+
+	cfg, err := new(config.Store).ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, cfgPath)
+	require.NoError(t, err)
+
+	assert.Equal(t, map[string]any{"module": runDir, "read_module": runDir}, cfg.Inputs)
+}
+
+func TestPathVariableModuleOfInPlaceDependencyIsItsOwnDir(t *testing.T) {
+	t.Parallel()
+
+	v, root := pathFixture(t)
+	runDir := filepath.Join(root, "run")
+	cfgPath := filepath.Join(root, "module", "in-place-read", config.DefaultTerragruntConfigPath)
+	depDir := filepath.Join(root, "module", "in-place")
+	depPath := filepath.Join(depDir, config.DefaultTerragruntConfigPath)
+
+	ctx, pctx := newPathParsingContext(t, cfgPath)
+	pctx.WorkingDir = runDir
+	pctx.RootWorkingDir = runDir
+	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.NoDotTerragruntCache))
+
+	l, depPctx, err := pctx.WithDependencyConfigPath(logger.CreateLogger(), depPath)
+	require.NoError(t, err)
+
+	file, err := depPctx.NewParser(l, v).ParseFromFile(v.FS, depPath)
+	require.NoError(t, err)
+
+	path, err := config.PathVariable(ctx, l, v, new(config.Store), depPctx, file, nil)
+	require.NoError(t, err)
+	require.NotNil(t, path)
+
+	assert.Equal(t, depDir, path.GetAttr("download").AsString())
+}
+
+func TestPathVariableModuleMatchesGetWorkingDirOfTheRun(t *testing.T) {
+	t.Parallel()
+
+	v, root := pathFixture(t)
+	runDir := filepath.Join(root, "run")
+	cfgPath := filepath.Join(root, "module", "local", config.DefaultTerragruntConfigPath)
+
+	ctx, pctx := newPathParsingContext(t, cfgPath)
+	pctx.WorkingDir = runDir
+	pctx.RootWorkingDir = runDir
+
+	cfg, err := new(config.Store).ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, cfgPath)
+	require.NoError(t, err)
+
+	require.NotEmpty(t, cfg.Inputs["working_dir"])
+	assert.Equal(t, cfg.Inputs["working_dir"], cfg.Inputs["module"])
+}
+
 func TestPathVariableModuleOfInPlaceUnitWithDependencyInTerraformBlock(t *testing.T) {
 	t.Parallel()
 

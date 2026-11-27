@@ -350,6 +350,84 @@ func TestRunNoDotTerragruntCacheRunsInWorkingDirWhenConfigIsElsewhere(t *testing
 	assert.NoDirExists(t, filepath.Join(s.dir, ".terragrunt-cache"))
 }
 
+func TestRunNoDotTerragruntCacheInitKeepsNullVarsFileWhenConfigIsElsewhere(t *testing.T) {
+	t.Parallel()
+
+	s := setupRunE2EScaffold(t)
+	nullVarsPath := filepath.Join(s.dir, run.NullTFVarsFile)
+	require.NoError(t, os.WriteFile(nullVarsPath, []byte(`{"keep": "original"}`), 0o644))
+
+	rec := &recorder{}
+	v := venv.MemVenv().WithExec(vexec.NewMemExec(rec.handler(vexec.Result{}))).WithFS(vfs.NewOSFS())
+
+	cfg := &runcfg.RunConfig{
+		Terraform: runcfg.TerraformConfig{NoDotTerragruntCache: true},
+		Inputs:    map[string]any{"var1": nil},
+	}
+
+	err := run.Run(
+		t.Context(), logger.CreateLogger(), v, newAutoInitConfigElsewhereOpts(t, s), report.NewReport(), cfg,
+		creds.NewGetter(),
+	)
+
+	var exists run.VarsFileExists
+
+	require.ErrorAs(t, err, &exists)
+	assert.Equal(t, nullVarsPath, exists.Path)
+	assert.Empty(t, rec.snapshot(), "tofu must not run")
+
+	contents, err := os.ReadFile(nullVarsPath)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"keep": "original"}`, string(contents))
+}
+
+func TestRunNoDotTerragruntCacheInitKeepsFileOfUnusedKindWhenConfigIsElsewhere(t *testing.T) {
+	t.Parallel()
+
+	s := setupRunE2EScaffold(t)
+	jsonVars := filepath.Join(s.dir, run.JSONVarsFile)
+	require.NoError(t, os.WriteFile(jsonVars, []byte(`{"name": "mine"}`), 0o644))
+
+	rec := &recorder{}
+	v := venv.MemVenv().WithExec(vexec.NewMemExec(rec.handler(vexec.Result{}))).WithFS(vfs.NewOSFS())
+
+	cfg := &runcfg.RunConfig{
+		Terraform:    runcfg.TerraformConfig{NoDotTerragruntCache: true},
+		TFVarsInputs: map[string]any{"name": "value"},
+	}
+
+	opts := newAutoInitConfigElsewhereOpts(t, s)
+	require.NoError(t, opts.Experiments.EnableExperiment(experiment.VariablesBlock))
+
+	require.NoError(t, run.Run(t.Context(), logger.CreateLogger(), v, opts, report.NewReport(), cfg, creds.NewGetter()))
+
+	calls := rec.snapshot()
+	require.Len(t, calls, 2)
+	assert.Contains(t, calls[0].Args, "init")
+	assert.NoFileExists(t, filepath.Join(s.dir, run.TFVarsFile))
+
+	contents, err := os.ReadFile(jsonVars)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"name": "mine"}`, string(contents))
+}
+
+// newAutoInitConfigElsewhereOpts returns in-place plan options with auto-init due and the config in another directory.
+func newAutoInitConfigElsewhereOpts(t *testing.T, s runE2EScaffold) *run.Options {
+	t.Helper()
+
+	require.NoError(t, os.Remove(filepath.Join(s.dir, tf.TerraformLockFile)))
+
+	configPath := filepath.Join(t.TempDir(), "terragrunt.hcl")
+	require.NoError(t, os.WriteFile(configPath, nil, 0o644))
+
+	opts := newNoDotTerragruntCacheOpts(t, s, "plan")
+	opts.TerragruntConfigPath = configPath
+	opts.OriginalTerragruntConfigPath = configPath
+	opts.AutoInit = true
+
+	return opts
+}
+
 // newNoDotTerragruntCacheOpts returns scaffold options with the no-dot-terragrunt-cache experiment enabled.
 func newNoDotTerragruntCacheOpts(t *testing.T, s runE2EScaffold, command string) *run.Options {
 	t.Helper()

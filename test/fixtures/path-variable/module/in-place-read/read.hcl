@@ -1,0 +1,3 @@
+inputs = {
+  module = path.download
+}

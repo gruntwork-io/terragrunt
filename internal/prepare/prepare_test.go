@@ -1,7 +1,10 @@
 package prepare_test
 
 import (
+	"context"
 	"path/filepath"
+	"slices"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,6 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -149,6 +153,84 @@ func TestPrepareSourceInPlaceReturnsAbsoluteConfigPath(t *testing.T) {
 	assert.Equal(t, configPath, updatedOpts.TerragruntConfigPath)
 }
 
+func TestPrepareInitInCacheReplacesLeftoverNullVarsFile(t *testing.T) {
+	t.Parallel()
+
+	unitDir := t.TempDir()
+	fsys := vfs.NewOSFS()
+	require.NoError(t, vfs.WriteFile(fsys, filepath.Join(unitDir, config.DefaultTerragruntConfigPath), nil, 0o644))
+	require.NoError(t, vfs.WriteFile(fsys, filepath.Join(unitDir, "main.tf"), nil, 0o644))
+
+	opts, err := options.NewTerragruntOptionsWithConfigPath(filepath.Join(unitDir, config.DefaultTerragruntConfigPath))
+	require.NoError(t, err)
+
+	var initRan atomic.Bool
+
+	v := venv.MemVenv().WithFS(fsys).WithExec(vexec.NewMemExec(initRecorder(&initRan)))
+	ctx := run.WithRunVersionCache(t.Context())
+	l := logger.CreateLogger()
+	r := report.NewReport()
+	cfg := &config.TerragruntConfig{Inputs: map[string]any{"var1": nil}}
+
+	updatedOpts, impl, err := prepare.PrepareSource(ctx, l, v, opts, cfg, r)
+	require.NoError(t, err)
+	require.NotEqual(t, unitDir, updatedOpts.WorkingDir)
+
+	leftover := filepath.Join(updatedOpts.WorkingDir, run.NullTFVarsFile)
+	require.NoError(t, vfs.WriteFile(fsys, leftover, []byte(`{"var1":`), 0o600))
+
+	require.NoError(t, prepare.PrepareInit(ctx, l, v, opts, updatedOpts, impl, cfg.ToRunConfig(l, fsys), r))
+
+	assert.True(t, initRan.Load(), "init must run")
+	assert.NoFileExists(t, leftover)
+}
+
+func TestPrepareInitInPlaceKeepsNullVarsFileWhenConfigIsElsewhere(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	unitDir := filepath.Join(root, "unit")
+	configPath := filepath.Join(root, "config", config.DefaultTerragruntConfigPath)
+	nullVarsPath := filepath.Join(unitDir, run.NullTFVarsFile)
+
+	fsys := vfs.NewOSFS()
+	require.NoError(t, vfs.WriteFile(fsys, configPath, nil, 0o644))
+	require.NoError(t, vfs.WriteFile(fsys, filepath.Join(unitDir, "main.tf"), nil, 0o644))
+	require.NoError(t, vfs.WriteFile(fsys, nullVarsPath, []byte(`{"keep": "original"}`), 0o644))
+
+	opts, err := options.NewTerragruntOptionsWithConfigPath(configPath)
+	require.NoError(t, err)
+
+	opts.WorkingDir = unitDir
+	require.NoError(t, opts.Experiments.EnableExperiment(experiment.NoDotTerragruntCache))
+
+	var initRan atomic.Bool
+
+	v := venv.MemVenv().WithFS(fsys).WithExec(vexec.NewMemExec(initRecorder(&initRan)))
+	ctx := run.WithRunVersionCache(t.Context())
+	l := logger.CreateLogger()
+	r := report.NewReport()
+	cfg := &config.TerragruntConfig{
+		Terraform: &config.TerraformConfig{NoDotTerragruntCache: new(true)},
+		Inputs:    map[string]any{"var1": nil},
+	}
+
+	updatedOpts, impl, err := prepare.PrepareSource(ctx, l, v, opts, cfg, r)
+	require.NoError(t, err)
+
+	err = prepare.PrepareInit(ctx, l, v, opts, updatedOpts, impl, cfg.ToRunConfig(l, fsys), r)
+
+	var exists run.VarsFileExists
+
+	require.ErrorAs(t, err, &exists)
+	assert.Equal(t, nullVarsPath, exists.Path)
+	assert.False(t, initRan.Load(), "init must not run")
+
+	contents, err := vfs.ReadFile(fsys, nullVarsPath)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"keep": "original"}`, string(contents))
+}
+
 func prepareSourceInPlace(
 	t *testing.T,
 	fsys vfs.FS,
@@ -172,4 +254,15 @@ func prepareSourceInPlace(
 	require.NoError(t, err)
 
 	return updatedOpts
+}
+
+// initRecorder returns an exec handler that sets initRan when it runs an init command.
+func initRecorder(initRan *atomic.Bool) vexec.Handler {
+	return func(_ context.Context, inv vexec.Invocation) vexec.Result {
+		if slices.Contains(inv.Args, "init") {
+			initRan.Store(true)
+		}
+
+		return vexec.Result{}
+	}
 }

@@ -91,6 +91,7 @@ var parsingContextFieldsOutsideKey = map[string]string{
 		"files read it, and none of those results are shared",
 	"readConfigChain": "it detects cycles, which fail the read, and marks the target that `path.read` names, which is in the key",
 	"stackFile":       "only the `path` attributes that stop the result being shared read it",
+	"unitWorkingDir":  "only `path.download` reads it, and that stops the result being shared",
 	"catalogStubDir": "only the generated catalog child reads it, and nothing else lives in that in-memory " +
 		"directory to be a read target",
 	"ParseDepth":                       "it only limits nesting, and going past the limit fails the read",
