@@ -1,0 +1,27 @@
+---
+name: commands
+description: Each field holds the list of OpenTofu/Terraform commands that accept one set of flags.
+configs: [unit, stack]
+since: v1.3.0
+experiment: commands-variable
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip" title="Experimental">
+  The `commands` variable needs the [`commands-variable`](/reference/experiments/active#commands-variable) experiment. Enable it with `--experiment commands-variable` or `TG_EXPERIMENT=commands-variable`. Without the experiment, `commands` is not defined.
+</Aside>
+
+Each field of `commands` is a list of the OpenTofu/Terraform commands that accept one set of flags. Use a field as the `commands` of an [`extra_arguments`](/reference/hcl/blocks/terraform#extra_arguments) block or of a [hook](/reference/hcl/blocks/terraform#before_hook):
+
+```hcl
+# terragrunt.hcl
+terraform {
+  before_hook "notify" {
+    commands = commands.accept_locking
+    execute  = ["echo", "This command locks the state"]
+  }
+}
+```
+
+`commands` has the same value in a unit, in a file that the unit includes or reads, in a `terragrunt.values.hcl` file, and in a `terragrunt.stack.hcl` file.

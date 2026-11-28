@@ -1,6 +1,7 @@
 package hclparse_test
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -1577,6 +1578,92 @@ func TestDirectComponentPathsScopesPathIncludeToIncludedFile(t *testing.T) {
 	assert.Empty(t, stackPaths)
 }
 
+func TestUnitPathsFromStackDirReadsCommandsFromFactoryVariables(t *testing.T) {
+	t.Parallel()
+
+	fsys, root := venvtest.LoadFS(t, filepath.Join("..", "..", "test", "fixtures", "commands-variable"))
+	stackDir := filepath.Join(root, "discovery", "live")
+
+	unitPaths, err := hclparse.UnitPathsFromStackDir(t.Context(), fsys, stackDir, &hclparse.StackDirArgs{
+		FuncsFor: noFuncs,
+		VarsFor:  commandsVarsFor,
+	})
+	require.NoError(t, err)
+
+	require.Equal(t, []string{filepath.Join(stackDir, ".terragrunt-stack", "plan-init")}, unitPaths)
+}
+
+func TestDirectComponentPathsReadsCommandsFromFactoryVariables(t *testing.T) {
+	t.Parallel()
+
+	fsys, root := venvtest.LoadFS(t, filepath.Join("..", "..", "test", "fixtures", "commands-variable"))
+	stackDir := filepath.Join(root, "discovery", "live")
+
+	unitPaths, stackPaths, err := hclparse.DirectComponentPaths(t.Context(), fsys, stackDir, &hclparse.StackDirArgs{
+		FuncsFor: noFuncs,
+		VarsFor:  commandsVarsFor,
+	})
+	require.NoError(t, err)
+
+	require.Equal(t, []string{filepath.Join(stackDir, ".terragrunt-stack", "plan-init")}, unitPaths)
+	require.Empty(t, stackPaths)
+}
+
+func TestUnitPathsFromStackDirWithoutFactoryVariablesRejectsCommands(t *testing.T) {
+	t.Parallel()
+
+	fsys, root := venvtest.LoadFS(t, filepath.Join("..", "..", "test", "fixtures", "commands-variable"))
+	stackDir := filepath.Join(root, "discovery", "live")
+
+	_, err := hclparse.UnitPathsFromStackDir(t.Context(), fsys, stackDir, &hclparse.StackDirArgs{
+		FuncsFor: noFuncs,
+		VarsFor:  noVars,
+	})
+
+	var decodeErr hclparse.FileDecodeError
+
+	require.ErrorAs(t, err, &decodeErr)
+
+	var diags hcl.Diagnostics
+
+	require.ErrorAs(t, err, &diags)
+	require.NotEmpty(t, diags)
+	require.NotNil(t, diags[0].Subject)
+
+	require.Equal(t, "Unknown variable", diags[0].Summary)
+	require.Equal(t, filepath.Join(stackDir, "terragrunt.values.hcl"), diags[0].Subject.Filename)
+}
+
+func TestDirectComponentPathsReturnsVariableFactoryError(t *testing.T) {
+	t.Parallel()
+
+	fsys, root := venvtest.LoadFS(t, filepath.Join("..", "..", "test", "fixtures", "commands-variable"))
+	stackDir := filepath.Join(root, "discovery", "live")
+	errVars := errors.New("variables failed")
+
+	_, _, err := hclparse.DirectComponentPaths(t.Context(), fsys, stackDir, &hclparse.StackDirArgs{
+		FuncsFor: noFuncs,
+		VarsFor:  func(string) (map[string]cty.Value, error) { return nil, errVars },
+	})
+
+	require.ErrorIs(t, err, errVars)
+}
+
+func TestUnitPathsFromStackDirReturnsVariableFactoryError(t *testing.T) {
+	t.Parallel()
+
+	fsys, root := venvtest.LoadFS(t, filepath.Join("..", "..", "test", "fixtures", "commands-variable"))
+	stackDir := filepath.Join(root, "discovery", "live")
+	errVars := errors.New("variables failed")
+
+	_, err := hclparse.UnitPathsFromStackDir(t.Context(), fsys, stackDir, &hclparse.StackDirArgs{
+		FuncsFor: noFuncs,
+		VarsFor:  func(string) (map[string]cty.Value, error) { return nil, errVars },
+	})
+
+	require.ErrorIs(t, err, errVars)
+}
+
 // TestParseStackFile_IncludedValuesBlockRejected pins that the phased parse rejects a values block in an included
 // stack file.
 func TestParseStackFile_IncludedValuesBlockRejected(t *testing.T) {
@@ -1639,4 +1726,13 @@ func pathVars(stackDir string) map[string]cty.Value {
 // pathVarsFor is the variable factory of a stack file that reads path.stack.
 func pathVarsFor(stackDir string) (map[string]cty.Value, error) {
 	return pathVars(stackDir), nil
+}
+
+func commandsVarsFor(string) (map[string]cty.Value, error) {
+	return map[string]cty.Value{
+		"commands": cty.ObjectVal(map[string]cty.Value{
+			"accept_parallelism": cty.ListVal([]cty.Value{cty.StringVal("plan")}),
+			"accept_input":       cty.ListVal([]cty.Value{cty.StringVal("init")}),
+		}),
+	}, nil
 }

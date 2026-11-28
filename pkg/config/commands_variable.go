@@ -1,0 +1,87 @@
+package config
+
+import (
+	"errors"
+	"slices"
+	"strings"
+	"sync"
+
+	"github.com/hashicorp/hcl/v2"
+	"github.com/zclconf/go-cty/cty"
+
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
+)
+
+const (
+	commandsAttrAcceptVars        = "accept_vars"
+	commandsAttrAcceptLocking     = "accept_locking"
+	commandsAttrAcceptInput       = "accept_input"
+	commandsAttrAcceptParallelism = "accept_parallelism"
+
+	commandsExperimentHint = " The `commands` variable needs the " + experiment.CommandsVariable +
+		" experiment. Enable it with --experiment " + experiment.CommandsVariable +
+		" or TG_EXPERIMENT=" + experiment.CommandsVariable + "."
+)
+
+var commandsExperimentHintOption = hclparse.WithDiagnosticsHandler(commandsExperimentDiagnostics)
+
+var commandsVariable = sync.OnceValue(func() cty.Value {
+	return cty.ObjectVal(map[string]cty.Value{
+		commandsAttrAcceptVars:        stringListVal(TerraformCommandsNeedVars),
+		commandsAttrAcceptLocking:     stringListVal(TerraformCommandsNeedLocking),
+		commandsAttrAcceptInput:       stringListVal(TerraformCommandsNeedInput),
+		commandsAttrAcceptParallelism: stringListVal(TerraformCommandsNeedParallelism),
+	})
+})
+
+func commandsExperimentDiagnostics(_ *hcl.File, diags hcl.Diagnostics) (hcl.Diagnostics, error) {
+	hintUnknownCommands(diags)
+
+	return diags, nil
+}
+
+func withCommandsExperimentHint(enabled bool, err error) error {
+	var diags hcl.Diagnostics
+
+	if !enabled && errors.As(err, &diags) {
+		hintUnknownCommands(diags)
+	}
+
+	return err
+}
+
+func hintUnknownCommands(diags hcl.Diagnostics) {
+	for _, diag := range diags {
+		if readsUnknownCommands(diag) && !strings.HasSuffix(diag.Detail, commandsExperimentHint) {
+			diag.Detail += commandsExperimentHint
+		}
+	}
+}
+
+func readsUnknownCommands(diag *hcl.Diagnostic) bool {
+	if causes, held := diag.Extra.(hcl.Diagnostics); held {
+		return slices.ContainsFunc(causes, referencesUnknownCommands)
+	}
+
+	return referencesUnknownCommands(diag)
+}
+
+func referencesUnknownCommands(diag *hcl.Diagnostic) bool {
+	if diag.Expression == nil || diag.EvalContext == nil {
+		return false
+	}
+
+	traversal, diags := hcl.AbsTraversalForExpr(diag.Expression)
+	if diags.HasErrors() || traversal.RootName() != MetadataCommands {
+		return false
+	}
+
+	for scope := diag.EvalContext; scope != nil; scope = scope.Parent() {
+		if _, defined := scope.Variables[MetadataCommands]; defined {
+			return false
+		}
+	}
+
+	return true
+}

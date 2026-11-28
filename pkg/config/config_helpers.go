@@ -395,6 +395,10 @@ func evalVariablesWithoutIncludes(pctx *ParsingContext) map[string]cty.Value {
 		vars[MetadataPath] = *pctx.Path
 	}
 
+	if pctx.Experiments.Evaluate(experiment.CommandsVariable) {
+		vars[MetadataCommands] = commandsVariable()
+	}
+
 	if pctx.Locals != nil {
 		vars[MetadataLocal] = *pctx.Locals
 	}

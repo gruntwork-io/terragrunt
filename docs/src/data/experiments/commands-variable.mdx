@@ -1,0 +1,52 @@
+---
+name: commands-variable
+since: "v1.3.0"
+---
+
+Support for the `commands` variable. Each field holds the list of OpenTofu/Terraform commands that accept one set of flags.
+
+This experiment is ongoing and disabled by default. Without the experiment, `commands` is not defined. It becomes generally available once every item in the stabilization criteria below is met.
+
+### `commands-variable` - What it does
+
+Functions such as `get_terraform_commands_that_need_vars()` take no arguments and return the same list in every file. With this experiment enabled, each field of `commands` holds one of those lists:
+
+| Field | Value | Function with the same value |
+| --- | --- | --- |
+| `commands.accept_vars` | The commands that accept `-var` and `-var-file`. | `get_terraform_commands_that_need_vars()` |
+| `commands.accept_locking` | The commands that accept `-lock-timeout`. | `get_terraform_commands_that_need_locking()` |
+| `commands.accept_input` | The commands that accept `-input`. | `get_terraform_commands_that_need_input()` |
+| `commands.accept_parallelism` | The commands that accept `-parallelism`. | `get_terraform_commands_that_need_parallelism()` |
+
+```hcl
+# root.hcl
+terraform {
+  extra_arguments "common_vars" {
+    commands  = commands.accept_vars
+    arguments = ["-var-file=${get_terragrunt_dir()}/../common.tfvars"]
+  }
+
+  extra_arguments "retry_lock" {
+    commands  = commands.accept_locking
+    arguments = ["-lock-timeout=20m"]
+  }
+}
+```
+
+```bash
+terragrunt run --all --experiment commands-variable -- plan
+```
+
+`commands` has the same value in a unit, in a file that the unit includes or reads, in a `terragrunt.values.hcl` file, and in a `terragrunt.stack.hcl` file. The functions keep their behavior. See the [`commands` variable reference](/reference/hcl/variables/commands/) for each field, with examples.
+
+### `commands-variable` - How to provide feedback
+
+{/* TODO: link the experiment's GitHub Discussion once it exists. */}
+
+Provide your feedback in the [Terragrunt GitHub Discussions](https://github.com/gruntwork-io/terragrunt/discussions).
+
+### `commands-variable` - Criteria for stabilization
+
+To transition the `commands-variable` feature to a stable release, the following must be addressed:
+
+- [ ] Community feedback on real-world usage.

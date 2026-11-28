@@ -385,11 +385,15 @@ func (ctx *ParsingContext) WithDiagnosticsDiscarded() *ParsingContext {
 func (ctx *ParsingContext) ParserOptions(l log.Logger, v *venv.Venv) []hclparse.Option {
 	opts := ParserOptions(l, v, ctx.Parser)
 
-	if ctx.Experiments.Evaluate(experiment.PathVariable) {
-		return opts
+	if !ctx.Experiments.Evaluate(experiment.PathVariable) {
+		opts = slices.Insert(opts, 0, pathExperimentHintOption)
 	}
 
-	return slices.Insert(opts, 0, pathExperimentHintOption)
+	if !ctx.Experiments.Evaluate(experiment.CommandsVariable) {
+		opts = slices.Insert(opts, 0, commandsExperimentHintOption)
+	}
+
+	return opts
 }
 
 // NewParser returns an HCL parser configured by this context's parser settings.

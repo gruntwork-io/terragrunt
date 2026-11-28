@@ -1,6 +1,7 @@
 package configbridge_test
 
 import (
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -8,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/errorconfig"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	pcoptions "github.com/gruntwork-io/terragrunt/internal/providercache/options"
@@ -284,6 +286,62 @@ func TestStackDirArgsScopesVariablesToStackDir(t *testing.T) {
 	assert.Equal(t, map[string]cty.Value{
 		config.MetadataPath: cty.ObjectVal(map[string]cty.Value{"stack": cty.StringVal(stackDir)}),
 	}, vars)
+}
+
+func TestStackDirArgsVariablesDefineCommandsOnlyWithExperiment(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name        string
+		experiments []string
+		defined     bool
+	}{
+		{name: "experiment disabled"},
+		{name: "experiment enabled", experiments: []string{experiment.CommandsVariable}, defined: true},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			opts, err := options.NewTerragruntOptionsForTest("/mem/root/live/terragrunt.hcl")
+			require.NoError(t, err)
+
+			for _, name := range tc.experiments {
+				require.NoError(t, opts.Experiments.EnableExperiment(name))
+			}
+
+			args := configbridge.StackDirArgs(t.Context(), logger.CreateLogger(), venv.MemVenv(), new(config.Store), opts)
+			require.NotNil(t, args.FuncsFor)
+
+			vars, err := args.VarsFor(venvtest.Root("/mem/root/live/stack-a"))
+			require.NoError(t, err)
+
+			_, defined := vars[config.MetadataCommands]
+			require.Equal(t, tc.defined, defined)
+		})
+	}
+}
+
+func TestStackDirArgsDiscoverUnitPathBuiltFromCommands(t *testing.T) {
+	t.Parallel()
+
+	fsys, root := venvtest.LoadFS(t, filepath.Join("..", "..", "test", "fixtures", "commands-variable"))
+	stackDir := filepath.Join(root, "discovery", "live")
+
+	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(stackDir, config.DefaultStackFile))
+	require.NoError(t, err)
+	require.NoError(t, opts.Experiments.EnableExperiment(experiment.CommandsVariable))
+
+	v := venv.MemVenv().WithFS(fsys)
+	args := configbridge.StackDirArgs(t.Context(), logger.CreateLogger(), v, new(config.Store), opts)
+
+	unitPaths, err := inthclparse.UnitPathsFromStackDir(t.Context(), fsys, stackDir, args)
+	require.NoError(t, err)
+
+	unitName := config.TerraformCommandsNeedParallelism[0] + "-" + config.TerraformCommandsNeedInput[0]
+
+	require.Equal(t, []string{filepath.Join(stackDir, config.StackDir, unitName)}, unitPaths)
 }
 
 // optionsWithDistinctValues returns options whose every bridged field holds a recognizable non-zero value.

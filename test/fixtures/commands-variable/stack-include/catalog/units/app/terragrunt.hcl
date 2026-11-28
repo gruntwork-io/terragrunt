@@ -1,0 +1,3 @@
+inputs = {
+  list = values.list
+}

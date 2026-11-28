@@ -141,6 +141,8 @@ const (
 	MetadataUnit = "unit"
 	// MetadataPath names the `path` variable.
 	MetadataPath = "path"
+	// MetadataCommands names the `commands` variable.
+	MetadataCommands = "commands"
 )
 
 var (

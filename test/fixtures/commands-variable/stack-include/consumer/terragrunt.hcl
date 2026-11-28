@@ -1,0 +1,3 @@
+dependencies {
+  paths = ["../live"]
+}
