@@ -57,7 +57,7 @@ func newScaffoldSession(t *testing.T, dir string) *mcp.ClientSession {
 	tempDir := t.TempDir()
 	v := venvtest.NewWithOSFS().WithTempDir(func() string { return tempDir })
 
-	return newTestSessionWith(t, dir, v, func(*tgmcp.Options) {}, nil)
+	return newTestSessionWith(t, dir, v, allowFSRW, nil)
 }
 
 // callToolRefused calls the named tool and requires it to fail with want as
@@ -365,7 +365,7 @@ func TestScaffoldDoesNotRunTemplateShellHelpers(t *testing.T) {
 		"terragrunt.hcl":  `# {{ shell "touch" "` + filepath.ToSlash(marker) + `" }}` + "\n",
 	})
 
-	session := newRealExecSession(t, dir, func(o *tgmcp.Options) { o.Allow = []string{"exec"} })
+	session := newRealExecSession(t, dir, func(o *tgmcp.Options) { o.Allow = []string{"exec", "fs-rw"} })
 
 	var out scaffoldOutput
 

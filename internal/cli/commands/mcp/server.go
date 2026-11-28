@@ -69,6 +69,12 @@ func (d *serverDeps) operatorTFPath() string {
 	return d.baseOpts.TFPath
 }
 
+// runsIaC reports whether a tool call can run tofu or terraform. Starting one
+// takes exec, and it writes to the directory it runs in, which takes fs-rw.
+func (d *serverDeps) runsIaC() bool {
+	return d.granted.Has(venv.CapabilityExec) && d.granted.Has(venv.CapabilityFSRW)
+}
+
 // reachesNetwork reports whether a tool call can leave the machine, either
 // because Terragrunt makes the request or because a subprocess it spawns does.
 // Even the tools that only read can, because parsing evaluates locals: a
@@ -139,6 +145,10 @@ func Serve(
 		return err
 	}
 
+	if err := checkAllowApply(opts, granted); err != nil {
+		return err
+	}
+
 	allowCmds, err := venv.ParseAllowCmds(opts.AllowCmds)
 	if err != nil {
 		return err
@@ -147,11 +157,6 @@ func Serve(
 	tgVersion, err := serverTerragruntVersion(opts.TerragruntOptions)
 	if err != nil {
 		return err
-	}
-
-	stdoutDir, err := vfs.MkdirTemp(rootVenv.FS, "", "terragrunt-mcp-stdout-")
-	if err != nil {
-		return fmt.Errorf("creating the stdout directory: %w", err)
 	}
 
 	deps := &serverDeps{
@@ -164,7 +169,6 @@ func Serve(
 		approvalKey: []byte(rand.Text()),
 		refusal:     venv.RefuseWithStub,
 		runSem:      make(chan struct{}, 1),
-		stdoutDir:   stdoutDir,
 	}
 
 	docs := startDocsProxy(ctx, l, rootVenv, granted, docsTimeouts{
@@ -184,22 +188,37 @@ func Serve(
 	registerValidate(srv, l, deps, rootVenv)
 	registerRunOrder(srv, l, deps, rootVenv)
 	registerGetOutputs(srv, l, deps, rootVenv)
-	registerPlan(srv, l, deps, rootVenv)
 	registerCatalog(srv, l, deps, rootVenv)
-	registerScaffold(srv, l, deps, rootVenv)
 	registerFmt(srv, l, deps, rootVenv)
 
-	if opts.AllowApply {
-		registerMutatingTools(srv, l, deps, rootVenv)
+	if granted.Has(venv.CapabilityFSRW) {
+		registerScaffold(srv, l, deps, rootVenv)
 	}
 
 	docs.register(srv, l)
+
+	if deps.runsIaC() {
+		deps.stdoutDir, err = vfs.MkdirTemp(rootVenv.FS, "", "terragrunt-mcp-stdout-")
+		if err != nil {
+			return fmt.Errorf("creating the stdout directory: %w", err)
+		}
+
+		registerPlan(srv, l, deps, rootVenv)
+
+		if opts.AllowApply {
+			registerMutatingTools(srv, l, deps, rootVenv)
+		}
+	}
 
 	serveErr := serve(ctx, l, srv, in, out)
 
 	deps.runSem <- struct{}{}
 
-	return errors.Join(serveErr, removeStdoutDir(rootVenv.FS, stdoutDir))
+	if deps.stdoutDir == "" {
+		return serveErr
+	}
+
+	return errors.Join(serveErr, removeStdoutDir(rootVenv.FS, deps.stdoutDir))
 }
 
 // removeStdoutDir removes the directory the plan, apply, and destroy tools
@@ -283,8 +302,9 @@ func serverInstructions(d *serverDeps) string {
 	}{
 		{
 			granted: d.granted.Has(venv.CapabilityExec),
-			on: "The server was started with --allow=exec, so the tools run the tofu, terraform, and " +
-				"git that Terragrunt starts to do its own work. A program a configuration names, through " +
+			on: "The server was started with --allow=exec, so the tools run the git that Terragrunt " +
+				"starts to do its own work, and its tofu and terraform where --allow=fs-rw is set as " +
+				"well. A program a configuration names, through " +
 				"run_cmd(), a hook, or an auth-provider command, is refused unless an --allow-cmd pattern " +
 				"or an approval allows it, and that includes a tofu, terraform, or git the configuration " +
 				"names for itself. The read-only tools offer such a program for approval rather than " +
@@ -292,8 +312,25 @@ func serverInstructions(d *serverDeps) string {
 				"to the person operating this client. A command that does run reaches the network on its " +
 				"own account, whatever the HTTP policy below says. ",
 			off: "Subprocess execution is disabled. The server cannot spawn tofu, git, or " +
-				"run_cmd processes at all, and the plan tool needs the server restarted with " +
-				"--allow=exec. ",
+				"run_cmd processes at all. ",
+		},
+		{
+			granted: d.granted.Has(venv.CapabilityFSRW),
+			on: "The server was started with --allow=fs-rw, so the tools write to disk: Terragrunt keeps " +
+				"its caches there, fmt rewrites files, and scaffold generates them. ",
+			off: "Filesystem writes are disabled. The tools read the tree from disk and nothing they " +
+				"write reaches it, so fmt only reports with check=true and there is no scaffold tool. " +
+				"A remote catalog repository cannot be cloned and a git-range filter cannot be resolved " +
+				"until the server is restarted with --allow=exec and --allow=fs-rw. ",
+		},
+		{
+			granted: d.runsIaC(),
+			on: "With both --allow=exec and --allow=fs-rw, Terragrunt runs tofu and terraform, so the " +
+				"plan tool is served and dependency outputs are read for real. ",
+			off: "Terragrunt runs tofu and terraform only with both --allow=exec and --allow=fs-rw, " +
+				"because each writes to the directory it runs in. Without both there is no plan " +
+				"tool, dependency outputs fall back to mock_outputs, and get_outputs reads remote state " +
+				"itself. ",
 		},
 		{
 			granted: d.granted.Has(venv.CapabilityHTTP),
@@ -302,7 +339,7 @@ func serverInstructions(d *serverDeps) string {
 			off: "Outbound HTTP is disabled. Every request Terragrunt itself makes fails, so " +
 				"state backends, registries, and module sources are unreachable. A unit whose terraform " +
 				"source is remote cannot be planned at all, and reports the failed download as its cause. " +
-				"Without --allow=exec, get_outputs reads remote state itself, which needs --allow=http and " +
+				"Where Terragrunt cannot run tofu, get_outputs reads remote state itself, which needs --allow=http and " +
 				"works for the backends the direct state read supports; any other unit reports that it " +
 				"fetched nothing. ",
 		},

@@ -183,14 +183,17 @@ func DownloadTerraformSource(
 }
 
 // requireOSFilesystemForSource rejects sources whose getter cannot honor a
-// virtual filesystem. The file, tfr, and oci getters read and write through
-// the filesystem they are handed; every other protocol either shells out
-// (git, hg, smb) or writes through os, so on a virtual filesystem it would
-// silently touch the real disk.
+// virtual filesystem. The file and oci getters read and write through the
+// filesystem they are handed; every other protocol either shells out (git,
+// hg, smb) or writes through os, so on a virtual filesystem it would silently
+// touch the real disk.
 //
-// A cas:: source belongs with the rejected ones rather than alongside tfr and
-// oci: the store it reads and writes is a real git repository on disk, which
-// is why [github.com/gruntwork-io/terragrunt/internal/cas] refuses a non-OS
+// A tfr source is rejected because the registry answers with an archive or
+// git address, and the getter that fetches it is one of those.
+//
+// A cas:: source is rejected because the store it reads and writes is a real
+// git repository on disk, which is why
+// [github.com/gruntwork-io/terragrunt/internal/cas] refuses a non-OS
 // filesystem itself.
 //
 // It panics with [ErrNilSource] on a nil source, so the contract fails where
@@ -208,8 +211,7 @@ func requireOSFilesystemForSource(fsys vfs.FS, src *tf.Source) error {
 		return nil
 	}
 
-	switch src.CanonicalSourceURL.Scheme {
-	case getter.SchemeTFR, getter.SchemeOCI:
+	if src.CanonicalSourceURL.Scheme == getter.SchemeOCI {
 		return nil
 	}
 

@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/redact"
 	"github.com/gruntwork-io/terragrunt/internal/vbrowser"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/internal/view/tui"
 	"github.com/gruntwork-io/terragrunt/internal/vsops"
@@ -20,6 +21,10 @@ import (
 // ErrExecDenied is the error every process a [Restrict] venv refuses to start
 // wraps, when [CapabilityExec] is not granted.
 var ErrExecDenied = errors.New("subprocess execution denied: the exec capability is not granted")
+
+// ErrIaCNeedsFSRW is the error a tofu or terraform invocation Terragrunt makes
+// itself wraps, when [CapabilityExec] is granted and [CapabilityFSRW] is not.
+var ErrIaCNeedsFSRW = errors.New("OpenTofu/Terraform execution denied: the fs-rw capability is not granted")
 
 // ErrSopsDenied is the error every decrypt a [Restrict] venv refuses wraps,
 // when [CapabilitySops] is not granted.
@@ -106,6 +111,10 @@ const (
 	RefusedCommand
 	// DeniedSops is a decrypt that failed with [ErrSopsDenied].
 	DeniedSops
+	// DeniedIaCWithoutFSRW is a tofu or terraform invocation Terragrunt made
+	// itself that failed with [ErrIaCNeedsFSRW]. A dependency fetch falls
+	// back to mock_outputs where they are configured.
+	DeniedIaCWithoutFSRW
 )
 
 // Denial is one thing a [Restrict] venv refused.
@@ -140,10 +149,16 @@ type Denial struct {
 // several runs clones it first with [Venv.WithEnvCloned]. The copy always
 // reads an empty stdin and never opens a browser.
 //
-// Restrict does not confine the filesystem: an HCL function like file() reads
-// anything v.FS can. Nor does it constrain a process it lets start, or code
-// that reads the process environment directly, such as go-getter and the
-// cloud SDKs.
+// Without [CapabilityFSRW], the copy reads v.FS and writes to a memory layer of
+// its own, as [vfs.NewOverlayFS] describes, so nothing it writes reaches v.FS
+// or outlives the copy. A process reads and writes the disk and never that
+// layer, so the tofu and terraform Terragrunt runs itself fail with
+// [ErrIaCNeedsFSRW] even when [CapabilityExec] is granted.
+//
+// Restrict does not confine what the filesystem reads: an HCL function like
+// file() reads anything v.FS can. Nor does it constrain a process it lets
+// start, or code that reads the process environment directly, such as
+// go-getter and the cloud SDKs.
 func Restrict(v *Venv, p Policy) *Venv {
 	observe := p.Observe
 	if observe == nil {
@@ -164,6 +179,10 @@ func Restrict(v *Venv, p Policy) *Venv {
 		r = r.WithSops(vsops.NewMemDecrypter(denySopsHandler(observe)))
 	}
 
+	if !p.Granted.Has(CapabilityFSRW) {
+		r = r.WithFS(vfs.NewOverlayFS(v.FS, vfs.NewMemMapFS()))
+	}
+
 	if !p.Granted.Has(CapabilityExec) {
 		r = r.WithHandler(denyAllHandler(observe, p.TFPath))
 		r.Listen = func(context.Context, string, string) (net.Listener, error) {
@@ -173,11 +192,65 @@ func Restrict(v *Venv, p Policy) *Venv {
 		return r
 	}
 
-	return r.WithExec(&allowlistExec{
+	allowed := &allowlistExec{
 		Exec:      r.Exec,
 		denied:    vexec.NewMemExec(configCommandHandler(observe, p.Refusal)),
 		allowCmds: p.AllowCmds,
+	}
+
+	if p.Granted.Has(CapabilityFSRW) {
+		return r.WithExec(allowed)
+	}
+
+	return r.WithExec(&diskOnlyExec{
+		Exec:   allowed,
+		denied: vexec.NewMemExec(iacWithoutFSRWHandler(observe)),
+		tfPath: p.TFPath,
 	})
+}
+
+// diskOnlyExec refuses the tofu and terraform Terragrunt runs itself, for a
+// venv whose writes stay in memory, and passes every other command on.
+type diskOnlyExec struct {
+	vexec.Exec
+	denied vexec.Exec
+	tfPath string
+}
+
+// Command implements [vexec.Exec].
+//
+// A tofu a configuration names is passed on, and runs only once an [AllowCmd]
+// matches it.
+func (e *diskOnlyExec) Command(ctx context.Context, name string, args ...string) vexec.Cmd {
+	if vexec.IsTrustedCommand(ctx) && isIaCBinary(name, e.tfPath) {
+		return e.denied.Command(ctx, name, args...)
+	}
+
+	return e.Exec.Command(ctx, name, args...)
+}
+
+// iacWithoutFSRWHandler fails a tofu or terraform invocation with
+// [ErrIaCNeedsFSRW].
+func iacWithoutFSRWHandler(observe func(Denial)) vexec.Handler {
+	return func(_ context.Context, inv vexec.Invocation) vexec.Result {
+		cmdline := execCmdline(&inv)
+
+		observe(Denial{Kind: DeniedIaCWithoutFSRW, Program: execProgram(inv.Name), Cmdline: cmdline})
+
+		return vexec.Result{Err: fmt.Errorf("%w: %s", ErrIaCNeedsFSRW, cmdline)}
+	}
+}
+
+// isIaCBinary reports whether name is tofu, terraform, or the binary the
+// operator named with tfPath, whatever that file is called.
+func isIaCBinary(name, tfPath string) bool {
+	if name == tfPath {
+		return true
+	}
+
+	binary := execBinaryName(name)
+
+	return binary == "tofu" || binary == "terraform" || binary == "opentofu"
 }
 
 // allowlistExec runs the commands Terragrunt runs itself, and the programs a
@@ -281,8 +354,8 @@ func denyAllHandler(observe func(Denial), tfPath string) vexec.Handler {
 	return func(ctx context.Context, inv vexec.Invocation) vexec.Result {
 		denial := Denial{Program: execProgram(inv.Name), Cmdline: execCmdline(&inv)}
 
-		switch binary := execBinaryName(inv.Name); {
-		case inv.Name == tfPath, binary == "tofu", binary == "terraform", binary == "opentofu":
+		switch {
+		case isIaCBinary(inv.Name, tfPath):
 			denial.Kind = DeniedIaC
 			observe(denial)
 

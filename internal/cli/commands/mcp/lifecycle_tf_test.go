@@ -92,7 +92,7 @@ func TestTFApplyAndDestroyChangeRealState(t *testing.T) {
 
 	session := newAnsweringSession(t, dir, venvtest.NewOSWithEmptyEnv(), "accept", &prompts,
 		func(o *tgmcp.Options) {
-			o.Allow = []string{"exec"}
+			o.Allow = []string{"exec", "fs-rw"}
 			o.AllowApply = true
 		})
 
@@ -203,7 +203,7 @@ func TestTFApplyFromAClientThatCannotAskChangesNothing(t *testing.T) {
 	})
 
 	session := newRealExecSession(t, dir, func(o *tgmcp.Options) {
-		o.Allow = []string{"exec"}
+		o.Allow = []string{"exec", "fs-rw"}
 		o.AllowApply = true
 	})
 
@@ -242,7 +242,7 @@ inputs = {
 `,
 	})
 
-	session := newRealExecSession(t, dir, func(o *tgmcp.Options) { o.Allow = []string{"exec"} })
+	session := newRealExecSession(t, dir, func(o *tgmcp.Options) { o.Allow = []string{"exec", "fs-rw"} })
 
 	var out runAllOutput
 
@@ -285,7 +285,7 @@ inputs = {
 
 	session := newAnsweringSession(t, dir, venvtest.NewOSWithEmptyEnv(), "accept", &prompts,
 		func(o *tgmcp.Options) {
-			o.Allow = []string{"exec"}
+			o.Allow = []string{"exec", "fs-rw"}
 			o.AllowApply = true
 		})
 
@@ -336,7 +336,7 @@ inputs = {
 		0o755,
 	))
 
-	session := newRealExecSession(t, dir, func(o *tgmcp.Options) { o.Allow = []string{"exec"} })
+	session := newRealExecSession(t, dir, func(o *tgmcp.Options) { o.Allow = []string{"exec", "fs-rw"} })
 
 	var out runAllOutput
 
@@ -383,7 +383,7 @@ inputs = {
 	})
 
 	session := newRealExecSession(t, dir, func(o *tgmcp.Options) {
-		o.Allow = []string{"exec"}
+		o.Allow = []string{"exec", "fs-rw"}
 		require.NoError(t, o.Experiments.EnableExperiment(experiment.IacEngine))
 	})
 

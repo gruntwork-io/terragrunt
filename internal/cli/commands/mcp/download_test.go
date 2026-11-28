@@ -1,13 +1,19 @@
 package mcp_test
 
 import (
+	"context"
 	"io/fs"
+	"net/http"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 
+	tgmcp "github.com/gruntwork-io/terragrunt/internal/cli/commands/mcp"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/internal/vhttp"
+	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -23,11 +29,19 @@ terraform {
 }
 `
 
+// unitRegistrySourceConfig points a unit at a registry source, so producing
+// its outputs means asking the registry where the module is.
+const unitRegistrySourceConfig = `
+terraform {
+  source = "tfr://registry.example.invalid/org/vpc/aws?version=1.0.0"
+}
+`
+
 // TestRenderConfigRefusesGitDownloadsWithoutExec pins that a dependency whose
 // outputs need its git source downloaded does not run git when the server was
-// not started with --allow=exec. The download is refused and reported without
-// the source's credentials, and the render falls back to the dependency's
-// mock_outputs.
+// not started with --allow=exec, even where it may write the download. The
+// download is refused and reported without the source's credentials, and the
+// render falls back to the dependency's mock_outputs.
 func TestRenderConfigRefusesGitDownloadsWithoutExec(t *testing.T) {
 	t.Parallel()
 
@@ -36,7 +50,7 @@ func TestRenderConfigRefusesGitDownloadsWithoutExec(t *testing.T) {
 		"b/terragrunt.hcl": unitBConfig,
 	})
 
-	session := newTestSession(t, dir)
+	session := newTestSessionWithOptions(t, dir, allowFSRW)
 
 	var out renderConfigOutput
 
@@ -68,4 +82,60 @@ func TestRenderConfigRefusesGitDownloadsWithoutExec(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Empty(t, downloaded, "nothing may be downloaded for the dependency")
+}
+
+// TestRenderConfigRefusesRegistryDownloadsWithoutFSRW pins that a dependency
+// whose outputs need its registry source downloaded never reaches the registry
+// when the server was not started with --allow=fs-rw. The download would write
+// to disk whatever filesystem the call has.
+func TestRenderConfigRefusesRegistryDownloadsWithoutFSRW(t *testing.T) {
+	t.Parallel()
+
+	for _, allow := range [][]string{{"http"}, {"exec", "http"}} {
+		t.Run(strings.Join(allow, "+"), func(t *testing.T) {
+			t.Parallel()
+
+			dir := writeTree(t, map[string]string{
+				"a/terragrunt.hcl": unitRegistrySourceConfig,
+				"b/terragrunt.hcl": unitBConfig,
+			})
+
+			var requests atomic.Int32
+
+			v := venvtest.NewWithOSFS()
+			v.HTTP = vhttp.NewMemClient(func(context.Context, *http.Request) (*http.Response, error) {
+				requests.Add(1)
+
+				return vhttp.Respond(http.StatusNotFound, nil, nil), nil
+			})
+
+			session := newTestSessionWith(t, dir, v, func(o *tgmcp.Options) { o.Allow = allow }, nil)
+
+			var out renderConfigOutput
+
+			callTool(t, session, "render_config", map[string]any{"working_dir": "b"}, &out)
+
+			assert.Equal(t, []string{"a_id"}, out.Summary.InputKeys)
+			assert.NotEmpty(t, out.Degraded, "the refused tofu must be reported")
+			assert.Zero(t, requests.Load(), "the registry must not be asked for a module")
+
+			var names []string
+
+			require.NoError(t, filepath.WalkDir(dir, func(path string, _ fs.DirEntry, err error) error {
+				names = append(names, strings.TrimPrefix(path, dir))
+
+				return err
+			}))
+
+			slices.Sort(names)
+
+			assert.Equal(t, []string{
+				"",
+				filepath.FromSlash("/a"),
+				filepath.FromSlash("/a/terragrunt.hcl"),
+				filepath.FromSlash("/b"),
+				filepath.FromSlash("/b/terragrunt.hcl"),
+			}, names)
+		})
+	}
 }

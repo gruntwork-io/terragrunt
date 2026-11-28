@@ -146,7 +146,7 @@ func TestPlanWritesEachUnitsPlanToAFileOfItsOwn(t *testing.T) {
 		t,
 		dir,
 		v,
-		func(o *tgmcp.Options) { o.Allow = []string{"exec"} },
+		func(o *tgmcp.Options) { o.Allow = []string{"exec", "fs-rw"} },
 		nil,
 	)
 
@@ -220,7 +220,7 @@ func TestPlanWritesNoFileForAUnitThatPrintsNothing(t *testing.T) {
 		t,
 		dir,
 		v,
-		func(o *tgmcp.Options) { o.Allow = []string{"exec"} },
+		func(o *tgmcp.Options) { o.Allow = []string{"exec", "fs-rw"} },
 		nil,
 	)
 
@@ -267,7 +267,7 @@ func TestPlanDeletesItsPlanFilesUnlessAskedForSensitiveValues(t *testing.T) {
 		t,
 		dir,
 		v,
-		func(o *tgmcp.Options) { o.Allow = []string{"exec"} },
+		func(o *tgmcp.Options) { o.Allow = []string{"exec", "fs-rw"} },
 		nil,
 	)
 
@@ -321,7 +321,7 @@ func TestPlanKeepsItsFilesUntilTheServerStops(t *testing.T) {
 		t,
 		dir,
 		v,
-		func(o *tgmcp.Options) { o.Allow = []string{"exec"} },
+		func(o *tgmcp.Options) { o.Allow = []string{"exec", "fs-rw"} },
 		nil,
 	)
 
@@ -383,7 +383,7 @@ func TestPlanCutsAPlanThatOutgrowsItsFile(t *testing.T) {
 				t,
 				dir,
 				v,
-				func(o *tgmcp.Options) { o.Allow = []string{"exec"} },
+				func(o *tgmcp.Options) { o.Allow = []string{"exec", "fs-rw"} },
 				nil,
 			)
 
@@ -496,7 +496,7 @@ func TestPlanCutsAPlanOnALineBoundaryOrWithoutLines(t *testing.T) {
 				t,
 				dir,
 				v,
-				func(o *tgmcp.Options) { o.Allow = []string{"exec"} },
+				func(o *tgmcp.Options) { o.Allow = []string{"exec", "fs-rw"} },
 				nil,
 			)
 
@@ -557,7 +557,7 @@ func TestApplyAndDestroyWriteEachUnitsStdoutToAFileOfItsOwn(t *testing.T) {
 			var prompts []string
 
 			session := newAnsweringSession(t, dir, v, "accept", &prompts, func(o *tgmcp.Options) {
-				o.Allow = []string{"exec"}
+				o.Allow = []string{"exec", "fs-rw"}
 				o.AllowApply = true
 			})
 

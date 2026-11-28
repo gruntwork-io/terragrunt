@@ -9,12 +9,24 @@ since: "v1.2.0"
 ---
 
 import { Aside } from '@astrojs/starlight/components';
+import Before from '@components/Before.astro';
+import Since from '@components/Since.astro';
 
 <Aside type="tip" title="Experimental">
 This flag is gated behind the [`mcp-command`](/reference/experiments/active#mcp-command) experiment. Enable it with `--experiment=mcp-command` or `TG_EXPERIMENT=mcp-command`.
 </Aside>
 
+<Before version="v1.2.4">
+
 [`--allow=exec`](/reference/cli/commands/mcp#allow) runs `tofu`, `terraform`, and `git`, and refuses every other program a configuration names. This flag allows more, one pattern at a time:
+
+</Before>
+
+<Since version="v1.2.4">
+
+[`--allow=exec`](/reference/cli/commands/mcp#allow) runs `git`, and with [`--allow=fs-rw`](/reference/cli/commands/mcp#fs-rw) also `tofu` and `terraform`. It refuses every other program a configuration names. This flag allows more, one pattern at a time:
+
+</Since>
 
 ```bash
 terragrunt mcp --allow=exec --allow-cmd 'git rev-parse --show-toplevel' --allow-cmd 'jq **'

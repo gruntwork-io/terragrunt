@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"unicode/utf8"
 
@@ -105,6 +106,14 @@ func newCatalogSession(t *testing.T, dir string) *mcp.ClientSession {
 	return newTestSessionWith(t, dir, withCatalogDirs(venvtest.NewWithOSFS(), t.TempDir()), func(*tgmcp.Options) {}, nil)
 }
 
+// newWritingCatalogSession is [newCatalogSession] with fs-rw granted and exec
+// denied, for a test whose subject is the git a clone would run.
+func newWritingCatalogSession(t *testing.T, dir string) *mcp.ClientSession {
+	t.Helper()
+
+	return newTestSessionWith(t, dir, withCatalogDirs(venvtest.NewWithOSFS(), t.TempDir()), allowFSRW, nil)
+}
+
 // withCatalogDirs points v's temp and cache dirs under scratch.
 func withCatalogDirs(v *venv.Venv, scratch string) *venv.Venv {
 	return v.
@@ -123,7 +132,7 @@ func newFailingGitSession(t *testing.T, dir string, say func(args []string) stri
 
 	v := withCatalogDirs(venvtest.NewWithOSFS().WithExec(vexec.NewMemExec(failGit)), t.TempDir())
 
-	return newTestSessionWith(t, dir, v, func(o *tgmcp.Options) { o.Allow = []string{"exec"} }, nil)
+	return newTestSessionWith(t, dir, v, func(o *tgmcp.Options) { o.Allow = []string{"exec", "fs-rw"} }, nil)
 }
 
 // catalogMarshal returns out as the agent receives it.
@@ -415,7 +424,7 @@ func TestCatalogKeepsACredentialOutOfADeniedCloneOfAnAddressWithoutAScheme(t *te
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			session := newCatalogSession(t, catalogTree(t, catalogAlphaReadme, address.url))
+			session := newWritingCatalogSession(t, catalogTree(t, catalogAlphaReadme, address.url))
 
 			var out catalogOutput
 
@@ -507,6 +516,46 @@ func TestCatalogIsAnnotatedAsAReadOnlyTool(t *testing.T) {
 	assert.True(t, res.Tools[i].Annotations.IdempotentHint)
 }
 
+// TestCatalogReportsARepositoryItCannotCloneWithoutFSRWWithRacing pins that a
+// remote repository is not cloned when the server cannot write the clone to
+// disk, whatever else it was granted. The failure names the capabilities a
+// clone needs, without the credential the URL holds, and the components of
+// the local repository, which loads alongside it, still come back.
+func TestCatalogReportsARepositoryItCannotCloneWithoutFSRWWithRacing(t *testing.T) {
+	t.Parallel()
+
+	var ran atomic.Int32
+
+	v := withCatalogDirs(
+		venvtest.NewWithOSFS().WithHandler(func(context.Context, vexec.Invocation) vexec.Result {
+			ran.Add(1)
+
+			return vexec.Result{}
+		}),
+		t.TempDir(),
+	)
+
+	session := newTestSessionWith(
+		t,
+		catalogTree(t, catalogAlphaReadme, "./repo", catalogRemoteURL),
+		v,
+		func(o *tgmcp.Options) { o.Allow = []string{"exec", "http"} },
+		nil,
+	)
+
+	var out catalogOutput
+
+	callTool(t, session, "catalog", map[string]any{}, &out)
+
+	assert.Equal(t, []string{"modules/alpha", "modules/bravo"}, catalogDirs(&out))
+
+	require.Len(t, out.Failures, 1)
+	assert.Contains(t, out.Failures[0].Source, "example.invalid/org/modules.git")
+	assert.NotContains(t, out.Failures[0].Source, catalogToken)
+	assert.Equal(t, tgmcp.ErrCatalogCloneRequiresFSRW.Error(), out.Failures[0].Error)
+	assert.Zero(t, ran.Load(), "no clone may start without fs-rw")
+}
+
 // TestCatalogReportsARepositoryItCannotCloneWithoutAllowExecWithRacing pins
 // that a remote repository is not cloned when the server was not started with
 // --allow=exec. The refusal is reported without the credential the URL holds,
@@ -515,7 +564,7 @@ func TestCatalogIsAnnotatedAsAReadOnlyTool(t *testing.T) {
 func TestCatalogReportsARepositoryItCannotCloneWithoutAllowExecWithRacing(t *testing.T) {
 	t.Parallel()
 
-	session := newCatalogSession(t, catalogTree(t, catalogAlphaReadme, "./repo", catalogRemoteURL))
+	session := newWritingCatalogSession(t, catalogTree(t, catalogAlphaReadme, "./repo", catalogRemoteURL))
 
 	var out catalogOutput
 

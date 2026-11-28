@@ -1,7 +1,7 @@
 ---
 name: dangerously-allow-apply
 description: |
-  Serve apply and destroy tools, which change and tear down real infrastructure. Each run is gated on a person accepting it in your MCP client. Requires --allow=exec.
+  Serve apply and destroy tools, which change and tear down real infrastructure. Each run is gated on a person accepting it in your MCP client. Requires --allow=exec and --allow=fs-rw.
 type: bool
 env:
   - TG_DANGEROUSLY_ALLOW_APPLY
@@ -9,6 +9,8 @@ since: "v1.2.0"
 ---
 
 import { Aside } from '@astrojs/starlight/components';
+import Before from '@components/Before.astro';
+import Since from '@components/Since.astro';
 
 <Aside type="tip" title="Experimental">
 This flag is gated behind the [`mcp-command`](/reference/experiments/active#mcp-command) experiment. Enable it with `--experiment=mcp-command` or `TG_EXPERIMENT=mcp-command`.
@@ -22,7 +24,17 @@ Grant it against infrastructure you are willing to lose, such as a throwaway or 
 
 Without this flag the server has no `apply` or `destroy` tool at all. The tools are not registered, so a client is never told they exist.
 
+<Before version="v1.2.4">
+
 The flag requires [`--allow=exec`](/reference/cli/commands/mcp#allow), since applying is running OpenTofu/Terraform. Passing it alone is refused at startup.
+
+</Before>
+
+<Since version="v1.2.4">
+
+The flag requires [`--allow=exec`](/reference/cli/commands/mcp#allow) and [`--allow=fs-rw`](/reference/cli/commands/mcp#fs-rw), since applying runs OpenTofu/Terraform, which writes to disk. Passing it without both is refused at startup.
+
+</Since>
 
 ## What the tools do
 
@@ -68,6 +80,8 @@ Your MCP client draws the prompt, and the acceptance comes back over the same co
 
 The server root already bounds every tool: a `working_dir` resolving outside the directory the server was launched in is refused. That is a coarse bound, and for these tools it is worth making it tight. Launch the server in the environment directory you are willing to have changed, not at the repository root:
 
+<Before version="v1.2.4">
+
 ```json
 // .mcp.json
 
@@ -83,5 +97,27 @@ The server root already bounds every tool: a `working_dir` resolving outside the
   }
 }
 ```
+
+</Before>
+
+<Since version="v1.2.4">
+
+```json
+// .mcp.json
+
+{
+  "mcpServers": {
+    "terragrunt-throwaway": {
+      "command": "terragrunt",
+      "args": ["mcp", "--working-dir", "/path/to/estate/throwaway", "--allow=exec", "--allow=fs-rw", "--dangerously-allow-apply"],
+      "env": {
+        "TG_EXPERIMENT": "mcp-command"
+      }
+    }
+  }
+}
+```
+
+</Since>
 
 Beyond that, scope the credentials the server process is given to what those units need. Terragrunt cannot bound what a spawned `tofu` does with the credentials it inherits, so the credentials are the real limit on blast radius.

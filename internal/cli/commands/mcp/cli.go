@@ -12,11 +12,15 @@
 // names beyond those is refused, and the parse-only tools offer it for
 // approval through [runWithCommandApproval] rather than answering without it.
 //
-// A tool call works against the real filesystem. Terragrunt writes where its
-// work requires, such as a dependency's source into a .terragrunt-cache, and
-// an HCL function like file() reads anything the invoking user can.
-// [resolveWorkingDir] bounds the working_dir argument rather than what the
-// parse then reaches for.
+// A tool call reads the real filesystem, and an HCL function like file()
+// reads anything the invoking user can. [resolveWorkingDir] bounds the
+// working_dir argument rather than what the parse then reaches for.
+//
+// What Terragrunt writes during a tool call stays in a memory layer the call
+// discards, unless [venv.CapabilityFSRW] is granted. A process reads and
+// writes the disk and never that layer, so the tools that run tofu need both
+// it and [venv.CapabilityExec], as [serverDeps.runsIaC] reports. The server's own empty home and PATH
+// directories, which [isolateProcessEnv] creates, go to disk either way.
 //
 // A tool call starts from an empty environment unless [venv.CapabilityEnv] is
 // granted, in which case it sees a copy of the server's own. The command also
@@ -78,7 +82,9 @@ func NewFlags(opts *Options, prefix flags.Prefix) clihelper.Flags {
 			Name:        AllowApplyFlagName,
 			EnvVars:     tgPrefix.EnvVars(AllowApplyFlagName),
 			Destination: &opts.AllowApply,
-			Usage:       "Serve apply and destroy tools, which change and tear down real infrastructure. Each run is gated on a person accepting it in your MCP client. Requires --allow=exec.",
+			Usage: "Serve apply and destroy tools, which change and tear down real infrastructure. " +
+				"Each run is gated on a person accepting it in your MCP client. " +
+				"Requires --allow=exec and --allow=fs-rw.",
 		}),
 		shared.NewTFPathFlag(opts.TerragruntOptions),
 	}
@@ -107,8 +113,8 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *cl
 				return clihelper.NewExitError(err, clihelper.ExitCodeGeneralError)
 			}
 
-			if cmdOpts.AllowApply && !granted.Has(venv.CapabilityExec) {
-				return clihelper.NewExitError(ErrApplyRequiresExec, clihelper.ExitCodeGeneralError)
+			if err = checkAllowApply(cmdOpts, granted); err != nil {
+				return clihelper.NewExitError(err, clihelper.ExitCodeGeneralError)
 			}
 
 			allowCmds, err := venv.ParseAllowCmds(cmdOpts.AllowCmds)
@@ -142,4 +148,25 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *cl
 			return errors.Join(Run(ctx, l, v, cmdOpts), cleanup())
 		}),
 	}
+}
+
+// checkAllowApply reports an opts that asks for the apply and destroy tools
+// without the capabilities they run on.
+//
+// Returns [ErrApplyRequiresExec] or [ErrApplyRequiresFSRW], naming the first
+// one granted lacks.
+func checkAllowApply(opts *Options, granted venv.Capabilities) error {
+	if !opts.AllowApply {
+		return nil
+	}
+
+	if !granted.Has(venv.CapabilityExec) {
+		return ErrApplyRequiresExec
+	}
+
+	if !granted.Has(venv.CapabilityFSRW) {
+		return ErrApplyRequiresFSRW
+	}
+
+	return nil
 }

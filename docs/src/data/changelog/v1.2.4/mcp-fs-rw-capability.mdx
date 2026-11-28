@@ -1,0 +1,22 @@
+---
+version: "v1.2.4"
+category: "experiments-updated"
+---
+
+#### `mcp-command` — Tools write to disk only under `--allow=fs-rw`
+
+The [`mcp`](/reference/cli/commands/mcp) server now reads files from disk and keeps what Terragrunt writes in memory until the tool call returns. A new [`fs-rw`](/reference/cli/commands/mcp#fs-rw) capability lets the tools write to disk.
+
+OpenTofu/Terraform cannot see writes held in memory, so a server started without `--allow=fs-rw` changes in these ways:
+
+- `plan` is served only under both `--allow=exec` and `--allow=fs-rw`, and `scaffold` only under `--allow=fs-rw`.
+- `fmt` refuses a call that does not set `check`.
+- `--dangerously-allow-apply` is refused at startup.
+- Dependency outputs fall back to `mock_outputs`, and `get_outputs` reads the state itself, as both do without `--allow=exec`.
+- `catalog` cannot clone a remote repository, and a git-range filter is refused.
+
+To keep planning, add the capability to the server's arguments:
+
+```bash
+terragrunt mcp --allow=exec --allow=fs-rw --allow=http --allow=env
+```

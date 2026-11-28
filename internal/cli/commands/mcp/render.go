@@ -65,8 +65,9 @@ func registerRenderConfig(srv *mcp.Server, l log.Logger, d *serverDeps, rootVenv
 		Description: "Fully evaluate one unit's terragrunt.hcl, resolving locals, includes, functions, and " +
 			"dependency outputs, and return it as structured data. Use it to answer 'what will this unit " +
 			"actually get as inputs/source/backend'. Prefer format=summary; use format=full only when you " +
-			"need every resolved value. Without --allow=exec, dependency outputs degrade to mock_outputs " +
-			"and run_cmd() returns empty strings; the degraded list says exactly what was substituted.",
+			"need every resolved value. Without --allow=exec, run_cmd() returns empty strings, and without " +
+			"both it and --allow=fs-rw, dependency outputs degrade to mock_outputs; the degraded list " +
+			"says exactly what was substituted.",
 		Annotations: &mcp.ToolAnnotations{
 			ReadOnlyHint:   true,
 			IdempotentHint: true,
@@ -100,7 +101,7 @@ func runRenderConfig(
 		return renderConfigOutput{}, err
 	}
 
-	if d.granted.Has(venv.CapabilityExec) {
+	if d.runsIaC() {
 		// Dependency-output fetches on this path drive real runs (init,
 		// source download) into the shared per-unit cache dirs.
 		release, err := d.acquireRunSlot(ctx)
@@ -181,6 +182,13 @@ func renderExplainDenials(err error, rec *execRecorder) error {
 	if errors.Is(err, venv.ErrExecDenied) {
 		return fmt.Errorf(
 			"rendering this unit needs subprocess execution; restart the MCP server with --allow=exec: %w",
+			err,
+		)
+	}
+
+	if errors.Is(err, venv.ErrIaCNeedsFSRW) {
+		return fmt.Errorf(
+			"rendering this unit needs to run tofu; restart the MCP server with --allow=fs-rw: %w",
 			err,
 		)
 	}

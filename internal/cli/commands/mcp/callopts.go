@@ -2,7 +2,6 @@ package mcp
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -205,12 +204,10 @@ func setupGitFilterWorktrees(
 		return nil, nil, nil
 	}
 
-	if !d.granted.Has(venv.CapabilityExec) {
-		// Without exec the git that creates the worktrees fails with
-		// [venv.ErrExecDenied], whose text names no flag. This error names it.
-		return nil, nil, errors.New(
-			"git-range filters require the MCP server to be started with --allow=exec",
-		)
+	// git writes each worktree to disk, which a call without fs-rw then
+	// could not remove.
+	if !d.granted.Has(venv.CapabilityExec) || !d.granted.Has(venv.CapabilityFSRW) {
+		return nil, nil, ErrGitFilterRequiresExecAndFSRW
 	}
 
 	w, err := worktrees.NewWorktrees(ctx, l, v, worktrees.WorktreeOpts{

@@ -75,7 +75,7 @@ func TestMCPCommandServesOnStdio(t *testing.T) {
 
 	go func() {
 		err := runTerragrunt(t, serverIn, serverOut,
-			mcpArgs("--working-dir", dir, "--allow=exec", "--tf-path", tfPath)...)
+			mcpArgs("--working-dir", dir, "--allow=exec", "--allow=fs-rw", "--tf-path", tfPath)...)
 		served <- errors.Join(err, serverIn.CloseWithError(err), serverOut.CloseWithError(err))
 	}()
 

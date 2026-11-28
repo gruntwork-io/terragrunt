@@ -34,7 +34,7 @@ func TestExecScaffoldRefusesASourceLinkingOutsideItself(t *testing.T) {
 	dir := writeTree(t, map[string]string{})
 
 	session := newRealExecSession(t, dir, func(o *tgmcp.Options) {
-		o.Allow = []string{"exec"}
+		o.Allow = []string{"exec", "fs-rw"}
 	})
 
 	callToolRefused(t, session, "scaffold", map[string]any{
