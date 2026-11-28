@@ -14,10 +14,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -117,7 +117,7 @@ func TestProviderCacheRoutesMirroredRegistries(t *testing.T) {
 
 	var invocations []vexec.Invocation
 
-	v := venvtest.New().
+	v := venv.MemVenv().
 		WithGOOS("linux").
 		WithUserHomeDir(func() (string, error) { return home, nil }).
 		WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
