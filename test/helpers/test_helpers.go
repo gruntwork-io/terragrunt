@@ -13,30 +13,19 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/stretchr/testify/require"
 )
 
 const defaultDirPerms = 0o755
 
+// IsWindows reports whether the tests run on Windows.
 func IsWindows() bool {
 	return runtime.GOOS == "windows"
-}
-
-// FileURL returns the file:// URL for an absolute host path. A Windows path
-// needs a slash ahead of the drive letter ("file:///C:/tmp/x", RFC 8089);
-// without it go-getter reads "C:" as the host and the source is not found.
-func FileURL(absPath string) string {
-	p := filepath.ToSlash(absPath)
-	if !strings.HasPrefix(p, "/") {
-		p = "/" + p
-	}
-
-	return "file://" + p
 }
 
 // ToSlashAll returns paths with every separator turned into a slash, so
@@ -65,6 +54,8 @@ func MustAbs(t *testing.T, rel string) string {
 	return abs
 }
 
+// ValidateHookTraceParent asserts that str has a line `<hook> {"traceparent": "..."}` whose value is a W3C
+// traceparent.
 func ValidateHookTraceParent(t *testing.T, hook, str string) {
 	t.Helper()
 
@@ -226,7 +217,7 @@ func MakeDiscoveryContext(
 
 // MakeOpts creates terragrunt options for a given directory.
 func MakeOpts(dir string) *options.TerragruntOptions {
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = dir
 	opts.RootWorkingDir = dir
 
@@ -297,12 +288,12 @@ func ExecWithTestLogger(t *testing.T, dir, command string, args ...string) {
 // when using t.TempDir(). It's generally annoying to deal with in tests, as it breaks filepath comparisons, so
 // using this function is preferred over calling t.TempDir() directly unless you are sure it doesn't matter if the
 // temporary directory is a symlink.
-func TmpDirWOSymlinks(t *testing.T) string {
-	t.Helper()
+func TmpDirWOSymlinks(tb testing.TB) string {
+	tb.Helper()
 
-	tmpDir := t.TempDir()
+	tmpDir := tb.TempDir()
 	tmpDir, err := filepath.EvalSymlinks(tmpDir)
-	require.NoError(t, err)
+	require.NoError(tb, err)
 
 	return tmpDir
 }
@@ -544,5 +535,5 @@ func LocalGitRemote(t *testing.T, fixturePath string) string {
 
 	InitGitRepoWithBranchRef(t, repoDir, "main")
 
-	return FileURL(repoDir)
+	return getter.FileURL(repoDir).String()
 }

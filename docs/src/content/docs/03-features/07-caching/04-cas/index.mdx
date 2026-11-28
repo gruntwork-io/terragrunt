@@ -9,7 +9,6 @@ sidebar:
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
 import { Aside, Steps } from '@astrojs/starlight/components';
-import Since from '@components/Since.astro';
 
 Terragrunt supports a Content Addressable Store (CAS) to deduplicate content across multiple Terragrunt configurations.
 
@@ -39,6 +38,8 @@ Each getter has a dedicated page describing its exact mechanics:
 | [SMB](/features/caching/cas/smb) | None; always downloads | Content-addressed on the downloaded tree |
 | [Local paths](/features/caching/cas/local) | None; always copies | Content-addressed on the copied tree |
 
+An HTTP or HTTPS URL with a literal `checksum=` pin skips the `HEAD` probe: the checksum, scoped to the URL, is the key.
+
 Regardless of the probe, every getter shares the same back half: download (or copy) the source, hash its files into the store as content-addressed blobs, record a tree describing their layout, and hard link the result into the target directory. Identical files therefore occupy disk space once no matter which getter fetched them or how many configurations use them.
 
 
@@ -48,8 +49,8 @@ Units in one run that resolve the same source at the same time share a single pr
 
 Recording those answers for later runs is gated behind the [`offline-cas`](/reference/experiments/active#offline-cas) experiment. With it enabled, every probe answer is written under `probes/` in the store, keyed by the source URL, so a later run can resolve a source without asking its remote again. Whether a recorded answer is served in place of a fresh probe depends on whether the source can change upstream:
 
-- **Pinned sources are trusted for 24 hours.** A source is pinned when its URL names a specific revision that a publisher does not reissue: a Git semantic version tag, an S3 object version, an OCI manifest digest, an exact registry module version, or a full Mercurial changeset node.
-- **Everything else is probed on every run.** A push or an upload is seen immediately. That covers Git branches and `HEAD`, HTTP endpoints, GCS objects, OCI tags, and Mercurial branch names. [`--cas-probe-ttl`](/reference/cli/commands/run#cas-probe-ttl) trusts these answers for a chosen duration, for example `--cas-probe-ttl 10m` for a batch of runs that need not each pay for a probe.
+- **Pinned sources are trusted for 24 hours.** A source is pinned when its URL names a specific revision that a publisher does not reissue: a Git semantic version tag, an S3 object version, an OCI manifest digest, an exact registry module version, or a full Mercurial changeset node. An HTTP URL with a literal `checksum=` pin is pinned too.
+- **Everything else is probed on every run.** A push or an upload is seen immediately. That covers Git branches and `HEAD`, HTTP endpoints without a `checksum=` pin, GCS objects, OCI tags, and Mercurial branch names. [`--cas-probe-ttl`](/reference/cli/commands/run#cas-probe-ttl) trusts these answers for a chosen duration, for example `--cas-probe-ttl 10m` for a batch of runs that need not each pay for a probe.
 
 Two flags change how the recorded answers are used:
 
@@ -88,11 +89,7 @@ terraform {
 
 When authoring stacks in a catalog, you can use the `update_source_with_cas` attribute to allow for relative paths to other components in the catalog in `source` attributes. This removes the need to plumb remote Git URLs through `values` expressions. The `source` must be a literal string: interpolation, function calls, and references such as `local.foo` cause stack generation to fail.
 
-<Since version="v1.2.0">
-
 `update_source_with_cas` accepts `true`, `false`, or an expression of literals and locals from the same file, such as `!false` or `local.use_cas`. Stack generation fails if the expression calls a function, directly or through a local.
-
-</Since>
 
 ```hcl
 # stacks/my-stack/terragrunt.stack.hcl (in your catalog repository)
@@ -118,9 +115,9 @@ terraform {
 }
 ```
 
-During stack generation, Terragrunt rewrites these relative sources to `cas::` references that point to content stored in the CAS. The repository is cloned once, and subsequent stack generations resolve content from the local store without network access. Generated `.terragrunt-stack` files contain deterministic CAS references instead of version variables, so they do not produce diffs on regeneration.
+During stack generation, Terragrunt rewrites these relative sources to `cas::` references that point to content stored in the CAS. The catalog is fetched once; later stack generations link the stored content, with only a cheap probe for a source that can change upstream. Generated `.terragrunt-stack` files contain deterministic CAS references instead of version variables, so they do not produce diffs on regeneration.
 
-The catalog source can be either a remote Git URL or a local filesystem path (absolute, or relative to the current working directory). Local sources are copied into a temporary directory before rewriting, so the original catalog directory is never modified. This makes the same catalog layout usable against a published Git ref or a local checkout, which is useful when iterating on a catalog before tagging a release.
+The catalog source can be a remote URL or a local filesystem path (absolute, or relative to the current working directory). Local sources are copied into a temporary directory before rewriting, so the original catalog directory is never modified. This makes the same catalog layout usable against a published Git ref or a local checkout, which is useful when iterating on a catalog before tagging a release.
 
 For more details on using this with stacks, see [Explicit Stacks: CAS Integration](/features/stacks/explicit#cas-integration).
 
@@ -278,11 +275,7 @@ On APFS, btrfs, and XFS volumes with reflink support, that file is a copy-on-wri
 
 Outside the CAS, fetched sources are already plain writable copies, so `mutable` only takes effect when the CAS is enabled.
 
-<Since version="v1.2.0">
-
-Files produced by [`generate`](/reference/hcl/blocks#generate) blocks are stored in the CAS too. Terragrunt hard links the stored content read-only into each working directory, so units generating identical content share one file. A `generate` block with `mutable = true` gets an ordinary writable file of its own. The backend file generated by a `remote_state` block is written directly and is not stored in the CAS.
-
-</Since>
+Files produced by [`generate`](/reference/hcl/blocks/generate) blocks are stored in the CAS too. Terragrunt hard links the stored content read-only into each working directory, so units generating identical content share one file. A `generate` block with `mutable = true` gets an ordinary writable file of its own. The backend file generated by a `remote_state` block is written directly and is not stored in the CAS.
 
 #### Graceful Fallbacks
 

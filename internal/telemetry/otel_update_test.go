@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -25,7 +25,7 @@ func TestCollectEmitsSpanAndMetric(t *testing.T) {
 
 	var buf bytes.Buffer
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.Telemetry.TraceExporter = consoleExporter
 	opts.Telemetry.MetricExporter = consoleExporter
 
@@ -53,7 +53,7 @@ func TestCollectEmitsSpanAndMetric(t *testing.T) {
 func TestCollectPropagatesError(t *testing.T) {
 	t.Parallel()
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.Telemetry.TraceExporter = consoleExporter
 	opts.Telemetry.MetricExporter = consoleExporter
 
@@ -75,7 +75,7 @@ func TestCollectPropagatesError(t *testing.T) {
 func TestCollectWithLoggerBindsContext(t *testing.T) {
 	t.Parallel()
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.Telemetry.TraceExporter = consoleExporter
 
 	l := logger.CreateLogger()
@@ -108,7 +108,7 @@ func TestCollectWithLoggerBindsContext(t *testing.T) {
 func TestShutdownIdempotent(t *testing.T) {
 	t.Parallel()
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.Telemetry.TraceExporter = consoleExporter
 	opts.Telemetry.MetricExporter = consoleExporter
 
@@ -151,7 +151,7 @@ func TestTelemeterFromContextNoOp(t *testing.T) {
 func TestContextWithTelemeterRoundtrip(t *testing.T) {
 	t.Parallel()
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.Telemetry.TraceExporter = consoleExporter
 
 	tlm, err := telemetry.NewTelemeter(
@@ -170,7 +170,7 @@ func TestTelemeterConsoleOutputValidJSON(t *testing.T) {
 
 	var buf bytes.Buffer
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 	opts.Telemetry.TraceExporter = consoleExporter
 	opts.Telemetry.MetricExporter = consoleExporter
 
@@ -202,7 +202,7 @@ func TestTelemeterConsoleOutputValidJSON(t *testing.T) {
 func TestNewTelemeterNoExporters(t *testing.T) {
 	t.Parallel()
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 
 	tlm, err := telemetry.NewTelemeter(
 		t.Context(), nil, "terragrunt", "v0.0.0-test", io.Discard, opts.Telemetry, false,
@@ -222,4 +222,120 @@ func TestNewTelemeterNoExporters(t *testing.T) {
 
 	assert.True(t, called)
 	require.NoError(t, tlm.Shutdown(t.Context()))
+}
+
+func TestNewTelemeterSetsScopeVersionOnAllSignals(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+
+	opts := options.NewTerragruntOptions()
+	opts.Telemetry.TraceExporter = consoleExporter
+	opts.Telemetry.MetricExporter = consoleExporter
+	opts.Telemetry.LogsExporter = consoleExporter
+
+	l := logger.CreateLogger()
+	l.SetOptions(log.WithOutput(io.Discard))
+
+	tlm, err := telemetry.NewTelemeter(
+		t.Context(), l, "terragrunt", "v0.0.0-test", util.NewSyncWriter(&buf), opts.Telemetry, true,
+	)
+	require.NoError(t, err)
+
+	require.NoError(t, tlm.Collect(
+		t.Context(), l, "scope_test", nil,
+		func(_ context.Context, childL log.Logger) error {
+			childL.Infof("scope test record")
+			return nil
+		},
+	))
+
+	require.NoError(t, tlm.Shutdown(t.Context()))
+
+	type scope struct {
+		Name    string `json:"Name"`
+		Version string `json:"Version"`
+	}
+
+	var spanScopes, metricScopes, logScopes []scope
+
+	dec := json.NewDecoder(&buf)
+
+	for dec.More() {
+		var entry struct {
+			InstrumentationScope *scope `json:"InstrumentationScope"`
+			Scope                *scope `json:"Scope"`
+			ScopeMetrics         []struct {
+				Scope scope `json:"Scope"`
+			} `json:"ScopeMetrics"`
+		}
+		require.NoError(t, dec.Decode(&entry))
+
+		switch {
+		case entry.InstrumentationScope != nil:
+			spanScopes = append(spanScopes, *entry.InstrumentationScope)
+		case entry.Scope != nil:
+			logScopes = append(logScopes, *entry.Scope)
+		}
+
+		for _, sm := range entry.ScopeMetrics {
+			metricScopes = append(metricScopes, sm.Scope)
+		}
+	}
+
+	want := scope{Name: "terragrunt", Version: "v0.0.0-test"}
+
+	require.NotEmpty(t, spanScopes, "expected a span")
+	require.NotEmpty(t, metricScopes, "expected a metric")
+	require.NotEmpty(t, logScopes, "expected a log record")
+
+	for _, got := range spanScopes {
+		assert.Equal(t, want, got, "span scope")
+	}
+
+	for _, got := range metricScopes {
+		assert.Equal(t, want, got, "metric scope")
+	}
+
+	for _, got := range logScopes {
+		assert.Equal(t, want, got, "log scope")
+	}
+}
+
+func TestCollectRecordsStringSliceAsSliceAttribute(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+
+	opts := options.NewTerragruntOptions()
+	opts.Telemetry.TraceExporter = consoleExporter
+
+	tlm, err := telemetry.NewTelemeter(
+		t.Context(), nil, "terragrunt", "v0.0.0-test", &buf, opts.Telemetry, false,
+	)
+	require.NoError(t, err)
+
+	require.NoError(t, tlm.Collect(
+		t.Context(), nil, "slice_test", map[string]any{"args": []string{"plan", "-input=false"}},
+		telemetry.WithoutLogger(func(context.Context) error { return nil }),
+	))
+
+	require.NoError(t, tlm.Shutdown(t.Context()))
+
+	var span struct {
+		Attributes []struct {
+			Value struct {
+				Value any    `json:"Value"`
+				Type  string `json:"Type"`
+			} `json:"Value"`
+			Key string `json:"Key"`
+		} `json:"Attributes"`
+	}
+	require.NoError(t, json.NewDecoder(&buf).Decode(&span))
+	require.Len(t, span.Attributes, 1)
+
+	attr := span.Attributes[0]
+	assert.Equal(t, "args", attr.Key)
+	assert.Equal(t, "STRINGSLICE", attr.Value.Type)
+	assert.Equal(t, []any{"plan", "-input=false"}, attr.Value.Value)
 }

@@ -1,0 +1,31 @@
+---
+name: get_aws_account_id
+description: Returns the ID of the AWS account that Terragrunt's credentials belong to.
+configs: [unit, stack]
+params: []
+returns: string
+examples:
+  - code: |
+      # terragrunt.hcl
+
+      locals {
+        account_id = get_aws_account_id() # "123456789012"
+      }
+---
+
+`get_aws_account_id` asks AWS STS which account the current credentials belong to, and fails when Terragrunt has no AWS credentials. Once Terragrunt has evaluated the unit's [`iam_role`](/reference/hcl/attributes/iam_role), it asks with that role, so a call evaluated before and after it can return different accounts.
+
+S3 bucket names are unique across all AWS accounts, so the account ID gives each account its own state bucket name:
+
+```hcl
+# root.hcl
+
+remote_state {
+  backend = "s3"
+  config = {
+    bucket = "acme-tofu-state-${get_aws_account_id()}"
+    key    = "${path_relative_to_include()}/tofu.tfstate"
+    region = "us-east-1"
+  }
+}
+```

@@ -8,11 +8,15 @@ import (
 )
 
 const (
+	// DiagnosticSeverityUnknown is the JSON name of a severity that is neither an error nor a warning.
 	DiagnosticSeverityUnknown = "unknown"
-	DiagnosticSeverityError   = "error"
+	// DiagnosticSeverityError is the JSON name of [hcl.DiagError].
+	DiagnosticSeverityError = "error"
+	// DiagnosticSeverityWarning is the JSON name of [hcl.DiagWarning].
 	DiagnosticSeverityWarning = "warning"
 )
 
+// DiagnosticSeverity is an [hcl.DiagnosticSeverity] that encodes to JSON by name.
 type DiagnosticSeverity hcl.DiagnosticSeverity
 
 func (severity DiagnosticSeverity) String() string {
@@ -28,16 +32,20 @@ func (severity DiagnosticSeverity) String() string {
 	}
 }
 
+// MarshalJSON encodes the severity as a JSON string holding its name.
 func (severity DiagnosticSeverity) MarshalJSON() ([]byte, error) {
 	return fmt.Appendf(nil, `"%s"`, severity.String()), nil
 }
 
+// UnmarshalJSON decodes a severity name. A name other than "error" or "warning" leaves the severity unchanged.
 func (severity *DiagnosticSeverity) UnmarshalJSON(val []byte) error {
 	switch strings.Trim(string(val), `"`) {
 	case DiagnosticSeverityError:
 		*severity = DiagnosticSeverity(hcl.DiagError)
 	case DiagnosticSeverityWarning:
 		*severity = DiagnosticSeverity(hcl.DiagWarning)
+	default:
+		*severity = DiagnosticSeverity(hcl.DiagInvalid)
 	}
 
 	return nil

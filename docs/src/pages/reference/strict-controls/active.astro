@@ -3,13 +3,19 @@ export const prerender = true;
 import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
 import StrictControlEntries from '@components/StrictControlEntries.astro';
 import { getCollection } from 'astro:content';
+import { getLatestVersion } from '@lib/release';
+import { isCompleted } from '@lib/strict-controls';
+import { isReleased } from '@lib/versions';
 
 const showUnreleased = import.meta.env.DEV;
+
+const latestVersion = await getLatestVersion();
 
 const allEntries = await getCollection('strictControls');
 
 const entries = allEntries
-	.filter((e) => e.data.status === 'active')
+	.filter((e) => !isCompleted(e, latestVersion))
+	.filter((e) => showUnreleased || !e.data.since || isReleased(e.data.since, latestVersion))
 	.sort((a, b) => a.data.name.localeCompare(b.data.name));
 
 const headings: { depth: number; slug: string; text: string }[] = [];

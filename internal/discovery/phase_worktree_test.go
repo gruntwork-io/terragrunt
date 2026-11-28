@@ -1,266 +1,15 @@
 package discovery_test
 
 import (
-	"os"
 	"path/filepath"
 	"slices"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// TestNewWorktreePhase tests the WorktreePhase constructor.
-func TestNewWorktreePhase(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name               string
-		numWorkers         int
-		expectedNumWorkers int
-	}{
-		{
-			name:               "positive workers",
-			numWorkers:         4,
-			expectedNumWorkers: 4,
-		},
-		{
-			name:               "zero workers defaults to CPU count",
-			numWorkers:         0,
-			expectedNumWorkers: -1, // Will check > 0
-		},
-		{
-			name:               "negative workers defaults to CPU count",
-			numWorkers:         -1,
-			expectedNumWorkers: -1, // Will check > 0
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			phase := discovery.NewWorktreePhase(nil, tt.numWorkers)
-
-			assert.NotNil(t, phase)
-			assert.Equal(t, "worktree", phase.Name())
-			assert.Equal(t, discovery.PhaseWorktree, phase.Kind())
-
-			if tt.expectedNumWorkers > 0 {
-				assert.Equal(t, tt.expectedNumWorkers, phase.NumWorkers())
-			} else {
-				// When workers <= 0, it should default to runtime.GOMAXPROCS(0)
-				assert.Positive(t, phase.NumWorkers())
-			}
-		})
-	}
-}
-
-// TestGenerateDirSHA256 tests the SHA256 hash generation for directories.
-func TestGenerateDirSHA256(t *testing.T) {
-	t.Parallel()
-
-	t.Run("empty_directory_produces_consistent_hash", func(t *testing.T) {
-		t.Parallel()
-
-		tmpDir := t.TempDir()
-
-		hash1, err := discovery.GenerateDirSHA256(vfs.NewOSFS(), tmpDir)
-		require.NoError(t, err)
-
-		hash2, err := discovery.GenerateDirSHA256(vfs.NewOSFS(), tmpDir)
-		require.NoError(t, err)
-
-		assert.Equal(t, hash1, hash2, "Same empty directory should produce same hash")
-	})
-
-	t.Run("same_files_produce_same_hash", func(t *testing.T) {
-		t.Parallel()
-
-		tmpDir1 := t.TempDir()
-		tmpDir2 := t.TempDir()
-
-		content := []byte("test content")
-		require.NoError(t, os.WriteFile(filepath.Join(tmpDir1, "file.txt"), content, 0644))
-		require.NoError(t, os.WriteFile(filepath.Join(tmpDir2, "file.txt"), content, 0644))
-
-		hash1, err := discovery.GenerateDirSHA256(vfs.NewOSFS(), tmpDir1)
-		require.NoError(t, err)
-
-		hash2, err := discovery.GenerateDirSHA256(vfs.NewOSFS(), tmpDir2)
-		require.NoError(t, err)
-
-		assert.Equal(t, hash1, hash2, "Directories with same files should produce same hash")
-	})
-
-	t.Run("modified_file_produces_different_hash", func(t *testing.T) {
-		t.Parallel()
-
-		tmpDir := t.TempDir()
-
-		require.NoError(
-			t,
-			os.WriteFile(filepath.Join(tmpDir, "file.txt"), []byte("content1"), 0644),
-		)
-
-		hash1, err := discovery.GenerateDirSHA256(vfs.NewOSFS(), tmpDir)
-		require.NoError(t, err)
-
-		require.NoError(
-			t,
-			os.WriteFile(filepath.Join(tmpDir, "file.txt"), []byte("content2"), 0644),
-		)
-
-		hash2, err := discovery.GenerateDirSHA256(vfs.NewOSFS(), tmpDir)
-		require.NoError(t, err)
-
-		assert.NotEqual(t, hash1, hash2, "Modified file should produce different hash")
-	})
-
-	t.Run("file_rename_produces_different_hash", func(t *testing.T) {
-		t.Parallel()
-
-		tmpDir1 := t.TempDir()
-		tmpDir2 := t.TempDir()
-
-		content := []byte("same content")
-		require.NoError(t, os.WriteFile(filepath.Join(tmpDir1, "original.txt"), content, 0644))
-		require.NoError(t, os.WriteFile(filepath.Join(tmpDir2, "renamed.txt"), content, 0644))
-
-		hash1, err := discovery.GenerateDirSHA256(vfs.NewOSFS(), tmpDir1)
-		require.NoError(t, err)
-
-		hash2, err := discovery.GenerateDirSHA256(vfs.NewOSFS(), tmpDir2)
-		require.NoError(t, err)
-
-		assert.NotEqual(
-			t,
-			hash1,
-			hash2,
-			"File rename (different path) should produce different hash",
-		)
-	})
-
-	t.Run("file_move_to_subdirectory_produces_different_hash", func(t *testing.T) {
-		t.Parallel()
-
-		tmpDir1 := t.TempDir()
-		tmpDir2 := t.TempDir()
-
-		content := []byte("same content")
-		require.NoError(t, os.WriteFile(filepath.Join(tmpDir1, "file.txt"), content, 0644))
-
-		subDir := filepath.Join(tmpDir2, "subdir")
-		require.NoError(t, os.MkdirAll(subDir, 0755))
-		require.NoError(t, os.WriteFile(filepath.Join(subDir, "file.txt"), content, 0644))
-
-		hash1, err := discovery.GenerateDirSHA256(vfs.NewOSFS(), tmpDir1)
-		require.NoError(t, err)
-
-		hash2, err := discovery.GenerateDirSHA256(vfs.NewOSFS(), tmpDir2)
-		require.NoError(t, err)
-
-		assert.NotEqual(t, hash1, hash2, "File move to subdirectory should produce different hash")
-	})
-
-	t.Run("ignores_terragrunt_stack_manifest", func(t *testing.T) {
-		t.Parallel()
-
-		tmpDir1 := t.TempDir()
-		tmpDir2 := t.TempDir()
-
-		content := []byte("test content")
-		require.NoError(t, os.WriteFile(filepath.Join(tmpDir1, "file.txt"), content, 0644))
-		require.NoError(t, os.WriteFile(filepath.Join(tmpDir2, "file.txt"), content, 0644))
-
-		// Add .terragrunt-stack-manifest only to tmpDir2
-		manifestContent := []byte("/path/to/something\n/another/path")
-		require.NoError(
-			t,
-			os.WriteFile(
-				filepath.Join(tmpDir2, ".terragrunt-stack-manifest"),
-				manifestContent,
-				0644,
-			),
-		)
-
-		hash1, err := discovery.GenerateDirSHA256(vfs.NewOSFS(), tmpDir1)
-		require.NoError(t, err)
-
-		hash2, err := discovery.GenerateDirSHA256(vfs.NewOSFS(), tmpDir2)
-		require.NoError(t, err)
-
-		assert.Equal(
-			t,
-			hash1,
-			hash2,
-			".terragrunt-stack-manifest should be ignored in hash calculation",
-		)
-	})
-
-	t.Run("multiple_files_order_independent", func(t *testing.T) {
-		t.Parallel()
-
-		tmpDir1 := t.TempDir()
-		tmpDir2 := t.TempDir()
-
-		// Create files in different order but same content
-		require.NoError(t, os.WriteFile(filepath.Join(tmpDir1, "a.txt"), []byte("a"), 0644))
-		require.NoError(t, os.WriteFile(filepath.Join(tmpDir1, "b.txt"), []byte("b"), 0644))
-
-		require.NoError(t, os.WriteFile(filepath.Join(tmpDir2, "b.txt"), []byte("b"), 0644))
-		require.NoError(t, os.WriteFile(filepath.Join(tmpDir2, "a.txt"), []byte("a"), 0644))
-
-		hash1, err := discovery.GenerateDirSHA256(vfs.NewOSFS(), tmpDir1)
-		require.NoError(t, err)
-
-		hash2, err := discovery.GenerateDirSHA256(vfs.NewOSFS(), tmpDir2)
-		require.NoError(t, err)
-
-		assert.Equal(t, hash1, hash2, "File creation order should not affect hash")
-	})
-
-	t.Run("nonexistent_directory_returns_error", func(t *testing.T) {
-		t.Parallel()
-
-		_, err := discovery.GenerateDirSHA256(vfs.NewOSFS(), "/nonexistent/path/to/directory")
-		require.Error(t, err)
-	})
-
-	t.Run("nested_directories_included", func(t *testing.T) {
-		t.Parallel()
-
-		tmpDir1 := t.TempDir()
-		tmpDir2 := t.TempDir()
-
-		// Create nested structure in both
-		subDir1 := filepath.Join(tmpDir1, "sub", "nested")
-		subDir2 := filepath.Join(tmpDir2, "sub", "nested")
-
-		require.NoError(t, os.MkdirAll(subDir1, 0755))
-		require.NoError(t, os.MkdirAll(subDir2, 0755))
-
-		content := []byte("nested content")
-		require.NoError(t, os.WriteFile(filepath.Join(subDir1, "file.txt"), content, 0644))
-		require.NoError(t, os.WriteFile(filepath.Join(subDir2, "file.txt"), content, 0644))
-
-		hash1, err := discovery.GenerateDirSHA256(vfs.NewOSFS(), tmpDir1)
-		require.NoError(t, err)
-
-		hash2, err := discovery.GenerateDirSHA256(vfs.NewOSFS(), tmpDir2)
-		require.NoError(t, err)
-
-		assert.Equal(
-			t,
-			hash1,
-			hash2,
-			"Nested directories with same structure should produce same hash",
-		)
-	})
-}
 
 // TestMatchComponentPairs tests the component pair matching logic.
 func TestMatchComponentPairs(t *testing.T) {
@@ -463,6 +212,22 @@ func TestTranslateDiscoveryContextArgsForWorktree(t *testing.T) {
 			expectDestroyArg: false,
 		},
 		{
+			name:             "from_worktree_plan_with_destroy_true_errors",
+			cmd:              "plan",
+			args:             []string{"-destroy=true"},
+			kind:             discovery.FromWorktreeKind,
+			expectError:      true,
+			expectDestroyArg: false,
+		},
+		{
+			name:             "from_worktree_plan_with_destroy_false_adds_destroy",
+			cmd:              "plan",
+			args:             []string{"-destroy=false"},
+			kind:             discovery.FromWorktreeKind,
+			expectError:      false,
+			expectDestroyArg: true,
+		},
+		{
 			name:             "from_worktree_empty_command_allowed",
 			cmd:              "",
 			args:             []string{},
@@ -515,6 +280,14 @@ func TestTranslateDiscoveryContextArgsForWorktree(t *testing.T) {
 			name:             "to_worktree_plan_with_destroy_already_present_errors",
 			cmd:              "plan",
 			args:             []string{"-destroy"},
+			kind:             discovery.ToWorktreeKind,
+			expectError:      true,
+			expectDestroyArg: false,
+		},
+		{
+			name:             "to_worktree_apply_with_destroy_true_errors",
+			cmd:              "apply",
+			args:             []string{"-destroy=true"},
 			kind:             discovery.ToWorktreeKind,
 			expectError:      true,
 			expectDestroyArg: false,

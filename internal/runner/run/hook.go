@@ -15,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/tflint"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -22,20 +23,33 @@ import (
 )
 
 const (
-	HookCtxTFPathEnvName   = "TG_CTX_TF_PATH"
-	HookCtxCommandEnvName  = "TG_CTX_COMMAND"
+	// HookCtxTFPathEnvName is the hook environment variable that holds the path of the tofu or terraform binary.
+	HookCtxTFPathEnvName = "TG_CTX_TF_PATH"
+	// HookCtxCommandEnvName is the hook environment variable that holds the tofu command being run, such as plan.
+	HookCtxCommandEnvName = "TG_CTX_COMMAND"
+	// HookCtxHookNameEnvName is the hook environment variable that holds the name of the running hook.
 	HookCtxHookNameEnvName = "TG_CTX_HOOK_NAME"
 
 	// The following are gated behind the hook-context-env experiment.
-	HookCtxHookTypeEnvName      = "TG_CTX_HOOK_TYPE"
-	HookCtxSourceEnvName        = "TG_CTX_SOURCE"
+
+	// HookCtxHookTypeEnvName is the hook environment variable that holds before_hook, after_hook, or error_hook.
+	HookCtxHookTypeEnvName = "TG_CTX_HOOK_TYPE"
+	// HookCtxSourceEnvName is the hook environment variable that holds the terraform source URL of the unit,
+	// after any source override or source map.
+	HookCtxSourceEnvName = "TG_CTX_SOURCE"
+	// HookCtxTerragruntDirEnvName is the hook environment variable that holds the directory of the unit's
+	// terragrunt.hcl.
 	HookCtxTerragruntDirEnvName = "TG_CTX_TERRAGRUNT_DIR"
 )
 
 const (
+	// HookTypeUnknown is the zero HookType. It names no hook block.
 	HookTypeUnknown HookType = iota
+	// HookTypeBefore is the type of before_hook blocks.
 	HookTypeBefore
+	// HookTypeAfter is the type of after_hook blocks.
 	HookTypeAfter
+	// HookTypeError is the type of error_hook blocks.
 	HookTypeError
 )
 
@@ -45,6 +59,7 @@ var hookTypeNames = map[HookType]string{
 	HookTypeError:  "error_hook",
 }
 
+// HookType is the kind of hook block a hook comes from.
 type HookType byte
 
 func hookTypeName(hookType HookType) (string, bool) {
@@ -150,8 +165,15 @@ func ProcessErrorHooks(
 	errorMessage := strings.Join(errorMessages, "\n")
 
 	for _, curHook := range hooks {
-		if util.MatchesAny(curHook.OnErrors, errorMessage) &&
-			slices.Contains(curHook.Commands, opts.TerraformCommand) {
+		matched, err := util.MatchesAny(curHook.OnErrors, errorMessage)
+		if err != nil {
+			errorsOccured = append(errorsOccured, fmt.Errorf("matching on_errors of error hook %s: %w", curHook.Name, err))
+
+			continue
+		}
+
+		if matched &&
+			slices.Contains(curHook.Commands, opts.TerraformCliArgs.CommandName(opts.TerraformCommand)) {
 			err := telemetry.TelemeterFromContext(ctx).
 				Collect(ctx, l, "error_hook_"+curHook.Name, map[string]any{
 					"hook": curHook.Name,
@@ -162,7 +184,7 @@ func ProcessErrorHooks(
 					actionToExecute := curHook.Execute[0]
 					actionParams := curHook.Execute[1:]
 
-					env, hookEnvErr := hookEnv(v.Env, opts, cfg, curHook.Name, HookTypeError)
+					env, hookEnvErr := hookEnv(v, opts, cfg, curHook.Name, HookTypeError)
 					if hookEnvErr != nil {
 						return hookEnvErr
 					}
@@ -173,7 +195,7 @@ func ProcessErrorHooks(
 						ctx,
 						l,
 						hookV,
-						opts.shellRunOptions(env),
+						opts.shellRunOptions(v.Exec, env),
 						curHook.WorkingDir,
 						curHook.SuppressStdout,
 						false,
@@ -244,7 +266,7 @@ func shouldRunHook(
 	//
 	// resolves: https://github.com/gruntwork-io/terragrunt/issues/459
 	hasErrors := len(previousExecErrors) > 0
-	isCommandInHook := slices.Contains(hook.Commands, opts.TerraformCommand)
+	isCommandInHook := slices.Contains(hook.Commands, opts.TerraformCliArgs.CommandName(opts.TerraformCommand))
 
 	return isCommandInHook && (!hasErrors || hook.RunOnError)
 }
@@ -270,7 +292,7 @@ func runHook(
 		return executeTFLint(ctx, l, v, opts, cfg, curHook, workingDir)
 	}
 
-	env, err := hookEnv(v.Env, opts, cfg, curHook.Name, hookType)
+	env, err := hookEnv(v, opts, cfg, curHook.Name, hookType)
 	if err != nil {
 		return err
 	}
@@ -281,7 +303,7 @@ func runHook(
 		ctx,
 		l,
 		hookV,
-		opts.shellRunOptions(env),
+		opts.shellRunOptions(v.Exec, env),
 		workingDir,
 		suppressStdout,
 		false,
@@ -310,7 +332,7 @@ func executeTFLint(
 	actualLock.Lock()
 	defer actualLock.Unlock()
 
-	err := tflint.RunTflintWithOpts(ctx, l, v, opts.tflintRunOptions(v.Env), cfg, curHook)
+	err := tflint.RunTflintWithOpts(ctx, l, v, opts.tflintRunOptions(v.Exec, v.Env), cfg, curHook)
 	if err != nil {
 		l.Errorf("%s", hookErrorMessage(curHook.Name, err))
 		return err
@@ -319,21 +341,21 @@ func executeTFLint(
 	return nil
 }
 
-// hookEnv clones env and adds the hook context variables (TFPath,
-// TerraformCommand, hookName). The returned map is independent of env so
+// hookEnv clones v.Env and adds the hook context variables (TFPath,
+// TerraformCommand, hookName). The returned map is independent of v.Env so
 // mutations during hook execution don't leak back to the run-wide
 // environment. When the hook-context-env experiment is enabled it also injects
 // the TG_CTX_* variables for the hook type, source, and Terragrunt directory.
 func hookEnv(
-	env map[string]string,
+	v *venv.Venv,
 	opts *Options,
 	cfg *runcfg.RunConfig,
 	hookName string,
 	hookType HookType,
 ) (map[string]string, error) {
-	cloned := cloner.Clone(env)
-	cloned[HookCtxTFPathEnvName] = opts.TFPath
-	cloned[HookCtxCommandEnvName] = opts.TerraformCommand
+	cloned := cloner.Clone(v.Env)
+	cloned[HookCtxTFPathEnvName] = tfimpl.BinaryOrDefault(v.Exec, opts.TFPath)
+	cloned[HookCtxCommandEnvName] = opts.TerraformCliArgs.CommandName(opts.TerraformCommand)
 	cloned[HookCtxHookNameEnvName] = hookName
 
 	if opts.Experiments.Evaluate(experiment.HookContextEnv) {

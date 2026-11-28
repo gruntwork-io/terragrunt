@@ -13,8 +13,9 @@ set -euo pipefail
 #   summary <scan.json> <out.json>   Normalize a raw scan report into a flat findings
 #                                    summary keyed for diffing, with per-severity counts.
 #   compare <cur> <prev> [out]       Diff two summaries -> report JSON with new and fixed
-#                                    findings. A missing/empty previous summary yields a
-#                                    baseline (current-only) report.
+#                                    findings, minus those in report-suppressions.json (see
+#                                    Suppressions below). A missing/empty previous summary
+#                                    yields a baseline (current-only) report.
 #   render <report.json>             Render the report as Markdown to $GITHUB_STEP_SUMMARY
 #                                    (or stdout).
 #   payload <report.json>            Print the Slack message payload JSON to stdout.
@@ -22,11 +23,21 @@ set -euo pipefail
 #   notify-failure                   Post a run-failure notice to Slack so a broken scan
 #                                    is not a silent missed week.
 #
+# Suppressions: `compare` drops the findings listed in report-suppressions.json
+# (next to this script) from the counts, new, fixed, and current findings, and
+# lists them under "suppressed" instead so they stay visible in the report and
+# the Slack message. Each entry needs an "id" (the CVE / GO / AVD / rule ID) and
+# a "reason"; an optional "pkg" and "target" narrow the match (omitted = any),
+# and an optional "expires" date (YYYY-MM-DD) makes the entry lapse. Entries
+# that have expired or match no current finding are reported as stale.
+#
 # Env knobs — SECURITY_SCAN_* configure the scanner-agnostic reporting;
 # TRIVY_* configure the scanner itself (intentionally shadowing trivy's native
 # env config; the explicit flags passed by `scan` always win):
 #   SECURITY_SCAN_RENDER_LIMIT  Max current findings rendered in the step summary (default: 50).
 #   SECURITY_SCAN_NOTIFY_LIMIT  Max new/fixed findings listed in the Slack message (default: 10).
+#   SECURITY_SCAN_SUPPRESSIONS_FILE  Suppressions config read by `compare` (default:
+#                       report-suppressions.json next to this script).
 #   TRIVY_SCANNERS      Scanners for `scan` (default: vuln,misconfig,secret).
 #   TRIVY_SKIP_DIRS     Comma-separated dirs `scan` skips (default: test and
 #                       docs/src/fixtures, whose intentionally-simple fixtures
@@ -73,6 +84,13 @@ jq_lib() {
 				.id + (if .title != "" then " \(.title)" else "" end)
 			end)
 			+ " (\(loc))";
+		def today: now | strftime("%Y-%m-%d");
+		def expired: (.expires // "9999-12-31") < today;
+		def suppressed_by($entry):
+			.id == $entry.id
+			and ($entry.pkg == null or .pkg == $entry.pkg)
+			and ($entry.target == null or .target == $entry.target);
+		def suppression($entries): . as $f | first($entries[] | select(. as $e | $f | suppressed_by($e))) // null;
 		def listed($items; $label; $limit): if ($items | length) == 0 then "" else
 			"\($label) (\($items | length)):\n"
 			+ ([$items[:$limit][] | "  \(finding_line)"] | join("\n"))
@@ -80,6 +98,47 @@ jq_lib() {
 				then "\n  ...and \(($items | length) - $limit) more" else "" end)
 		end;
 	JQ
+}
+
+# Read the suppressions config as normalized JSON, failing on a malformed file
+read_suppressions() {
+	local file="${SECURITY_SCAN_SUPPRESSIONS_FILE:-${SELF%/*}/report-suppressions.json}"
+
+	if [[ ! -f "$file" ]]; then
+		echo '{"findings":[]}'
+		return 0
+	fi
+
+	local normalized
+	if ! normalized=$(jq '
+		def field($name; $required):
+			if has($name) then
+				if (.[$name] | type) != "string" or .[$name] == ""
+					then error("\($name) must be a non-empty string") else . end
+			elif $required then error("\($name) is required")
+			else . end;
+		def entry($i):
+			if type != "object" then error("findings[\($i)] must be an object") else . end
+			| try (
+				field("id"; true) | field("reason"; true)
+				| field("pkg"; false) | field("target"; false) | field("expires"; false)
+				| if has("expires") and (.expires | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}$") | not)
+					then error("expires must be a YYYY-MM-DD date") else . end
+				| (keys - ["id", "pkg", "target", "reason", "expires"]) as $unknown
+				| if ($unknown | length) > 0 then error("unknown field(s) \($unknown | join(", "))") else . end
+			) catch error("findings[\($i)]: \(.)");
+
+		if type != "object" then error("expected a JSON object {\"findings\": [...]}") else . end
+		| (keys - ["findings"]) as $unknown
+		| if ($unknown | length) > 0 then error("unknown field(s) \($unknown | join(", ")); expected {\"findings\": [...]}") else . end
+		| if ((.findings // []) | type) != "array" then error("findings must be an array") else . end
+		| {findings: [(.findings // []) | to_entries[] | .key as $i | .value | entry($i)]}
+	' "$file" 2>&1); then
+		echo "Error: suppressions file '$file' is invalid: ${normalized#jq: error (at *): }" >&2
+		exit 1
+	fi
+
+	echo "$normalized"
 }
 
 # Run `trivy fs` over a source tree and write the raw JSON report
@@ -155,7 +214,7 @@ cmd_summary() {
 	echo "Summary: $output ($(jq -r '.counts.total' "$output") findings)"
 }
 
-# Diff two findings summaries into a new/fixed report
+# Diff two findings summaries into a new/fixed report, minus suppressed findings
 cmd_compare() {
 	local current="${1:?Usage: security-scan-report.sh compare <current.json> <previous.json> [output.json]}"
 	local previous="${2:?Usage: security-scan-report.sh compare <current.json> <previous.json> [output.json]}"
@@ -166,38 +225,48 @@ cmd_compare() {
 		exit 1
 	fi
 
+	local suppressions
+	suppressions=$(read_suppressions)
+
+	# An empty previous slurps to [], so $p is null and the report is a baseline.
 	if [[ ! -s "$previous" ]]; then
 		echo "No previous scan data found: establishing baseline."
-		jq '{
-			baseline: true,
-			current_counts: .counts,
-			previous_counts: null,
-			new: [],
-			fixed: [],
-			unchanged: null,
-			current_findings: .findings
-		}' "$current" >"$output"
-		return 0
+		previous=/dev/null
 	fi
 
+	mkdir -p "$(dirname "$output")"
+
+	# Suppressions apply to both sides, so a suppressed finding is neither new nor
+	# fixed; the current ones are kept under "suppressed" with their reason.
 	jq -n \
 		--slurpfile cur "$current" \
-		--slurpfile prev "$previous" '
+		--slurpfile prev "$previous" \
+		--argjson suppressions "$suppressions" \
+		"$(jq_lib)"'
+		def visible($active): map(select(suppression($active) == null));
+
 		($cur[0]) as $c |
 		($prev[0]) as $p |
-		INDEX($c.findings[]; .key) as $ckeys |
-		INDEX($p.findings[]; .key) as $pkeys |
+		[$suppressions.findings[] | select(expired | not)] as $active |
+		($c.findings | visible($active)) as $cur_findings |
+		(($p.findings // []) | visible($active)) as $prev_findings |
+		INDEX($cur_findings[]; .key) as $ckeys |
+		INDEX($prev_findings[]; .key) as $pkeys |
 		{
-			baseline: false,
-			current_counts: $c.counts,
-			previous_counts: $p.counts,
-			new: [$c.findings[] | select($pkeys[.key] | not)],
-			fixed: [$p.findings[] | select($ckeys[.key] | not)],
-			unchanged: ([$c.findings[] | select($pkeys[.key])] | length),
-			current_findings: $c.findings
+			baseline: ($p == null),
+			current_counts: ($cur_findings | counts),
+			previous_counts: (if $p == null then null else ($prev_findings | counts) end),
+			new: (if $p == null then [] else [$cur_findings[] | select($pkeys[.key] | not)] end),
+			fixed: (if $p == null then [] else [$prev_findings[] | select($ckeys[.key] | not)] end),
+			unchanged: (if $p == null then null else ([$cur_findings[] | select($pkeys[.key])] | length) end),
+			current_findings: $cur_findings,
+			suppressed: [$c.findings[] | suppression($active) as $s | select($s != null) | . + {reason: $s.reason}],
+			stale_suppressions: [$suppressions.findings[]
+				| . + {state: (if expired then "expired" else "unmatched" end)}
+				| select(.state == "expired" or (. as $e | any($c.findings[]; suppressed_by($e)) | not))]
 		}' >"$output"
 
-	echo "Report: $output ($(jq -r '.new | length' "$output") new, $(jq -r '.fixed | length' "$output") fixed)"
+	echo "Report: $output ($(jq -r '"\(.new | length) new, \(.fixed | length) fixed, \(.suppressed | length) suppressed"' "$output"))"
 }
 
 # Render the report as Markdown to $GITHUB_STEP_SUMMARY (or stdout)
@@ -275,6 +344,33 @@ cmd_render() {
 	else
 		write "No findings."
 	fi
+
+	# Older reports predate suppressions, hence the `// []` fallbacks.
+	local suppressed_count stale_count
+	suppressed_count=$(jq -r '.suppressed // [] | length' "$report")
+	stale_count=$(jq -r '.stale_suppressions // [] | length' "$report")
+
+	if [[ "$suppressed_count" -gt 0 ]]; then
+		write ""
+		write "### Suppressed findings ($suppressed_count)"
+		write ""
+		write "| Severity | Class | ID | Location | Package | Installed | Reason |"
+		write "|----------|-------|----|----------|---------|-----------|--------|"
+		jq -r "$(jq_lib)"'.suppressed[] | "| \(.severity) | \(.class) | \(.id) | \(loc) | \(.pkg) | \(.installed) | \(.reason) |"' "$report" >>"$summary_file"
+	fi
+
+	if [[ "$stale_count" -gt 0 ]]; then
+		write ""
+		write "### Stale suppressions ($stale_count)"
+		write ""
+		write "These report-suppressions.json entries no longer suppress anything; remove or renew them:"
+		write ""
+		jq -r '.stale_suppressions[] | "- \(.id)"
+			+ (if .pkg then " \(.pkg)" else "" end)
+			+ (if .target then " (\(.target))" else "" end)
+			+ " - \(.state)"
+			+ (if .expires then " \(.expires)" else "" end)' "$report" >>"$summary_file"
+	fi
 }
 
 # Print the Slack message payload for the report to stdout
@@ -316,6 +412,10 @@ cmd_payload() {
 
 		listed($r.new; "New this week"; $limit) as $new |
 		(if ($r.baseline | not) and $new == "" then "No new findings this week." else "" end) as $none |
+		listed($r.suppressed // []; "Suppressed"; $limit) as $suppressed |
+		(($r.stale_suppressions // []) | if length == 0 then "" else
+			"Stale suppressions (\(length)): " + (map("\(.id) (\(.state))") | join(", "))
+		end) as $stale |
 
 		{text: ([
 			$header,
@@ -324,6 +424,8 @@ cmd_payload() {
 			listed($r.fixed; "Fixed this week"; $limit),
 			$none,
 			listed($r.current_findings; "Current findings"; $limit),
+			$suppressed,
+			$stale,
 			"<\($run_url)|View workflow run>"
 		] | map(select(. != "")) | join("\n\n"))}'
 }

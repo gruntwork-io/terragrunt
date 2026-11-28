@@ -1007,13 +1007,15 @@ func TestTFTerragruntStdOut(t *testing.T) {
 		stderr bytes.Buffer
 	)
 
+	rootPath := filepath.Join(helpers.CopyEnvironment(t, testFixtureDownload), testFixtureStdout)
+
 	helpers.RunTerragrunt(
 		t,
-		"terragrunt apply -auto-approve --non-interactive --working-dir "+testFixtureStdout,
+		"terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath,
 	)
 	helpers.RunTerragruntRedirectOutput(
 		t,
-		"terragrunt output foo --non-interactive --working-dir "+testFixtureStdout,
+		"terragrunt output foo --non-interactive --working-dir "+rootPath,
 		&stdout,
 		&stderr,
 	)
@@ -1246,8 +1248,8 @@ func TestTFRunCommand(t *testing.T) {
 	validateInputs(t, outputs)
 }
 
-// TestTFInputsWithInterpolationPatterns validates that input variables containing ${...} patterns
-// reach the module as literal text, whether OpenTofu/Terraform read the variable's value verbatim
+// TestTFInputsWithInterpolationPatterns validates that input variables containing ${...} and %{...}
+// sequences reach the module as literal text, whether OpenTofu/Terraform read the variable's value verbatim
 // or parse it as HCL.
 func TestTFInputsWithInterpolationPatterns(t *testing.T) {
 	t.Parallel()
@@ -1280,6 +1282,7 @@ func TestTFInputsWithInterpolationPatterns(t *testing.T) {
 	mapValue, ok := mapOutput.Value.(map[string]any)
 	require.True(t, ok, "map_with_interpolation value is not a map")
 	assert.Equal(t, "test ${bar} test", mapValue["foo"])
+	assert.Equal(t, "test %{bar} test", mapValue["directive"])
 	assert.Equal(t, "no interpolation here", mapValue["baz"])
 
 	// A variable declared as a string is read verbatim, so it keeps the file contents as they are.
@@ -1297,7 +1300,26 @@ func TestTFInputsWithInterpolationPatterns(t *testing.T) {
 	anyValue, ok := anyOutput.Value.(map[string]any)
 	require.True(t, ok, "any_with_interpolation value is not an object")
 	assert.Equal(t, "test ${bar} test", anyValue["foo"])
+	assert.Equal(t, "test %{bar} test", anyValue["directive"])
 	assert.Equal(t, "no interpolation here", anyValue["baz"])
+
+	// A map given to a variable declared as a string is read verbatim as JSON, so decoding it in
+	// the module gives back the same values.
+	decodedOutput, ok := outputs["string_from_map"]
+	require.True(t, ok, "string_from_map output not found")
+	decodedValue, ok := decodedOutput.Value.(map[string]any)
+	require.True(t, ok, "string_from_map value is not an object")
+	assert.Equal(t, "test ${bar} test", decodedValue["foo"])
+	assert.Equal(t, "test %{bar} test", decodedValue["directive"])
+	assert.Equal(t, "no interpolation here", decodedValue["baz"])
+
+	overriddenOutput, ok := outputs["map_with_overridden_default"]
+	require.True(t, ok, "map_with_overridden_default output not found")
+	overriddenValue, ok := overriddenOutput.Value.(map[string]any)
+	require.True(t, ok, "map_with_overridden_default value is not a map")
+	assert.Equal(t, "test ${bar} test", overriddenValue["foo"])
+	assert.Equal(t, "test %{bar} test", overriddenValue["directive"])
+	assert.Equal(t, "no interpolation here", overriddenValue["baz"])
 }
 
 func TestTFTerragruntMissingDependenciesFail(t *testing.T) {
@@ -3923,9 +3945,9 @@ func TestTFReadTerragruntAuthProviderCmd(t *testing.T) {
 
 // TestTFReadTerragruntAuthProviderCmdEnvInLocalsRunAll verifies that
 // auth-provider-cmd credentials are available during discovery queue
-// construction (run --all). Without the fix in phase_parse.go, get_env()
+// construction (run --all). Without the fix in internal/discovery/parse.go, get_env()
 // in locals cannot see env vars injected by --auth-provider-cmd because
-// ObtainCredsForParsing is never called during the discovery parse phase.
+// ObtainCredsForParsing is never called during discovery parsing.
 func TestTFReadTerragruntAuthProviderCmdEnvInLocalsRunAll(t *testing.T) {
 	t.Parallel()
 
@@ -3955,6 +3977,45 @@ func TestTFReadTerragruntAuthProviderCmdEnvInLocalsRunAll(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(stdout), &outputs))
 
 	assert.Equal(t, "from-auth-provider", outputs["secret"].Value)
+}
+
+// TestTFReadTerragruntAuthProviderCmdPerUnitReadConfigRunAll pins that a file every unit reads with
+// read_terragrunt_config gets each unit's own auth provider credentials during run --all.
+func TestTFReadTerragruntAuthProviderCmdPerUnitReadConfigRunAll(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureAuthProviderCmd)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderCmd)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "per-unit-read-config")
+	authProviderCmd := filepath.Join(rootPath, "auth-provider.sh")
+
+	// With one unit at a time, the second unit reads common.hcl after the first has finished reading it.
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf(
+			"terragrunt run --all --non-interactive --parallelism 1 --working-dir %s --auth-provider-cmd %s -- "+
+				"apply -auto-approve",
+			rootPath,
+			authProviderCmd,
+		),
+	)
+
+	for _, unit := range []string{"unit-a", "unit-b"} {
+		stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+			t,
+			fmt.Sprintf(
+				"terragrunt run --non-interactive --working-dir %s --auth-provider-cmd %s -- output -json",
+				filepath.Join(rootPath, unit),
+				authProviderCmd,
+			),
+		)
+		require.NoError(t, err)
+
+		outputs := map[string]helpers.TerraformOutput{}
+		require.NoError(t, json.Unmarshal([]byte(stdout), &outputs))
+
+		assert.Equal(t, unit, outputs["secret"].Value)
+	}
 }
 
 func TestTFReadTerragruntAuthProviderCmdRunAllCallCountWithRacing(t *testing.T) {
@@ -4114,6 +4175,29 @@ func TestTFTerragruntVersionConstraintsPartialParse(t *testing.T) {
 
 	ok := errors.As(err, &invalidVersionError)
 	assert.True(t, ok)
+}
+
+func TestTFTerragruntVersionConstraintsPartialParseRunAll(t *testing.T) {
+	t.Parallel()
+
+	fixturePath := "fixtures/partial-parse/terragrunt-version-constraint"
+	tmpEnvPath := helpers.CopyEnvironment(t, fixturePath)
+	rootPath := filepath.Join(tmpEnvPath, fixturePath)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := helpers.RunTerragruntVersionCommand(
+		t,
+		"0.21.23",
+		"terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply -auto-approve",
+		&stdout,
+		&stderr,
+	)
+	helpers.LogBufferContentsLineByLine(t, stdout, "stdout")
+	helpers.LogBufferContentsLineByLine(t, stderr, "stderr")
+
+	require.ErrorAs(t, err, new(run.InvalidTerragruntVersion))
 }
 
 func TestTFLogFailingDependencies(t *testing.T) {
@@ -5083,17 +5167,17 @@ func TestTFLogStreaming(t *testing.T) {
 				timestamp, err := time.Parse("15:04:05.999", timestampStr)
 				require.NoError(t, err)
 
-				if firstTimestamp.IsZero() {
-					assert.Contains(t, line, "(local-exec): sleeping...")
-
-					firstTimestamp = timestamp
-				} else {
+				if !firstTimestamp.IsZero() {
 					assert.Contains(t, line, "(local-exec): done sleeping")
 
 					secondTimestamp = timestamp
 
 					break
 				}
+
+				assert.Contains(t, line, "(local-exec): sleeping...")
+
+				firstTimestamp = timestamp
 			}
 		}
 

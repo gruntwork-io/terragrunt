@@ -1,0 +1,18 @@
+---
+version: "v1.2.3"
+category: "strict-controls-added"
+---
+
+#### `use-partial-parse-config-cache` strict control
+
+The `--use-partial-parse-config-cache` flag, and its `TG_USE_PARTIAL_PARSE_CONFIG_CACHE` environment variable, has no effect, because Terragrunt no longer has a partial parse cache. The flag is deprecated, and Terragrunt warns when it is set:
+
+```text
+WARN  The `--use-partial-parse-config-cache` flag is deprecated and will be removed in a future version of Terragrunt. Terragrunt no longer has a partial parse cache for it to enable, so this flag has no effect.
+```
+
+Remove the flag from your commands. With the new [`use-partial-parse-config-cache`](/reference/strict-controls/active#use-partial-parse-config-cache) strict control enabled, passing it is an error instead:
+
+```bash
+terragrunt run --all --use-partial-parse-config-cache --strict-control use-partial-parse-config-cache -- plan
+```

@@ -2,24 +2,55 @@ name: Test Build
 
 on:
   workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "Pull request to build. Leave empty to build the selected branch."
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: read
 
 jobs:
+  resolve:
+    name: Resolve Build Ref
+    runs-on: ubuntu-slim
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      sha: ${{ steps.resolve.outputs.sha }}
+      prefix: ${{ steps.resolve.outputs.prefix }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          sparse-checkout: .github/scripts
+
+      - name: Resolve commit and prefix
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+        run: ./.github/scripts/resolve-test-build-ref.sh
+
   build:
     name: Build Binaries
+    needs: [resolve]
     uses: ./.github/workflows/build.yml
     with:
-      version: ${{ github.ref == 'refs/heads/main' && 'tip' || 'test' }}-${{ github.sha }}
+      version: ${{ needs.resolve.outputs.prefix }}-${{ needs.resolve.outputs.sha }}
+      ref: ${{ needs.resolve.outputs.sha }}
     permissions:
       contents: read
 
   upload:
-    needs: [build]
+    needs: [resolve, build]
     uses: ./.github/workflows/upload-tip-build.yml
     with:
-      prefix: ${{ github.ref == 'refs/heads/main' && 'tip' || 'test' }}
+      prefix: ${{ needs.resolve.outputs.prefix }}
+      commit_sha: ${{ needs.resolve.outputs.sha }}
     permissions:
       contents: read
       id-token: write
@@ -29,3 +60,33 @@ jobs:
       TIP_BUILD_BUCKET: ${{ secrets.TIP_BUILD_BUCKET }}
       SIGNING_GPG_PRIVATE_KEY: ${{ secrets.SIGNING_GPG_PRIVATE_KEY }}
       SIGNING_GPG_PASSPHRASE: ${{ secrets.SIGNING_GPG_PASSPHRASE }}
+
+  notify_pr:
+    name: Comment on Pull Request
+    needs: [resolve, upload]
+    if: inputs.pr_number != ''
+    runs-on: ubuntu-slim
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          sparse-checkout: .github/scripts
+
+      - name: Comment with install instructions
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        env:
+          PR_NUMBER: ${{ inputs.pr_number }}
+          COMMIT_SHA: ${{ needs.resolve.outputs.sha }}
+        with:
+          script: |
+            const { default: notify } = require('./.github/scripts/test-build-notify-pr.ts');
+            await notify({
+              github,
+              context,
+              core,
+              prNumber: Number(process.env.PR_NUMBER),
+              commitSha: process.env.COMMIT_SHA,
+            });

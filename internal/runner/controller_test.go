@@ -16,6 +16,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/queue"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 )
@@ -78,7 +79,7 @@ func TestRunnerPool_LinearDependency(t *testing.T) {
 		runner.WithRunner(rnr),
 		runner.WithMaxConcurrency(2),
 	)
-	err = dagRunner.Run(t.Context(), logger.CreateLogger())
+	err = dagRunner.Run(config.WithCaches(t.Context()), logger.CreateLogger())
 	require.NoError(t, err)
 }
 
@@ -113,7 +114,7 @@ func TestRunnerPool_ParallelExecution(t *testing.T) {
 		runner.WithRunner(rnr),
 		runner.WithMaxConcurrency(2),
 	)
-	err = dagRunner.Run(t.Context(), logger.CreateLogger())
+	err = dagRunner.Run(config.WithCaches(t.Context()), logger.CreateLogger())
 	require.NoError(t, err)
 }
 
@@ -151,7 +152,7 @@ func TestRunnerPool_FailFast(t *testing.T) {
 		runner.WithRunner(rnr),
 		runner.WithMaxConcurrency(2),
 	)
-	err = dagRunner.Run(t.Context(), logger.CreateLogger())
+	err = dagRunner.Run(config.WithCaches(t.Context()), logger.CreateLogger())
 	require.Error(t, err)
 
 	for _, want := range []string{"unit A failed", "Unit 'B' did not run", "Unit 'C' did not run"} {
@@ -168,7 +169,7 @@ func TestRunnerPool_RunnerNotSet(t *testing.T) {
 	q, err := queue.NewQueue(component.Components{units[0]})
 	require.NoError(t, err)
 
-	err = runner.NewController(q, units).Run(t.Context(), logger.CreateLogger())
+	err = runner.NewController(q, units).Run(config.WithCaches(t.Context()), logger.CreateLogger())
 	require.ErrorIs(t, err, runner.ErrRunnerNotSet)
 }
 
@@ -222,7 +223,7 @@ func TestRunnerPool_NonPositiveConcurrencyRunsSerially(t *testing.T) {
 			}),
 			runner.WithMaxConcurrency(0),
 		)
-		require.NoError(t, dagRunner.Run(t.Context(), logger.CreateLogger()))
+		require.NoError(t, dagRunner.Run(config.WithCaches(t.Context()), logger.CreateLogger()))
 
 		mu.Lock()
 		defer mu.Unlock()
@@ -248,7 +249,7 @@ func TestRunnerPool_UnitMissingFromDiscoveredUnits(t *testing.T) {
 		runner.WithRunner(func(context.Context, *component.Unit) error { return nil }),
 	)
 
-	err = dagRunner.Run(t.Context(), logger.CreateLogger())
+	err = dagRunner.Run(config.WithCaches(t.Context()), logger.CreateLogger())
 
 	var target runner.UnitNotDiscoveredError
 
@@ -264,7 +265,7 @@ func TestRunnerPool_ContextCancelled(t *testing.T) {
 	q, err := queue.NewQueue(component.Components{units[0]})
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithCancel(t.Context())
+	ctx, cancel := context.WithCancel(config.WithCaches(t.Context()))
 	started := make(chan struct{})
 	release := make(chan struct{})
 
@@ -339,7 +340,7 @@ func TestRunnerPool_ComplexDependency_BFails(t *testing.T) {
 		runner.WithRunner(rnr),
 		runner.WithMaxConcurrency(8),
 	)
-	err = dagRunner.Run(t.Context(), logger.CreateLogger())
+	err = dagRunner.Run(config.WithCaches(t.Context()), logger.CreateLogger())
 	require.Error(t, err)
 
 	for _, want := range []string{"unit B failed", "Unit 'D' did not run", "Unit 'E' did not run"} {
@@ -375,7 +376,7 @@ func TestRunnerPool_ComplexDependency_AFails_FailFast(t *testing.T) {
 		runner.WithRunner(rnr),
 		runner.WithMaxConcurrency(8),
 	)
-	err = dagRunner.Run(t.Context(), logger.CreateLogger())
+	err = dagRunner.Run(config.WithCaches(t.Context()), logger.CreateLogger())
 	require.Error(t, err)
 
 	for _, want := range []string{
@@ -417,7 +418,7 @@ func TestRunnerPool_ComplexDependency_BFails_FailFast(t *testing.T) {
 		runner.WithRunner(rnr),
 		runner.WithMaxConcurrency(8),
 	)
-	err = dagRunner.Run(t.Context(), logger.CreateLogger())
+	err = dagRunner.Run(config.WithCaches(t.Context()), logger.CreateLogger())
 	require.Error(t, err)
 
 	for _, want := range []string{"unit B failed", "Unit 'D' did not run", "Unit 'E' did not run"} {
@@ -468,7 +469,7 @@ func TestRunnerPool_FailFastSkipsEntriesCancelledBeforeDispatch(t *testing.T) {
 			runner.WithMaxConcurrency(1),
 		)
 
-		err = dagRunner.Run(t.Context(), logger.CreateLogger())
+		err = dagRunner.Run(config.WithCaches(t.Context()), logger.CreateLogger())
 		require.ErrorIs(t, err, errA)
 
 		var earlyExit runner.UnitEarlyExitError
@@ -507,7 +508,7 @@ func TestRunnerPool_ReportsEntryFailedBeforeRun(t *testing.T) {
 		runner.WithMaxConcurrency(1),
 	)
 
-	err = dagRunner.Run(t.Context(), logger.CreateLogger())
+	err = dagRunner.Run(config.WithCaches(t.Context()), logger.CreateLogger())
 
 	var failed runner.UnitFailedError
 
@@ -527,7 +528,7 @@ func TestRunnerPool_RecordsOutcomeCountsOnSpan(t *testing.T) {
 	errB := errors.New("unit B failed")
 
 	buf, tlm := newConsoleTelemeter(t)
-	ctx := telemetry.ContextWithTelemeter(t.Context(), tlm)
+	ctx := telemetry.ContextWithTelemeter(config.WithCaches(t.Context()), tlm)
 
 	dagRunner := runner.NewController(
 		q,
@@ -557,4 +558,85 @@ func TestRunnerPool_RecordsOutcomeCountsOnSpan(t *testing.T) {
 		"tasks_failed":     float64(1),
 		"tasks_early_exit": float64(1),
 	}, counts)
+}
+
+func TestRunnerPoolWaitsThroughUnitsOutsideTheQueueWithRacing(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		a, c := unitsJoinedOutsideTheQueue()
+
+		q, err := queue.NewQueue(component.Components{a, c})
+		require.NoError(t, err)
+
+		var (
+			mu       sync.Mutex
+			finished []string
+		)
+
+		rnr := func(_ context.Context, u *component.Unit) error {
+			if u.Path() == "C" {
+				time.Sleep(time.Second)
+			}
+
+			mu.Lock()
+			defer mu.Unlock()
+
+			finished = append(finished, u.Path())
+
+			return nil
+		}
+
+		err = runner.NewController(
+			q,
+			[]*component.Unit{a, c},
+			runner.WithRunner(rnr),
+			runner.WithMaxConcurrency(2),
+		).Run(config.WithCaches(t.Context()), logger.CreateLogger())
+		require.NoError(t, err)
+
+		assert.Equal(t, []string{"C", "A"}, finished)
+	})
+}
+
+func TestRunnerPoolNamesFailuresThroughUnitsOutsideTheQueueWithRacing(t *testing.T) {
+	t.Parallel()
+
+	a, c := unitsJoinedOutsideTheQueue()
+
+	q, err := queue.NewQueue(component.Components{a, c})
+	require.NoError(t, err)
+
+	rnr := func(_ context.Context, u *component.Unit) error {
+		if u.Path() == "C" {
+			return errors.New("unit C failed")
+		}
+
+		return nil
+	}
+
+	err = runner.NewController(
+		q,
+		[]*component.Unit{a, c},
+		runner.WithRunner(rnr),
+		runner.WithMaxConcurrency(2),
+	).Run(config.WithCaches(t.Context()), logger.CreateLogger())
+
+	var exitErr runner.UnitEarlyExitError
+
+	require.ErrorAs(t, err, &exitErr)
+	assert.Equal(t, runner.UnitEarlyExitError{UnitPath: "A", FailedDependency: "C"}, exitErr)
+}
+
+// unitsJoinedOutsideTheQueue returns units A and C, where A depends on C only through a unit B that is not queued.
+func unitsJoinedOutsideTheQueue() (*component.Unit, *component.Unit) {
+	c := component.NewUnit("C")
+
+	b := component.NewUnit("B")
+	b.AddDependency(c)
+
+	a := component.NewUnit("A")
+	a.AddDependency(b)
+
+	return a, c
 }

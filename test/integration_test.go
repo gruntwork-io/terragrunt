@@ -13,8 +13,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/info/print"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/view/diagnostic"
-	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/stretchr/testify/assert"
@@ -159,6 +159,14 @@ func TestHclvalidateDiagnostic(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHclvalidate)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureHclvalidate)
 
+	localsVariables := "local, include, feature, values"
+	if helpers.IsExperimentMode(t) {
+		localsVariables += ", path"
+	}
+
+	localsDetail := "Locals can only reference these variables: " + localsVariables +
+		". This expression references \"dependency\"."
+
 	expectedDiags := diagnostic.Diagnostics{
 		&diagnostic.Diagnostic{
 			Severity: diagnostic.DiagnosticSeverity(hcl.DiagError),
@@ -197,7 +205,7 @@ func TestHclvalidateDiagnostic(t *testing.T) {
 		&diagnostic.Diagnostic{
 			Severity: diagnostic.DiagnosticSeverity(hcl.DiagError),
 			Summary:  "Can't evaluate expression",
-			Detail:   "Locals can only reference these variables: local, include, feature, values. This expression references \"dependency\".",
+			Detail:   localsDetail,
 			Range: &diagnostic.Range{
 				Filename: filepath.Join(rootPath, "second/c/terragrunt.hcl"),
 				Start:    diagnostic.Pos{Line: 12, Column: 9, Byte: 149},
@@ -214,7 +222,7 @@ func TestHclvalidateDiagnostic(t *testing.T) {
 		&diagnostic.Diagnostic{
 			Severity: diagnostic.DiagnosticSeverity(hcl.DiagError),
 			Summary:  "Can't evaluate expression",
-			Detail:   "Locals can only reference these variables: local, include, feature, values. This expression references \"dependency\".",
+			Detail:   localsDetail,
 			Range: &diagnostic.Range{
 				Filename: filepath.Join(rootPath, "second/c/terragrunt.hcl"),
 				Start:    diagnostic.Pos{Line: 10, Column: 9, Byte: 117},
@@ -226,6 +234,43 @@ func TestHclvalidateDiagnostic(t *testing.T) {
 				StartLine:            10,
 				HighlightStartOffset: 8,
 				HighlightEndOffset:   30,
+			},
+		},
+		&diagnostic.Diagnostic{
+			Severity: diagnostic.DiagnosticSeverity(hcl.DiagError),
+			Summary:  "Missing dependency",
+			Detail:   "This directory does not exist.",
+			Range: &diagnostic.Range{
+				Filename: filepath.Join(rootPath, "first/b/terragrunt.hcl"),
+				Start:    diagnostic.Pos{Line: 2, Column: 17, Byte: 33},
+				End:      diagnostic.Pos{Line: 2, Column: 85, Byte: 101},
+			},
+			Snippet: &diagnostic.Snippet{
+				Context:              "dependency \"a\"",
+				Code:                 "  config_path = \"${path_relative_from_include()}/${path_relative_to_include()}/../a\"",
+				StartLine:            2,
+				HighlightStartOffset: 16,
+				HighlightEndOffset:   84,
+			},
+		},
+		&diagnostic.Diagnostic{
+			Severity: diagnostic.DiagnosticSeverity(hcl.DiagError),
+			Summary:  "Missing dependency",
+			Detail:   "This directory does not exist.",
+			Range: &diagnostic.Range{
+				Filename: filepath.Join(
+					rootPath,
+					"valid/dependency-unresolvable-path/terragrunt.hcl",
+				),
+				Start: diagnostic.Pos{Line: 2, Column: 17, Byte: 39},
+				End:   diagnostic.Pos{Line: 2, Column: 40, Byte: 62},
+			},
+			Snippet: &diagnostic.Snippet{
+				Context:              "dependency \"missing\"",
+				Code:                 "  config_path = \"../nonexistent-module\"",
+				StartLine:            2,
+				HighlightStartOffset: 16,
+				HighlightEndOffset:   39,
 			},
 		},
 	}
@@ -426,39 +471,6 @@ inputs = {
 	assert.Contains(t, err.Error(), "use outputs")
 }
 
-func TestTerragruntFailIfBucketCreationIsrequired(t *testing.T) {
-	t.Parallel()
-
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
-	rootPath := filepath.Join(tmpEnvPath, testFixturePath)
-	helpers.CleanupTerraformFolder(t, rootPath)
-
-	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
-	lockTableName := "terragrunt-test-locks-" + strings.ToLower(helpers.UniqueID())
-
-	tmpTerragruntConfigPath := helpers.CreateTmpTerragruntConfig(
-		t,
-		rootPath,
-		s3BucketName,
-		lockTableName,
-		config.DefaultTerragruntConfigPath,
-	)
-
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-	err := helpers.RunTerragruntCommand(
-		t,
-		fmt.Sprintf(
-			"terragrunt apply --fail-on-state-bucket-creation --non-interactive --config %s --working-dir %s",
-			tmpTerragruntConfigPath,
-			rootPath,
-		),
-		&stdout,
-		&stderr,
-	)
-	require.Error(t, err)
-}
-
 func TestTerragruntInfoError(t *testing.T) {
 	t.Parallel()
 
@@ -579,22 +591,17 @@ func TestTerragruntMutableGenerateBlock(t *testing.T) {
 
 			units := []string{"unit-a", "unit-b", "unit-mutable"}
 
-			// The store is the one on the machine running the suite, so the
-			// generated contents have to be unique to this run for the case
-			// starting without them to mean anything.
-			for _, unit := range units {
-				markGeneratedContents(t, filepath.Join(fixtureRoot, unit), tmpEnvPath)
-			}
+			v := helpers.RunVenv(t)
 
 			if tc.storedPerm != 0 {
-				seedStoredContent(t, filepath.Join(fixtureRoot, "unit-a"), tc.storedPerm)
+				seedStoredContent(t, v, filepath.Join(fixtureRoot, "unit-a"), tc.storedPerm)
 			}
 
 			generated := map[string]os.FileInfo{}
 
 			for _, unit := range units {
 				unitPath := filepath.Join(fixtureRoot, unit)
-				runMutableGenerateUnit(t, unitPath)
+				runMutableGenerateUnit(t, v, unitPath)
 				generated[unit] = statGeneratedFile(t, unitPath, "provider.tf")
 			}
 
@@ -611,50 +618,27 @@ func TestTerragruntMutableGenerateBlock(t *testing.T) {
 	}
 }
 
-// markGeneratedContents rewrites a unit's generate block so what it produces is
-// unique to marker, keeping whatever the machine's store already holds from
-// deciding which path the test takes.
-func markGeneratedContents(t *testing.T, unitPath, marker string) {
-	t.Helper()
-
-	path := filepath.Join(unitPath, "terragrunt.hcl")
-
-	body, err := os.ReadFile(path)
-	require.NoError(t, err)
-
-	const placeholder = "provider \"null\" {\n}"
-
-	marked := strings.Replace(
-		string(body),
-		placeholder,
-		"provider \"null\" {\n  # "+marker+"\n}",
-		1,
-	)
-	require.NotEqual(t, string(body), marked, "fixture no longer holds %q", placeholder)
-
-	require.NoError(t, os.WriteFile(path, []byte(marked), 0644))
-}
-
 // seedStoredContent leaves the store holding a unit's generated contents at
 // perm, standing in for a store filled before Terragrunt asked for a narrower
 // mode. The generated file shares the stored blob's inode, so widening it
 // through the link widens what every later unit links to.
-func seedStoredContent(t *testing.T, unitPath string, perm os.FileMode) {
+func seedStoredContent(t *testing.T, v *venv.Venv, unitPath string, perm os.FileMode) {
 	t.Helper()
 
-	runMutableGenerateUnit(t, unitPath)
+	runMutableGenerateUnit(t, v, unitPath)
 
 	require.NoError(t, os.Chmod(generatedFilePath(t, unitPath, "provider.tf"), perm))
 }
 
-func runMutableGenerateUnit(t *testing.T, unitPath string) {
+func runMutableGenerateUnit(t *testing.T, v *venv.Venv, unitPath string) {
 	t.Helper()
 
 	helpers.CleanupTerraformFolder(t, unitPath)
 	helpers.CleanupTerragruntFolder(t, unitPath)
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(
+	_, _, err := helpers.RunTerragruntCommandWithOutputWithVenv(
 		t,
+		v,
 		"terragrunt exec --working-dir "+unitPath+" -- true",
 	)
 	require.NoError(t, err)

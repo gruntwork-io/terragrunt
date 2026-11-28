@@ -75,6 +75,49 @@ unit "member" {
 			},
 		},
 		{
+			name: "nested stack using declared defaults",
+			files: map[string]string{
+				liveStackFile: `
+stack "team" {
+  source = "` + generationParityStackSource + `"
+  path   = "team"
+
+  values = {
+    prefix = "crew"
+    shard  = "02"
+  }
+}
+`,
+				teamStackFile: `
+values {
+  value "members" {
+    type    = set(string)
+    default = ["x", "y"]
+  }
+
+  value "prefix" {
+    type    = string
+    default = "member"
+  }
+
+  value "shard" {
+    type    = number
+    default = 1
+  }
+}
+
+unit "member" {
+  expansion {
+    for_each = values.members
+  }
+
+  source = "` + generationParityUnitSource + `"
+  path   = "${values.prefix}/${each.key}-${values.shard}"
+}
+`,
+			},
+		},
+		{
 			name: "disabled nested stack",
 			files: map[string]string{
 				liveStackFile: `
@@ -309,7 +352,7 @@ unit "member" {
 			}
 
 			l := logger.CreateLogger()
-			ctx, pctx := newTestParsingContext(t, liveStackFile)
+			ctx, pctx := newValuesTestContext(t, liveStackFile, valuesExperimentOn)
 
 			unitPaths, err := inthclparse.UnitPathsFromStackDir(
 				ctx,
@@ -317,8 +360,9 @@ unit "member" {
 				generationParityLiveDir,
 				&inthclparse.StackDirArgs{
 					FuncsFor: func(stackDir string) (map[string]function.Function, error) {
-						return config.EarlyStackParseFunctions(ctx, l, v, pctx, stackDir)
+						return config.EarlyStackParseFunctions(ctx, l, v, new(config.Store), pctx, stackDir)
 					},
+					VarsFor: noStackVars,
 				},
 			)
 			require.NoError(t, err)
@@ -335,7 +379,7 @@ unit "member" {
 func generateStackTree(t *testing.T, files map[string]string) *venv.Venv {
 	t.Helper()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 
 	for _, name := range []string{"main.tf", config.DefaultTerragruntConfigPath} {
 		require.NoError(t, vfs.WriteFile(
@@ -387,7 +431,7 @@ func generateStackLevel(t *testing.T, v *venv.Venv, stackPath string) {
 	t.Helper()
 
 	l := logger.CreateLogger()
-	ctx, pctx := newTestParsingContext(t, stackPath)
+	ctx, pctx := newValuesTestContext(t, stackPath, valuesExperimentOn)
 
 	pctx.TerragruntStackConfigPath = stackPath
 	pctx.NoCAS = true
@@ -397,7 +441,10 @@ func generateStackLevel(t *testing.T, v *venv.Venv, stackPath string) {
 
 	defer pool.Stop()
 
-	require.NoError(t, config.GenerateStackFile(ctx, l, v, pctx, pool, stackPath))
+	require.NoError(
+		t,
+		config.GenerateStackFile(ctx, l, v, new(config.Store), pctx, pool, stackPath, func(config.TryDefault) {}),
+	)
 	require.NoError(t, pool.Wait())
 }
 

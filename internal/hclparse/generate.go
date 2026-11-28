@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"slices"
 
+	"github.com/gruntwork-io/terragrunt/internal/hclhelper"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	pkghclparse "github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/hashicorp/hcl/v2"
@@ -378,7 +379,7 @@ func (paths ForEachConfigPaths) writeConfigPath(body *hclwrite.Body, targetDir s
 	}
 
 	body.SetAttributeRaw(attrConfigPath, slices.Concat(
-		hclwrite.TokensForValue(cty.ObjectVal(relative)),
+		hclhelper.TokensForValue(cty.ObjectVal(relative)),
 		RawTokens([]byte("["+varEach+".key]")),
 	))
 }
@@ -391,7 +392,7 @@ func (ForEachConfigPaths) deferred() map[string]struct{} {
 // writeExpansionBlock writes an expansion block setting metaArg to value as a literal, so the generated
 // unit iterates the same elements without the stack file's context.
 func writeExpansionBlock(body *hclwrite.Body, metaArg pkghclparse.MetaArg, value cty.Value) {
-	tokens := hclwrite.TokensForValue(value)
+	tokens := hclhelper.TokensForValue(value)
 
 	// hclwrite renders a set as a tuple, which for_each rejects.
 	if value.Type().IsSetType() {

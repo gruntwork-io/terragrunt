@@ -49,23 +49,33 @@ import (
 )
 
 const (
+	// TerraformFolder is the OpenTofu/Terraform data directory name.
 	TerraformFolder = ".terraform"
 
+	// TerraformState is the local state file name.
 	TerraformState = "terraform.tfstate"
 
+	// TerraformRemoteStateS3Region is the AWS region for S3 remote state in tests.
 	TerraformRemoteStateS3Region = "us-west-2"
 
+	// TerraformStateBackup is the local state backup file name.
 	TerraformStateBackup = "terraform.tfstate.backup"
-	TerragruntCache      = ".terragrunt-cache"
+	// TerragruntCache is the Terragrunt download directory name.
+	TerragruntCache = ".terragrunt-cache"
 
+	// TerraformBinary is the Terraform executable name.
 	TerraformBinary = "terraform"
-	TofuBinary      = "tofu"
+	// TofuBinary is the OpenTofu executable name.
+	TofuBinary = "tofu"
 
+	// TerragruntDebugFile is the inputs file that --inputs-debug writes.
 	TerragruntDebugFile = "terragrunt-debug.tfvars.json"
 
-	// Repeated right now, but it might not be later.
+	// TestFixtureOutDir is the out-dir fixture path. It duplicates testFixtureOutDir in the test package for now,
+	// but the two might diverge later.
 	TestFixtureOutDir = "fixtures/out-dir"
 
+	// ReportFile is the run report file name.
 	ReportFile = "report.json"
 
 	readPermissions      = 0o444
@@ -102,6 +112,7 @@ func CleanupContext(t *testing.T) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.WithoutCancel(t.Context()), cleanupTimeout)
 }
 
+// TerraformOutput is one output in the JSON that `tofu output -json` prints.
 type TerraformOutput struct {
 	Type      any  `json:"Type"`
 	Value     any  `json:"Value"`
@@ -115,6 +126,9 @@ func nestUnder(root, path string) string {
 	return filepath.Join(root, strings.TrimPrefix(path, filepath.VolumeName(path)))
 }
 
+// CopyEnvironment copies the fixture at environmentPath into a new temporary directory and returns that
+// directory. The copy sits at environmentPath beneath it and leaves out .terraform, .terragrunt-cache, and
+// terragrunt-debug.tfvars.json. includeInCopy lists glob patterns to copy even when they are hidden.
 func CopyEnvironment(t *testing.T, environmentPath string, includeInCopy ...string) string {
 	t.Helper()
 
@@ -147,6 +161,8 @@ func CopyEnvironment(t *testing.T, environmentPath string, includeInCopy ...stri
 	return tmpDir
 }
 
+// CreateTmpTerragruntConfig copies configFileName from templatesPath into a new temporary directory, filling in
+// s3BucketName and lockTableName, and returns the path of the copy.
 func CreateTmpTerragruntConfig(
 	t *testing.T,
 	templatesPath string,
@@ -172,6 +188,8 @@ func CreateTmpTerragruntConfig(
 	return tmpTerragruntConfigFile
 }
 
+// CreateTmpTerragruntConfigContent writes contents to a read-only file named configFileName in a new temporary
+// directory and returns the file's path.
 func CreateTmpTerragruntConfigContent(t *testing.T, contents string, configFileName string) string {
 	t.Helper()
 
@@ -185,6 +203,8 @@ func CreateTmpTerragruntConfigContent(t *testing.T, contents string, configFileN
 	return tmpTerragruntConfigFile
 }
 
+// CopyTerragruntConfigAndFillPlaceholders copies configSrcPath to configDestPath, filling in the bucket, lock
+// table, region, and logs bucket placeholders. The logs bucket is s3BucketName with a -tf-state-logs suffix.
 func CopyTerragruntConfigAndFillPlaceholders(
 	t *testing.T,
 	configSrcPath string,
@@ -203,6 +223,8 @@ func CopyTerragruntConfigAndFillPlaceholders(
 	})
 }
 
+// CopyAndFillMapPlaceholders copies srcPath to a read-only destPath, replacing each key of placeholders with
+// its value.
 func CopyAndFillMapPlaceholders(
 	t *testing.T,
 	srcPath string,
@@ -309,7 +331,7 @@ func DeleteS3Bucket(
 	t.Logf("Deleting test s3 bucket %s", bucketName)
 
 	// First check if bucket exists
-	_, err := client.HeadBucket(ctx, &s3.HeadBucketInput{Bucket: aws.String(bucketName)})
+	_, err := client.HeadBucket(ctx, &s3.HeadBucketInput{Bucket: new(bucketName)})
 	if err != nil {
 		if isAWSResourceNotFoundError(err) {
 			t.Logf("S3 bucket %s does not exist, cleanup already complete", bucketName)
@@ -323,7 +345,7 @@ func DeleteS3Bucket(
 
 	if _, err := client.DeleteBucket(
 		ctx,
-		&s3.DeleteBucketInput{Bucket: aws.String(bucketName)},
+		&s3.DeleteBucketInput{Bucket: new(bucketName)},
 	); err != nil {
 		if isAWSResourceNotFoundError(err) {
 			t.Logf("S3 bucket %s was already deleted", bucketName)
@@ -341,7 +363,7 @@ func DeleteS3Bucket(
 
 		if _, err = client.DeleteBucket(
 			ctx,
-			&s3.DeleteBucketInput{Bucket: aws.String(bucketName)},
+			&s3.DeleteBucketInput{Bucket: new(bucketName)},
 		); err != nil {
 			if isAWSResourceNotFoundError(err) {
 				t.Logf("S3 bucket %s was already deleted", bucketName)
@@ -363,7 +385,7 @@ func cleanS3Bucket(t *testing.T, ctx context.Context, client *s3.Client, bucketN
 	t.Helper()
 
 	versionsInput := &s3.ListObjectVersionsInput{
-		Bucket: aws.String(bucketName),
+		Bucket: new(bucketName),
 	}
 
 	for {
@@ -381,62 +403,33 @@ func cleanS3Bucket(t *testing.T, ctx context.Context, client *s3.Client, bucketN
 			break
 		}
 
-		if len(out.Versions) > 0 {
-			var objectsToDelete []s3types.ObjectIdentifier
+		objects := make([]s3types.ObjectIdentifier, 0, len(out.Versions)+len(out.DeleteMarkers))
 
-			for i := range out.Versions {
-				version := &out.Versions[i]
-				objectsToDelete = append(objectsToDelete, s3types.ObjectIdentifier{
-					Key:       version.Key,
-					VersionId: version.VersionId,
-				})
-			}
-
-			deleteInput := &s3.DeleteObjectsInput{
-				Bucket: aws.String(bucketName),
-				Delete: &s3types.Delete{
-					Objects: objectsToDelete,
-				},
-			}
-
-			_, err := client.DeleteObjects(ctx, deleteInput)
-			if err != nil {
-				if isAWSResourceNotFoundError(err) {
-					t.Logf("S3 bucket %s was deleted during cleanup", bucketName)
-					return
-				}
-
-				require.NoError(t, err)
-			}
+		for i := range out.Versions {
+			objects = append(objects, s3types.ObjectIdentifier{Key: out.Versions[i].Key, VersionId: out.Versions[i].VersionId})
 		}
 
-		if len(out.DeleteMarkers) > 0 {
-			var objectsToDelete []s3types.ObjectIdentifier
-
-			for _, marker := range out.DeleteMarkers {
-				objectsToDelete = append(objectsToDelete, s3types.ObjectIdentifier{
-					Key:       marker.Key,
-					VersionId: marker.VersionId,
-				})
-			}
-
-			deleteInput := &s3.DeleteObjectsInput{
-				Bucket: aws.String(bucketName),
-				Delete: &s3types.Delete{
-					Objects: objectsToDelete,
-				},
-			}
-
-			_, err := client.DeleteObjects(ctx, deleteInput)
-			if err != nil {
-				if isAWSResourceNotFoundError(err) {
-					t.Logf("S3 bucket %s was deleted during cleanup", bucketName)
-					return
-				}
-
-				require.NoError(t, err)
-			}
+		for i := range out.DeleteMarkers {
+			objects = append(
+				objects,
+				s3types.ObjectIdentifier{Key: out.DeleteMarkers[i].Key, VersionId: out.DeleteMarkers[i].VersionId},
+			)
 		}
+
+		deleted, err := client.DeleteObjects(ctx, &s3.DeleteObjectsInput{
+			Bucket: new(bucketName),
+			Delete: &s3types.Delete{Objects: objects},
+		})
+		if err != nil {
+			if isAWSResourceNotFoundError(err) {
+				t.Logf("S3 bucket %s was deleted during cleanup", bucketName)
+				return
+			}
+
+			require.NoError(t, err)
+		}
+
+		logS3DeleteErrors(t, bucketName, deleted.Errors)
 
 		if out.IsTruncated == nil || !*out.IsTruncated {
 			break
@@ -447,6 +440,7 @@ func cleanS3Bucket(t *testing.T, ctx context.Context, client *s3.Client, bucketN
 	}
 }
 
+// FileIsInFolder reports whether a file or directory called name exists anywhere under path.
 func FileIsInFolder(t *testing.T, name string, path string) bool {
 	t.Helper()
 
@@ -466,6 +460,9 @@ func FileIsInFolder(t *testing.T, name string, path string) bool {
 	return found
 }
 
+// RunValidateAllWithIncludeAndGetIncludedModules runs `terragrunt run --all validate` in rootModulePath with a
+// --queue-include-dir for each of includeModulePaths, and returns the sorted paths of the units it did not
+// exclude.
 func RunValidateAllWithIncludeAndGetIncludedModules(
 	t *testing.T,
 	rootModulePath string,
@@ -519,6 +516,9 @@ func RunValidateAllWithIncludeAndGetIncludedModules(
 	return includedModules
 }
 
+// RunValidateAllWithFilteredPlusDependenciesAndGetIncludedModules runs `terragrunt run --all validate` in
+// workDir with a `--filter '{unit}...'` for each of units, and returns the sorted paths of the units it did not
+// exclude.
 func RunValidateAllWithFilteredPlusDependenciesAndGetIncludedModules(
 	t *testing.T,
 	workDir string,
@@ -572,6 +572,7 @@ func RunValidateAllWithFilteredPlusDependenciesAndGetIncludedModules(
 	return includedModules
 }
 
+// GetPathRelativeTo returns path relative to basePath.
 func GetPathRelativeTo(t *testing.T, path string, basePath string) string {
 	t.Helper()
 
@@ -581,6 +582,7 @@ func GetPathRelativeTo(t *testing.T, path string, basePath string) string {
 	return relPath
 }
 
+// GetPathsRelativeTo returns each of paths relative to basePath.
 func GetPathsRelativeTo(t *testing.T, basePath string, paths []string) []string {
 	t.Helper()
 
@@ -596,6 +598,7 @@ func GetPathsRelativeTo(t *testing.T, basePath string, paths []string) []string 
 	return relPaths
 }
 
+// FakeProvider is a provider that [FakeProvider.CreateMirror] writes into a provider mirror.
 type FakeProvider struct {
 	RegistryName string
 	Namespace    string
@@ -619,6 +622,8 @@ func (provider *FakeProvider) filename() string {
 	return fmt.Sprintf("terraform-provider-%s_v%s_x5", provider.Name, provider.Version)
 }
 
+// CreateMirror adds the provider to the mirror at rootDir: an entry in index.json and <version>.json, and a zip
+// archive holding a 10 MB placeholder binary.
 func (provider *FakeProvider) CreateMirror(t *testing.T, rootDir string) {
 	t.Helper()
 
@@ -675,7 +680,7 @@ func (provider *FakeProvider) createZipArchive(t *testing.T, providerDir string)
 	require.NoError(t, err)
 
 	defer func() {
-		file.Close()
+		require.NoError(t, file.Close())
 		require.NoError(t, os.Remove(filepath.Join(providerDir, provider.filename())))
 	}()
 
@@ -688,7 +693,9 @@ func (provider *FakeProvider) createZipArchive(t *testing.T, providerDir string)
 	zipFile, err := os.Create(filepath.Join(providerDir, provider.archiveName()))
 	require.NoError(t, err)
 
-	defer zipFile.Close()
+	defer func() {
+		require.NoError(t, zipFile.Close())
+	}()
 
 	zipWriter := zip.NewWriter(zipFile)
 	defer require.NoError(t, zipWriter.Close())
@@ -731,6 +738,7 @@ func marshalFile(t *testing.T, filename string, dest any) {
 	require.NoError(t, err)
 }
 
+// ValidateOutput asserts that outputs has an output named key whose value is value.
 func ValidateOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value any) {
 	t.Helper()
 
@@ -911,6 +919,7 @@ func IsNativeS3LockingSupported(t *testing.T) bool {
 	return major > tofuRequiredMajor || (major == tofuRequiredMajor && minor >= tofuRequiredMinor)
 }
 
+// FindFilesWithExtension returns the paths of the files under dir whose extension, dot included, is ext.
 func FindFilesWithExtension(dir string, ext string) ([]string, error) {
 	var files []string
 
@@ -929,6 +938,8 @@ func FindFilesWithExtension(dir string, ext string) ([]string, error) {
 	return files, err
 }
 
+// CleanupTerraformFolder removes the state file, its backup, terragrunt-debug.tfvars.json, and .terraform from
+// templatesPath.
 func CleanupTerraformFolder(t *testing.T, templatesPath string) {
 	t.Helper()
 
@@ -938,12 +949,14 @@ func CleanupTerraformFolder(t *testing.T, templatesPath string) {
 	RemoveFolder(t, filepath.Join(templatesPath, TerraformFolder))
 }
 
+// CleanupTerragruntFolder removes .terragrunt-cache from templatesPath.
 func CleanupTerragruntFolder(t *testing.T, templatesPath string) {
 	t.Helper()
 
 	RemoveFolder(t, filepath.Join(templatesPath, TerragruntCache))
 }
 
+// RemoveFile removes the file at path. A missing file is not an error.
 func RemoveFile(t *testing.T, path string) {
 	t.Helper()
 
@@ -952,6 +965,7 @@ func RemoveFile(t *testing.T, path string) {
 	}
 }
 
+// RemoveFolder removes path and everything under it.
 func RemoveFolder(t *testing.T, path string) {
 	t.Helper()
 
@@ -960,16 +974,26 @@ func RemoveFolder(t *testing.T, path string) {
 	}
 }
 
-// RunVenv returns [venv.OSVenv] with the user configuration directory set to a
-// temporary directory of the test's own.
+// RunVenv returns [venv.OSVenv] with the user configuration and cache
+// directories set to temporary directories of the test's own, so a run never
+// reads or writes the stores of the machine running the suite.
+//
+// Each call gets directories of its own. A test whose runs must share a store
+// builds one with RunVenv and passes it to each run.
 func RunVenv(t *testing.T) *venv.Venv {
 	t.Helper()
 
 	configDir := t.TempDir()
+	cacheDir := t.TempDir()
 
-	return venv.OSVenv().WithUserConfigDir(func() (string, error) { return configDir, nil })
+	return venv.OSVenv().
+		WithUserConfigDir(func() (string, error) { return configDir, nil }).
+		WithUserCacheDir(func() (string, error) { return cacheDir, nil })
 }
 
+// RunTerragruntCommandWithContext runs the `terragrunt ...` command line in-process under ctx, writing stdout to
+// writer and stderr to errwriter. The run gets its own [RunVenv], and logs in key-value format unless command
+// sets a log format.
 func RunTerragruntCommandWithContext(
 	t *testing.T,
 	ctx context.Context,
@@ -1052,7 +1076,7 @@ func runTerragruntCommandWithVenv(
 	syncWriter := util.NewSyncWriter(v.Writers.Writer)
 	syncErrWriter := util.NewSyncWriter(v.Writers.ErrWriter)
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 
 	v = v.WithWriter(syncWriter).WithErrWriter(syncErrWriter)
 
@@ -1070,6 +1094,7 @@ func runTerragruntCommandWithVenv(
 	return app.RunContext(ctx, l, v, args)
 }
 
+// RunTerragruntCommand is [RunTerragruntCommandWithContext] under the test's context.
 func RunTerragruntCommand(
 	t *testing.T,
 	command string,
@@ -1095,12 +1120,14 @@ func RunTerragruntVersionCommand(
 	return runTerragruntCommand(t, t.Context(), ver, command, writer, errwriter)
 }
 
+// RunTerragrunt runs command with output on the process's stdout and stderr, and fails the test on error.
 func RunTerragrunt(t *testing.T, command string) {
 	t.Helper()
 
 	RunTerragruntRedirectOutput(t, command, os.Stdout, os.Stderr)
 }
 
+// LogBufferContentsLineByLine logs out one line at a time, under label.
 func LogBufferContentsLineByLine(t *testing.T, out bytes.Buffer, label string) {
 	t.Helper()
 	t.Logf("[%s] Full contents of %s:", t.Name(), label)
@@ -1111,6 +1138,8 @@ func LogBufferContentsLineByLine(t *testing.T, out bytes.Buffer, label string) {
 	}
 }
 
+// RunTerragruntCommandWithOutputWithContext runs command under ctx, logs its output, and returns its stdout and
+// stderr.
 func RunTerragruntCommandWithOutputWithContext(
 	t *testing.T,
 	ctx context.Context,
@@ -1127,6 +1156,7 @@ func RunTerragruntCommandWithOutputWithContext(
 	return stdout.String(), stderr.String(), err
 }
 
+// RunTerragruntCommandWithOutput is [RunTerragruntCommandWithOutputWithContext] under the test's context.
 func RunTerragruntCommandWithOutput(t *testing.T, command string) (string, string, error) {
 	t.Helper()
 
@@ -1152,6 +1182,8 @@ func RunTerragruntCommandWithOutputWithVenv(
 	return stdout.String(), stderr.String(), err
 }
 
+// RunTerragruntRedirectOutput runs command, writing stdout to writer and stderr to errwriter, and fails the test
+// on error. The failure message includes the output of whichever writers are [bytes.Buffer] values.
 func RunTerragruntRedirectOutput(
 	t *testing.T,
 	command string,
@@ -1182,6 +1214,7 @@ func RunTerragruntRedirectOutput(
 	}
 }
 
+// CreateEmptyStateFile creates an empty terraform.tfstate in testPath.
 func CreateEmptyStateFile(t *testing.T, testPath string) {
 	t.Helper()
 
@@ -1191,6 +1224,9 @@ func CreateEmptyStateFile(t *testing.T, testPath string) {
 	require.NoError(t, file.Close())
 }
 
+// RunTerragruntValidateInputs runs `terragrunt hcl validate --inputs` with extraArgs on a copy of moduleDir, or
+// of its module subdirectory when it has one. It asserts the run succeeds when isSuccessTest is set and fails
+// otherwise.
 func RunTerragruntValidateInputs(
 	t *testing.T,
 	moduleDir string,
@@ -1224,6 +1260,9 @@ func RunTerragruntValidateInputs(
 	}
 }
 
+// CreateTmpTerragruntConfigWithParentAndChild copies the parent config in parentPath and the child config at
+// childRelPath beneath it into a new temporary directory, filling in s3BucketName, and returns the path of the
+// child copy.
 func CreateTmpTerragruntConfigWithParentAndChild(
 	t *testing.T,
 	parentPath string,
@@ -1265,6 +1304,8 @@ func CreateTmpTerragruntConfigWithParentAndChild(
 	return childTerragruntDestPath
 }
 
+// IsTerragruntProviderCacheEnabled reports whether TG_PROVIDER_CACHE or TERRAGRUNT_PROVIDER_CACHE is set to
+// true. It fails the test when either holds a value that is not a boolean.
 func IsTerragruntProviderCacheEnabled(t *testing.T) bool {
 	t.Helper()
 
@@ -1350,15 +1391,15 @@ func CopyFile(t *testing.T, src, dst string) {
 	sourceFile, err := os.Open(src)
 	require.NoError(t, err)
 
-	defer sourceFile.Close()
+	defer func() {
+		require.NoError(t, sourceFile.Close())
+	}()
 
 	destFile, err := os.Create(dst)
 	require.NoError(t, err)
 
-	defer destFile.Close()
-
 	_, err = io.Copy(destFile, sourceFile)
-	require.NoError(t, err)
+	require.NoError(t, errors.Join(err, destFile.Close()))
 
 	sourceInfo, err := os.Stat(src)
 	require.NoError(t, err)
@@ -1376,7 +1417,7 @@ func isAWSResourceNotFoundError(err error) bool {
 }
 
 // GzipHandler gzip-compresses responses when the client accepts gzip encoding.
-func GzipHandler(h http.Handler) http.Handler {
+func GzipHandler(l log.Logger, h http.Handler) http.Handler {
 	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
 		if !strings.Contains(req.Header.Get("Accept-Encoding"), "gzip") {
 			h.ServeHTTP(resp, req)
@@ -1385,7 +1426,11 @@ func GzipHandler(h http.Handler) http.Handler {
 
 		gz := gzip.NewWriter(resp)
 
-		defer func() { _ = gz.Close() }()
+		defer func() {
+			if err := gz.Close(); err != nil {
+				l.Debugf("Failed to finish gzip response for %s: %v", req.URL.Path, err)
+			}
+		}()
 
 		h.ServeHTTP(&gzipResponseWriter{ResponseWriter: resp, gz: gz}, req)
 	})
@@ -1416,4 +1461,15 @@ func (w *gzipResponseWriter) Write(b []byte) (int, error) {
 	}
 
 	return w.gz.Write(b)
+}
+
+// logS3DeleteErrors reports every object a DeleteObjects call refused to delete, so a bucket that stays
+// non-empty names its leftover versions in the test log.
+func logS3DeleteErrors(t *testing.T, bucketName string, errs []s3types.Error) {
+	t.Helper()
+
+	for _, e := range errs {
+		t.Logf("S3 bucket %s: could not delete %s version %s: %s: %s",
+			bucketName, aws.ToString(e.Key), aws.ToString(e.VersionId), aws.ToString(e.Code), aws.ToString(e.Message))
+	}
 }

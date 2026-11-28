@@ -30,9 +30,7 @@ inputs = {
 	require.NoError(t, err)
 
 	// Create a parsing context with strict controls
-	pctx := &config.ParsingContext{
-		StrictControls: controls.New(),
-	}
+	pctx := config.NewParsingContext(config.WithStrictControls(controls.New()))
 
 	logger := log.New()
 
@@ -62,9 +60,7 @@ inputs = {
 	require.NoError(t, err)
 
 	// Create a parsing context with strict controls
-	pctx := &config.ParsingContext{
-		StrictControls: controls.New(),
-	}
+	pctx := config.NewParsingContext(config.WithStrictControls(controls.New()))
 
 	logger := log.New()
 

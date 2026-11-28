@@ -44,6 +44,38 @@ const (
 	// missingDependencyConfigFix is the advice both missing-dependency-config messages end with.
 	missingDependencyConfigFix = "Update or remove that block. `terragrunt hcl validate` lists every such block."
 
+	// InputsReadNotTracked is the tip shown when read tracking is on and a configuration calls a
+	// file-reading function in `inputs`, where Terragrunt does not record reads.
+	InputsReadNotTracked = "inputs-read-not-tracked"
+
+	// InputsReadNotTrackedMessage is the default message for the inputs-read-not-tracked tip.
+	// The runtime message is assembled at evaluation time so it can list the reads it found.
+	InputsReadNotTrackedMessage = "Terragrunt does not track files read in `inputs`, " +
+		"so reading and Git filters miss the units and stacks that read them. " +
+		"Read each file in `locals` and reference the local from `inputs`. " +
+		"In a stack file, read it in the stack's `locals` and reference the local from the `autoinclude` block. " +
+		"See https://docs.terragrunt.com/features/filter/attributes#reading-based-expressions"
+
+	// OutputsBlock is the tip shown when a dependency reads a unit that declares no outputs block.
+	OutputsBlock = "outputs-block"
+
+	// OutputsBlockMessage is the default message for the outputs block tip.
+	OutputsBlockMessage = "A `dependency` block reads a unit that declares no `outputs` block. " + outputsBlockFix
+
+	outputsBlockFix = "Declare its outputs and their mock values there once, so every dependent shares them. " +
+		"See https://docs.terragrunt.com/reference/experiments/active#outputs-block"
+
+	// ValuesBlock is the tip shown when stack generation writes values for a config that declares no values block and
+	// reads a value inside try().
+	ValuesBlock = "values-block"
+
+	// ValuesBlockMessage is the default message for the values block tip.
+	ValuesBlockMessage = "A config without a `values` block reads a value inside `try()` to fall back to a default. " +
+		valuesBlockFix
+
+	valuesBlockFix = "Declare the value with a default in a `values` block instead. " +
+		"See https://docs.terragrunt.com/reference/hcl/blocks/values"
+
 	// WindowsSymlinkWarningMessage is the default message for the Windows symlink warning tip.
 	WindowsSymlinkWarningMessage = "Windows users may encounter silent fallback behavior to provider copying " +
 		"instead of symlinking in OpenTofu/Terraform. " +
@@ -87,6 +119,18 @@ func NewTips() Tips {
 		{
 			Name:    MissingDependencyConfig,
 			Message: MissingDependencyConfigMessage,
+		},
+		{
+			Name:    InputsReadNotTracked,
+			Message: InputsReadNotTrackedMessage,
+		},
+		{
+			Name:    OutputsBlock,
+			Message: OutputsBlockMessage,
+		},
+		{
+			Name:    ValuesBlock,
+			Message: ValuesBlockMessage,
 		},
 	}
 }

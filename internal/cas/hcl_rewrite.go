@@ -2,6 +2,7 @@ package cas
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/hashicorp/hcl/v2"
@@ -32,64 +33,56 @@ func RewriteTerraformSource(content []byte, newSource string) ([]byte, error) {
 	return nil, ErrNoTerraformBlock
 }
 
-// RewriteStackBlockSource rewrites the `source` attribute in a named `unit` or `stack` block.
-// blockType is "unit" or "stack", blockName is the label.
-func RewriteStackBlockSource(
-	content []byte,
-	blockType, blockName, newSource string,
-) ([]byte, error) {
-	f, diags := hclwrite.ParseConfig(content, "terragrunt.stack.hcl", hcl.InitialPos)
-	if diags.HasErrors() {
-		return nil, fmt.Errorf("failed to parse HCL: %s", diags.Error())
-	}
-
-	for _, block := range f.Body().Blocks() {
-		if block.Type() != blockType {
-			continue
-		}
-
-		labels := block.Labels()
-		if len(labels) == 0 || labels[0] != blockName {
-			continue
-		}
-
-		block.Body().SetAttributeValue("source", cty.StringVal(newSource))
-
-		return f.Bytes(), nil
-	}
-
-	return nil, &WrappedError{
-		Op:      blockType,
-		Context: blockName,
-		Err:     ErrBlockNotFound,
-	}
-}
-
-// stackBlockInfo holds parsed information about a unit or stack block in a stack file.
-type stackBlockInfo struct {
+// StackBlockInfo holds parsed information about a unit or stack block in a stack file.
+type StackBlockInfo struct {
+	body                *hclwrite.Body
 	Name                string
 	Source              string
 	BlockType           string
+	stackPath           []string
 	UpdateSourceWithCAS bool
 }
 
+// SetSource sets the block's source attribute in the file it was read from.
+func (b *StackBlockInfo) SetSource(source string) {
+	b.body.SetAttributeValue("source", cty.StringVal(source))
+}
+
 // ReadStackBlocks reads all unit and stack blocks from a stack HCL file,
-// extracting the source and update_source_with_cas attributes. Blocks that set
+// extracting the source and update_source_with_cas attributes, and returns
+// them with the parsed file they point into. Blocks that set
 // update_source_with_cas = true must use a literal source string; a
 // non-literal source returns [ErrSourceNotLiteral] wrapped with the block
 // type and name. An update_source_with_cas value that [extractBool] cannot
 // evaluate returns [ErrUpdateSourceWithCASNotConstant], wrapped the same way.
-func ReadStackBlocks(content []byte) ([]stackBlockInfo, error) {
+//
+// The unit and stack blocks declared in a stack block's autoinclude bodies
+// are read too, after that stack block.
+func ReadStackBlocks(content []byte) (*hclwrite.File, []StackBlockInfo, error) {
 	f, diags := hclwrite.ParseConfig(content, "terragrunt.stack.hcl", hcl.InitialPos)
 	if diags.HasErrors() {
-		return nil, fmt.Errorf("failed to parse stack HCL: %s", diags.Error())
+		return nil, nil, fmt.Errorf("failed to parse stack HCL: %s", diags.Error())
 	}
 
-	var blocks []stackBlockInfo
+	blocks, err := readStackBlocks(f.Body(), constantLocals(f.Body()), nil, nil)
+	if err != nil {
+		return nil, nil, err
+	}
 
-	evalCtx := constantLocals(f.Body())
+	return f, blocks, nil
+}
 
-	for _, block := range f.Body().Blocks() {
+// readStackBlocks appends the unit and stack blocks of body to blocks, each
+// stack block followed by the blocks its autoinclude bodies declare. stackPath
+// holds the labels of the stack blocks, outermost first, whose autoinclude
+// bodies enclose body, and is empty for the top level of the file.
+func readStackBlocks(
+	body *hclwrite.Body,
+	evalCtx *hcl.EvalContext,
+	stackPath []string,
+	blocks []StackBlockInfo,
+) ([]StackBlockInfo, error) {
+	for _, block := range body.Blocks() {
 		bt := block.Type()
 		if bt != "unit" && bt != "stack" {
 			continue
@@ -100,18 +93,24 @@ func ReadStackBlocks(content []byte) ([]stackBlockInfo, error) {
 			continue
 		}
 
-		info := stackBlockInfo{
+		info := StackBlockInfo{
+			body:      block.Body(),
+			stackPath: stackPath,
 			Name:      labels[0],
 			BlockType: bt,
 		}
 
+		if !blockEnabled(info.body, evalCtx) {
+			continue
+		}
+
 		var sourceErr error
 
-		if attr := block.Body().GetAttribute("source"); attr != nil {
+		if attr := info.body.GetAttribute("source"); attr != nil {
 			info.Source, sourceErr = extractStringLiteral(attr)
 		}
 
-		if attr := block.Body().GetAttribute("update_source_with_cas"); attr != nil {
+		if attr := info.body.GetAttribute("update_source_with_cas"); attr != nil {
 			updateWithCAS, err := extractBool(attr, evalCtx)
 			if err != nil {
 				return nil, &WrappedError{
@@ -136,9 +135,86 @@ func ReadStackBlocks(content []byte) ([]stackBlockInfo, error) {
 		}
 
 		blocks = append(blocks, info)
+
+		if bt != "stack" {
+			continue
+		}
+
+		for _, nested := range info.body.Blocks() {
+			if nested.Type() != "autoinclude" {
+				continue
+			}
+
+			var err error
+
+			blocks, err = readStackBlocks(nested.Body(), evalCtx, slices.Concat(stackPath, []string{info.Name}), blocks)
+			if err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	return blocks, nil
+}
+
+// sourceRange returns the range of the source value of b in content, the stack file b was read from,
+// with filename as the range's Filename.
+func (b *StackBlockInfo) sourceRange(content []byte, filename string) (hcl.Range, error) {
+	file, diags := hclsyntax.ParseConfig(content, filename, hcl.InitialPos)
+	if diags.HasErrors() {
+		return hcl.Range{}, fmt.Errorf("failed to parse stack HCL: %s", diags.Error())
+	}
+
+	body, ok := file.Body.(*hclsyntax.Body)
+	if !ok {
+		return hcl.Range{}, fmt.Errorf("unexpected body type %T in %s", file.Body, filename)
+	}
+
+	rng, ok := blockSourceRange(body, b.stackPath, b.BlockType, b.Name)
+	if !ok {
+		return hcl.Range{}, fmt.Errorf("source of %s %q not found in %s", b.BlockType, b.Name, filename)
+	}
+
+	return rng, nil
+}
+
+// blockSourceRange returns the range of the source value of the blockType block labeled name, inside
+// the autoinclude bodies of the stack blocks that stackPath labels, outermost first.
+func blockSourceRange(body *hclsyntax.Body, stackPath []string, blockType, name string) (hcl.Range, bool) {
+	for _, block := range body.Blocks {
+		if len(block.Labels) == 0 {
+			continue
+		}
+
+		if len(stackPath) == 0 {
+			if block.Type != blockType || block.Labels[0] != name {
+				continue
+			}
+
+			attr, ok := block.Body.Attributes["source"]
+			if !ok {
+				return hcl.Range{}, false
+			}
+
+			return attr.Expr.Range(), true
+		}
+
+		if block.Type != "stack" || block.Labels[0] != stackPath[0] {
+			continue
+		}
+
+		for _, nested := range block.Body.Blocks {
+			if nested.Type != "autoinclude" {
+				continue
+			}
+
+			if rng, ok := blockSourceRange(nested.Body, stackPath[1:], blockType, name); ok {
+				return rng, true
+			}
+		}
+	}
+
+	return hcl.Range{}, false
 }
 
 // ReadTerraformSourceInfo reads the source and update_source_with_cas from a
@@ -260,19 +336,9 @@ func nonLiteralKind(tokens hclwrite.Tokens) string {
 // [ErrUpdateSourceWithCASNotConstant], because this reader runs before the
 // full parser and has no functions to call.
 func extractBool(attr *hclwrite.Attribute, evalCtx *hcl.EvalContext) (bool, error) {
-	expr, diags := parseAttrExpr(attr)
-	if diags.HasErrors() {
-		return false, ErrUpdateSourceWithCASNotConstant
-	}
-
-	val, diags := expr.Value(evalCtx)
-	if diags.HasErrors() {
-		return false, ErrUpdateSourceWithCASNotConstant
-	}
-
-	val, err := convert.Convert(val, cty.Bool)
+	val, err := evalBool(attr, evalCtx)
 	if err != nil {
-		return false, ErrUpdateSourceWithCASNotConstant
+		return false, err
 	}
 
 	if val.IsNull() {
@@ -280,6 +346,41 @@ func extractBool(attr *hclwrite.Attribute, evalCtx *hcl.EvalContext) (bool, erro
 	}
 
 	return val.True(), nil
+}
+
+// evalBool evaluates attr as a bool, null included, with the locals from [constantLocals].
+func evalBool(attr *hclwrite.Attribute, evalCtx *hcl.EvalContext) (cty.Value, error) {
+	expr, diags := parseAttrExpr(attr)
+	if diags.HasErrors() {
+		return cty.NilVal, ErrUpdateSourceWithCASNotConstant
+	}
+
+	val, diags := expr.Value(evalCtx)
+	if diags.HasErrors() {
+		return cty.NilVal, ErrUpdateSourceWithCASNotConstant
+	}
+
+	val, err := convert.Convert(val, cty.Bool)
+	if err != nil {
+		return cty.NilVal, ErrUpdateSourceWithCASNotConstant
+	}
+
+	return val, nil
+}
+
+// blockEnabled reports whether body takes part in generation; an enabled value that does not evaluate counts as true.
+func blockEnabled(body *hclwrite.Body, evalCtx *hcl.EvalContext) bool {
+	attr := body.GetAttribute("enabled")
+	if attr == nil {
+		return true
+	}
+
+	val, err := evalBool(attr, evalCtx)
+	if err != nil || val.IsNull() {
+		return true
+	}
+
+	return val.True()
 }
 
 // constantLocals returns an evaluation context that sets local.<name> for

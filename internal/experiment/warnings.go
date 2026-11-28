@@ -9,6 +9,7 @@ type CompletedExperimentsWarning struct {
 	experimentsNames []string
 }
 
+// NewCompletedExperimentsWarning returns a [CompletedExperimentsWarning] that names experimentsNames.
 func NewCompletedExperimentsWarning(experimentsNames []string) *CompletedExperimentsWarning {
 	return &CompletedExperimentsWarning{
 		experimentsNames: experimentsNames,

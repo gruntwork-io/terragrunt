@@ -8,8 +8,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/venv"
 )
 
 // ownerOnlyDirPerms keeps the empty home and PATH directories writable only by
@@ -20,7 +20,7 @@ const ownerOnlyDirPerms = 0o700
 // resolve the invoking user's home and config directories from.
 var homeVars = []string{"HOME", "USERPROFILE", "APPDATA", "LOCALAPPDATA"}
 
-// keptVars survive [IsolatedEnv] without [CapabilityEnv]. They name the
+// keptVars survive [IsolatedEnv] without [venv.CapabilityEnv]. They name the
 // temporary directory, which os.TempDir on Windows replaces with the Windows
 // directory when they are missing, and SystemRoot, which Windows programs need
 // to load system libraries.
@@ -32,18 +32,18 @@ var keptVars = []string{"TMPDIR", "TMP", "TEMP", "SystemRoot"}
 // rather than the venv: go-getter runs git with it, and the AWS, GCP, and
 // Azure SDKs find credentials in it and in the home directory.
 //
-// Without [CapabilityEnv], only the variables naming the temporary directory
-// and SystemRoot survive, plus PATH when [CapabilityExec] is granted, and every
-// home directory variable points at home. Without [CapabilityExec], PATH points
+// Without [venv.CapabilityEnv], only the variables naming the temporary directory
+// and SystemRoot survive, plus PATH when [venv.CapabilityExec] is granted, and every
+// home directory variable points at home. Without [venv.CapabilityExec], PATH points
 // at bin, so a library spawning a bare program name finds nothing.
 //
 // Names match case-insensitively, as Windows matches them.
-func IsolatedEnv(env map[string]string, granted Capabilities, home, bin string) map[string]string {
+func IsolatedEnv(env map[string]string, granted venv.Capabilities, home, bin string) map[string]string {
 	isolated := maps.Clone(env)
 
-	if !granted.Has(CapabilityEnv) {
+	if !granted.Has(venv.CapabilityEnv) {
 		kept := keptVars
-		if granted.Has(CapabilityExec) {
+		if granted.Has(venv.CapabilityExec) {
 			kept = append([]string{"PATH"}, keptVars...)
 		}
 
@@ -56,7 +56,7 @@ func IsolatedEnv(env map[string]string, granted Capabilities, home, bin string) 
 		}
 	}
 
-	if !granted.Has(CapabilityExec) {
+	if !granted.Has(venv.CapabilityExec) {
 		setFold(isolated, "PATH", bin)
 	}
 
@@ -69,12 +69,12 @@ func IsolatedEnv(env map[string]string, granted Capabilities, home, bin string) 
 //
 // It changes the environment of the whole process, so it runs once, before
 // the server starts.
-func isolateProcessEnv(v *venv.Venv, granted Capabilities) (func() error, error) {
+func isolateProcessEnv(v *venv.Venv, granted venv.Capabilities) (func() error, error) {
 	v.RequireFS()
 	v.RequireTempDir()
 	v.RequireReplaceEnviron()
 
-	if granted.Has(CapabilityEnv) && granted.Has(CapabilityExec) {
+	if granted.Has(venv.CapabilityEnv) && granted.Has(venv.CapabilityExec) {
 		return func() error { return nil }, nil
 	}
 

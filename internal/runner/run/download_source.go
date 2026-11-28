@@ -10,7 +10,6 @@ import (
 	"slices"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -98,7 +97,21 @@ func DownloadTerraformSource(
 	// is checking for them (e.g. during CheckFolderContainsTerraformCode).
 	rawLock, _ := sourceChangeLocks.LoadOrStore(terraformSource.DownloadDir, &sync.Mutex{})
 	dirLock := rawLock.(*sync.Mutex)
-	dirLock.Lock()
+	shownDir := util.RelPathForLog(opts.RootWorkingDir, terraformSource.DownloadDir, opts.LogShowAbsPaths)
+
+	if err := spinner.ShowAfter(ctx, l, spinner.Messages{
+		Working: "Acquiring lock on " + shownDir + "...",
+		Done:    "Acquired lock on " + shownDir,
+	}, func() error {
+		dirLock.Lock()
+
+		return ctx.Err()
+	}); err != nil {
+		dirLock.Unlock()
+
+		return nil, err
+	}
+
 	defer dirLock.Unlock()
 
 	downloaded, err := DownloadTerraformSourceIfNecessary(ctx, l, v, terraformSource, opts, cfg, r)
@@ -131,7 +144,7 @@ func DownloadTerraformSource(
 			),
 		)
 
-		copyOpts := moduleCopyOptions(opts, cfg)
+		copyOpts := ModuleCopyOptions(opts, cfg)
 
 		err = telemetry.TelemeterFromContext(ctx).
 			Collect(ctx, l, "copy_folder_contents", map[string]any{
@@ -203,12 +216,12 @@ func requireOSFilesystemForSource(fsys vfs.FS, src *tf.Source) error {
 	return ErrNonOSFilesystem
 }
 
-// moduleCopyOptions returns the copy options for the module copy into the
+// ModuleCopyOptions returns the copy options for the module copy into the
 // cache working directory. The source version hash uses the same options so it
 // covers exactly the files a copy would deliver: when the source directory is
 // the working directory, the module copy is skipped whenever the hash is
 // unchanged, so any file the hash ignored must be one no copy would refresh.
-func moduleCopyOptions(opts *Options, cfg *runcfg.RunConfig) []util.CopyOption {
+func ModuleCopyOptions(opts *Options, cfg *runcfg.RunConfig) []util.CopyOption {
 	// Always include the .tflint.hcl file, if it exists
 	includeInCopy := slices.Concat(cfg.Terraform.IncludeInCopy, []string{tfLintConfig})
 
@@ -314,7 +327,7 @@ func DownloadTerraformSourceIfNecessary(
 		return false, err
 	}
 
-	copyOpts := moduleCopyOptions(opts, cfg)
+	copyOpts := ModuleCopyOptions(opts, cfg)
 
 	if opts.SourceUpdate {
 		l.Debugf(
@@ -384,28 +397,24 @@ func DownloadTerraformSourceIfNecessary(
 		cfg,
 		r,
 		func(childCtx context.Context) error {
-			if opts.Experiments.Evaluate(experiment.SlowTaskReporting) {
-				sourceURL := strings.TrimPrefix(
-					redact.NewURL(terraformSource.CanonicalSourceURL.String()).String(),
-					fileURIScheme,
-				)
+			sourceURL := util.RelPathForLog(
+				opts.RootWorkingDir,
+				strings.TrimPrefix(redact.NewURL(terraformSource.CanonicalSourceURL.String()).String(), fileURIScheme),
+				opts.LogShowAbsPaths,
+			)
 
-				return spinner.ShowAfter(
-					childCtx,
-					l,
-					spinner.Writer(v),
-					time.Second,
-					spinner.Messages{
-						Working: "Downloading source from " + sourceURL + "...",
-						Done:    "Downloaded source from " + sourceURL,
-					},
-					func() error {
-						return downloadSource(childCtx, l, v, terraformSource, opts, cfg, r)
-					},
-				)
-			}
-
-			return downloadSource(childCtx, l, v, terraformSource, opts, cfg, r)
+			return spinner.ShowAfter(
+				childCtx,
+				l,
+				spinner.Messages{
+					Working: "Downloading source from " + sourceURL + "...",
+					Done:    "Downloaded source from " + sourceURL,
+					Started: true,
+				},
+				func() error {
+					return downloadSource(childCtx, l, v, terraformSource, opts, cfg, r)
+				},
+			)
 		},
 	)
 	if downloadErr != nil {
@@ -571,7 +580,7 @@ func downloadSource(
 			return err
 		}
 
-		_, err = client.Get(ctx, &getter.Request{
+		_, err = getter.Download(ctx, client, &getter.Request{
 			Src:     src.CanonicalSourceURL.String(),
 			Dst:     src.DownloadDir,
 			GetMode: getter.ModeAny,
@@ -691,7 +700,7 @@ func tryCASDownload(
 		},
 	}
 
-	if _, err := client.Get(ctx, &getter.Request{
+	if _, err := getter.Download(ctx, client, &getter.Request{
 		Src: canonicalSourceURL,
 		Dst: src.DownloadDir,
 		Pwd: opts.CacheDir,
@@ -728,8 +737,11 @@ func tryCASDownload(
 // outright, and while --cas-offline is set no source reaching here has a
 // fallback left: a local path never gets this far, so every route the
 // standard getter has is to the remote the flag forbids.
+// A checksum mismatch or an unresolved subdir glob fails the same way after a second download.
 func casFailureIsFatal(opts *Options, err error) bool {
-	if errors.Is(err, cas.ErrCASOffline) {
+	var checksumErr *getter.ChecksumError
+
+	if errors.Is(err, cas.ErrCASOffline) || errors.Is(err, getter.ErrSubdirNotResolved) || errors.As(err, &checksumErr) {
 		return true
 	}
 
@@ -798,6 +810,8 @@ func ValidateWorkingDir(fsys vfs.FS, terraformSource *tf.Source) error {
 	return nil
 }
 
+// WorkingDirNotFound is returned by [ValidateWorkingDir] when the working directory inside the downloaded source
+// does not exist.
 type WorkingDirNotFound struct {
 	Source string
 	Dir    string
@@ -807,6 +821,8 @@ func (err WorkingDirNotFound) Error() string {
 	return fmt.Sprintf("Working dir %s from source %s does not exist", err.Dir, err.Source)
 }
 
+// WorkingDirNotDir is returned by [ValidateWorkingDir] when the working directory path inside the downloaded
+// source is not a directory.
 type WorkingDirNotDir struct {
 	Source string
 	Dir    string
@@ -816,6 +832,8 @@ func (err WorkingDirNotDir) Error() string {
 	return fmt.Sprintf("Valid working dir %s from source %s", err.Dir, err.Source)
 }
 
+// DownloadingTerraformSourceErr is the error for a terraform source that failed to download. It wraps the
+// download error.
 type DownloadingTerraformSourceErr struct {
 	ErrMsg error
 	URL    redact.URL

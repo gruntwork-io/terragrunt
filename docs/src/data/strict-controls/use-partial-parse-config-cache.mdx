@@ -1,0 +1,19 @@
+---
+name: use-partial-parse-config-cache
+status: active
+since: "v1.2.3"
+---
+
+Throw an error when using the deprecated `--use-partial-parse-config-cache` flag.
+
+### `use-partial-parse-config-cache` - Reason
+
+Terragrunt no longer has a partial parse cache for the `--use-partial-parse-config-cache` flag to enable, so the flag has no effect.
+
+### `use-partial-parse-config-cache` - Example
+
+```bash
+# This will show a warning (or error with strict control enabled)
+$ terragrunt run --all --use-partial-parse-config-cache -- plan
+WARN  The `--use-partial-parse-config-cache` flag is deprecated and will be removed in a future version of Terragrunt. Terragrunt no longer has a partial parse cache for it to enable, so this flag has no effect.
+```

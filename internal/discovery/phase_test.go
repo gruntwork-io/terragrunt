@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -49,13 +50,13 @@ func TestFilesystemPhase_BasicDiscovery(t *testing.T) {
 		WorkingDir: tmpDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	// Run filesystem phase via full discovery
 	d := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir})
 
-	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
+	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(config.Store), opts)
 	require.NoError(t, err)
 
 	// Verify phase discovered all components
@@ -93,12 +94,12 @@ func TestFilesystemPhase_SkipsIgnorableDirs(t *testing.T) {
 		WorkingDir: tmpDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	d := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir})
 
-	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
+	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(config.Store), opts)
 	require.NoError(t, err)
 
 	// Should only find the valid unit, not the ones in ignorable directories
@@ -127,7 +128,7 @@ func TestFilesystemPhase_WithNoHidden(t *testing.T) {
 		WorkingDir: tmpDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	t.Run("without noHidden", func(t *testing.T) {
 		t.Parallel()
@@ -135,7 +136,7 @@ func TestFilesystemPhase_WithNoHidden(t *testing.T) {
 		d := discovery.NewDiscovery(tmpDir).
 			WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir})
 
-		components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
+		components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(config.Store), opts)
 		require.NoError(t, err)
 		assert.Len(t, components, 2, "Should find both visible and hidden")
 	})
@@ -147,7 +148,7 @@ func TestFilesystemPhase_WithNoHidden(t *testing.T) {
 			WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 			WithNoHidden()
 
-		components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
+		components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(config.Store), opts)
 		require.NoError(t, err)
 		assert.Len(t, components, 1, "Should find only visible")
 		assert.Equal(t, visibleDir, components[0].Path())
@@ -183,7 +184,7 @@ locals {
 		RootWorkingDir: tmpDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	// Filter with reading= attribute requires parsing
 	filters, err := filter.ParseFilterQueries(l, []string{"reading=shared.hcl"})
@@ -194,7 +195,7 @@ locals {
 		WithFilters(filters).
 		WithReadFiles()
 
-	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
+	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(config.Store), opts)
 	require.NoError(t, err)
 
 	assert.Len(t, components, 1)
@@ -243,7 +244,7 @@ dependency "vpc" {
 		RootWorkingDir: tmpDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	// Use graph filter to trigger graph phase
 	filters, err := filter.ParseFilterQueries(l, []string{"app..."})
@@ -253,7 +254,7 @@ dependency "vpc" {
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithFilters(filters)
 
-	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
+	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(config.Store), opts)
 	require.NoError(t, err)
 
 	// Graph phase should discover all dependencies
@@ -320,7 +321,7 @@ dependency "vpc" {
 		RootWorkingDir: tmpDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	// Using dependent filter (...vpc) without pre-built relationships
 	// Currently, the implementation requires relationships to be built
@@ -333,7 +334,7 @@ dependency "vpc" {
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithFilters(filters)
 
-	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
+	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(config.Store), opts)
 	require.NoError(t, err)
 
 	// The vpc component should always be discovered (it's the target)
@@ -377,14 +378,14 @@ dependency "db" {
 		RootWorkingDir: tmpDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	// Use WithRelationships to enable relationship phase
 	d := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithRelationships()
 
-	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
+	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(config.Store), opts)
 	require.NoError(t, err)
 
 	// Verify relationships are built
@@ -774,7 +775,7 @@ dependency "vpc" {
 		RootWorkingDir: tmpDir,
 	}
 
-	ctx := t.Context()
+	ctx := config.WithCaches(t.Context())
 
 	// Using dependent filter (...vpc) should now work with pre-built graph
 	filters, err := filter.ParseFilterQueries(l, []string{"...vpc"})
@@ -784,7 +785,7 @@ dependency "vpc" {
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithFilters(filters)
 
-	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), opts)
+	components, err := d.Discover(ctx, l, venvtest.NewOSWithEmptyEnv(), new(config.Store), opts)
 	require.NoError(t, err)
 
 	// With pre-built dependency graph, dependent discovery should now find all dependents

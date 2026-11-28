@@ -124,7 +124,7 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 			}
 
 			for {
-				readyEntries := dr.q.GetReadyWithDependencies(l)
+				readyEntries := dr.q.GetReadyWithDependencies()
 				l.Debugf("Runner Pool Controller: found %d readyEntries tasks", len(readyEntries))
 
 				for _, e := range readyEntries {
@@ -226,7 +226,7 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 				}
 
 				if entry.Status == queue.StatusEarlyExit {
-					failedDep := findFailedDependency(entry, dr.q)
+					failedDep := findFailedDependency(entry)
 					errCollector = append(
 						errCollector,
 						NewUnitEarlyExitError(entry.Component.Path(), failedDep),

@@ -15,5 +15,6 @@ const (
 	// TitleForeground and TitleBackground are the muted grey on slate of a
 	// title strip, shared by every screen that draws one.
 	TitleForeground = "#A8ACB1"
+	// TitleBackground is the slate behind a title strip's text.
 	TitleBackground = "#1D252F"
 )

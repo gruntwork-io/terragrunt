@@ -43,10 +43,11 @@ func GetRandomTime(lowerBound, upperBound time.Duration) time.Duration {
 }
 
 // Generate a random int between min and max, inclusive
-func random(min int, max int) int {
-	return rand.Intn(max-min) + min
+func random(lo int, hi int) int {
+	return rand.Intn(hi-lo) + lo
 }
 
+// Base62Chars is the alphabet [UniqueID] draws from.
 const Base62Chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 const UniqueIDLength = 6 // Should be good for 62^6 = 56+ billion combinations
 

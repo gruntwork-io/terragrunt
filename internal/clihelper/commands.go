@@ -8,6 +8,7 @@ import (
 	"slices"
 )
 
+// Commands is the list of commands at one level of the command tree.
 type Commands []*Command
 
 // Get returns a Command by the given name.
@@ -96,18 +97,22 @@ func (commands Commands) VisibleCommands() Commands {
 	return visible
 }
 
+// Len returns the number of commands.
 func (commands Commands) Len() int {
 	return len(commands)
 }
 
+// Less orders commands by name with [LexicographicLess].
 func (commands Commands) Less(i, j int) bool {
 	return LexicographicLess(commands[i].Name, commands[j].Name)
 }
 
+// Swap swaps the commands at i and j.
 func (commands Commands) Swap(i, j int) {
 	commands[i], commands[j] = commands[j], commands[i]
 }
 
+// WrapAction returns copies of commands made by [Command.WrapAction] with fn.
 func (commands Commands) WrapAction(
 	fn func(ctx context.Context, cliCtx *Context, action ActionFunc) error,
 ) Commands {
@@ -120,6 +125,7 @@ func (commands Commands) WrapAction(
 	return wrapped
 }
 
+// Sort sorts commands in place by name and returns them.
 func (commands Commands) Sort() Commands {
 	sort.Sort(commands)
 

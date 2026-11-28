@@ -8,11 +8,12 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl/validate"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -27,34 +28,75 @@ func TestGetVarFlagsFromExtraArgs(t *testing.T) {
 		expectedVarFiles []string
 	}{
 		{
-			"QuotesStayPartOfTheArgument",
-			[]string{`-var='hello=world'`, `-var-file="other_vars.tfvars"`},
-			[]string{"'hello"},
-			[]string{`"other_vars.tfvars"`},
+			name:             "QuotesStayPartOfTheArgument",
+			args:             []string{`-var='hello=world'`, `-var-file="other_vars.tfvars"`},
+			expectedVars:     []string{"'hello"},
+			expectedVarFiles: []string{`"other_vars.tfvars"`},
 		},
 		{
-			"BackslashesInVarFileName",
-			[]string{`-var-file=C:\work\unit\varfiles\main.tfvars`},
-			[]string{},
-			[]string{`C:\work\unit\varfiles\main.tfvars`},
+			name:             "BackslashesInVarFileName",
+			args:             []string{`-var-file=C:\work\unit\varfiles\main.tfvars`},
+			expectedVars:     []string{},
+			expectedVarFiles: []string{`C:\work\unit\varfiles\main.tfvars`},
 		},
 		{
-			"MixedWithOtherIrrelevantArgs",
-			[]string{"-lock=true", "-var=enabled=true", "-refresh=false"},
-			[]string{"enabled"},
-			[]string{},
+			name:             "MixedWithOtherIrrelevantArgs",
+			args:             []string{"-lock=true", "-var=enabled=true", "-refresh=false"},
+			expectedVars:     []string{"enabled"},
+			expectedVarFiles: []string{},
 		},
 		{
-			"None",
-			[]string{"-lock=true", "-refresh=false"},
-			[]string{},
-			[]string{},
+			name:             "None",
+			args:             []string{"-lock=true", "-refresh=false"},
+			expectedVars:     []string{},
+			expectedVarFiles: []string{},
 		},
 		{
-			"SpaceInVarFileName",
-			[]string{"-var-file=this is a test.tfvars"},
-			[]string{},
-			[]string{"this is a test.tfvars"},
+			name:             "SpaceInVarFileName",
+			args:             []string{"-var-file=this is a test.tfvars"},
+			expectedVars:     []string{},
+			expectedVarFiles: []string{"this is a test.tfvars"},
+		},
+		{
+			name:             "ValueInNextArgument",
+			args:             []string{"-var", "enabled=true", "-var-file", "main.tfvars"},
+			expectedVars:     []string{"enabled"},
+			expectedVarFiles: []string{"main.tfvars"},
+		},
+		{
+			name:             "DoubleDash",
+			args:             []string{"--var=enabled=true", "--var-file=main.tfvars"},
+			expectedVars:     []string{"enabled"},
+			expectedVarFiles: []string{"main.tfvars"},
+		},
+		{
+			name:             "DoubleDashWithValueInNextArgument",
+			args:             []string{"--var", "enabled=true", "--var-file", "main.tfvars"},
+			expectedVars:     []string{"enabled"},
+			expectedVarFiles: []string{"main.tfvars"},
+		},
+		{
+			name:             "EqualsSignInVarValue",
+			args:             []string{"-var=first=a=b", "-var", "second=a=b"},
+			expectedVars:     []string{"first", "second"},
+			expectedVarFiles: []string{},
+		},
+		{
+			name:             "NextArgumentIsTheValueEvenWhenItLooksLikeAFlag",
+			args:             []string{"-var-file", "-var=enabled=true", "-lock=true"},
+			expectedVars:     []string{},
+			expectedVarFiles: []string{"-var=enabled=true"},
+		},
+		{
+			name: "FlagsWithAVarPrefix",
+			args: []string{
+				"-variable=enabled=true",
+				"-var-files=main.tfvars",
+				"---var=enabled=true",
+				"var=enabled=true",
+			},
+			expectedVars:     []string{},
+			expectedVarFiles: []string{},
 		},
 	}
 
@@ -70,6 +112,155 @@ func TestGetVarFlagsFromExtraArgs(t *testing.T) {
 			assert.Equal(t, tc.expectedVarFiles, varFiles)
 		})
 	}
+}
+
+func TestGetVarFlagsFromArgListRejectsFlagWithoutValue(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name         string
+		expectedFlag string
+		args         []string
+	}{
+		{name: "Var", expectedFlag: "var", args: []string{"-lock=true", "-var"}},
+		{name: "VarFile", expectedFlag: "var-file", args: []string{"-var=enabled=true", "-var-file"}},
+		{name: "DoubleDashVar", expectedFlag: "var", args: []string{"--var"}},
+		{name: "DoubleDashVarFile", expectedFlag: "var-file", args: []string{"--var-file"}},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, _, err := validate.GetVarFlagsFromArgList(tc.args)
+
+			var missingValueErr validate.MissingVarFlagValueError
+
+			require.ErrorAs(t, err, &missingValueErr)
+			assert.Equal(t, tc.expectedFlag, missingValueErr.Flag)
+		})
+	}
+}
+
+func TestGetVarFlagsFromArgListRejectsVarWithoutEqualsSign(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		args []string
+	}{
+		{name: "ValueAfterEqualsSign", args: []string{"-var=enabled"}},
+		{name: "ValueInNextArgument", args: []string{"-var", "enabled"}},
+		{name: "EmptyValue", args: []string{"-var="}},
+		{name: "NextArgumentIsAnotherFlag", args: []string{"-var", "-refresh"}},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, _, err := validate.GetVarFlagsFromArgList(tc.args)
+			require.ErrorIs(t, err, validate.ErrMalformedVarFlag)
+		})
+	}
+}
+
+func TestRunValidateInputsCountsVarFlagsWithValueInNextArgument(t *testing.T) {
+	t.Parallel()
+
+	result := runValidate(t, &validateRun{
+		files: map[string]string{
+			"main.tf": `variable "region" {}
+variable "team" {}
+`,
+			"extra.tfvars": `team = "platform"` + "\n",
+			"terragrunt.hcl": `terraform {
+  extra_arguments "vars" {
+    commands  = ["apply", "plan"]
+    arguments = ["-var", "region=us-east-1", "-var-file", "${get_terragrunt_dir()}/extra.tfvars"]
+  }
+}
+`,
+		},
+		inputs: true,
+	})
+
+	require.NoError(t, result.err)
+}
+
+func TestRunValidateInputsReadsRelativeVarFileFromUnitDir(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name      string
+		arguments string
+	}{
+		{name: "ValueInNextArgument", arguments: `["-var-file", "common.tfvars"]`},
+		{name: "ValueAfterEqualsSign", arguments: `["-var-file=common.tfvars"]`},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := runValidate(t, &validateRun{
+				files: map[string]string{
+					"live/unit/main.tf":       `variable "env" {}` + "\n",
+					"live/unit/common.tfvars": `env = "prod"` + "\n",
+					"live/unit/terragrunt.hcl": `terraform {
+  extra_arguments "vars" {
+    commands  = ["apply", "plan"]
+    arguments = ` + tc.arguments + `
+  }
+}
+`,
+				},
+				inputs: true,
+			})
+
+			require.NoError(t, result.err)
+		})
+	}
+}
+
+func TestRunValidateInputsCountsVarFlagWithValueInNextExtraArgumentsBlock(t *testing.T) {
+	t.Parallel()
+
+	result := runValidate(t, &validateRun{
+		files: map[string]string{
+			"main.tf": `variable "region" {}` + "\n",
+			"terragrunt.hcl": `terraform {
+  extra_arguments "flag" {
+    commands  = ["apply", "plan"]
+    arguments = ["-var"]
+  }
+
+  extra_arguments "value" {
+    commands  = ["apply", "plan"]
+    arguments = ["region=us-east-1"]
+  }
+}
+`,
+		},
+		inputs: true,
+	})
+
+	require.NoError(t, result.err)
+}
+
+func TestRunValidateInputsCountsCLIVarFlagWithValueInNextArgument(t *testing.T) {
+	t.Parallel()
+
+	result := runValidate(t, &validateRun{
+		files: map[string]string{
+			"main.tf":        `variable "region" {}` + "\n",
+			"terragrunt.hcl": "",
+		},
+		tfCLIArgs: []string{"-var", "region=us-east-1"},
+		inputs:    true,
+	})
+
+	require.NoError(t, result.err)
 }
 
 // writeValidateInputsUnits lays out two units: unit-a satisfies its required
@@ -126,7 +317,7 @@ func TestRunValidateInputsDoesNotLeakEnvBetweenUnits(t *testing.T) {
 		return vexec.Result{ExitCode: 127, Stderr: []byte("unexpected invocation: " + inv.Name)}
 	})
 
-	v := venvtest.New().WithExec(exec).WithFS(vfs.NewOSFS())
+	v := venv.MemVenv().WithExec(exec).WithFS(vfs.NewOSFS())
 	l := logger.CreateLogger()
 
 	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(tmpDir, "terragrunt.hcl"))
@@ -134,7 +325,7 @@ func TestRunValidateInputsDoesNotLeakEnvBetweenUnits(t *testing.T) {
 
 	opts.AuthProviderCmd = "fake-auth-provider"
 
-	err = validate.RunValidateInputs(t.Context(), l, v, opts)
+	err = validate.RunValidateInputs(config.WithCaches(t.Context()), l, v, new(config.Store), opts)
 	require.Error(
 		t,
 		err,
@@ -154,12 +345,74 @@ func TestRunValidateInputsPassesWhenInputsDefined(t *testing.T) {
 
 	tmpDir := writeValidateInputsUnits(t, "inputs = {\n  region = \"eu-west-1\"\n}\n")
 
-	v := venvtest.New().WithFS(vfs.NewOSFS())
+	v := venv.MemVenv().WithFS(vfs.NewOSFS())
 	l := logger.CreateLogger()
 
 	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(tmpDir, "terragrunt.hcl"))
 	require.NoError(t, err)
 
-	err = validate.RunValidateInputs(t.Context(), l, v, opts)
+	err = validate.RunValidateInputs(config.WithCaches(t.Context()), l, v, new(config.Store), opts)
 	require.NoError(t, err)
+}
+
+// TestRunValidateReportsOneParserDiagnosticPerRange expects one diagnostic for a parser cascade at one source range.
+func TestRunValidateReportsOneParserDiagnosticPerRange(t *testing.T) {
+	t.Parallel()
+
+	result := runValidate(t, &validateRun{files: map[string]string{
+		"app/terragrunt.hcl": "locals {\n  t =\n}\n",
+	}})
+
+	require.Error(t, result.err)
+	require.Len(t, result.diags, 1)
+	assert.Equal(t, "Invalid expression", result.diags[0].Summary)
+	require.NotNil(t, result.diags[0].Range)
+	assert.Equal(t, 2, result.diags[0].Range.Start.Line)
+}
+
+func TestRunValidateReportsValuesKeysThatAreNotIdentifiers(t *testing.T) {
+	t.Parallel()
+
+	result := runValidate(t, &validateRun{files: map[string]string{
+		"live/terragrunt.stack.hcl": `unit "app" {
+  source = "../app"
+  path   = "app"
+  values = {
+    "a b" = "space"
+  }
+}
+`,
+		"app/terragrunt.hcl": "",
+	}})
+
+	require.Error(t, result.err)
+	require.Len(t, result.diags, 1)
+	assert.Equal(t, "Invalid values key", result.diags[0].Summary)
+	require.NotNil(t, result.diags[0].Range)
+	assert.Equal(t, 5, result.diags[0].Range.Start.Line)
+}
+
+// TestRunValidateReportsVersionAttributeReferencingDependency pins that a version attribute that references a
+// dependency output reports one diagnostic pointing at the reference.
+func TestRunValidateReportsVersionAttributeReferencingDependency(t *testing.T) {
+	t.Parallel()
+
+	result := runValidate(t, &validateRun{files: map[string]string{
+		"dep/terragrunt.hcl": "",
+		"app/terragrunt.hcl": `dependency "dep" {
+  config_path = "../dep"
+}
+
+terraform_binary = dependency.dep.outputs.binary
+`,
+	}})
+
+	require.Error(t, result.err)
+	require.Len(t, result.diags, 1)
+	assert.Equal(t, "Dependency reference not allowed", result.diags[0].Summary)
+	require.NotNil(t, result.diags[0].Range)
+	assert.Equal(t, filepath.Join(result.root, "app", "terragrunt.hcl"), result.diags[0].Range.Filename)
+	assert.Equal(t, 5, result.diags[0].Range.Start.Line)
+	assert.Equal(t, 20, result.diags[0].Range.Start.Column)
+	assert.Equal(t, 49, result.diags[0].Range.End.Column)
 }

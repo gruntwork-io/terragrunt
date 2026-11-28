@@ -12,6 +12,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -156,7 +157,7 @@ func TestDeterministicTreeHash(t *testing.T) {
 func TestProcessStackComponent_RemoteSourceRejectsNonOSFilesystem(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New().WithExec(newStubGitExec(func(context.Context, vexec.Invocation) vexec.Result {
+	v := venv.MemVenv().WithExec(newStubGitExec(func(context.Context, vexec.Invocation) vexec.Result {
 		return vexec.Result{}
 	}))
 
@@ -415,7 +416,7 @@ func TestProcessStackComponent_CreatesSyntheticTrees(t *testing.T) {
 	content, err := os.ReadFile(stackFile)
 	require.NoError(t, err)
 
-	blocks, err := cas.ReadStackBlocks(content)
+	_, blocks, err := cas.ReadStackBlocks(content)
 	require.NoError(t, err)
 
 	var serviceSource string
@@ -515,7 +516,7 @@ func TestProcessStackComponent_MaterializeSynthTree(t *testing.T) {
 	stackContent, err := os.ReadFile(filepath.Join(result.ContentDir, "terragrunt.stack.hcl"))
 	require.NoError(t, err)
 
-	blocks, err := cas.ReadStackBlocks(stackContent)
+	_, blocks, err := cas.ReadStackBlocks(stackContent)
 	require.NoError(t, err)
 
 	var serviceSource string
@@ -671,7 +672,12 @@ func TestProcessStackComponent_ShorthandSourceReachesClone(t *testing.T) {
 	c, err := cas.New(venvtest.NewWithOSFS(), cas.WithStorePath(storePath), cas.WithCloneDepth(-1))
 	require.NoError(t, err)
 
-	v := venvtest.NewOSWithEmptyEnv()
+	v := venvtest.NewOSWithEmptyEnv().WithEnv(map[string]string{
+		"GIT_TERMINAL_PROMPT": "0",
+		"GIT_CONFIG_COUNT":    "1",
+		"GIT_CONFIG_KEY_0":    "credential.helper",
+		"GIT_CONFIG_VALUE_0":  "",
+	})
 
 	// Bogus org so the network call fails fast. The error shape proves the
 	// shorthand was rewritten and reached `git ls-remote`.
@@ -679,7 +685,7 @@ func TestProcessStackComponent_ShorthandSourceReachesClone(t *testing.T) {
 
 	_, err = c.ProcessStackComponent(t.Context(), l, v, source, "stack")
 	require.Error(t, err)
-	require.ErrorIs(t, err, git.ErrCommandSpawn, "failure must come from a spawned git command")
+	require.ErrorIs(t, err, git.ErrGitCommand, "failure must come from a spawned git command")
 
 	var wrapped *git.WrappedError
 	require.ErrorAs(t, err, &wrapped)

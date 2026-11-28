@@ -5,6 +5,7 @@ package configbridge
 
 import (
 	"context"
+	"path/filepath"
 
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
@@ -12,10 +13,13 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
+	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 )
 
@@ -34,12 +38,45 @@ func StackFuncFactory(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 ) inthclparse.StackFuncFactory {
 	pctx := NewParsingContext(opts)
 
 	return func(stackDir string) (map[string]function.Function, error) {
-		return config.EarlyStackParseFunctions(ctx, l, v, pctx, stackDir)
+		return config.EarlyStackParseFunctions(ctx, l, v, s, pctx, stackDir)
+	}
+}
+
+// StackVarFactory returns a factory for the HCL variables the stack file in a stack dir evaluates with.
+func StackVarFactory(
+	ctx context.Context,
+	l log.Logger,
+	pctx *config.ParsingContext,
+) inthclparse.StackVarFactory {
+	return func(stackDir string) (map[string]cty.Value, error) {
+		stackFile := filepath.Join(stackDir, config.DefaultStackFile)
+
+		scopedLogger, scopedPctx, err := pctx.WithStackConfigPath(l, stackFile)
+		if err != nil {
+			return nil, err
+		}
+
+		return config.TerragruntEvalVariables(ctx, scopedLogger, scopedPctx, stackFile, nil)
+	}
+}
+
+// StackDirArgs returns the dir-scoped function and variable factories for early stack discovery parsing.
+func StackDirArgs(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	s *config.Store,
+	opts *options.TerragruntOptions,
+) *inthclparse.StackDirArgs {
+	return &inthclparse.StackDirArgs{
+		FuncsFor: StackFuncFactory(ctx, l, v, s, opts),
+		VarsFor:  StackVarFactory(ctx, l, NewParsingContext(opts)),
 	}
 }
 
@@ -50,8 +87,8 @@ func populateFromOpts(pctx *config.ParsingContext, opts *options.TerragruntOptio
 	pctx.WorkingDir = opts.WorkingDir
 	pctx.RootWorkingDir = opts.RootWorkingDir
 	pctx.DownloadDir = opts.DownloadDir
-	pctx.TerraformCommand = opts.TerraformCommand
-	pctx.OriginalTerraformCommand = opts.OriginalTerraformCommand
+	pctx.TerraformCommand = opts.TofuCommand
+	pctx.OriginalTofuCommand = opts.OriginalTofuCommand
 	pctx.TerraformCliArgs = opts.TerraformCliArgs
 	pctx.Source = opts.Source
 	pctx.SourceMap = opts.SourceMap
@@ -62,7 +99,6 @@ func populateFromOpts(pctx *config.ParsingContext, opts *options.TerragruntOptio
 	pctx.LogDisableErrorSummary = opts.LogDisableErrorSummary
 	pctx.IAMRoleOptions = opts.IAMRoleOptions
 	pctx.OriginalIAMRoleOptions = opts.OriginalIAMRoleOptions
-	pctx.UsePartialParseConfigCache = opts.UsePartialParseConfigCache
 	pctx.MaxFoldersToCheck = opts.MaxFoldersToCheck
 	pctx.NoDependencyFetchOutputFromState = opts.NoDependencyFetchOutputFromState
 	pctx.SkipOutput = opts.SkipOutput
@@ -71,7 +107,6 @@ func populateFromOpts(pctx *config.ParsingContext, opts *options.TerragruntOptio
 	pctx.EngineConfig = opts.EngineConfig
 	pctx.EngineOptions = opts.EngineOptions
 	pctx.TFPath = opts.TFPath
-	pctx.TofuImplementation = opts.TofuImplementation
 	pctx.ForwardTFStdout = opts.ForwardTFStdout
 	pctx.JSONLogFormat = opts.JSONLogFormat
 	pctx.Debug = opts.Debug
@@ -89,15 +124,17 @@ func populateFromOpts(pctx *config.ParsingContext, opts *options.TerragruntOptio
 	pctx.ScaffoldRootFileName = opts.ScaffoldRootFileName
 	pctx.TerragruntStackConfigPath = opts.TerragruntStackConfigPath
 	pctx.ProviderCacheOptions = opts.ProviderCacheOptions
+	pctx.VersionManagerFileName = opts.VersionManagerFileName
 }
 
 // ShellRunOptsFromOpts constructs shell.ShellOptions from TerragruntOptions.
-func ShellRunOptsFromOpts(env map[string]string, opts *options.TerragruntOptions) *shell.ShellOptions {
+// Their TFPath is opts.TFPath, or the default e finds on PATH when that is empty.
+func ShellRunOptsFromOpts(e vexec.Exec, env map[string]string, opts *options.TerragruntOptions) *shell.ShellOptions {
 	s := shell.NewShellOptions(env).
 		WithWorkingDir(opts.WorkingDir).
 		WithTelemetry(opts.Telemetry).
 		WithEngine(opts.EngineConfig, opts.EngineOptions).
-		WithTFPath(opts.TFPath).
+		WithTFPath(tfimpl.BinaryOrDefault(e, opts.TFPath)).
 		WithRootWorkingDir(opts.RootWorkingDir).
 		WithExperiments(opts.Experiments).
 		WithHeadless(opts.Headless).
@@ -120,29 +157,79 @@ func BackendOptsFromOpts(opts *options.TerragruntOptions) *backend.Options {
 }
 
 // RemoteStateOptsFromOpts constructs remotestate.Options from TerragruntOptions.
-func RemoteStateOptsFromOpts(env map[string]string, opts *options.TerragruntOptions) *remotestate.Options {
+// Its TFRunOpts carry [tfimpl.Unknown]: they run only `state pull` and
+// `state push`, which read no implementation.
+func RemoteStateOptsFromOpts(
+	e vexec.Exec,
+	env map[string]string,
+	opts *options.TerragruntOptions,
+) *remotestate.Options {
 	return &remotestate.Options{
 		Options:             *BackendOptsFromOpts(opts),
 		DisableBucketUpdate: opts.DisableBucketUpdate,
-		TFRunOpts:           TFRunOptsFromOpts(env, opts),
+		TFRunOpts:           TFRunOptsFromOpts(e, env, opts, tfimpl.Unknown),
 	}
 }
 
-// TFRunOptsFromOpts constructs tf.TFOptions from TerragruntOptions.
-func TFRunOptsFromOpts(env map[string]string, opts *options.TerragruntOptions) *tf.TFOptions {
+// TFRunOptsFromOpts constructs tf.TFOptions from TerragruntOptions, for a
+// binary that is impl.
+func TFRunOptsFromOpts(
+	e vexec.Exec,
+	env map[string]string,
+	opts *options.TerragruntOptions,
+	impl tfimpl.Type,
+) *tf.TFOptions {
 	return &tf.TFOptions{
 		JSONLogFormat:                opts.JSONLogFormat,
 		OriginalTerragruntConfigPath: opts.OriginalTerragruntConfigPath,
 		TerragruntConfigPath:         opts.TerragruntConfigPath,
-		TofuImplementation:           opts.TofuImplementation,
+		TofuImplementation:           impl,
 		TerraformCliArgs:             opts.TerraformCliArgs,
-		ShellOptions:                 ShellRunOptsFromOpts(env, opts),
+		ShellOptions:                 ShellRunOptsFromOpts(e, env, opts),
 	}
 }
 
-// NewRunOptions creates a run.Options from TerragruntOptions.
-// This replaces the former run.NewOptions(opts) function.
-func NewRunOptions(opts *options.TerragruntOptions) *run.Options {
+// ProbeTF reports the version and implementation of the binary opts selects,
+// through [run.PopulateTFVersion].
+func ProbeTF(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	opts *options.TerragruntOptions,
+) (log.Logger, tfimpl.Probe, error) {
+	return run.PopulateTFVersion(ctx, l, v, run.PopulateTFVersionInput{
+		TFOpts:       TFRunOptsFromOpts(v.Exec, v.Env, opts, tfimpl.Unknown),
+		WorkingDir:   opts.WorkingDir,
+		VersionFiles: opts.VersionManagerFileName,
+	})
+}
+
+// TFImplementation returns which implementation the binary opts selects is,
+// for a command that can finish without that binary. A failed probe is logged
+// at debug level and yields [tfimpl.Unknown].
+func TFImplementation(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	opts *options.TerragruntOptions,
+) tfimpl.Type {
+	_, probe, err := ProbeTF(ctx, l, v, opts)
+	if err != nil {
+		l.Debugf(
+			"Failed to detect the OpenTofu/Terraform implementation of %s: %v",
+			tfimpl.BinaryOrDefault(v.Exec, opts.TFPath),
+			err,
+		)
+
+		return tfimpl.Unknown
+	}
+
+	return probe.Type
+}
+
+// NewRunOptions creates a run.Options from TerragruntOptions, for a binary
+// that is impl.
+func NewRunOptions(opts *options.TerragruntOptions, impl tfimpl.Type) *run.Options {
 	runOpts := run.NewOptions()
 	runOpts.LogShowAbsPaths = opts.LogShowAbsPaths
 	runOpts.LogDisableErrorSummary = opts.LogDisableErrorSummary
@@ -153,8 +240,8 @@ func NewRunOptions(opts *options.TerragruntOptions) *run.Options {
 	runOpts.RootWorkingDir = opts.RootWorkingDir
 	runOpts.ProfileDir = opts.ProfileDir
 	runOpts.DownloadDir = opts.DownloadDir
-	runOpts.TerraformCommand = opts.TerraformCommand
-	runOpts.OriginalTerraformCommand = opts.OriginalTerraformCommand
+	runOpts.TerraformCommand = opts.TofuCommand
+	runOpts.OriginalTofuCommand = opts.OriginalTofuCommand
 	runOpts.TerraformCliArgs = opts.TerraformCliArgs
 	runOpts.Source = opts.Source
 	runOpts.SourceMap = opts.SourceMap
@@ -167,7 +254,7 @@ func NewRunOptions(opts *options.TerragruntOptions) *run.Options {
 	runOpts.StrictControls = opts.StrictControls
 	runOpts.FeatureFlags = opts.FeatureFlags
 	runOpts.TFPath = opts.TFPath
-	runOpts.TofuImplementation = opts.TofuImplementation
+	runOpts.TofuImplementation = impl
 	runOpts.ForwardTFStdout = opts.ForwardTFStdout
 	runOpts.JSONLogFormat = opts.JSONLogFormat
 	runOpts.Headless = opts.Headless

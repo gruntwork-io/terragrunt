@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/find"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 
 	"github.com/stretchr/testify/assert"
@@ -202,7 +203,7 @@ func TestFindExternalDependenciesWithFilterFlag(t *testing.T) {
 func assertExternalDependencies(t *testing.T, extra ...string) {
 	t.Helper()
 
-	v := venvtest.New().WithFS(venvtest.NewFS(t, discoveryRoot, internalVExternalUnits))
+	v := venv.MemVenv().WithFS(venvtest.NewFS(t, discoveryRoot, internalVExternalUnits))
 	internal := filepath.Join(discoveryRoot, "internal")
 
 	base := []string{"find", "--no-color", "--working-dir", internal, "--dependencies"}

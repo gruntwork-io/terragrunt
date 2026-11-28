@@ -75,7 +75,16 @@ func TestGenerateStackCASOfflineMissFails(t *testing.T) {
 	defer pool.Stop()
 
 	// Components are generated on the pool, so the fetch error surfaces from Wait.
-	genErr := config.GenerateStackFile(t.Context(), l, v, pctx, pool, stackPath)
+	genErr := config.GenerateStackFile(
+		t.Context(),
+		l,
+		v,
+		new(config.Store),
+		pctx,
+		pool,
+		stackPath,
+		func(config.TryDefault) {},
+	)
 	waitErr := pool.Wait()
 
 	require.ErrorIs(t, errors.Join(genErr, waitErr), cas.ErrCASOffline)
@@ -139,7 +148,16 @@ func TestGenerateStackCASOfflineSetupFailureFails(t *testing.T) {
 
 	defer pool.Stop()
 
-	genErr := config.GenerateStackFile(t.Context(), l, v, pctx, pool, stackPath)
+	genErr := config.GenerateStackFile(
+		t.Context(),
+		l,
+		v,
+		new(config.Store),
+		pctx,
+		pool,
+		stackPath,
+		func(config.TryDefault) {},
+	)
 	waitErr := pool.Wait()
 
 	require.ErrorIs(t, errors.Join(genErr, waitErr), errNoCacheDir)

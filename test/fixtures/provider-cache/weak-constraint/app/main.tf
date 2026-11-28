@@ -7,7 +7,7 @@ terraform {
       # based on the OpenTofu/Terraform implementation, allowing the provider
       # cache to intercept requests.
       source  = "cloudflare/cloudflare"
-      version = "~> 4.0"
+      version = "~> 4.40.0"
     }
     time = {
       # Source is not fully qualified so the registry is resolved dynamically

@@ -356,6 +356,15 @@ func TestPrintOutputsEdgeCases(t *testing.T) {
 			expected: []string{"parent = {", "child = \"value\""},
 		},
 		{
+			name: "For Key",
+			outputs: cty.ObjectVal(map[string]cty.Value{
+				"parent": cty.ObjectVal(map[string]cty.Value{
+					"for": cty.StringVal("value"),
+				}),
+			}),
+			expected: []string{"parent = {", "\"for\" = \"value\""},
+		},
+		{
 			name: "Different Data Types",
 			outputs: cty.ObjectVal(map[string]cty.Value{
 				"string": cty.StringVal("text"),

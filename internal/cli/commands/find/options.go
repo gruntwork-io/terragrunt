@@ -20,6 +20,7 @@ const (
 	ModeDAG = "dag"
 )
 
+// Options holds the find command's configuration.
 type Options struct {
 	*options.TerragruntOptions
 
@@ -55,6 +56,8 @@ type Options struct {
 	Reading bool
 }
 
+// NewOptions returns Options wrapping the given Terragrunt options, set to
+// [FormatText] and [ModeNormal].
 func NewOptions(opts *options.TerragruntOptions) *Options {
 	return &Options{
 		TerragruntOptions: opts,
@@ -63,6 +66,8 @@ func NewOptions(opts *options.TerragruntOptions) *Options {
 	}
 }
 
+// Validate reports an unknown Format or Mode, joining both errors when both
+// are unknown.
 func (o *Options) Validate() error {
 	errs := []error{}
 

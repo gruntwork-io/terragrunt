@@ -29,12 +29,12 @@ func (rng Range) String() string {
 			rng.Start.Line, rng.Start.Column,
 			rng.End.Column,
 		)
-	} else {
-		return fmt.Sprintf(
-			"%s:%d,%d-%d,%d",
-			rng.Filename,
-			rng.Start.Line, rng.Start.Column,
-			rng.End.Line, rng.End.Column,
-		)
 	}
+
+	return fmt.Sprintf(
+		"%s:%d,%d-%d,%d",
+		rng.Filename,
+		rng.Start.Line, rng.Start.Column,
+		rng.End.Line, rng.End.Column,
+	)
 }

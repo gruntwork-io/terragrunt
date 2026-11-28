@@ -6,6 +6,7 @@ import (
 	"context"
 )
 
+// Service is a background job that the cache server initializes before serving and runs until shutdown.
 type Service interface {
 	// Init prepares the service to answer requests. The server calls it
 	// before it starts serving, so no request observes a half-built service.

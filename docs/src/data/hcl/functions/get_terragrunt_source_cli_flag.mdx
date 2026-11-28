@@ -1,0 +1,36 @@
+---
+name: get_terragrunt_source_cli_flag
+description: Returns the value of the `--source` flag, or an empty string when it is not set.
+configs: [unit, stack]
+params: []
+returns: string
+examples:
+  - description: During `terragrunt run --source ../modules/vpc -- plan`.
+    code: |
+      # terragrunt.hcl
+
+      locals {
+        source = get_terragrunt_source_cli_flag() # "../modules/vpc"
+      }
+---
+
+`get_terragrunt_source_cli_flag` returns the module source set with [`--source`](/reference/cli/commands/run#source) or `TG_SOURCE`, as given. Without either, it returns an empty string.
+
+Use it for settings that apply only while developing against a local copy of a module, e.g. debug logging:
+
+```hcl
+# terragrunt.hcl
+
+locals {
+  local_dev = get_terragrunt_source_cli_flag() != ""
+}
+
+terraform {
+  extra_arguments "debug" {
+    commands = ["plan", "apply"]
+    env_vars = {
+      TF_LOG = local.local_dev ? "DEBUG" : ""
+    }
+  }
+}
+```

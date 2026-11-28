@@ -94,7 +94,7 @@ func TestBuildUnitOpts_WithDiscoveryContext(t *testing.T) {
 	assert.Equal(
 		t,
 		tf.CommandNamePlan,
-		unitOpts.TerraformCommand,
+		unitOpts.TofuCommand,
 		"the discovery context command overrides the stack command",
 	)
 }
@@ -222,7 +222,7 @@ func TestCloneUnitOptions_WithCustomDownloadDir(t *testing.T) {
 
 // memVenv returns an in-memory venv answering every invocation with output on stdout, so nothing is spawned.
 func memVenv(output string) *venv.Venv {
-	return venvtest.New().WithHandler(func(_ context.Context, _ vexec.Invocation) vexec.Result {
+	return venv.MemVenv().WithHandler(func(_ context.Context, _ vexec.Invocation) vexec.Result {
 		return vexec.Result{Stdout: []byte(output + "\n")}
 	})
 }
@@ -251,7 +251,7 @@ func newStackOpts(t *testing.T, root, command string) *options.TerragruntOptions
 
 	opts.WorkingDir = root
 	opts.RootWorkingDir = root
-	opts.TerraformCommand = command
+	opts.TofuCommand = command
 	opts.TerraformCliArgs = iacargs.New(command)
 
 	return opts

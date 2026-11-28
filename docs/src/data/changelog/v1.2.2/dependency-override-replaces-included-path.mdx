@@ -1,0 +1,26 @@
+---
+version: "v1.2.2"
+category: "bug-fixes"
+---
+
+#### Overriding an included `dependency` block replaces it in the `run --all` queue
+
+A unit that overrode an included `dependency` block read its outputs from the new `config_path`, but `run --all` still ordered it after the included path. The unit waited for that unit and was skipped when it failed. `find --dag` listed both.
+
+```hcl
+# root.hcl
+dependency "db" {
+  config_path = "${get_terragrunt_dir()}/../db"
+}
+
+# app/terragrunt.hcl
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+
+dependency "db" {
+  config_path = "../replica"
+}
+```
+
+`app` now depends only on `replica`. This also applies when a unit sets `enabled = false` on an included `dependency` block.

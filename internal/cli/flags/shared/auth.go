@@ -7,7 +7,11 @@ import (
 )
 
 const (
-	AuthProviderCmdFlagName            = "auth-provider-cmd"
+	// AuthProviderCmdFlagName is the flag name for `--auth-provider-cmd`, a command whose output supplies
+	// credentials to Terragrunt.
+	AuthProviderCmdFlagName = "auth-provider-cmd"
+	// NoDiscoveryAuthProviderCmdFlagName is the flag name for `--no-discovery-auth-provider-cmd`, which
+	// skips `--auth-provider-cmd` while discovery parses units.
 	NoDiscoveryAuthProviderCmdFlagName = "no-discovery-auth-provider-cmd"
 )
 

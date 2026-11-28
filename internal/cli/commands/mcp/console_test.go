@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
+	"github.com/gruntwork-io/terragrunt/pkg/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -39,7 +40,7 @@ func runTerragrunt(t *testing.T, stdin io.Reader, stdout io.Writer, args ...stri
 	v := venvtest.NewOSWithEmptyEnv().WithStdin(stdin).WithWriter(stdout).WithErrWriter(io.Discard)
 	l := logger.CreateLogger()
 
-	return cli.NewApp(l, options.NewTerragruntOptions(v.Exec), v).
+	return cli.NewApp(l, options.NewTerragruntOptions(), v).
 		RunContext(t.Context(), l, v, slices.Concat([]string{"terragrunt"}, args))
 }
 
@@ -121,17 +122,17 @@ func TestMCPCommandRefusesFlagsItCannotHonor(t *testing.T) {
 		{
 			name: "allow-cmd without exec",
 			args: mcpArgs("--allow-cmd", "jq **"),
-			want: tgmcp.ErrAllowCmdRequiresExec,
+			want: venv.ErrAllowCmdRequiresExec,
 		},
 		{
 			name: "a pattern with a shell operator",
 			args: mcpArgs("--allow=exec", "--allow-cmd", "jq | sh"),
-			want: tgmcp.ErrInvalidAllowCmd,
+			want: venv.ErrInvalidAllowCmd,
 		},
 		{
 			name: "an unknown capability",
 			args: mcpArgs("--allow=root"),
-			want: tgmcp.ErrUnknownCapability,
+			want: venv.ErrUnknownCapability,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -153,7 +154,7 @@ func TestMCPCommandIsolatesTheProcessEnvironment(t *testing.T) {
 	var replaced map[string]string
 
 	v := venvtest.NewOSWithEmptyEnv().
-		WithEnv(map[string]string{"PATH": "/usr/bin", "AWS_ACCESS_KEY_ID": "AKIAEXAMPLE"}).
+		WithEnv(map[string]string{"PATH": "/usr/bin", "AWS_ACCESS_KEY_ID": "fake-access-key-id"}).
 		WithReplaceEnviron(func(env map[string]string) error {
 			replaced = env
 			return nil
@@ -164,7 +165,7 @@ func TestMCPCommandIsolatesTheProcessEnvironment(t *testing.T) {
 	l := logger.CreateLogger()
 
 	args := slices.Concat([]string{"terragrunt"}, mcpArgs("--working-dir", t.TempDir(), "--allow=exec"))
-	require.NoError(t, cli.NewApp(l, options.NewTerragruntOptions(v.Exec), v).RunContext(t.Context(), l, v, args))
+	require.NoError(t, cli.NewApp(l, options.NewTerragruntOptions(), v).RunContext(t.Context(), l, v, args))
 
 	assert.Equal(t, "/usr/bin", replaced["PATH"])
 	assert.NotContains(t, replaced, "AWS_ACCESS_KEY_ID")
@@ -193,7 +194,7 @@ func TestMCPCommandRefusesToServeWhenTheEnvironmentCannotBeReplaced(t *testing.T
 	l := logger.CreateLogger()
 
 	args := slices.Concat([]string{"terragrunt"}, mcpArgs("--working-dir", t.TempDir()))
-	err := cli.NewApp(l, options.NewTerragruntOptions(v.Exec), v).RunContext(t.Context(), l, v, args)
+	err := cli.NewApp(l, options.NewTerragruntOptions(), v).RunContext(t.Context(), l, v, args)
 
 	require.ErrorIs(t, err, errReplace)
 	require.NotEmpty(t, home)

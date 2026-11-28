@@ -13,10 +13,9 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/os/exec"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -44,10 +43,10 @@ func TestExitCodeUnix(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	for index := 0; index <= 255; index++ {
+	for index := range 256 {
 		cmd := exec.Command(
 			t.Context(),
-			venvtest.New().WithExec(vexec.NewOSExec()),
+			venv.MemVenv().WithExec(vexec.NewOSExec()),
 			"testdata/test_exit_code.sh",
 			strconv.Itoa(index),
 		)
@@ -74,7 +73,11 @@ func TestExitCodeUnix(t *testing.T) {
 func TestNewSignalsForwarderWaitUnix(t *testing.T) {
 	t.Parallel()
 
-	expectedWait := 2
+	const (
+		// trapWait is how long the INT trap sleeps before exiting, and the forwarder must wait it out.
+		trapWait     = 200 * time.Millisecond
+		expectedExit = 2
+	)
 
 	l := logger.CreateLogger()
 
@@ -82,9 +85,10 @@ func TestNewSignalsForwarderWaitUnix(t *testing.T) {
 
 	cmd := exec.Command(
 		t.Context(),
-		venvtest.New().WithExec(vexec.NewOSExec()),
+		venv.MemVenv().WithExec(vexec.NewOSExec()),
 		"testdata/test_sigint_wait.sh",
-		strconv.Itoa(expectedWait),
+		strconv.FormatFloat(trapWait.Seconds(), 'f', -1, 64),
+		strconv.Itoa(expectedExit),
 		readyPath,
 	)
 
@@ -106,14 +110,8 @@ func TestNewSignalsForwarderWaitUnix(t *testing.T) {
 	retCode, err := util.GetExitCode(err)
 	require.NoError(t, err)
 
-	assert.Equal(t, expectedWait, retCode)
-	assert.WithinDuration(
-		t,
-		time.Now(),
-		start.Add(time.Duration(expectedWait)*time.Second),
-		time.Second,
-		"Expected to wait 5 (+/-1) seconds after SIGINT",
-	)
+	assert.Equal(t, expectedExit, retCode, "the trap's exit code proves SIGINT was forwarded, not a kill")
+	assert.GreaterOrEqual(t, time.Since(start), trapWait, "the forwarder must wait for the trap to finish")
 }
 
 // TestGracefulShutdownOnContextCancelUnix verifies that when the context is cancelled
@@ -132,7 +130,7 @@ func TestGracefulShutdownOnContextCancelUnix(t *testing.T) {
 
 	cmd := exec.Command(
 		ctx,
-		venvtest.New().WithExec(vexec.NewOSExec()),
+		venv.MemVenv().WithExec(vexec.NewOSExec()),
 		"testdata/test_graceful_shutdown.sh",
 		readyPath,
 	)

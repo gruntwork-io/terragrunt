@@ -26,8 +26,8 @@ import (
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/topo"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // Entry represents a node in the execution queue/DAG. Each Entry corresponds to a single Terragrunt configuration
@@ -36,6 +36,10 @@ type Entry struct {
 	// Component is the Terragrunt configuration associated with this entry. It contains all metadata about the unit/stack,
 	// including its path, dependencies, and discovery context (such as the command being run).
 	Component component.Component
+
+	// dependencies is the entries this entry's component depends on, directly or through components that are not in
+	// the queue.
+	dependencies Entries
 
 	// Status represents the current lifecycle state of this entry in the
 	// queue. It tracks whether the entry is pending, blocked, ready,
@@ -48,40 +52,47 @@ type Entry struct {
 type Status byte
 
 const (
+	// StatusPending is the status of an entry that [NewQueue] has not yet ordered.
 	StatusPending Status = iota
+	// StatusBlocked is the status of an entry that [NewQueue] could not order because it waits on a cycle.
 	StatusBlocked
+	// StatusReady is the status of an ordered entry that has not started running.
 	StatusReady
+	// StatusRunning is the status of an entry whose run has started.
 	StatusRunning
+	// StatusSucceeded is the terminal status of an entry whose run finished without error.
 	StatusSucceeded
+	// StatusFailed is the terminal status of an entry whose run returned an error.
 	StatusFailed
 	StatusEarlyExit // Terminal status set on Entries in case of fail fast mode
 )
+
+// Dependencies returns the entries e's component depends on, directly or through components that are not in the
+// queue, such as units a filter or an exclude block left out.
+func (e *Entry) Dependencies() Entries {
+	return e.dependencies
+}
 
 // IsUp returns true if the entry is an "up" command.
 func (e *Entry) IsUp() bool {
 	// If we don't have a discovery context,
 	// we should assume the command is an "up" command.
-	if e.Component.DiscoveryContext() == nil {
+	discoveryCtx := e.Component.DiscoveryContext()
+	if discoveryCtx == nil {
 		return true
 	}
 
-	if e.Component.DiscoveryContext().Cmd == "destroy" {
+	switch discoveryCtx.Cmd {
+	case "destroy":
 		return false
-	}
-
-	if e.Component.DiscoveryContext().Cmd == "apply" &&
-		slices.Contains(e.Component.DiscoveryContext().Args, "-destroy") {
-		return false
-	}
-
-	if e.Component.DiscoveryContext().Cmd == "plan" &&
-		slices.Contains(e.Component.DiscoveryContext().Args, "-destroy") {
-		return false
+	case "apply", "plan":
+		return !iacargs.HasDestroyFlag(discoveryCtx.Args)
 	}
 
 	return true
 }
 
+// Queue is the ordered set of entries for one run, from dependencies at the front to dependents at the back.
 type Queue struct {
 	// Entries is a list of entries in the queue.
 	Entries Entries
@@ -97,6 +108,7 @@ type Queue struct {
 	IgnoreDependencyErrors bool
 }
 
+// Entries is a list of queue entries.
 type Entries []*Entry
 
 // Components returns the queue components.
@@ -143,7 +155,7 @@ func (q *Queue) entryByPathUnsafe(path string) *Entry {
 //  2. The name of the configuration. Configurations of the same "level" are sorted alphabetically.
 //
 // An "up" entry waits on its "up" dependencies, and a "down" entry waits on its "down" dependents. Entries of the
-// other direction never gate one another.
+// other direction never gate one another. A dependency is any entry in [Entry.Dependencies].
 //
 // Returns an error when the entries wait on one another in a cycle. The returned queue then holds the entries that
 // could be ordered, as [StatusReady], followed by the rest, as [StatusBlocked], in discovery order.
@@ -161,6 +173,18 @@ func NewQueue(discovered component.Components) (*Queue, error) {
 			Component: cfg,
 			Status:    StatusPending,
 		})
+	}
+
+	byPath := make(map[string]*Entry, len(entries))
+
+	for _, entry := range entries {
+		if _, ok := byPath[entry.Component.Path()]; !ok {
+			byPath[entry.Component.Path()] = entry
+		}
+	}
+
+	for _, entry := range entries {
+		entry.dependencies = queuedDependencies(entry, byPath)
 	}
 
 	graph := entryGraph(entries)
@@ -200,17 +224,38 @@ func NewQueue(discovered component.Components) (*Queue, error) {
 	return q, errors.New("cycle detected during queue construction")
 }
 
-// entryGraph returns a graph over entries in which an "up" entry waits on its "up" dependencies and a "down" entry
-// waits on its "down" dependents. Dependencies outside entries are not waited on.
-func entryGraph(entries Entries) *topo.Graph[*Entry] {
-	byPath := make(map[string]*Entry, len(entries))
+// queuedDependencies returns the entries in byPath that entry's component depends on, directly or through
+// components that are not in byPath, nearest first. It does not follow a dependency past an entry in byPath, and
+// never returns entry itself.
+func queuedDependencies(entry *Entry, byPath map[string]*Entry) Entries {
+	var deps Entries
 
-	for _, entry := range entries {
-		if _, ok := byPath[entry.Component.Path()]; !ok {
-			byPath[entry.Component.Path()] = entry
+	seen := map[string]struct{}{entry.Component.Path(): {}}
+	reached := slices.Clone(entry.Component.Dependencies())
+
+	for i := 0; i < len(reached); i++ {
+		c := reached[i]
+
+		if _, ok := seen[c.Path()]; ok {
+			continue
 		}
+
+		seen[c.Path()] = struct{}{}
+
+		if depEntry, ok := byPath[c.Path()]; ok {
+			deps = append(deps, depEntry)
+			continue
+		}
+
+		reached = append(reached, c.Dependencies()...)
 	}
 
+	return deps
+}
+
+// entryGraph returns a graph over entries in which an "up" entry waits on its "up" dependencies and a "down" entry
+// waits on its "down" dependents.
+func entryGraph(entries Entries) *topo.Graph[*Entry] {
 	downWaits := map[*Entry]Entries{}
 
 	for _, entry := range entries {
@@ -218,10 +263,9 @@ func entryGraph(entries Entries) *topo.Graph[*Entry] {
 			continue
 		}
 
-		for _, dep := range entry.Component.Dependencies() {
-			depEntry := byPath[dep.Path()]
-			if depEntry != nil && !depEntry.IsUp() {
-				downWaits[depEntry] = append(downWaits[depEntry], entry)
+		for _, dep := range entry.dependencies {
+			if !dep.IsUp() {
+				downWaits[dep] = append(downWaits[dep], entry)
 			}
 		}
 	}
@@ -238,10 +282,9 @@ func entryGraph(entries Entries) *topo.Graph[*Entry] {
 
 		upWaits = upWaits[:0]
 
-		for _, dep := range entry.Component.Dependencies() {
-			depEntry := byPath[dep.Path()]
-			if depEntry != nil && depEntry.IsUp() {
-				upWaits = append(upWaits, depEntry)
+		for _, dep := range entry.dependencies {
+			if dep.IsUp() {
+				upWaits = append(upWaits, dep)
 			}
 		}
 
@@ -253,7 +296,7 @@ func entryGraph(entries Entries) *topo.Graph[*Entry] {
 
 // GetReadyWithDependencies returns all entries that are ready to run and
 // have all dependencies completed (or no dependencies).
-func (q *Queue) GetReadyWithDependencies(l log.Logger) []*Entry {
+func (q *Queue) GetReadyWithDependencies() []*Entry {
 	q.mu.RLock()
 	defer q.mu.RUnlock()
 
@@ -277,7 +320,7 @@ func (q *Queue) GetReadyWithDependencies(l log.Logger) []*Entry {
 		}
 
 		if e.IsUp() {
-			if q.areDependenciesReadyUnsafe(l, e) {
+			if q.areDependenciesReadyUnsafe(e) {
 				out = append(out, e)
 			}
 
@@ -296,17 +339,9 @@ func (q *Queue) GetReadyWithDependencies(l log.Logger) []*Entry {
 // For up commands, only other up-command dependencies must be in a succeeded state (or terminal if
 // ignoring errors). Down-command (destroy) dependencies are skipped, mirroring [NewQueue]:
 // a unit being destroyed does not gate a unit being applied or planned.
-// If a dependency is not in the queue, it is assumed to have existing state.
 // Should only be called when the caller already holds a read lock.
-func (q *Queue) areDependenciesReadyUnsafe(l log.Logger, e *Entry) bool {
-	for _, dep := range e.Component.Dependencies() {
-		depEntry := q.entryByPathUnsafe(dep.Path())
-		if depEntry == nil {
-			l.Debugf("Dependency %s is not in queue, considering it ready", dep.Path())
-
-			continue
-		}
-
+func (q *Queue) areDependenciesReadyUnsafe(e *Entry) bool {
+	for _, depEntry := range e.dependencies {
 		// Skip down-command (destroy) dependencies: they run in reverse order and must
 		// not block an up-command entry from proceeding. Mirrors NewQueue.
 		if !depEntry.IsUp() {
@@ -338,7 +373,7 @@ func (q *Queue) areDependenciesReadyUnsafe(l log.Logger, e *Entry) bool {
 // Should only be called when the caller already holds a read lock.
 func (q *Queue) areDependentsReadyUnsafe(e *Entry) bool {
 	for _, other := range q.Entries {
-		if other == e || len(other.Component.Dependencies()) == 0 {
+		if other == e || !slices.Contains(other.dependencies, e) {
 			continue
 		}
 
@@ -348,22 +383,18 @@ func (q *Queue) areDependentsReadyUnsafe(e *Entry) bool {
 			continue
 		}
 
-		for _, dep := range other.Component.Dependencies() {
-			if dep.Path() == e.Component.Path() {
-				// When ignoring dependency errors, allow scheduling if dependents are in a terminal state
-				// (succeeded OR failed), not just succeeded
-				if q.IgnoreDependencyErrors {
-					if !isTerminal(other.Status) {
-						return false
-					}
-
-					continue
-				}
-
-				if other.Status != StatusSucceeded {
-					return false
-				}
+		// When ignoring dependency errors, allow scheduling if dependents are in a terminal state
+		// (succeeded OR failed), not just succeeded
+		if q.IgnoreDependencyErrors {
+			if !isTerminal(other.Status) {
+				return false
 			}
+
+			continue
+		}
+
+		if other.Status != StatusSucceeded {
+			return false
 		}
 	}
 
@@ -404,8 +435,8 @@ func (q *Queue) ClaimForRunning(e *Entry) bool {
 }
 
 // FailEntry marks the entry as failed and updates related entries if needed.
-// For up commands, this marks entries that come after this one as early exit.
-// For destroy/down commands, this marks entries that come before this one as early exit.
+// For up commands, this marks the up entries that come after this one as early exit.
+// For destroy/down commands, this marks the down entries that come before this one as early exit.
 // Use only for failure transitions. For other status changes, set Status directly.
 func (q *Queue) FailEntry(e *Entry) {
 	q.mu.Lock()
@@ -439,42 +470,23 @@ func (q *Queue) FailEntry(e *Entry) {
 	q.earlyExitDependencies(e)
 }
 
-// earlyExitDependents - Recursively mark all entries that are dependent on this one as early exit.
+// earlyExitDependents - Recursively mark all "up" entries that are dependent on this one as early exit.
 func (q *Queue) earlyExitDependents(e *Entry) {
 	for _, entry := range q.Entries {
-		if len(entry.Component.Dependencies()) == 0 {
+		if !entry.IsUp() || !slices.Contains(entry.dependencies, e) || isTerminalOrRunning(entry.Status) {
 			continue
 		}
 
-		for _, dep := range entry.Component.Dependencies() {
-			if dep.Path() == e.Component.Path() {
-				if isTerminalOrRunning(entry.Status) {
-					continue
-				}
+		entry.Status = StatusEarlyExit
 
-				entry.Status = StatusEarlyExit
-
-				q.earlyExitDependents(entry)
-
-				break
-			}
-		}
+		q.earlyExitDependents(entry)
 	}
 }
 
-// earlyExitDependencies - Recursively mark all entries that are dependencies on this one as early exit.
+// earlyExitDependencies - Recursively mark all "down" entries that are dependencies on this one as early exit.
 func (q *Queue) earlyExitDependencies(e *Entry) {
-	if len(e.Component.Dependencies()) == 0 {
-		return
-	}
-
-	for _, dep := range e.Component.Dependencies() {
-		depEntry := q.entryByPathUnsafe(dep.Path())
-		if depEntry == nil {
-			continue
-		}
-
-		if isTerminalOrRunning(depEntry.Status) {
+	for _, depEntry := range e.dependencies {
+		if depEntry.IsUp() || isTerminalOrRunning(depEntry.Status) {
 			continue
 		}
 

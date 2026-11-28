@@ -1,0 +1,38 @@
+---
+name: base64gzip_compat
+description: Returns the value `base64gzip` returned in Terragrunt v1.1.3 and earlier.
+configs: [unit, stack]
+experiment: base64gzip-compat
+params:
+  - name: str
+    type: string
+    description: The string to compress and encode.
+returns: string
+examples:
+  - code: |
+      # terragrunt.hcl
+
+      inputs = {
+        user_data_base64 = base64gzip_compat(file("user-data.sh"))
+      }
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="tip" title="Experimental">
+`base64gzip_compat` needs the [`base64gzip-compat`](/reference/experiments/active#base64gzip-compat) experiment. Enable it with `--experiment=base64gzip-compat` or `TG_EXPERIMENT=base64gzip-compat`. Calling it without the experiment is an error. Its behavior may change while the experiment runs.
+</Aside>
+
+`base64gzip_compat` gzips `str` and encodes the result in Base64, as `base64gzip` did in Terragrunt v1.1.3 and earlier. Since Terragrunt 1.2, `base64gzip` uses the gzip encoder of a newer Go release, which compresses differently. The value still decompresses to the same content, but a resource that compares the encoded value plans a replacement, e.g. an EC2 instance with `user_data_base64` and `user_data_replace_on_change = true`.
+
+Use `base64gzip_compat` where the encoded value must not change across Terragrunt upgrades:
+
+```hcl
+# terragrunt.hcl
+
+inputs = {
+  user_data_base64 = base64gzip_compat(
+    file("${get_terragrunt_dir()}/user-data.sh"),
+  )
+}
+```

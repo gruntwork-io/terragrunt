@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"net"
 	"net/http"
 	"net/http/cgi"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -23,6 +25,7 @@ const (
 type Server struct {
 	ln          net.Listener
 	srv         *http.Server
+	serveErrCh  chan error
 	projectRoot string // root temp dir removed in Close
 	bareDir     string // projectRoot/repo.git — the repo served over HTTP
 	workDir     string // non-bare clone used for mutations
@@ -280,6 +283,27 @@ func (s *Server) SetBranch(ctx context.Context, name, hash string) error {
 	return s.gitIn(ctx, s.bareDir, "update-ref", "refs/heads/"+name, hash)
 }
 
+// SetRefs points each full ref name in refs at its hash with one git update-ref call.
+func (s *Server) SetRefs(ctx context.Context, refs map[string]string) error {
+	if len(refs) == 0 {
+		return nil
+	}
+
+	updates := make([]string, 0, len(refs))
+	for _, name := range slices.Sorted(maps.Keys(refs)) {
+		updates = append(updates, "update "+name+" "+refs[name])
+	}
+
+	cmd := s.gitCommand(ctx, s.bareDir, "update-ref", "--stdin")
+	cmd.Stdin = strings.NewReader(strings.Join(updates, "\n") + "\n")
+
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("git update-ref --stdin: %w\n%s", err, strings.TrimSpace(string(out)))
+	}
+
+	return nil
+}
+
 // SetConfig writes a config value into the served bare repository. The CGI
 // environment suppresses global and system config, so this is the only way to
 // pick an upload-pack policy, such as whether the server answers a want line
@@ -320,7 +344,13 @@ func (s *Server) Start(ctx context.Context) (string, error) {
 		mounts:      s.mounts,
 	}}
 
-	go func() { _ = s.srv.Serve(ln) }()
+	s.serveErrCh = make(chan error, 1)
+
+	go func() {
+		s.serveErrCh <- s.srv.Serve(ln)
+
+		close(s.serveErrCh)
+	}()
 
 	return "http://" + ln.Addr().String() + "/" + filepath.Base(s.bareDir), nil
 }
@@ -408,6 +438,10 @@ func (s *Server) Close() (retErr error) {
 		// http.Server.Close closes the listener; don't close s.ln separately.
 		if err := s.srv.Close(); err != nil {
 			retErr = fmt.Errorf("close http server: %w", err)
+		}
+
+		if err := <-s.serveErrCh; err != nil && !errors.Is(err, http.ErrServerClosed) && retErr == nil {
+			retErr = fmt.Errorf("serve http: %w", err)
 		}
 	}
 

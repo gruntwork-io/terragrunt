@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/os/exec"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -101,6 +102,8 @@ func PromptUserForInput(
 	case err := <-errCh:
 		return "", err
 	case input := <-inputCh:
+		spinner.InputRead(ctx)
+
 		return input, nil
 	}
 }

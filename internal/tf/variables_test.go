@@ -24,11 +24,19 @@ func TestModuleVariables(t *testing.T) {
 			expected:    map[string]tf.ModuleVariable{},
 		},
 		{
-			description: "string and untyped variables are read literally",
+			description: "primitive and untyped variables are read literally",
 			files: map[string]string{
 				"main.tf": `
 variable "str" {
   type = string
+}
+
+variable "num" {
+  type = number
+}
+
+variable "flag" {
+  type = bool
 }
 
 variable "untyped" {}
@@ -36,6 +44,8 @@ variable "untyped" {}
 			},
 			expected: map[string]tf.ModuleVariable{
 				"str":     {ParsingMode: tf.VariableParseLiteral},
+				"num":     {ParsingMode: tf.VariableParseLiteral},
+				"flag":    {ParsingMode: tf.VariableParseLiteral},
 				"untyped": {ParsingMode: tf.VariableParseLiteral},
 			},
 		},
@@ -45,10 +55,6 @@ variable "untyped" {}
 				"main.tf": `
 variable "anything" {
   type = any
-}
-
-variable "num" {
-  type = number
 }
 
 variable "strs" {
@@ -65,7 +71,6 @@ variable "obj" {
 			},
 			expected: map[string]tf.ModuleVariable{
 				"anything": {ParsingMode: tf.VariableParseHCL},
-				"num":      {ParsingMode: tf.VariableParseHCL},
 				"strs":     {ParsingMode: tf.VariableParseHCL},
 				"obj":      {ParsingMode: tf.VariableParseHCL},
 			},
@@ -89,9 +94,105 @@ variable "nullable" {
 `,
 			},
 			expected: map[string]tf.ModuleVariable{
-				"required": {},
-				"optional": {HasDefault: true},
-				"nullable": {HasDefault: true},
+				"required": {ParsingMode: tf.VariableParseLiteral},
+				"optional": {ParsingMode: tf.VariableParseLiteral, HasDefault: true},
+				"nullable": {ParsingMode: tf.VariableParseLiteral, HasDefault: true},
+			},
+		},
+		{
+			description: "an override that sets only a default keeps the type constraint",
+			files: map[string]string{
+				"main.tf":     `variable "rules" { type = map(string) }`,
+				"override.tf": `variable "rules" { default = {} }`,
+			},
+			expected: map[string]tf.ModuleVariable{
+				"rules": {ParsingMode: tf.VariableParseHCL, HasDefault: true},
+			},
+		},
+		{
+			description: "an override that sets only a type constraint keeps the default",
+			files: map[string]string{
+				"main.tf": `
+variable "to_hcl" {
+  type    = string
+  default = "value"
+}
+
+variable "to_literal" {
+  type    = map(string)
+  default = {}
+}
+`,
+				"override.tf": `
+variable "to_hcl" {
+  type = any
+}
+
+variable "to_literal" {
+  type = string
+}
+`,
+			},
+			expected: map[string]tf.ModuleVariable{
+				"to_hcl":     {ParsingMode: tf.VariableParseHCL, HasDefault: true},
+				"to_literal": {ParsingMode: tf.VariableParseLiteral, HasDefault: true},
+			},
+		},
+		{
+			description: "an override file applies after files that sort later",
+			files: map[string]string{
+				"a_override.tf": `variable "rules" { type = string }`,
+				"main.tf":       `variable "rules" { type = map(string) }`,
+			},
+			expected: map[string]tf.ModuleVariable{
+				"rules": {ParsingMode: tf.VariableParseLiteral},
+			},
+		},
+		{
+			description: "override files apply in name order",
+			files: map[string]string{
+				"main.tf":       `variable "rules" { type = string }`,
+				"a_override.tf": `variable "rules" { type = map(string) }`,
+				"b_override.tf": `variable "rules" { type = bool }`,
+			},
+			expected: map[string]tf.ModuleVariable{
+				"rules": {ParsingMode: tf.VariableParseLiteral},
+			},
+		},
+		{
+			description: "override files are recognized in every configuration file extension",
+			files: map[string]string{
+				"main.tf": `
+variable "tf" { type = map(string) }
+variable "tofu" { type = map(string) }
+variable "tf_json" { type = map(string) }
+variable "tofu_json" { type = map(string) }
+variable "named" { type = map(string) }
+`,
+				"override.tf":             `variable "tf" { default = {} }`,
+				"override.tofu":           `variable "tofu" { default = {} }`,
+				"override.tf.json":        `{"variable": {"tf_json": {"default": {}}}}`,
+				"override.tofu.json":      `{"variable": {"tofu_json": {"default": {}}}}`,
+				"defaults_override.tf":    `variable "named" { default = {} }`,
+				"unrelated_override.tofu": `variable "named" { default = {} }`,
+			},
+			expected: map[string]tf.ModuleVariable{
+				"tf":        {ParsingMode: tf.VariableParseHCL, HasDefault: true},
+				"tofu":      {ParsingMode: tf.VariableParseHCL, HasDefault: true},
+				"tf_json":   {ParsingMode: tf.VariableParseHCL, HasDefault: true},
+				"tofu_json": {ParsingMode: tf.VariableParseHCL, HasDefault: true},
+				"named":     {ParsingMode: tf.VariableParseHCL, HasDefault: true},
+			},
+		},
+		{
+			description: "a file name that only contains override is not an override file",
+			files: map[string]string{
+				"overrides.tf":     `variable "plural" { default = {} }`,
+				"override_vars.tf": `variable "prefixed" { default = {} }`,
+			},
+			expected: map[string]tf.ModuleVariable{
+				"plural":   {ParsingMode: tf.VariableParseLiteral, HasDefault: true},
+				"prefixed": {ParsingMode: tf.VariableParseLiteral, HasDefault: true},
 			},
 		},
 		{

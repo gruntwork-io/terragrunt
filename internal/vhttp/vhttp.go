@@ -56,6 +56,14 @@ func WithTimeout(c Client, d time.Duration) Client {
 	return &cc
 }
 
+// WithTransport returns a copy of c whose Transport is rt.
+func WithTransport(c Client, rt http.RoundTripper) Client {
+	cc := *c
+	cc.Transport = rt
+
+	return &cc
+}
+
 // NewMemClient returns a [Client] whose every request is dispatched to h
 // via a synthetic [net/http.RoundTripper] instead of the real network.
 // h must not be nil.

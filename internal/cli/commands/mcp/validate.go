@@ -12,13 +12,13 @@ import (
 	hclvalidate "github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl/validate"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/internal/view/diagnostic"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
+	"github.com/gruntwork-io/terragrunt/pkg/venv"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -90,7 +90,7 @@ func runValidate(
 	// diagnostics are being collected.
 	opts.SkipOutput = true
 
-	if d.allowExec {
+	if d.granted.Has(venv.CapabilityExec) {
 		// The full parse's dependency-output fetches drive real runs into
 		// the shared per-unit cache dirs.
 		release, err := d.acquireRunSlot(ctx)
@@ -171,19 +171,22 @@ func runValidate(
 	for _, parseErr := range parseErrs {
 		// Exec-denied failures are sandbox artifacts, not configuration
 		// bugs: surface them as degradation so agents don't chase them.
-		if errors.Is(parseErr, ErrExecDenied) {
+		if errors.Is(parseErr, venv.ErrExecDenied) {
 			degraded = append(
 				degraded,
-				fmt.Sprintf("parse degraded by disabled subprocess execution: %v", parseErr),
+				fmt.Sprintf(
+					"parse degraded by disabled subprocess execution; restart the MCP server with --allow=exec: %v",
+					parseErr,
+				),
 			)
 
 			continue
 		}
 
-		if errors.Is(parseErr, ErrSopsDenied) {
+		if errors.Is(parseErr, venv.ErrSopsDenied) {
 			degraded = append(
 				degraded,
-				fmt.Sprintf("parse degraded by disabled SOPS decryption: %v", parseErr),
+				fmt.Sprintf("parse degraded by disabled SOPS decryption; restart the MCP server with --allow=sops: %v", parseErr),
 			)
 
 			continue
@@ -223,7 +226,7 @@ func validateDiscoveredTree(
 	dir string,
 	parser hclvalidate.ComponentParser,
 ) ([]error, []string, error) {
-	disc, err := discovery.NewForHCLCommand(l, v.FS, discovery.HCLCommandOptions{
+	disc, err := discovery.NewFiltered(l, v.FS, discovery.FilteredOptions{
 		WorkingDir:        dir,
 		DiscoveryBoundary: opts.DiscoveryBoundary,
 		Filters:           opts.Filters,
@@ -243,7 +246,9 @@ func validateDiscoveredTree(
 		disc = disc.WithWorktrees(w)
 	}
 
-	components, discErr := disc.Discover(ctx, l, v, opts)
+	s := new(config.Store)
+
+	components, discErr := disc.Discover(ctx, l, v, s, opts)
 	if discErr != nil && len(components) == 0 {
 		return nil, nil, discErr
 	}
@@ -263,12 +268,14 @@ func validateDiscoveredTree(
 
 	for _, c := range components {
 		if _, ok := c.(*component.Stack); ok {
-			parseErrs = append(parseErrs, parser.Stack(ctx, l, v, opts, c.Path())...)
+			if err := parser.Stack(ctx, l, v, s, opts, c.Path()); err != nil {
+				parseErrs = append(parseErrs, err)
+			}
 
 			continue
 		}
 
-		if unitErr := parser.Unit(ctx, l, v, opts, c.Path()); unitErr != nil {
+		if unitErr := parser.Unit(ctx, l, v, s, opts, c.Path(), c.ConfigFile()); unitErr != nil {
 			parseErrs = append(parseErrs, unitErr)
 		}
 	}
@@ -327,16 +334,23 @@ func validateSingleTarget(
 		)
 	}
 
+	s := new(config.Store)
+
 	var parseErrs []error
 
 	if hasUnit {
-		if unitErr := parser.Unit(ctx, l, v, opts, targetDir); unitErr != nil {
+		unitErr := parser.Unit(
+			ctx, l, v, s, opts, targetDir, config.DefaultTerragruntConfigPath,
+		)
+		if unitErr != nil {
 			parseErrs = append(parseErrs, unitErr)
 		}
 	}
 
 	if hasStack {
-		parseErrs = append(parseErrs, parser.Stack(ctx, l, v, opts, targetDir)...)
+		if err := parser.Stack(ctx, l, v, s, opts, targetDir); err != nil {
+			parseErrs = append(parseErrs, err)
+		}
 	}
 
 	return parseErrs, nil

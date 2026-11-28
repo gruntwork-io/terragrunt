@@ -2,6 +2,7 @@ package run
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -47,22 +48,22 @@ type PopulateTFVersionInput struct {
 // It uses a cache keyed by WorkingDir, VersionFiles, and the resolved binary path
 // to avoid repeated invocations while still distinguishing between binaries (e.g.
 // when terraform_binary overrides the default after a prior call has already
-// resolved a different binary). Returns the discovered version and implementation
-// type; the caller is responsible for storing them on *options.TerragruntOptions.
+// resolved a different binary).
 //
 // When an engine runs the commands, which in.TFOpts.ShellOptions reports through
-// EngineEnabled, no probe runs: the version comes back nil and the implementation
-// [tfimpl.Unknown].
+// EngineEnabled, no probe runs and the result is [tfimpl.Unprobed].
 func PopulateTFVersion(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	in PopulateTFVersionInput,
-) (log.Logger, *semver.Version, tfimpl.Type, error) {
+) (log.Logger, tfimpl.Probe, error) {
 	if in.TFOpts.ShellOptions.EngineEnabled() {
-		l.Debugf("Skipping the OpenTofu/Terraform version probe: an engine runs the commands, so the version and implementation stay unknown")
+		l.Debugf(
+			"Skipping the OpenTofu/Terraform version probe: an engine runs the commands, so the version and implementation stay unknown",
+		)
 
-		return l, nil, tfimpl.Unknown, nil
+		return l, tfimpl.Unprobed(), nil
 	}
 
 	versionCache := GetRunVersionCache(ctx)
@@ -77,21 +78,21 @@ func PopulateTFVersion(
 	if cachedOutput, found := versionCache.Get(ctx, cacheKey); found {
 		tfImplementation, terraformVersion, err := parseVersionFromCache(cachedOutput)
 		if err != nil {
-			return l, nil, tfimpl.Unknown, err
+			return l, tfimpl.Unprobed(), err
 		}
 
-		return l, terraformVersion, tfImplementation, nil
+		return l, tfimpl.Probe{Version: terraformVersion, Type: tfImplementation}, nil
 	}
 
-	l, terraformVersion, tfImplementation, err := GetTFVersion(ctx, l, v, in.TFOpts)
+	l, probe, err := GetTFVersion(ctx, l, v, in.TFOpts)
 	if err != nil {
-		return l, nil, tfimpl.Unknown, err
+		return l, tfimpl.Unprobed(), err
 	}
 
-	cacheData := formatVersionForCache(tfImplementation, terraformVersion)
+	cacheData := formatVersionForCache(probe.Type, probe.Version)
 	versionCache.Put(ctx, cacheKey, cacheData)
 
-	return l, terraformVersion, tfImplementation, nil
+	return l, probe, nil
 }
 
 // formatVersionForCache formats the implementation and version for the cache
@@ -145,13 +146,13 @@ func parseVersionFromCache(cachedData string) (tfimpl.Type, *semver.Version, err
 // It takes pre-built *tf.TFOptions and runs "tofu version", discarding output
 // and stripping TF_CLI_ARGS env vars to avoid interference.
 //
-// Returns [tfimpl.Unknown] with the parsed version when the output names neither tool.
+// Returns a [tfimpl.Probe] of type [tfimpl.Unknown] with the parsed version when the output names neither tool.
 func GetTFVersion(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
 	tfOpts *tf.TFOptions,
-) (log.Logger, *semver.Version, tfimpl.Type, error) {
+) (log.Logger, tfimpl.Probe, error) {
 	// Clone to avoid mutating the caller's options.
 	optsCopy := *tfOpts
 	shellCopy := *optsCopy.ShellOptions
@@ -172,18 +173,20 @@ func GetTFVersion(
 
 	output, err := tf.RunCommandWithOutput(ctx, l, versionV, &optsCopy, tf.FlagNameVersion)
 	if err != nil {
-		return l, nil, tfimpl.Unknown, err
+		return l, tfimpl.Unprobed(), err
 	}
 
 	terraformVersion, err := ParseTerraformVersion(output.Stdout.String())
 	if err != nil {
-		return l, nil, tfimpl.Unknown, err
+		return l, tfimpl.Unprobed(), err
 	}
 
 	tfImplementation, err := parseTerraformImplementationType(output.Stdout.String())
 	if err != nil {
-		return l, nil, tfimpl.Unknown, err
+		return l, tfimpl.Unprobed(), err
 	}
+
+	probe := tfimpl.Probe{Version: terraformVersion, Type: tfImplementation}
 
 	if tfImplementation == tfimpl.Unknown {
 		l.Warnf(
@@ -192,12 +195,12 @@ func GetTFVersion(
 			terraformVersion,
 		)
 
-		return l, terraformVersion, tfImplementation, nil
+		return l, probe, nil
 	}
 
 	l.Debugf("%s version: %s", tfImplementation, terraformVersion)
 
-	return l, terraformVersion, tfImplementation, nil
+	return l, probe, nil
 }
 
 // CheckTerragruntVersionMeetsConstraint checks that the current version of
@@ -336,9 +339,9 @@ func computeVersionFilesCacheKey(
 			sanitizedPath = path
 		}
 
-		hash, err := vfs.FileSHA256(fsys, sanitizedPath)
-		if err == nil {
-			hashes = append(hashes, file+":"+hex.EncodeToString(hash))
+		h := sha256.New()
+		if err := vfs.HashFile(fsys, h, sanitizedPath); err == nil {
+			hashes = append(hashes, file+":"+hex.EncodeToString(h.Sum(nil)))
 		}
 	}
 
@@ -355,6 +358,8 @@ func computeVersionFilesCacheKey(
 
 // Custom error types
 
+// InvalidTerraformVersionSyntax is the error for `tofu --version` output, or a cached version entry, that holds no
+// parseable version. Its value is the unparsed text.
 type InvalidTerraformVersionSyntax string
 
 func (err InvalidTerraformVersionSyntax) Error() string {
@@ -372,6 +377,8 @@ const (
 	ConfigConstraint
 )
 
+// InvalidTerraformVersion is the error for an installed OpenTofu or Terraform version that does not satisfy
+// VersionConstraints.
 type InvalidTerraformVersion struct {
 	Implementation     tfimpl.Type
 	CurrentVersion     *semver.Version
@@ -379,6 +386,8 @@ type InvalidTerraformVersion struct {
 	ConstraintSource   ConstraintSource
 }
 
+// InvalidTerragruntVersion is returned by [CheckTerragruntVersionMeetsConstraint] when the running Terragrunt
+// version does not satisfy VersionConstraints.
 type InvalidTerragruntVersion struct {
 	CurrentVersion     *semver.Version
 	VersionConstraints semver.Constraints

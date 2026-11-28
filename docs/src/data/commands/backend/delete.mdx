@@ -27,11 +27,16 @@ flags:
   - backend-delete-force
 ---
 
+import StatefulTabs from '@components/StatefulTabs.astro';
+
 ## Delete State
 
 Using this command deletes the backend state file for the current Terragrunt unit.
 
 For example, given the following `remote_state` block:
+
+<StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure', 'GCP']}>
+<Fragment slot="aws">
 
 ```hcl
 # terragrunt.hcl
@@ -51,3 +56,43 @@ remote_state {
 ```
 
 Running `terragrunt backend delete` will delete the backend state file located at `path/to/my/key` in the `mybucket` bucket.
+
+</Fragment>
+<Fragment slot="azure">
+
+```hcl
+# terragrunt.hcl
+remote_state {
+  backend = "azurerm"
+  config = {
+    resource_group_name  = "my-tofu-state"
+    storage_account_name = "mytofustate"
+    container_name       = "tfstate"
+    key                  = "path/to/my/key"
+    use_azuread_auth     = true
+  }
+}
+```
+
+Running `terragrunt backend delete` will delete the backend state blob located at `path/to/my/key` in the `tfstate` container of the `mytofustate` storage account.
+
+</Fragment>
+<Fragment slot="gcp">
+
+```hcl
+# terragrunt.hcl
+remote_state {
+  backend = "gcs"
+  config = {
+    project  = "my-project"
+    location = "us-central1"
+    bucket   = "my-tofu-state"
+    prefix   = "path/to/my/prefix"
+  }
+}
+```
+
+Running `terragrunt backend delete` will delete every object in the `my-tofu-state` bucket whose name starts with `path/to/my/prefix`. That includes the state of every workspace under the prefix.
+
+</Fragment>
+</StatefulTabs>

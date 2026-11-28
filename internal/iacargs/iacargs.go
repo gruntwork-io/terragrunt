@@ -4,6 +4,7 @@ package iacargs
 import (
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -13,10 +14,15 @@ const (
 
 	// CommandNameDestroy is the terraform destroy command name
 	CommandNameDestroy = "destroy"
+
+	commandNameApply = "apply"
+	destroyFlagName  = "-" + CommandNameDestroy
 )
 
 const (
+	// SingleDashFlag rewrites `--flag` to `-flag`.
 	SingleDashFlag NormalizeActsType = iota
+	// DoubleDashFlag rewrites `-flag` to `--flag`.
 	DoubleDashFlag
 )
 
@@ -25,27 +31,53 @@ var (
 	doubleDashRegexp = regexp.MustCompile(`^--([^-]|$)`)
 )
 
+// NormalizeActsType is a rewrite that [IacArgs.Normalize] applies to each flag.
 type NormalizeActsType byte
 
-// valueTakingFlags contains flags that require space-separated values.
-// Only flags that commonly use a space-separated format need to be listed here.
-var valueTakingFlags = []string{
-	"chdir",
-	"config",
-	"from-module",
-	"fs-mirror",
-	"lock-timeout",
-	"net-mirror",
-	"out",
-	"parallelism",
-	"platform",
-	"plugin-dir",
-	"state",
-	"state-out",
-	"backup",
-	"target",
-	"var",
-	"var-file",
+// valueTakingFlags is the set of flags whose value may follow as a separate argument.
+//
+// The set applies to every command, so a name that is a boolean flag in one command
+// still takes a following non-flag argument as its value.
+var valueTakingFlags = map[string]struct{}{
+	"backend-config":      {},
+	"backup":              {},
+	"backup-out":          {},
+	"chdir":               {},
+	"cloud-run":           {},
+	"config":              {},
+	"deprecation":         {},
+	"exclude":             {},
+	"exclude-file":        {},
+	"filter":              {},
+	"format":              {},
+	"from-module":         {},
+	"fs-mirror":           {},
+	"generate-config-out": {},
+	"id":                  {},
+	"json-into":           {},
+	"junit-xml":           {},
+	"lint":                {},
+	"lock-timeout":        {},
+	"lockfile":            {},
+	"module":              {},
+	"module-depth":        {},
+	"net-mirror":          {},
+	"oci-mirror":          {},
+	"out":                 {},
+	"parallelism":         {},
+	"plan":                {},
+	"platform":            {},
+	"plugin-dir":          {},
+	"replace":             {},
+	"scope":               {},
+	"state":               {},
+	"state-out":           {},
+	"target":              {},
+	"target-file":         {},
+	"test-directory":      {},
+	"type":                {},
+	"var":                 {},
+	"var-file":            {},
 }
 
 // normalizeFlag strips leading dashes from a flag name.
@@ -178,7 +210,7 @@ func (a *IacArgs) RemoveFlag(name string) *IacArgs {
 			// Skip value too if: no =value, next entry is a value, and it's a known value-taking flag
 			hasNextValue := !strings.Contains(f, "=") && i+1 < len(a.Flags) &&
 				!strings.HasPrefix(a.Flags[i+1], "-")
-			if hasNextValue && slices.Contains(valueTakingFlags, current) {
+			if _, takesValue := valueTakingFlags[current]; hasNextValue && takesValue {
 				i++ // skip the value
 			}
 
@@ -364,9 +396,65 @@ func (a *IacArgs) Normalize(acts ...NormalizeActsType) *IacArgs {
 }
 
 // IsDestroyCommand returns true if this represents a destroy operation.
-// It checks both the command name and the -destroy flag.
+// It checks both the command name and the destroy flag, as [HasDestroyFlag] reads it.
 func (a *IacArgs) IsDestroyCommand(cmd string) bool {
-	return cmd == CommandNameDestroy || a.Contains("-"+CommandNameDestroy)
+	return cmd == CommandNameDestroy || HasDestroyFlag(a.Flags)
+}
+
+// IsDestroy reports whether cmd destroys infrastructure: `destroy`, or `apply` with the destroy flag set.
+//
+// Unlike [IacArgs.IsDestroyCommand], it is false for `plan` with the destroy flag, which only plans a destroy.
+func (a *IacArgs) IsDestroy(cmd string) bool {
+	return cmd == CommandNameDestroy || (cmd == commandNameApply && HasDestroyFlag(a.Flags))
+}
+
+// CommandName returns the name that command lists in configuration match cmd against, such as
+// `exclude` actions and the commands of hooks and `extra_arguments`.
+// It is `destroy` when [IacArgs.IsDestroy] reports a destroy, and cmd otherwise.
+func (a *IacArgs) CommandName(cmd string) string {
+	if a.IsDestroy(cmd) {
+		return CommandNameDestroy
+	}
+
+	return cmd
+}
+
+// HasDestroyFlag reports whether args set the destroy flag to true.
+//
+// It reads the flag as tofu does. `-destroy` and `--destroy` are the same flag,
+// a value is parsed with [strconv.ParseBool], and the last occurrence wins.
+func HasDestroyFlag(args []string) bool {
+	destroy := false
+
+	for _, arg := range args {
+		if value, ok := destroyFlagValue(arg); ok {
+			destroy = value
+		}
+	}
+
+	return destroy
+}
+
+// IsDestroyFlag reports whether arg is the destroy flag, with one dash or two and with any value.
+func IsDestroyFlag(arg string) bool {
+	_, ok := destroyFlagValue(arg)
+
+	return ok
+}
+
+func destroyFlagValue(arg string) (value, ok bool) {
+	name, raw, hasValue := strings.Cut(arg, "=")
+	if name != destroyFlagName && name != "-"+destroyFlagName {
+		return false, false
+	}
+
+	if !hasValue {
+		return true, true
+	}
+
+	parsed, err := strconv.ParseBool(raw)
+
+	return err == nil && parsed, true
 }
 
 // parse parses raw args into Command/SubCommand/Flags/Arguments.
@@ -438,7 +526,7 @@ func (a *IacArgs) processFlag(arg string, args []string, i int) bool {
 	flagName := normalizeFlag(extractFlagName(arg))
 	hasNextValue := i+1 < len(args) && !strings.HasPrefix(args[i+1], "-")
 
-	if slices.Contains(valueTakingFlags, flagName) && hasNextValue {
+	if _, takesValue := valueTakingFlags[flagName]; takesValue && hasNextValue {
 		a.Flags = append(a.Flags, arg, args[i+1])
 		return true
 	}

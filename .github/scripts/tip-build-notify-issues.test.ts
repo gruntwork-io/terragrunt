@@ -174,6 +174,26 @@ describe("parseIssueReferences", () => {
   test("empty body returns empty array", () => {
     expect(parseIssueReferences("", DEFAULT_OWNER, DEFAULT_REPO)).toEqual([]);
   });
+
+  test("PR template placeholder #000 returns empty array", () => {
+    const refs = parseIssueReferences(
+      "## Description\n\nFixes #000.\n",
+      DEFAULT_OWNER,
+      DEFAULT_REPO,
+    );
+    expect(refs).toEqual([]);
+  });
+
+  test("issue zero is skipped alongside real refs", () => {
+    const refs = parseIssueReferences(
+      "fixes #0, #12\ncloses https://github.com/gruntwork-io/terragrunt/issues/0",
+      DEFAULT_OWNER,
+      DEFAULT_REPO,
+    );
+    expect(refs).toEqual([
+      { owner: DEFAULT_OWNER, repo: DEFAULT_REPO, number: 12 },
+    ]);
+  });
 });
 
 describe("buildComment", () => {

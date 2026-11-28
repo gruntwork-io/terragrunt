@@ -1,0 +1,189 @@
+name: Benchmark
+
+on:
+  workflow_call:
+    inputs:
+      comparison:
+        description: "What to compare HEAD against. See .github/scripts/benchmark/resolve-refs.sh."
+        required: true
+        type: string
+      suite:
+        description: "Benchmarks to run: fast (hyperfine and BenchmarkScenario, against faketofu) or integration (the benchmarks that run a real tofu)"
+        required: false
+        type: string
+        default: "fast"
+      ref:
+        description: "Commit to benchmark as head (defaults to the triggering ref)"
+        required: false
+        type: string
+        default: ""
+      base_ref:
+        description: "Base ref for the custom comparison"
+        required: false
+        type: string
+        default: ""
+      before_sha:
+        description: "The pushed ref's previous tip, for the push comparison"
+        required: false
+        type: string
+        default: ""
+      time_threshold_pct:
+        description: "Smallest change in a time metric to flag"
+        required: false
+        type: string
+        default: "5"
+      memory_threshold_pct:
+        description: "Smallest change in peak RSS to flag"
+        required: false
+        type: string
+        default: "10"
+      alloc_threshold_pct:
+        description: "Smallest change in B/op or allocs/op to flag"
+        required: false
+        type: string
+        default: "2"
+      go_count:
+        description: "Go benchmark passes per side"
+        required: false
+        type: string
+        default: "6"
+      notify_slack:
+        description: "Post flagged metrics to Slack"
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      COVERAGE_SLACK_WEBHOOK_URL:
+        description: "Webhook for notify_slack"
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    name: Benchmark (${{ inputs.comparison }}, ${{ inputs.suite }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    permissions:
+      contents: read
+    env:
+      BENCH_COMPARISON: ${{ inputs.comparison }}, ${{ inputs.suite }} suite
+      BENCH_TIME_THRESHOLD_PCT: ${{ inputs.time_threshold_pct }}
+      BENCH_MEMORY_THRESHOLD_PCT: ${{ inputs.memory_threshold_pct }}
+      BENCH_ALLOC_THRESHOLD_PCT: ${{ inputs.alloc_threshold_pct }}
+      BENCH_GO_COUNT: ${{ inputs.go_count }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          ref: ${{ inputs.ref }}
+          # Full history and tags, for the base commit.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Use mise to install dependencies
+        uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+        with:
+          version: 2026.11.0
+          cache_save: ${{ github.ref == 'refs/heads/main' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Restore Go caches
+        uses: $/.github/actions/go-cache-restore
+        with:
+          gocache-name: benchmark
+
+      - name: Set output paths
+        run: |
+          {
+            echo "BENCH_WORK_DIR=${RUNNER_TEMP}/benchmark"
+            echo "BENCH_OUT_DIR=${RUNNER_TEMP}/benchmark/out"
+          } >>"$GITHUB_ENV"
+          mkdir -p "${RUNNER_TEMP}/benchmark/out"
+
+      - name: Resolve commits
+        id: refs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          BASE_REF: ${{ inputs.base_ref }}
+          BEFORE_SHA: ${{ inputs.before_sha }}
+          COMPARISON: ${{ inputs.comparison }}
+        run: ./.github/scripts/benchmark/resolve-refs.sh "$COMPARISON"
+
+      - name: Build
+        env:
+          BASE_SHA: ${{ steps.refs.outputs.base_sha }}
+        run: ./.github/scripts/benchmark/build.sh "$BASE_SHA" "$BENCH_WORK_DIR"
+
+      - name: Time scenarios
+        if: inputs.suite == 'fast'
+        run: ./.github/scripts/benchmark/run-hyperfine.sh "$BENCH_WORK_DIR" "${BENCH_OUT_DIR}/results"
+
+      - name: Run Go benchmarks
+        env:
+          SUITE: ${{ inputs.suite }}
+          # The fast suite profiles each flagged scenario on its own, in a later step.
+          BENCH_GO_PROFILE_DIR: ${{ inputs.suite == 'integration' && format('{0}/benchmark/out/profiles', runner.temp) || '' }}
+        run: ./.github/scripts/benchmark/run-go-bench.sh "$SUITE" "$BENCH_WORK_DIR" "${BENCH_OUT_DIR}/gobench"
+
+      - name: Find scenarios to confirm
+        env:
+          BENCH_BASE_SHA: ${{ steps.refs.outputs.base_sha }}
+          BENCH_BASE_DESCRIPTION: ${{ steps.refs.outputs.base_description }}
+          BENCH_HEAD_SHA: ${{ steps.refs.outputs.head_sha }}
+        run: |
+          bun ./.github/scripts/benchmark/compare.ts \
+            --results "${BENCH_OUT_DIR}/results" \
+            --gobench "${BENCH_OUT_DIR}/gobench" \
+            --out "${BENCH_OUT_DIR}/first-pass-report.json" \
+            --summary "${BENCH_OUT_DIR}/first-pass-summary.md" \
+            --flagged "${BENCH_OUT_DIR}/flagged.txt" \
+            --to-profile "${BENCH_OUT_DIR}/to-profile.txt"
+
+      - name: Time flagged scenarios again
+        if: inputs.suite == 'fast'
+        run: ./.github/scripts/benchmark/run-hyperfine.sh "$BENCH_WORK_DIR" "${BENCH_OUT_DIR}/confirm" "${BENCH_OUT_DIR}/flagged.txt"
+
+      - name: Capture profiles
+        if: inputs.suite == 'fast'
+        run: ./.github/scripts/benchmark/capture-profiles.sh "$BENCH_WORK_DIR" "${BENCH_OUT_DIR}/profiles" "${BENCH_OUT_DIR}/to-profile.txt"
+
+      - name: Compare
+        env:
+          BENCH_BASE_SHA: ${{ steps.refs.outputs.base_sha }}
+          BENCH_BASE_DESCRIPTION: ${{ steps.refs.outputs.base_description }}
+          BENCH_HEAD_SHA: ${{ steps.refs.outputs.head_sha }}
+        run: |
+          bun ./.github/scripts/benchmark/compare.ts \
+            --results "${BENCH_OUT_DIR}/results" \
+            --confirm "${BENCH_OUT_DIR}/confirm" \
+            --gobench "${BENCH_OUT_DIR}/gobench" \
+            --benchstat "${BENCH_OUT_DIR}/gobench/benchstat.txt" \
+            --profiles "${BENCH_OUT_DIR}/profiles" \
+            --out "${BENCH_OUT_DIR}/report.json" \
+            --summary "${BENCH_OUT_DIR}/summary.md" \
+            --comment "${BENCH_OUT_DIR}/comment.md"
+          cat "${BENCH_OUT_DIR}/summary.md" >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Upload results and profiles
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: benchmark-${{ inputs.comparison }}-${{ inputs.suite }}
+          path: ${{ runner.temp }}/benchmark/out
+          retention-days: 90
+
+      - name: Notify Slack
+        if: ${{ inputs.notify_slack && env.COVERAGE_SLACK_WEBHOOK_URL != '' }}
+        env:
+          COVERAGE_SLACK_WEBHOOK_URL: ${{ secrets.COVERAGE_SLACK_WEBHOOK_URL }}
+          REPO: ${{ github.repository }}
+        run: ./.github/scripts/benchmark/notify-slack.sh "${BENCH_OUT_DIR}/report.json"
+
+      - name: Save Go caches
+        if: ${{ !cancelled() }}
+        uses: $/.github/actions/go-cache-save

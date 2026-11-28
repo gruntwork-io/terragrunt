@@ -37,45 +37,6 @@ func TestRewriteTerraformSource_NoBlock(t *testing.T) {
 	require.ErrorIs(t, err, cas.ErrNoTerraformBlock)
 }
 
-func TestRewriteStackBlockSource(t *testing.T) {
-	t.Parallel()
-
-	input := []byte(`unit "service" {
-  source = "../..//units/ec2-asg-stateful-service"
-
-  update_source_with_cas = true
-
-  path = "service"
-}
-
-unit "other" {
-  source = "../other"
-  path   = "other"
-}
-`)
-
-	result, err := cas.RewriteStackBlockSource(input, "unit", "service", "cas::sha1:def456")
-	require.NoError(t, err)
-
-	resultStr := string(result)
-	assert.Contains(t, resultStr, `"cas::sha1:def456"`)
-	// "other" unit should remain unchanged
-	assert.Contains(t, resultStr, `"../other"`)
-}
-
-func TestRewriteStackBlockSource_NotFound(t *testing.T) {
-	t.Parallel()
-
-	input := []byte(`unit "service" {
-  source = "../../units/service"
-  path   = "service"
-}
-`)
-
-	_, err := cas.RewriteStackBlockSource(input, "unit", "nonexistent", "cas::sha1:abc")
-	require.ErrorIs(t, err, cas.ErrBlockNotFound)
-}
-
 func TestReadStackBlocks(t *testing.T) {
 	t.Parallel()
 
@@ -96,7 +57,7 @@ unit "plain" {
 }
 `)
 
-	blocks, err := cas.ReadStackBlocks(input)
+	_, blocks, err := cas.ReadStackBlocks(input)
 	require.NoError(t, err)
 	require.Len(t, blocks, 3)
 
@@ -152,7 +113,7 @@ func TestReadStackBlocks_InterpolatedSourceWithCAS(t *testing.T) {
 }
 `)
 
-	_, err := cas.ReadStackBlocks(input)
+	_, _, err := cas.ReadStackBlocks(input)
 	require.ErrorIs(t, err, cas.ErrSourceNotLiteral)
 }
 
@@ -165,7 +126,7 @@ func TestReadStackBlocks_InterpolatedSourceWithoutCAS(t *testing.T) {
 }
 `)
 
-	blocks, err := cas.ReadStackBlocks(input)
+	_, blocks, err := cas.ReadStackBlocks(input)
 	require.NoError(t, err)
 	require.Len(t, blocks, 1)
 	assert.False(t, blocks[0].UpdateSourceWithCAS)
@@ -183,7 +144,7 @@ func TestReadStackBlocks_EscapedTemplateSourceWithCAS(t *testing.T) {
 }
 `)
 
-	blocks, err := cas.ReadStackBlocks(input)
+	_, blocks, err := cas.ReadStackBlocks(input)
 	require.NoError(t, err)
 	require.Len(t, blocks, 1)
 	assert.True(t, blocks[0].UpdateSourceWithCAS)
@@ -260,7 +221,7 @@ func TestReadStackBlocks_NonLiteralSourceWithCAS(t *testing.T) {
 }
 `)
 
-			_, err := cas.ReadStackBlocks(input)
+			_, _, err := cas.ReadStackBlocks(input)
 			require.ErrorIs(t, err, cas.ErrSourceNotLiteral)
 
 			var wrapped *cas.WrappedError
@@ -285,7 +246,7 @@ func TestReadStackBlocks_NonLiteralSourceWithoutCAS(t *testing.T) {
 }
 `)
 
-			blocks, err := cas.ReadStackBlocks(input)
+			_, blocks, err := cas.ReadStackBlocks(input)
 			require.NoError(t, err)
 			require.Len(t, blocks, 1)
 			assert.False(t, blocks[0].UpdateSourceWithCAS)
@@ -433,7 +394,7 @@ stack "nested" {
 }
 `)
 
-			blocks, err := cas.ReadStackBlocks(input)
+			_, blocks, err := cas.ReadStackBlocks(input)
 			if tc.expectedErr != nil {
 				require.ErrorIs(t, err, tc.expectedErr)
 
@@ -450,6 +411,204 @@ stack "nested" {
 			require.Len(t, blocks, 2)
 			assert.Equal(t, tc.expected, blocks[0].UpdateSourceWithCAS)
 			assert.Equal(t, tc.expected, blocks[1].UpdateSourceWithCAS)
+		})
+	}
+}
+
+// TestReadStackBlocks_StackAutoIncludeBlocks pins the order in which the blocks declared in nested
+// stack-level autoinclude bodies are read, and that a unit's own autoinclude contributes none.
+func TestReadStackBlocks_StackAutoIncludeBlocks(t *testing.T) {
+	t.Parallel()
+
+	input := []byte(`unit "function" {
+  source = "../..//units/function"
+  path = "function"
+}
+
+stack "fn" {
+  source = "../..//stacks/fn"
+  update_source_with_cas = true
+  path = "fn"
+
+  autoinclude {
+    unit "function" {
+      source = "../..//units/override"
+      update_source_with_cas = true
+      path = "function"
+
+      autoinclude {
+        dependency "queue" {
+          config_path = "../queue"
+        }
+      }
+    }
+
+    stack "inner" {
+      source = "../..//stacks/inner"
+      path = "inner"
+
+      autoinclude {
+        unit "deep" {
+          source = "../..//units/deep"
+          update_source_with_cas = true
+          path = "deep"
+        }
+      }
+    }
+  }
+}
+`)
+
+	_, blocks, err := cas.ReadStackBlocks(input)
+	require.NoError(t, err)
+	require.Len(t, blocks, 5)
+
+	want := []struct {
+		blockType string
+		name      string
+		source    string
+		withCAS   bool
+	}{
+		{"unit", "function", "../..//units/function", false},
+		{"stack", "fn", "../..//stacks/fn", true},
+		{"unit", "function", "../..//units/override", true},
+		{"stack", "inner", "../..//stacks/inner", false},
+		{"unit", "deep", "../..//units/deep", true},
+	}
+
+	for i, w := range want {
+		assert.Equal(t, w.blockType, blocks[i].BlockType, i)
+		assert.Equal(t, w.name, blocks[i].Name, i)
+		assert.Equal(t, w.source, blocks[i].Source, i)
+		assert.Equal(t, w.withCAS, blocks[i].UpdateSourceWithCAS, i)
+	}
+}
+
+// TestReadStackBlocks_StackAutoIncludeNonLiteralSource pins the validation of an injected block:
+// with update_source_with_cas its source must be a literal and the flag must be constant.
+// Without the flag the source is left to the full parser.
+func TestReadStackBlocks_StackAutoIncludeNonLiteralSource(t *testing.T) {
+	t.Parallel()
+
+	stackFile := func(flag string) []byte {
+		return []byte(`stack "fn" {
+  source = "../..//stacks/fn"
+  path = "fn"
+
+  autoinclude {
+    unit "function" {
+      source = "${get_repo_root()}/units/override"
+      ` + flag + `
+      path = "function"
+    }
+  }
+}
+`)
+	}
+
+	_, _, err := cas.ReadStackBlocks(stackFile("update_source_with_cas = true"))
+	require.ErrorIs(t, err, cas.ErrSourceNotLiteral)
+
+	var wrapped *cas.WrappedError
+
+	require.ErrorAs(t, err, &wrapped)
+	assert.Equal(t, "unit", wrapped.Op)
+	assert.Equal(t, "function", wrapped.Context)
+
+	_, _, err = cas.ReadStackBlocks(stackFile("update_source_with_cas = upper(true)"))
+	require.ErrorIs(t, err, cas.ErrUpdateSourceWithCASNotConstant)
+
+	_, blocks, err := cas.ReadStackBlocks(stackFile(""))
+	require.NoError(t, err)
+	require.Len(t, blocks, 2)
+	assert.False(t, blocks[1].UpdateSourceWithCAS)
+}
+
+// TestReadStackBlocks_SetSourceRewritesInjectedBlock pins that SetSource on an injected block
+// changes that block in the returned file and leaves a same-named top-level block alone.
+func TestReadStackBlocks_SetSourceRewritesInjectedBlock(t *testing.T) {
+	t.Parallel()
+
+	input := []byte(`unit "function" {
+  source = "../..//units/function"
+  path   = "function"
+}
+
+stack "fn" {
+  source = "../..//stacks/fn"
+  path   = "fn"
+
+  autoinclude {
+    unit "function" {
+      source = "../..//units/override"
+      path   = "function"
+    }
+  }
+}
+`)
+
+	f, blocks, err := cas.ReadStackBlocks(input)
+	require.NoError(t, err)
+	require.Len(t, blocks, 3)
+
+	blocks[2].SetSource("cas::sha256:abc")
+
+	out := string(f.Bytes())
+	assert.Contains(t, out, `"../..//units/function"`)
+	assert.Contains(t, out, `"cas::sha256:abc"`)
+	assert.NotContains(t, out, `"../..//units/override"`)
+}
+
+// TestReadStackBlocks_DisabledBlocksLeftOut: a block whose enabled attribute evaluates to false is not read.
+func TestReadStackBlocks_DisabledBlocksLeftOut(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name    string
+		enabled string
+		source  string
+		kept    bool
+	}{
+		{name: "false", enabled: `false`, source: `"../units/service"`, kept: false},
+		{name: "true", enabled: `true`, source: `"../units/service"`, kept: true},
+		{name: "null", enabled: `null`, source: `"../units/service"`, kept: true},
+		{name: "false local", enabled: `local.no_cas`, source: `"../units/service"`, kept: false},
+		{name: "function call", enabled: `tobool("false")`, source: `"../units/service"`, kept: true},
+		{name: "false with non-literal source", enabled: `false`, source: `"../units/${local.use_cas}"`, kept: false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			input := []byte(updateSourceWithCASLocals + `
+unit "service" {
+  source = ` + tc.source + `
+  update_source_with_cas = true
+  enabled = ` + tc.enabled + `
+  path = "service"
+}
+
+unit "plain" {
+  source = "../units/plain"
+  path   = "plain"
+}
+`)
+
+			_, blocks, err := cas.ReadStackBlocks(input)
+			require.NoError(t, err)
+
+			names := make([]string, 0, len(blocks))
+			for _, block := range blocks {
+				names = append(names, block.Name)
+			}
+
+			want := []string{"plain"}
+			if tc.kept {
+				want = []string{"service", "plain"}
+			}
+
+			assert.Equal(t, want, names)
 		})
 	}
 }

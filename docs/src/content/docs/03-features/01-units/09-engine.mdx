@@ -94,7 +94,7 @@ engine {
 
 Without an engine, Terragrunt runs `tofu -version` before a run to learn which OpenTofu/Terraform version and implementation it is working with. An engine decides for itself what to execute and how when performing Terragrunt runs, so for units with engines Terragrunt skips that version probe, needs no `tofu` or `terraform` on PATH, and treats the version and implementation as unknown.
 
-Because the version is unknown, Terragrunt cannot check a [`terraform_version_constraint`](/reference/hcl/attributes#terraform_version_constraint) on such a unit and skips it with a warning. The `terragrunt_version_constraint` is checked as usual. Disabling the engine with `--no-engine` restores the probe and the check.
+Because the version is unknown, Terragrunt cannot check a [`terraform_version_constraint`](/reference/hcl/attributes/terraform_version_constraint/) on such a unit and skips it with a warning. The `terragrunt_version_constraint` is checked as usual. Disabling the engine with `--no-engine` restores the probe and the check.
 
 ## Caching
 

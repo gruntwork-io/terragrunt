@@ -41,12 +41,12 @@ func PackageHashLegacyZipSHA(fsys vfs.FS, path string) (Hash, error) {
 		return "", err
 	}
 
-	gotHash, err := vfs.FileSHA256(fsys, archivePath)
-	if err != nil {
+	h := sha256.New()
+	if err := vfs.HashFile(fsys, h, archivePath); err != nil {
 		return "", err
 	}
 
-	return HashSchemeZip.New(hex.EncodeToString(gotHash)), nil
+	return HashSchemeZip.New(hex.EncodeToString(h.Sum(nil))), nil
 }
 
 // HashLegacyZipSHAFromSHA is a convenience method to produce the schemed-string hash format from an already-calculated hash of a provider .zip archive.
@@ -112,6 +112,10 @@ func hashDir(fsys vfs.FS, dir string) (string, error) {
 	})
 }
 
+// DocumentHashes returns a `zh:` hash for each line of a SHA256SUMS document, skipping lines that
+// do not have two fields.
+//
+// Returns nil when any two-field line does not start with a hex SHA-256 hash.
 func DocumentHashes(doc []byte) []Hash {
 	var hashes []Hash
 

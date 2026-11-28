@@ -43,6 +43,10 @@ func ParseLogFunc(msgPrefix string, returnError bool) writer.WriterParseFunc {
 	}
 }
 
+// ParseLog splits a TF_LOG line such as `2024-09-08T13:44:31.229+0300 [DEBUG] msg` into its
+// message, timestamp, and level.
+//
+// Returns an error, with str as msg, when str is not in that format.
 func ParseLog(str string) (msg string, ptrTime *time.Time, ptrLevel *log.Level, err error) {
 	if !tfLogTimeLevelMsgReg.MatchString(str) {
 		return str, nil, nil, fmt.Errorf(

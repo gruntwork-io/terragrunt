@@ -14,12 +14,15 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zclconf/go-cty/cty"
 )
 
 // TestNewParsingContextCopiesEveryOption pins every bridged option onto the ParsingContext so no flag is dropped.
@@ -36,8 +39,8 @@ func TestNewParsingContextCopiesEveryOption(t *testing.T) {
 	assert.Equal(t, opts.WorkingDir, pctx.WorkingDir)
 	assert.Equal(t, opts.RootWorkingDir, pctx.RootWorkingDir)
 	assert.Equal(t, opts.DownloadDir, pctx.DownloadDir)
-	assert.Equal(t, opts.TerraformCommand, pctx.TerraformCommand)
-	assert.Equal(t, opts.OriginalTerraformCommand, pctx.OriginalTerraformCommand)
+	assert.Equal(t, opts.TofuCommand, pctx.TerraformCommand)
+	assert.Equal(t, opts.OriginalTofuCommand, pctx.OriginalTofuCommand)
 	assert.Same(t, opts.TerraformCliArgs, pctx.TerraformCliArgs, "the copy must replace the args the constructor seeds")
 	assert.Equal(t, opts.Source, pctx.Source)
 	assert.Equal(t, opts.SourceMap, pctx.SourceMap)
@@ -47,7 +50,6 @@ func TestNewParsingContextCopiesEveryOption(t *testing.T) {
 	assert.True(t, pctx.LogDisableErrorSummary)
 	assert.Equal(t, opts.IAMRoleOptions, pctx.IAMRoleOptions)
 	assert.Equal(t, opts.OriginalIAMRoleOptions, pctx.OriginalIAMRoleOptions)
-	assert.True(t, pctx.UsePartialParseConfigCache)
 	assert.Equal(t, opts.MaxFoldersToCheck, pctx.MaxFoldersToCheck)
 	assert.True(t, pctx.NoDependencyFetchOutputFromState)
 	assert.True(t, pctx.SkipOutput)
@@ -56,7 +58,7 @@ func TestNewParsingContextCopiesEveryOption(t *testing.T) {
 	assert.Same(t, opts.EngineConfig, pctx.EngineConfig)
 	assert.Same(t, opts.EngineOptions, pctx.EngineOptions)
 	assert.Equal(t, opts.TFPath, pctx.TFPath)
-	assert.Equal(t, opts.TofuImplementation, pctx.TofuImplementation)
+	assert.Equal(t, opts.VersionManagerFileName, pctx.VersionManagerFileName)
 	assert.True(t, pctx.ForwardTFStdout)
 	assert.True(t, pctx.JSONLogFormat)
 	assert.True(t, pctx.Debug)
@@ -109,12 +111,12 @@ func TestNewRunOptionsCopiesEveryOption(t *testing.T) {
 	opts.SourceUpdate = true
 	opts.NoRunHooks = true
 	opts.Errors = &errorconfig.Config{
-		Retry: map[string]*errorconfig.RetryConfig{
-			"transient": {Name: "transient", MaxAttempts: 3},
+		Retry: []*errorconfig.RetryConfig{
+			{Name: "transient", MaxAttempts: 3},
 		},
 	}
 
-	runOpts := configbridge.NewRunOptions(opts)
+	runOpts := configbridge.NewRunOptions(opts, tfimpl.OpenTofu)
 	require.NotNil(t, runOpts)
 
 	assert.True(t, runOpts.LogShowAbsPaths)
@@ -126,8 +128,8 @@ func TestNewRunOptionsCopiesEveryOption(t *testing.T) {
 	assert.Equal(t, opts.RootWorkingDir, runOpts.RootWorkingDir)
 	assert.Equal(t, opts.ProfileDir, runOpts.ProfileDir)
 	assert.Equal(t, opts.DownloadDir, runOpts.DownloadDir)
-	assert.Equal(t, opts.TerraformCommand, runOpts.TerraformCommand)
-	assert.Equal(t, opts.OriginalTerraformCommand, runOpts.OriginalTerraformCommand)
+	assert.Equal(t, opts.TofuCommand, runOpts.TerraformCommand)
+	assert.Equal(t, opts.OriginalTofuCommand, runOpts.OriginalTofuCommand)
 	assert.Same(t, opts.TerraformCliArgs, runOpts.TerraformCliArgs)
 	assert.Equal(t, opts.Source, runOpts.Source)
 	assert.Equal(t, opts.SourceMap, runOpts.SourceMap)
@@ -139,7 +141,7 @@ func TestNewRunOptionsCopiesEveryOption(t *testing.T) {
 	assert.True(t, runOpts.Experiments.Evaluate(experiment.Stacks), "enabled experiments must reach the runner")
 	assert.Equal(t, opts.StrictControls, runOpts.StrictControls)
 	assert.Equal(t, opts.TFPath, runOpts.TFPath)
-	assert.Equal(t, opts.TofuImplementation, runOpts.TofuImplementation)
+	assert.Equal(t, tfimpl.OpenTofu, runOpts.TofuImplementation)
 	assert.True(t, runOpts.ForwardTFStdout)
 	assert.True(t, runOpts.JSONLogFormat)
 	assert.True(t, runOpts.Headless)
@@ -173,7 +175,7 @@ func TestNewRunOptionsLeavesHooksEnabledByDefault(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("terragrunt.hcl")
 	require.NoError(t, err)
 
-	runOpts := configbridge.NewRunOptions(opts)
+	runOpts := configbridge.NewRunOptions(opts, tfimpl.Unknown)
 
 	assert.False(t, runOpts.NoHooks, "hooks run unless the user asks for --no-run-hooks")
 }
@@ -184,7 +186,7 @@ func TestShellRunOptsFromOptsCopiesEveryOption(t *testing.T) {
 
 	opts := optionsWithDistinctValues(t)
 
-	shellOpts := configbridge.ShellRunOptsFromOpts(map[string]string{}, opts)
+	shellOpts := configbridge.ShellRunOptsFromOpts(vexec.NewOSExec(), map[string]string{}, opts)
 	require.NotNil(t, shellOpts)
 
 	assert.Equal(t, opts.WorkingDir, shellOpts.WorkingDir, "commands run in the working dir of the unit")
@@ -206,13 +208,13 @@ func TestTFRunOptsFromOptsCopiesEveryOption(t *testing.T) {
 
 	opts := optionsWithDistinctValues(t)
 
-	tfOpts := configbridge.TFRunOptsFromOpts(map[string]string{}, opts)
+	tfOpts := configbridge.TFRunOptsFromOpts(vexec.NewOSExec(), map[string]string{}, opts, tfimpl.OpenTofu)
 	require.NotNil(t, tfOpts)
 
 	assert.True(t, tfOpts.JSONLogFormat)
 	assert.Equal(t, opts.TerragruntConfigPath, tfOpts.TerragruntConfigPath)
 	assert.Equal(t, opts.OriginalTerragruntConfigPath, tfOpts.OriginalTerragruntConfigPath)
-	assert.Equal(t, opts.TofuImplementation, tfOpts.TofuImplementation)
+	assert.Equal(t, tfimpl.OpenTofu, tfOpts.TofuImplementation)
 	assert.Same(t, opts.TerraformCliArgs, tfOpts.TerraformCliArgs)
 
 	require.NotNil(t, tfOpts.ShellOptions, "tf commands shell out, so the shell options must be threaded through")
@@ -229,7 +231,7 @@ func TestStackFuncFactoryScopesFunctionsToStackDir(t *testing.T) {
 	opts.WorkingDir = "/mem/root/live"
 	opts.RootWorkingDir = "/mem/root"
 
-	funcsFor := configbridge.StackFuncFactory(t.Context(), logger.CreateLogger(), venvtest.New(), opts)
+	funcsFor := configbridge.StackFuncFactory(t.Context(), logger.CreateLogger(), venv.MemVenv(), new(config.Store), opts)
 
 	testCases := []struct {
 		name     string
@@ -264,6 +266,26 @@ func TestStackFuncFactoryScopesFunctionsToStackDir(t *testing.T) {
 	}
 }
 
+func TestStackDirArgsScopesVariablesToStackDir(t *testing.T) {
+	t.Parallel()
+
+	stackDir := venvtest.Root("/mem/root/live/stack-a")
+
+	opts, err := options.NewTerragruntOptionsForTest("/mem/root/live/terragrunt.hcl")
+	require.NoError(t, err)
+	require.NoError(t, opts.Experiments.EnableExperiment(experiment.PathVariable))
+
+	args := configbridge.StackDirArgs(t.Context(), logger.CreateLogger(), venv.MemVenv(), new(config.Store), opts)
+	require.NotNil(t, args.FuncsFor)
+
+	vars, err := args.VarsFor(stackDir)
+	require.NoError(t, err)
+
+	assert.Equal(t, map[string]cty.Value{
+		config.MetadataPath: cty.ObjectVal(map[string]cty.Value{"stack": cty.StringVal(stackDir)}),
+	}, vars)
+}
+
 // optionsWithDistinctValues returns options whose every bridged field holds a recognizable non-zero value.
 func optionsWithDistinctValues(t *testing.T) *options.TerragruntOptions {
 	t.Helper()
@@ -279,14 +301,13 @@ func optionsWithDistinctValues(t *testing.T) *options.TerragruntOptions {
 	opts.WorkingDir = "/copy/working"
 	opts.RootWorkingDir = "/copy/root"
 	opts.DownloadDir = "/copy/download"
-	opts.TerraformCommand = "apply"
-	opts.OriginalTerraformCommand = "plan"
+	opts.TofuCommand = "apply"
+	opts.OriginalTofuCommand = "plan"
 	opts.TerraformCliArgs = iacargs.New("plan", "-input=false")
 	opts.Source = "github.com/acme/units//vpc"
 	opts.SourceMap = map[string]string{"github.com/acme/units": "/copy/local/units"}
 	opts.AuthProviderCmd = "/copy/bin/auth-provider"
 	opts.TFPath = "/copy/bin/tofu"
-	opts.TofuImplementation = tfimpl.OpenTofu
 	opts.ScaffoldRootFileName = "copy-root.hcl"
 	opts.TerragruntStackConfigPath = "/copy/unit/terragrunt.stack.hcl"
 	opts.MaxFoldersToCheck = 42
@@ -326,7 +347,6 @@ func optionsWithDistinctValues(t *testing.T) *options.TerragruntOptions {
 
 	opts.LogShowAbsPaths = true
 	opts.LogDisableErrorSummary = true
-	opts.UsePartialParseConfigCache = true
 	opts.NoDependencyFetchOutputFromState = true
 	opts.SkipOutput = true
 	opts.TFPathExplicitlySet = true

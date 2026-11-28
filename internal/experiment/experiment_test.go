@@ -124,6 +124,19 @@ func TestBase64GzipCompatIsOngoing(t *testing.T) {
 	assert.True(t, got.Evaluate(), "base64gzip-compat must be enabled once explicitly requested")
 }
 
+func TestNoDotTerragruntCacheIsOngoing(t *testing.T) {
+	t.Parallel()
+
+	exps := experiment.NewExperiments()
+	got := exps.Find(experiment.NoDotTerragruntCache)
+	require.NotNil(t, got, "no-dot-terragrunt-cache experiment must be registered in NewExperiments()")
+	assert.Equal(t, experiment.StatusOngoing, got.Status, "no-dot-terragrunt-cache must be ongoing")
+	assert.False(t, got.Evaluate(), "no-dot-terragrunt-cache must be disabled by default")
+
+	require.NoError(t, exps.EnableExperiment(experiment.NoDotTerragruntCache))
+	assert.True(t, got.Evaluate(), "no-dot-terragrunt-cache must be enabled once explicitly requested")
+}
+
 func TestEvaluate(t *testing.T) {
 	t.Parallel()
 
@@ -306,4 +319,43 @@ func TestValidateExperiments(t *testing.T) {
 			assert.Contains(t, strings.TrimSpace(output.String()), tc.expectedWarning)
 		})
 	}
+}
+
+func TestOutputsBlockIsOngoing(t *testing.T) {
+	t.Parallel()
+
+	exps := experiment.NewExperiments()
+	got := exps.Find(experiment.OutputsBlock)
+	require.NotNil(t, got, "outputs-block experiment must be registered in NewExperiments()")
+	assert.Equal(t, experiment.StatusOngoing, got.Status, "outputs-block must be ongoing")
+	assert.False(t, got.Evaluate(), "outputs-block must be disabled by default")
+
+	require.NoError(t, exps.EnableExperiment(experiment.OutputsBlock))
+	assert.True(t, got.Evaluate(), "outputs-block must be enabled once explicitly requested")
+}
+
+func TestValuesBlockIsOngoing(t *testing.T) {
+	t.Parallel()
+
+	exps := experiment.NewExperiments()
+	got := exps.Find(experiment.ValuesBlock)
+	require.NotNil(t, got, "values-block experiment must be registered in NewExperiments()")
+	assert.Equal(t, experiment.StatusOngoing, got.Status, "values-block must be ongoing")
+	assert.False(t, got.Evaluate(), "values-block must be disabled by default")
+
+	require.NoError(t, exps.EnableExperiment(experiment.ValuesBlock))
+	assert.True(t, got.Evaluate(), "values-block must be enabled once explicitly requested")
+}
+
+func TestPathVariableIsOngoing(t *testing.T) {
+	t.Parallel()
+
+	exps := experiment.NewExperiments()
+	got := exps.Find(experiment.PathVariable)
+	require.NotNil(t, got, "path-variable experiment must be registered in NewExperiments()")
+	assert.Equal(t, experiment.StatusOngoing, got.Status, "path-variable must be ongoing")
+	assert.False(t, got.Evaluate(), "path-variable must be disabled by default")
+
+	require.NoError(t, exps.EnableExperiment(experiment.PathVariable))
+	assert.True(t, got.Evaluate(), "path-variable must be enabled once explicitly requested")
 }

@@ -1,0 +1,28 @@
+---
+version: "v1.2.2"
+category: "experiments-updated"
+---
+
+#### `mcp-command` — `--allow=docs` relays the Terragrunt docs MCP server
+
+An agent connected to `terragrunt mcp` could not read the Terragrunt documentation unless the [Terragrunt docs MCP server](/getting-started/install#terragrunt-docs-mcp-server) was configured as a second server. `--allow=docs` now relays that server's tools and resources through `terragrunt mcp`, each tool under a `docs_` prefix, e.g. `search_docs` is served as `docs_search_docs`:
+
+```json
+// .mcp.json
+
+{
+  "mcpServers": {
+    "terragrunt": {
+      "command": "terragrunt",
+      "args": ["mcp", "--allow=docs"],
+      "env": {
+        "TG_EXPERIMENT": "mcp-command"
+      }
+    }
+  }
+}
+```
+
+Like every other capability, `docs` is denied unless granted, and granting `http` does not grant it. Every argument an agent passes to a `docs_` tool leaves the machine, including any configuration it pastes in. If the docs server does not answer when the server starts, the server starts without the `docs_` tools and logs a warning, and only a restart tries again.
+
+See the [`mcp` command](/reference/cli/commands/mcp#allow) docs for details.

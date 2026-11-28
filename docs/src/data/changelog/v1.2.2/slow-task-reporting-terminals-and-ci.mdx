@@ -1,0 +1,24 @@
+---
+version: "v1.2.2"
+category: "experiments-updated"
+---
+
+#### `slow-task-reporting` - One progress line on terminals, log lines in CI
+
+Slow operations share one progress line, cut to the terminal width. Log lines print above it:
+
+```text
+| Downloading source from git::https://github.com/acme/modules.git?ref=v1.2.0... (12s) +2 more
+```
+
+This fixes three problems: stale rows when a message was wider than the terminal, `run --all` output mixed into the progress text, and progress drawn over the `terragrunt catalog` TUI.
+
+In CI, with `TERM=dumb`, and with `json` logs, Terragrunt writes INFO log lines instead of the progress line.
+
+Operations are reported sooner, and more of them: unit discovery, `dependency` output fetches, provider caching, waits for new remote state resources, `stack generate` fetches, and lock waits.
+
+The approval wait in `terragrunt login`, part of the `tg-login` experiment, uses the same progress line with or without `slow-task-reporting`.
+
+A failed Git worktree creation no longer logs that it succeeded.
+
+To learn more, see the [experiment documentation](/reference/experiments/active#slow-task-reporting).

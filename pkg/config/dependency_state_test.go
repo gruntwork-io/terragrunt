@@ -14,8 +14,11 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
+	"github.com/gruntwork-io/terragrunt/internal/remotestate"
+	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -25,6 +28,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
+	"github.com/hashicorp/hcl/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -163,7 +167,7 @@ func TestDependencyStateS3AssumeRoleUsedForDirectRead(t *testing.T) {
 	}
 
 	recorder := newDependencyStateRecorder(t, 0, nil)
-	recorder.respond = stsAndS3Responder(t, backendRoleARN, recordRole) //nolint:bodyclose // returns a callback, not an HTTP response
+	recorder.respond = stsAndS3Responder(t, backendRoleARN, recordRole)
 
 	cfg, err := parseDependencyStateFixture(
 		t,
@@ -206,8 +210,11 @@ func TestDependencyStateS3AssumeRoleUsedForDirectRead(t *testing.T) {
 	require.Equal(t, []string{backendRoleARN}, requestedRoles)
 }
 
-// stsAndS3Responder returns an HTTP callback handling STS AssumeRole and S3 state requests.
-func stsAndS3Responder(t *testing.T, defaultRoleARN string, onAssumeRole func(string)) func(*http.Request) *http.Response {
+// responder builds the response a dependencyStateRecorder returns for one request.
+type responder func(*http.Request) *http.Response
+
+// stsAndS3Responder returns a responder handling STS AssumeRole and S3 state requests.
+func stsAndS3Responder(t *testing.T, defaultRoleARN string, onAssumeRole func(string)) responder {
 	t.Helper()
 
 	return func(req *http.Request) *http.Response {
@@ -281,7 +288,7 @@ func TestDependencyStateS3AssumeRoleWithClearedIAMOptions(t *testing.T) {
 	}
 
 	recorder := newDependencyStateRecorder(t, 0, nil)
-	recorder.respond = stsAndS3Responder(t, backendRoleARN, recordRole) //nolint:bodyclose // returns a callback, not an HTTP response
+	recorder.respond = stsAndS3Responder(t, backendRoleARN, recordRole)
 
 	ctx, v, pctx, configPath := prepareDependencyStateFixture(
 		t,
@@ -318,7 +325,9 @@ remote_state {
 		RoleARN: callerRoleARN,
 	}
 
-	cfg, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, configPath, nil)
+	s := new(config.Store)
+
+	cfg, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, configPath)
 	require.NoError(t, err)
 	assert.Equal(t, "from-assumed-role", cfg.Inputs["result"])
 
@@ -337,6 +346,10 @@ remote_state {
 	assert.NotContains(t, requestedRoles, callerRoleARN)
 }
 
+// s3AccessDeniedBody is the S3 error body for a read the caller may not make.
+const s3AccessDeniedBody = `<?xml version="1.0" encoding="UTF-8"?>` +
+	`<Error><Code>AccessDenied</Code><Message>Access Denied</Message></Error>`
+
 // TestDependencyStateS3DirectReadFailureFallsBackToNativeOutput verifies fallback to native output when direct S3 read fails.
 func TestDependencyStateS3DirectReadFailureFallsBackToNativeOutput(t *testing.T) {
 	t.Parallel()
@@ -350,7 +363,8 @@ func TestDependencyStateS3DirectReadFailureFallsBackToNativeOutput(t *testing.T)
 		}
 
 		if strings.Contains(req.URL.Host, "s3") {
-			return vhttp.Respond(http.StatusInternalServerError, []byte("Internal Server Error"), nil)
+			// AccessDenied is not retried, so the fallback runs on the first attempt.
+			return vhttp.Respond(http.StatusForbidden, []byte(s3AccessDeniedBody), nil)
 		}
 
 		return vhttp.Respond(http.StatusNotFound, nil, nil)
@@ -381,6 +395,16 @@ func TestDependencyStateS3DirectReadFailureFallsBackToNativeOutput(t *testing.T)
 
 	outputs := recorder.outputInvocations()
 	require.Len(t, outputs, 1, "direct read failure must trigger native output retrieval")
+
+	s3Requests := 0
+
+	for _, p := range recorder.requestPaths() {
+		if strings.Contains(p, "s3.example.com") {
+			s3Requests++
+		}
+	}
+
+	assert.Equal(t, 1, s3Requests, "a denied read must not be retried before falling back")
 }
 
 func TestDependencyStateUnsupportedConfigFallsBackToNativeOutput(t *testing.T) {
@@ -479,7 +503,9 @@ func TestDependencyStateUnsupportedConfigFallsBackToNativeOutput(t *testing.T) {
 				"",
 			)
 
-			cfg, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, configPath, nil)
+			s := new(config.Store)
+
+			cfg, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, configPath)
 			require.NoError(t, err)
 			assert.Equal(t, "from-native-output", cfg.Inputs["result"])
 			assert.Empty(t, recorder.requestPaths(), "an unsupported config must not use the direct state client")
@@ -489,6 +515,210 @@ func TestDependencyStateUnsupportedConfigFallsBackToNativeOutput(t *testing.T) {
 			assert.True(t, slices.ContainsFunc(invocations, func(inv vexec.Invocation) bool {
 				return slices.Contains(inv.Args, "output") && slices.Contains(inv.Args, "-json")
 			}))
+		})
+	}
+}
+
+func TestShouldFetchDependencyOutputFromStateAzureDevOpsOIDC(t *testing.T) {
+	t.Parallel()
+
+	const (
+		connectionEnv = "ARM_ADO_PIPELINE_SERVICE_CONNECTION_ID"
+		requestURLEnv = "SYSTEM_OIDCREQUESTURI"
+		requestURL    = "https://dev.azure.example/oidc"
+	)
+
+	tokenFile := venvtest.Root("/tokens/azure-identity-token")
+
+	envOf := func(pairs ...string) map[string]string {
+		env := make(map[string]string, len(pairs)/2)
+		for i := 0; i+1 < len(pairs); i += 2 {
+			env[pairs[i]] = pairs[i+1]
+		}
+
+		return env
+	}
+
+	devOpsEnv := func(extra ...string) map[string]string {
+		return envOf(append([]string{
+			connectionEnv, "service-connection",
+			requestURLEnv, requestURL,
+			"ARM_OIDC_REQUEST_TOKEN", "request-token",
+		}, extra...)...)
+	}
+
+	testCases := []struct {
+		config backend.Config
+		env    map[string]string
+		name   string
+		want   bool
+	}{
+		{
+			name: "service connection from the environment",
+			env:  devOpsEnv(),
+			want: true,
+		},
+		{
+			name:   "service connection from the backend config",
+			config: backend.Config{"ado_service_connection_id": "service-connection"},
+			env:    envOf(requestURLEnv, requestURL, "SYSTEM_ACCESSTOKEN", "ado-token"),
+			want:   false,
+		},
+		{
+			name:   "service connection in the backend config and the environment",
+			config: backend.Config{"ado_service_connection_id": "service-connection"},
+			env:    devOpsEnv(),
+			want:   false,
+		},
+		{
+			name: "service connection from the task variable",
+			env: envOf(
+				"AZURESUBSCRIPTION_SERVICE_CONNECTION_ID", "service-connection",
+				requestURLEnv, requestURL,
+				"SYSTEM_ACCESSTOKEN", "ado-token",
+			),
+			want: false,
+		},
+		{
+			name: "task variable beside the pipeline variable",
+			env:  devOpsEnv("AZURESUBSCRIPTION_SERVICE_CONNECTION_ID", "task-connection"),
+			want: true,
+		},
+		{
+			name: "request token from the system access token",
+			env: envOf(
+				connectionEnv, "service-connection",
+				requestURLEnv, requestURL,
+				"SYSTEM_ACCESSTOKEN", "ado-token",
+			),
+			want: true,
+		},
+		{
+			name: "request url names another service connection",
+			env:  devOpsEnv(requestURLEnv, requestURL+"?serviceConnectionId=other-connection"),
+			want: false,
+		},
+		{
+			name: "request url with a query",
+			env:  devOpsEnv(requestURLEnv, requestURL+"?api-version=7.1"),
+			want: false,
+		},
+		{
+			name:   "microsoft entra blob authorization without a subscription",
+			config: backend.Config{"subscription_id": "", "use_azuread_auth": true},
+			env:    devOpsEnv(),
+			want:   true,
+		},
+		{
+			name:   "token file without azure devops inputs",
+			config: backend.Config{"oidc_token_file_path": tokenFile},
+			env:    envOf(),
+			want:   true,
+		},
+		{
+			name: "no request token",
+			env:  envOf(connectionEnv, "service-connection", requestURLEnv, requestURL),
+			want: false,
+		},
+		{
+			name: "no request url",
+			env:  envOf(connectionEnv, "service-connection", "ARM_OIDC_REQUEST_TOKEN", "request-token"),
+			want: false,
+		},
+		{
+			name: "no service connection",
+			env:  envOf(requestURLEnv, requestURL, "ARM_OIDC_REQUEST_TOKEN", "request-token"),
+			want: false,
+		},
+		{
+			name:   "use_oidc is off",
+			config: backend.Config{"use_oidc": false},
+			env:    devOpsEnv(),
+			want:   false,
+		},
+		{
+			name:   "no client id",
+			config: backend.Config{"client_id": ""},
+			env:    devOpsEnv(),
+			want:   false,
+		},
+		{
+			name:   "token file is also set",
+			config: backend.Config{"oidc_token_file_path": tokenFile},
+			env:    devOpsEnv(),
+			want:   false,
+		},
+		{
+			name:   "token file with a stray request url",
+			config: backend.Config{"oidc_token_file_path": tokenFile},
+			env:    envOf(requestURLEnv, requestURL),
+			want:   false,
+		},
+		{
+			name: "client secret is also set",
+			env:  devOpsEnv("ARM_CLIENT_SECRET", "secret"),
+			want: false,
+		},
+		{
+			name: "access key is also set",
+			env:  devOpsEnv("ARM_ACCESS_KEY", "key"),
+			want: false,
+		},
+		{
+			name: "token is also set",
+			env:  devOpsEnv("ARM_OIDC_TOKEN", "assertion-jwt"),
+			want: false,
+		},
+		{
+			name: "explicit request url is also set",
+			env:  devOpsEnv("ARM_OIDC_REQUEST_URL", "https://pipelines.example/token"),
+			want: false,
+		},
+		{
+			name: "github actions request token is also set",
+			env:  devOpsEnv("ACTIONS_ID_TOKEN_REQUEST_TOKEN", "runner-token"),
+			want: false,
+		},
+		{
+			name: "padded service connection",
+			env:  devOpsEnv(connectionEnv, " service-connection"),
+			want: false,
+		},
+		{
+			name:   "empty service connection in the backend config",
+			config: backend.Config{"ado_service_connection_id": ""},
+			env:    devOpsEnv(),
+			want:   false,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			fsys := vfs.NewMemMapFS()
+			require.NoError(t, vfs.WriteFile(fsys, tokenFile, []byte("assertion-jwt"), 0o600))
+
+			backendConfig := backend.Config{
+				"client_id":            "cid",
+				"container_name":       "state",
+				"key":                  "service.tfstate",
+				"resource_group_name":  "rg-state",
+				"storage_account_name": "stateaccount",
+				"subscription_id":      "00000000-0000-0000-0000-000000000000",
+				"tenant_id":            "tid",
+				"use_oidc":             true,
+			}
+			maps.Copy(backendConfig, testCase.config)
+
+			remoteState := remotestate.New(&remotestate.Config{
+				BackendName:   "azurerm",
+				BackendConfig: backendConfig,
+			})
+			v := &venv.Venv{Env: testCase.env, FS: fsys}
+
+			got := config.ShouldFetchDependencyOutputFromState(v, config.NewParsingContext(), remoteState)
+			require.Equal(t, testCase.want, got)
 		})
 	}
 }
@@ -739,10 +969,12 @@ func TestDependencyStateMissingDirectStateRequiresEligibleMockOutputs(t *testing
 				map[string]string{},
 				testCase.dependencyExtra,
 			)
-			pctx.OriginalTerraformCommand = "plan"
+			pctx.OriginalTofuCommand = "plan"
 			pctx.TerraformCliArgs = iacargs.New("plan")
 
-			_, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, configPath, nil)
+			s := new(config.Store)
+
+			_, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, configPath)
 
 			require.Error(t, err)
 
@@ -751,6 +983,178 @@ func TestDependencyStateMissingDirectStateRequiresEligibleMockOutputs(t *testing
 			assert.Empty(t, recorder.outputInvocations(), "missing direct state must not invoke OpenTofu")
 		})
 	}
+}
+
+func TestDependencyStateEmptyDependencyOutputsExperimentResolvesEmptyObject(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name       string
+		httpBody   string
+		httpStatus int
+	}{
+		{
+			name:       "state is missing",
+			httpStatus: http.StatusNotFound,
+			httpBody:   `{"error":{"code":404,"message":"missing"}}`,
+		},
+		{
+			name:       "state has no outputs",
+			httpStatus: http.StatusOK,
+			httpBody:   `{"version":4,"outputs":{}}`,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			recorder := newDependencyStateRecorder(t, testCase.httpStatus, []byte(testCase.httpBody))
+			ctx, v, pctx, configPath := prepareEmptyDependencyOutputsFixture(
+				t,
+				recorder,
+				`dependency "producer" {
+  config_path = "../producer"
+}
+
+inputs = {
+  output_names = keys(dependency.producer.outputs)
+}
+`,
+			)
+
+			s := new(config.Store)
+
+			cfg, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, configPath)
+
+			require.NoError(t, err)
+			assert.Empty(t, cfg.Inputs["output_names"])
+			assert.Empty(t, recorder.outputInvocations(), "a direct state read must not invoke OpenTofu")
+		})
+	}
+}
+
+func TestDependencyStateEmptyDependencyOutputsExperimentReportsNoOutputsForMissingOutput(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		consumer string
+	}{
+		{
+			name: "plain dependency",
+			consumer: `dependency "producer" {
+  config_path = "../producer"
+}
+
+inputs = {
+  result = dependency.producer.outputs.producer_value
+}
+`,
+		},
+		{
+			name: "expanded dependency with a literal key",
+			consumer: `dependency "upstream" {
+  expansion {
+    for_each = toset(["producer"])
+  }
+
+  config_path = "../${each.key}"
+}
+
+inputs = {
+  result = dependency.upstream["producer"].outputs.producer_value
+}
+`,
+		},
+		{
+			name: "expanded dependency with a computed key",
+			consumer: `locals {
+  key = "producer"
+}
+
+dependency "upstream" {
+  expansion {
+    for_each = toset(["producer"])
+  }
+
+  config_path = "../${each.key}"
+}
+
+inputs = {
+  result = dependency.upstream[local.key].outputs.producer_value
+}
+`,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			recorder := newDependencyStateRecorder(t, http.StatusNotFound, []byte(`{"error":{"code":404,"message":"missing"}}`))
+			ctx, v, pctx, configPath := prepareEmptyDependencyOutputsFixture(t, recorder, testCase.consumer)
+
+			s := new(config.Store)
+
+			_, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, configPath)
+
+			var noOutputs config.TerragruntOutputTargetNoOutputs
+			require.ErrorAs(t, err, &noOutputs)
+		})
+	}
+}
+
+func TestDependencyStateEmptyDependencyOutputsExperimentKeepsDiagnosticForUnknownOutput(t *testing.T) {
+	t.Parallel()
+
+	recorder := newDependencyStateRecorder(t, http.StatusOK, terraformState("from-state"))
+	ctx, v, pctx, configPath := prepareEmptyDependencyOutputsFixture(
+		t,
+		recorder,
+		`dependency "producer" {
+  config_path = "../producer"
+}
+
+inputs = {
+  result = dependency.producer.outputs.misspelled_value
+}
+`,
+	)
+
+	s := new(config.Store)
+
+	_, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, configPath)
+
+	var diags hcl.Diagnostics
+	require.ErrorAs(t, err, &diags)
+
+	var noOutputs config.TerragruntOutputTargetNoOutputs
+	require.NotErrorAs(t, err, &noOutputs)
+}
+
+func TestDependencyStateEmptyDependencyOutputsExperimentKeepsMockOutputs(t *testing.T) {
+	t.Parallel()
+
+	recorder := newDependencyStateRecorder(t, http.StatusNotFound, []byte(`{"error":{"code":404,"message":"missing"}}`))
+	ctx, v, pctx, configPath := prepareDependencyStateFixture(
+		t,
+		recorder,
+		"gcs",
+		`access_token = "test-token"
+        bucket       = "state-bucket"
+        prefix       = "environment/service"`,
+		map[string]string{},
+		`mock_outputs = { producer_value = "from-mock" }`,
+	)
+	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.EmptyDependencyOutputs))
+
+	s := new(config.Store)
+
+	cfg, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, configPath)
+
+	require.NoError(t, err)
+	assert.Equal(t, "from-mock", cfg.Inputs["result"])
 }
 
 func TestDependencyStateAzureClientSetupFailureFallsBackWithoutMocks(t *testing.T) {
@@ -888,7 +1292,9 @@ func TestDependencyStateRenderDirectReadFailureUsesMockOutputs(t *testing.T) {
 			)
 			pctx.TerraformCliArgs = iacargs.New(testCase.command)
 
-			cfg, err := config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, configPath, nil)
+			s := new(config.Store)
+
+			cfg, err := s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, configPath)
 
 			require.NoError(t, err)
 			assert.Equal(t, "from-mock", cfg.Inputs["result"])
@@ -935,7 +1341,9 @@ func TestDependencyStateEncryptedFallbackUsesRelativeDataDirInitFolder(t *testin
 		vfs.WriteFile(v.FS, filepath.Join(dataDir, "environment"), []byte("production"), 0o600),
 	)
 
-	cfg, err := config.ParseConfigFile(ctx, l, v, pctx, configPath, nil)
+	s := new(config.Store)
+
+	cfg, err := s.ResolveRunConfig(ctx, l, v, pctx, configPath)
 
 	require.NoError(t, err)
 	assert.Equal(t, "from-native-output", cfg.Inputs["result"])
@@ -955,7 +1363,7 @@ func TestDependencyStateEncryptedFallbackUsesRelativeDataDirInitFolder(t *testin
 }
 
 type dependencyStateRecorder struct {
-	respond    func(*http.Request) *http.Response
+	respond    responder
 	httpBody   []byte
 	requests   []string
 	headers    []http.Header
@@ -1092,7 +1500,9 @@ func parseDependencyStateFixture(
 		dependencyExtra,
 	)
 
-	return config.ParseConfigFile(ctx, logger.CreateLogger(), v, pctx, configPath, nil)
+	s := new(config.Store)
+
+	return s.ResolveRunConfig(ctx, logger.CreateLogger(), v, pctx, configPath)
 }
 
 func prepareDependencyStateFixture(
@@ -1115,7 +1525,7 @@ func prepareDependencyStateFixture(
 		effectiveEnv = map[string]string{}
 	}
 
-	v := venvtest.New().
+	v := venv.MemVenv().
 		WithEnv(effectiveEnv).
 		WithExec(recorder.exec()).
 		WithHTTP(recorder.httpClient())
@@ -1145,10 +1555,38 @@ inputs = {
 	require.NoError(t, vfs.WriteFile(v.FS, consumerPath, []byte(consumer), 0o600))
 
 	ctx, pctx := newTestParsingContext(t, consumerPath)
-	ctx = config.WithConfigValues(ctx)
+	ctx = config.WithCaches(ctx)
 	pctx.OriginalTerragruntConfigPath = consumerPath
 
 	return ctx, v, pctx, consumerPath
+}
+
+// prepareEmptyDependencyOutputsFixture is [prepareDependencyStateFixture] with the
+// empty-dependency-outputs experiment enabled, a plan command, and consumer as the consumer's config.
+func prepareEmptyDependencyOutputsFixture(
+	t *testing.T,
+	recorder *dependencyStateRecorder,
+	consumer string,
+) (context.Context, *venv.Venv, *config.ParsingContext, string) {
+	t.Helper()
+
+	ctx, v, pctx, configPath := prepareDependencyStateFixture(
+		t,
+		recorder,
+		"gcs",
+		`access_token = "test-token"
+        bucket       = "state-bucket"
+        prefix       = "environment/service"`,
+		map[string]string{},
+		"",
+	)
+	pctx.OriginalTofuCommand = "plan"
+	pctx.TerraformCliArgs = iacargs.New("plan")
+
+	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.EmptyDependencyOutputs))
+	require.NoError(t, vfs.WriteFile(v.FS, configPath, []byte(consumer), 0o600))
+
+	return ctx, v, pctx, configPath
 }
 
 func terraformState(value string) []byte {

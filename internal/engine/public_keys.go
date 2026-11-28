@@ -1,5 +1,6 @@
 package engine
 
+// PublicKey is the armored PGP public key that verifies the signature on a downloaded engine's checksums file.
 const PublicKey = `-----BEGIN PGP PUBLIC KEY BLOCK-----
 
 mQGNBGaBbooBDADTCKKFW1uV5krG++w0u4QA7r2H6t39NfEKb8bbssM2oFIiTsEY

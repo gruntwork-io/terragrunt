@@ -4,6 +4,9 @@ import (
 	"fmt"
 )
 
+// BucketCreationNotAllowed is the error for a missing bucket, container, or storage account that
+// bootstrap would have to create while [Options.FailIfBucketCreationRequired] is set. Its value is the
+// name of the missing resource.
 type BucketCreationNotAllowed string
 
 func (bucketName BucketCreationNotAllowed) Error() string {

@@ -1,0 +1,8 @@
+---
+version: "v1.2.3"
+category: "experiments-updated"
+---
+
+#### `variables-block` — `terragrunt.auto.tfvars` quotes only the keys that need it
+
+`terragrunt.auto.tfvars` quoted every object key (`"team" = "platform"`). It now writes `team = "platform"`, and quotes only a key that is not a valid identifier, e.g. `"a b"`, or is named `for`.

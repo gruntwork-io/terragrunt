@@ -4,10 +4,10 @@ import (
 	"context"
 	"io"
 
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp"
 	"go.opentelemetry.io/otel/exporters/stdout/stdoutlog"
-	otellog "go.opentelemetry.io/otel/log/global"
 	"go.opentelemetry.io/otel/sdk/log"
 
 	"go.opentelemetry.io/otel/sdk/resource"
@@ -23,10 +23,11 @@ const (
 
 type logsExporterType string
 
-// Logger holds the OpenTelemetry logs signal provider and exporter.
+// Logger holds the OpenTelemetry logs provider, exporter, and log hook.
 type Logger struct {
 	provider *log.LoggerProvider
 	exporter log.Exporter
+	hook     *otelLogHook
 }
 
 // NewLogger creates and configures the logs collection. It returns nil when no
@@ -51,11 +52,12 @@ func NewLogger(
 		return nil, err
 	}
 
-	otellog.SetLoggerProvider(provider)
+	otel.SetLoggerProvider(provider)
 
 	return &Logger{
 		provider: provider,
 		exporter: exporter,
+		hook:     newOtelLogHook(appName, appVersion, provider),
 	}, nil
 }
 

@@ -36,21 +36,23 @@ func TestProbeOriginStampedOnlyByFetchSource(t *testing.T) {
 	tracer := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder)).Tracer("cas_test")
 
 	stub := &lsRemoteStub{hash: stubHash}
-	v := stub.venv().WithFS(vfs.NewOSFS())
+	tempDir := t.TempDir()
+	v := stub.venv().WithFS(vfs.NewOSFS()).WithTempDir(func() string { return tempDir })
 	l := logger.CreateLogger()
 
 	c, err := cas.New(v, cas.WithStorePath(filepath.Join(helpers.TmpDirWOSymlinks(t), "store")))
 	require.NoError(t, err)
 
 	fetchCtx, fetchSpan := tracer.Start(t.Context(), "cas_fetch_source")
-	require.NoError(t, c.FetchSource(fetchCtx, l, v, &cas.CloneOptions{Dir: filepath.Join(t.TempDir(), "dst")},
+	_, err = c.FetchSource(fetchCtx, l, v, &cas.CloneOptions{Dir: filepath.Join(t.TempDir(), "dst")},
 		cas.SourceRequest{
 			Scheme:       "git",
 			URL:          redact.NewURL("https://example.com/probe-origin.git"),
 			Resolver:     &cas.GitResolver{Venv: v, Branch: "main"},
 			Fetch:        ingestFixture(t, c),
 			ProbeCaching: cas.ProbeCachedByResolver,
-		}))
+		})
+	require.NoError(t, err)
 	fetchSpan.End()
 
 	stackCtx, stackSpan := tracer.Start(t.Context(), "stack_generate_unit")

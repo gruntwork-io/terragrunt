@@ -156,7 +156,7 @@ func FuzzFullCLI(f *testing.F) {
 
 		stdout, stderr := &fuzzCapturingWriter{}, &fuzzCountingWriter{}
 
-		v := venvtest.New().
+		v := venv.MemVenv().
 			WithFS(fsys).
 			WithExec(vexec.NewMemExec(fuzzExecHandler(c), vexec.WithLookPath(fuzzLookPath))).
 			WithHTTP(vhttp.NewMemClient(fuzzHTTPHandler(c))).
@@ -174,7 +174,7 @@ func FuzzFullCLI(f *testing.F) {
 			log.WithLevel(options.DefaultLogLevel),
 		)
 
-		opts := options.NewTerragruntOptions(v.Exec)
+		opts := options.NewTerragruntOptions()
 		app := cli.NewApp(l, opts, v)
 		em := tf.NewDetailedExitCodeMap()
 
@@ -631,8 +631,8 @@ func newFuzzVocab(f *testing.F) *fuzzVocab {
 
 	app := cli.NewApp(
 		logger.CreateLogger(),
-		options.NewTerragruntOptions(vexec.NewNoSpawnExec()),
-		venvtest.New(),
+		options.NewTerragruntOptions(),
+		venv.MemVenv(),
 	)
 
 	vocab := &fuzzVocab{values: fuzzValuePool()}
@@ -866,7 +866,7 @@ var fuzzTFArgPool = []string{
 	"-destroy", "-json", "-upgrade", "-var=name=fuzz", "-var-file=extra.tfvars", "-help",
 }
 
-var fuzzStdinPool = []string{"", "y\n", "n\n", "yes\n", "\n", "y\ny\ny\n"}
+var fuzzStdinPool = []string{"", "y\n", "n\n", "yes\n", "\n", strings.Repeat("y\n", 3)}
 
 // fuzzMutateOneFile sometimes damages one file of the world: it truncates it,
 // splices input bytes into it, or replaces it with input bytes. The parsers

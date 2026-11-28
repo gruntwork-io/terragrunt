@@ -9,6 +9,7 @@ import (
 // BoolFlag implements Flag
 var _ Flag = new(BoolFlag)
 
+// BoolFlag is a [Flag] for a boolean. `--name` alone sets it to true.
 type BoolFlag struct {
 	flag
 

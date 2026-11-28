@@ -10,6 +10,9 @@ setup() {
   CURRENT="${BATS_TEST_TMPDIR}/current-summary.json"
   PREVIOUS="${BATS_TEST_TMPDIR}/previous-summary.json"
   REPORT="${BATS_TEST_TMPDIR}/report.json"
+  SUPPRESSIONS="${BATS_TEST_TMPDIR}/report-suppressions.json"
+  # Isolate the fixtures from the repository suppressions config; tests opt in by writing $SUPPRESSIONS.
+  export SECURITY_SCAN_SUPPRESSIONS_FILE="$SUPPRESSIONS"
 
   # Current scan: a duplicated HIGH vuln, a severity-less vuln, a failing and a
   # passing misconfiguration, and a CRITICAL secret.
@@ -264,4 +267,167 @@ EOF
   run "$SCRIPT" bogus
   [ "$status" -ne 0 ]
   [[ "$output" == *"Unknown subcommand: bogus"* ]]
+}
+
+@test "compare drops suppressed findings from counts, new, and current findings" {
+  cat >"$SUPPRESSIONS" <<'JSON'
+{
+  "findings": [
+    {"id": "CVE-2026-1111", "pkg": "golang.org/x/foo", "reason": "not reachable"}
+  ]
+}
+JSON
+  run "$SCRIPT" compare "$CURRENT" "$PREVIOUS" "${BATS_TEST_TMPDIR}/suppressed.json"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"1 suppressed"* ]]
+  run jq -c '{total: .current_counts.total, high: .current_counts.HIGH, new: [.new[].id], current: [.current_findings[].id], suppressed: [.suppressed[] | "\(.id) \(.reason)"], stale: .stale_suppressions}' "${BATS_TEST_TMPDIR}/suppressed.json"
+  [ "$output" == '{"total":3,"high":0,"new":["github-pat"],"current":["github-pat","AVD-DS-0002","GO-2026-9999"],"suppressed":["CVE-2026-1111 not reachable"],"stale":[]}' ]
+}
+
+@test "compare does not report a suppressed finding as fixed" {
+  # CVE-2020-0001 only exists in the previous scan.
+  echo '{"findings": [{"id": "CVE-2020-0001", "reason": "accepted"}]}' >"$SUPPRESSIONS"
+  run "$SCRIPT" compare "$CURRENT" "$PREVIOUS" "${BATS_TEST_TMPDIR}/suppressed.json"
+  [ "$status" -eq 0 ]
+  run jq -c '{fixed: .fixed, previous_total: .previous_counts.total, stale: [.stale_suppressions[] | "\(.id) \(.state)"]}' "${BATS_TEST_TMPDIR}/suppressed.json"
+  [ "$output" == '{"fixed":[],"previous_total":2,"stale":["CVE-2020-0001 unmatched"]}' ]
+}
+
+@test "compare scopes a suppression by package and target" {
+  cat >"$SUPPRESSIONS" <<'JSON'
+{
+  "findings": [
+    {"id": "CVE-2026-1111", "pkg": "example.com/other", "reason": "wrong package, must not match"},
+    {"id": "AVD-DS-0002", "target": "Dockerfile", "reason": "image runs as root on purpose"}
+  ]
+}
+JSON
+  run "$SCRIPT" compare "$CURRENT" "$PREVIOUS" "${BATS_TEST_TMPDIR}/suppressed.json"
+  [ "$status" -eq 0 ]
+  run jq -c '{current: [.current_findings[].id], suppressed: [.suppressed[].id], stale: [.stale_suppressions[].id]}' "${BATS_TEST_TMPDIR}/suppressed.json"
+  [ "$output" == '{"current":["github-pat","CVE-2026-1111","GO-2026-9999"],"suppressed":["AVD-DS-0002"],"stale":["CVE-2026-1111"]}' ]
+}
+
+@test "compare ignores an expired suppression and reports it as stale" {
+  cat >"$SUPPRESSIONS" <<'JSON'
+{
+  "findings": [
+    {"id": "CVE-2026-1111", "reason": "lapsed", "expires": "2000-01-01"},
+    {"id": "GO-2026-9999", "reason": "still accepted", "expires": "2999-12-31"}
+  ]
+}
+JSON
+  run "$SCRIPT" compare "$CURRENT" "$PREVIOUS" "${BATS_TEST_TMPDIR}/suppressed.json"
+  [ "$status" -eq 0 ]
+  run jq -c '{current: [.current_findings[].id], suppressed: [.suppressed[].id], stale: [.stale_suppressions[] | "\(.id) \(.state)"]}' "${BATS_TEST_TMPDIR}/suppressed.json"
+  [ "$output" == '{"current":["github-pat","CVE-2026-1111","AVD-DS-0002"],"suppressed":["GO-2026-9999"],"stale":["CVE-2026-1111 expired"]}' ]
+}
+
+@test "compare applies suppressions to a baseline report" {
+  echo '{"findings": [{"id": "github-pat", "target": "config/creds.txt", "reason": "test fixture token"}]}' >"$SUPPRESSIONS"
+  run "$SCRIPT" compare "$CURRENT" /nonexistent "${BATS_TEST_TMPDIR}/baseline.json"
+  [ "$status" -eq 0 ]
+  run jq -c '{baseline, total: .current_counts.total, critical: .current_counts.CRITICAL, suppressed: [.suppressed[].id]}' "${BATS_TEST_TMPDIR}/baseline.json"
+  [ "$output" == '{"baseline":true,"total":3,"critical":0,"suppressed":["github-pat"]}' ]
+}
+
+@test "compare uses no suppressions when the config is missing" {
+  SECURITY_SCAN_SUPPRESSIONS_FILE="${BATS_TEST_TMPDIR}/missing.json" run "$SCRIPT" compare "$CURRENT" "$PREVIOUS" "${BATS_TEST_TMPDIR}/none.json"
+  [ "$status" -eq 0 ]
+  run jq -c '{total: .current_counts.total, suppressed: .suppressed, stale: .stale_suppressions}' "${BATS_TEST_TMPDIR}/none.json"
+  [ "$output" == '{"total":4,"suppressed":[],"stale":[]}' ]
+}
+
+@test "compare rejects a suppression without a reason" {
+  echo '{"findings": [{"id": "CVE-2026-1111"}]}' >"$SUPPRESSIONS"
+  run "$SCRIPT" compare "$CURRENT" "$PREVIOUS" "${BATS_TEST_TMPDIR}/out.json"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"findings[0]: reason is required"* ]]
+  [ ! -f "${BATS_TEST_TMPDIR}/out.json" ]
+}
+
+@test "compare rejects unknown suppression fields and bad dates" {
+  echo '{"findings": [{"id": "CVE-2026-1111", "reason": "x", "package": "golang.org/x/foo"}]}' >"$SUPPRESSIONS"
+  run "$SCRIPT" compare "$CURRENT" "$PREVIOUS" "${BATS_TEST_TMPDIR}/out.json"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"unknown field(s) package"* ]]
+
+  echo '{"findings": [{"id": "CVE-2026-1111", "reason": "x", "expires": "next week"}]}' >"$SUPPRESSIONS"
+  run "$SCRIPT" compare "$CURRENT" "$PREVIOUS" "${BATS_TEST_TMPDIR}/out.json"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"expires must be a YYYY-MM-DD date"* ]]
+
+  echo '{"vulnerabilities": []}' >"$SUPPRESSIONS"
+  run "$SCRIPT" compare "$CURRENT" "$PREVIOUS" "${BATS_TEST_TMPDIR}/out.json"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"unknown field(s) vulnerabilities"* ]]
+}
+
+@test "compare rejects a malformed suppressions file" {
+  echo 'not json' >"$SUPPRESSIONS"
+  run "$SCRIPT" compare "$CURRENT" "$PREVIOUS" "${BATS_TEST_TMPDIR}/out.json"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"is invalid"* ]]
+}
+
+@test "render lists suppressed findings and stale suppressions" {
+  cat >"$SUPPRESSIONS" <<'JSON'
+{
+  "findings": [
+    {"id": "CVE-2026-1111", "pkg": "golang.org/x/foo", "reason": "not reachable"},
+    {"id": "CVE-2000-0000", "reason": "long gone"}
+  ]
+}
+JSON
+  "$SCRIPT" compare "$CURRENT" "$PREVIOUS" "${BATS_TEST_TMPDIR}/suppressed.json"
+  GITHUB_STEP_SUMMARY="${BATS_TEST_TMPDIR}/summary.md" run "$SCRIPT" render "${BATS_TEST_TMPDIR}/suppressed.json"
+  [ "$status" -eq 0 ]
+  run cat "${BATS_TEST_TMPDIR}/summary.md"
+  [[ "$output" == *"All current findings (3)"* ]]
+  [[ "$output" == *"Suppressed findings (1)"* ]]
+  [[ "$output" == *"| HIGH | vuln | CVE-2026-1111 | go.mod | golang.org/x/foo | 1.0.0 | not reachable |"* ]]
+  [[ "$output" == *"Stale suppressions (1)"* ]]
+  [[ "$output" == *"- CVE-2000-0000 - unmatched"* ]]
+}
+
+@test "render omits the suppression sections when nothing is configured" {
+  GITHUB_STEP_SUMMARY="${BATS_TEST_TMPDIR}/summary.md" run "$SCRIPT" render "$REPORT"
+  [ "$status" -eq 0 ]
+  run cat "${BATS_TEST_TMPDIR}/summary.md"
+  [[ "$output" != *"Suppressed findings"* ]]
+  [[ "$output" != *"Stale suppressions"* ]]
+}
+
+@test "render tolerates a report without suppression fields" {
+  jq 'del(.suppressed, .stale_suppressions)' "$REPORT" >"${BATS_TEST_TMPDIR}/old-report.json"
+  GITHUB_STEP_SUMMARY="${BATS_TEST_TMPDIR}/summary.md" run "$SCRIPT" render "${BATS_TEST_TMPDIR}/old-report.json"
+  [ "$status" -eq 0 ]
+  run "$SCRIPT" payload "${BATS_TEST_TMPDIR}/old-report.json"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Current findings (4)"* ]]
+}
+
+@test "payload lists suppressed findings and stale suppressions" {
+  cat >"$SUPPRESSIONS" <<'JSON'
+{
+  "findings": [
+    {"id": "CVE-2026-1111", "pkg": "golang.org/x/foo", "reason": "not reachable"},
+    {"id": "CVE-2000-0000", "reason": "long gone", "expires": "2000-01-01"}
+  ]
+}
+JSON
+  "$SCRIPT" compare "$CURRENT" "$PREVIOUS" "${BATS_TEST_TMPDIR}/suppressed.json"
+  run "$SCRIPT" payload "${BATS_TEST_TMPDIR}/suppressed.json"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Findings: 3 total (1 CRITICAL, 1 MEDIUM)"* ]]
+  [[ "$output" == *"Current findings (3)"* ]]
+  [[ "$output" == *"Suppressed (1):"* ]]
+  [[ "$output" == *"[HIGH] golang.org/x/foo 1.0.0 -> 1.0.1 CVE-2026-1111 (go.mod)"* ]]
+  [[ "$output" == *"Stale suppressions (1): CVE-2000-0000 (expired)"* ]]
+}
+
+@test "the repository suppressions config is valid" {
+  [ -f "${BATS_TEST_DIRNAME}/../report-suppressions.json" ]
+  run env -u SECURITY_SCAN_SUPPRESSIONS_FILE "$SCRIPT" compare "$CURRENT" "$PREVIOUS" "${BATS_TEST_TMPDIR}/repo.json"
+  [ "$status" -eq 0 ]
 }

@@ -104,7 +104,7 @@ func TestSubstringScannerMatchesAfterLongStream(t *testing.T) {
 
 	scanner := runner.NewSubstringScanner("alpha")
 
-	chunk := []byte("filler filler filler")
+	chunk := bytes.Repeat([]byte("filler "), 3)
 	for range 1000 {
 		_, err := scanner.Write(chunk)
 		require.NoError(t, err)

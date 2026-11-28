@@ -13,8 +13,9 @@ import (
 
 	"errors"
 
-	"github.com/gruntwork-io/terragrunt/internal/component"
-	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/discoverysetup"
+	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
+	"github.com/gruntwork-io/terragrunt/internal/hclhelper"
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -27,39 +28,44 @@ import (
 
 const defaultKeyParts = 2
 
-func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *options.TerragruntOptions) error {
+// Run prepares and initializes the unit at opts.WorkingDir, then overwrites the
+// attributes in opts.AwsProviderPatchOverrides in every provider "aws" block of
+// the modules that init downloaded. With opts.RunAll set, it patches every
+// discovered unit instead.
+func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *config.Store, opts *options.TerragruntOptions) error {
 	if opts.RunAll {
-		return runAll(ctx, l, v, opts)
+		return runAll(ctx, l, v, s, opts)
 	}
 
-	return runSingle(ctx, l, v, opts)
+	return runSingle(ctx, l, v, s, opts)
 }
 
 func runSingle(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 ) error {
-	prepared, err := prepare.PrepareConfig(ctx, l, v, opts)
+	prepared, err := prepare.PrepareConfig(ctx, l, v, s, opts)
 	if err != nil {
 		return err
 	}
 
 	r := report.NewReport()
 
-	updatedOpts, err := prepare.PrepareSource(ctx, l, v, prepared.Opts, prepared.Cfg, r)
+	updatedOpts, impl, err := prepare.PrepareSource(ctx, l, v, prepared.Opts, prepared.Cfg, r)
 	if err != nil {
 		return err
 	}
 
 	runCfg := prepared.Cfg.ToRunConfig(l, v.FS)
 
-	if err := prepare.PrepareGenerate(ctx, l, v, updatedOpts, runCfg); err != nil {
+	if err := prepare.PrepareGenerate(ctx, l, v, updatedOpts, impl, runCfg); err != nil {
 		return err
 	}
 
-	if err := prepare.PrepareInit(ctx, l, v, opts, updatedOpts, runCfg, r); err != nil {
+	if err := prepare.PrepareInit(ctx, l, v, opts, updatedOpts, impl, runCfg, r); err != nil {
 		return err
 	}
 
@@ -70,34 +76,27 @@ func runAll(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 ) error {
-	d := discovery.NewDiscovery(opts.WorkingDir)
+	units, cleanupWorktrees, err := discoverysetup.Units(ctx, l, v, s, opts)
 
-	components, err := d.Discover(ctx, l, v, opts)
+	defer cleanupWorktrees(ctx)
+
 	if err != nil {
 		return err
 	}
-
-	units := components.Filter(component.UnitKind).Sort()
 
 	var errs []error
 
 	for _, unit := range units {
 		unitOpts := opts.Clone()
-		unitOpts.WorkingDir = unit.Path()
-
-		configFilename := config.DefaultTerragruntConfigPath
-		if len(opts.TerragruntConfigPath) > 0 {
-			configFilename = filepath.Base(opts.TerragruntConfigPath)
-		}
-
-		unitOpts.TerragruntConfigPath = filepath.Join(unit.Path(), configFilename)
+		discoverysetup.ScopeToUnit(unitOpts, unit)
 
 		// Preparation writes obtained credentials into the env, so each
 		// unit gets its own clone to keep them from leaking to siblings.
 		unitV := v.WithEnvCloned()
-		if err := runSingle(ctx, l, unitV, unitOpts); err != nil {
+		if err := runSingle(ctx, l, unitV, s, unitOpts); err != nil {
 			if opts.FailFast {
 				return err
 			}
@@ -169,6 +168,9 @@ type TerraformModulesJSON struct {
 	Modules []TerraformModule `json:"Modules"`
 }
 
+// TerraformModule is one entry of the Modules list in
+// .terraform/modules/modules.json, naming a module call and the directory init
+// downloaded its source into.
 type TerraformModule struct {
 	Key    string `json:"Key"`
 	Source string `json:"Source"`
@@ -343,7 +345,7 @@ func overrideAttributeInBlock(block *hclwrite.Block, key string, value string) (
 	// assume the user provided input is json, and convert to cty that way.
 	valueBytes := []byte(value)
 
-	ctyType, err := ctyjson.ImpliedType(valueBytes)
+	ctyType, err := ctyhelper.ImpliedJSONType(valueBytes)
 	if err != nil {
 		// Wrap error in a custom error type that has better error messaging to the user.
 		returnErr := TypeInferenceError{value: value, underlyingErr: err}
@@ -359,7 +361,7 @@ func overrideAttributeInBlock(block *hclwrite.Block, key string, value string) (
 		return false, returnErr
 	}
 
-	body.SetAttributeValue(attr, ctyVal)
+	body.SetAttributeRaw(attr, hclhelper.TokensForValue(ctyVal))
 
 	return true, nil
 }

@@ -10,9 +10,12 @@ import (
 var _ Flag = new(SliceFlag[string])
 
 var (
+	// SliceFlagEnvVarSep separates the elements of a [SliceFlag] env var value when the flag sets no
+	// EnvVarSep.
 	SliceFlagEnvVarSep = ","
 )
 
+// SliceFlagType is the set of element types a [SliceFlag] can parse.
 type SliceFlagType interface {
 	GenericType
 }

@@ -1,0 +1,15 @@
+---
+version: "v1.2.3"
+category: "bug-fixes"
+---
+
+#### `--destroy-dependencies-check` no longer crashes on `terragrunt_version_constraint`
+
+Destroying a unit with [`--destroy-dependencies-check`](/reference/cli/commands/run#destroy-dependencies-check) crashed when any unit found in the search for dependents set [`terragrunt_version_constraint`](/reference/hcl/attributes/terragrunt_version_constraint/), directly or through an include:
+
+```text
+INFO   Discovering dependent units for /repo/unit/terragrunt.hcl
+panic: runtime error: invalid memory address or nil pointer dereference
+```
+
+The search now checks those units against the running Terragrunt version and lists the dependents before the destroy.

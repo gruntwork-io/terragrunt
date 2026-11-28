@@ -1,0 +1,44 @@
+---
+name: sops_decrypt_file
+description: Returns the decrypted content of a file encrypted with SOPS.
+configs: [unit, stack]
+params:
+  - name: file_path
+    type: string
+    description: The encrypted file. A relative path resolves from the unit's directory, even in an included file.
+returns: string
+examples:
+  - code: |
+      # terragrunt.hcl
+
+      locals {
+        secrets = yamldecode(sops_decrypt_file("secrets.yaml"))
+      }
+---
+
+`sops_decrypt_file` decrypts a file encrypted with [SOPS](https://github.com/getsops/sops), so a repository can hold secrets encrypted with AWS KMS, GCP KMS, Azure Key Vault, HashiCorp Vault, age, or PGP. It reads the file as YAML, JSON, INI, or dotenv by its extension, and any other file as text. Decode the result to use it:
+
+```hcl
+# prod/app/terragrunt.hcl
+
+locals {
+  secrets_file = find_in_parent_folders("secrets.yaml")
+  secrets      = yamldecode(sops_decrypt_file(local.secrets_file))
+}
+
+inputs = merge(local.secrets, {
+  instance_type = "t3.micro"
+})
+```
+
+It fails when the file doesn't exist, can't be decrypted, or decrypts to content that isn't valid UTF-8. To fall back to a default, wrap the call in [`try`](https://opentofu.org/docs/language/functions/try/):
+
+```hcl
+# terragrunt.hcl
+
+locals {
+  secrets = try(jsondecode(sops_decrypt_file("secrets.json")), {})
+}
+```
+
+Terragrunt decrypts each file once per command, and units that read the same file share the result.

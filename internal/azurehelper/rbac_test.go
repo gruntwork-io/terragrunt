@@ -37,7 +37,11 @@ func TestNewRBACClient_Validation(t *testing.T) {
 		name    string
 	}{
 		{name: "nil config", cfg: nil, wantIs: azurehelper.ErrAzureConfigRequired},
-		{name: "missing subscription", cfg: &azurehelper.AzureConfig{Credential: fakeCredential{}}, wantIs: azurehelper.ErrSubscriptionIDRequired},
+		{
+			name:   "missing subscription",
+			cfg:    &azurehelper.AzureConfig{Credential: fakeCredential{}},
+			wantIs: azurehelper.ErrSubscriptionIDRequired,
+		},
 		{
 			name: "data-plane auth cannot manage rbac",
 			cfg: &azurehelper.AzureConfig{
@@ -84,8 +88,11 @@ func TestAssignRole_RejectsMalformedInput(t *testing.T) {
 		in      azurehelper.AssignRoleInput
 	}{
 		{
-			name:    "empty scope",
-			in:      azurehelper.AssignRoleInput{PrincipalID: testPrincipalID, RoleDefinitionID: azurehelper.RoleStorageBlobDataContributor},
+			name: "empty scope",
+			in: azurehelper.AssignRoleInput{
+				PrincipalID:      testPrincipalID,
+				RoleDefinitionID: azurehelper.RoleStorageBlobDataContributor,
+			},
 			wantErr: azurehelper.ErrScopePrincipalRoleArgs,
 		},
 		{
@@ -286,7 +293,10 @@ func TestRemoveRole_MissingAssignmentIsNoop(t *testing.T) {
 	c, err := azurehelper.NewRBACClient(cfgWithTransport(tr))
 	require.NoError(t, err)
 
-	require.NoError(t, c.RemoveRole(t.Context(), log.New(), testScope, testPrincipalID, azurehelper.RoleStorageBlobDataContributor))
+	require.NoError(
+		t,
+		c.RemoveRole(t.Context(), log.New(), testScope, testPrincipalID, azurehelper.RoleStorageBlobDataContributor),
+	)
 }
 
 // TestRemoveRole_IgnoresInheritedAssignments pins that assignedTo() rows for a
@@ -310,7 +320,10 @@ func TestRemoveRole_IgnoresInheritedAssignments(t *testing.T) {
 	c, err := azurehelper.NewRBACClient(cfgWithTransport(tr))
 	require.NoError(t, err)
 
-	require.NoError(t, c.RemoveRole(t.Context(), log.New(), testScope, testPrincipalID, azurehelper.RoleStorageBlobDataContributor))
+	require.NoError(
+		t,
+		c.RemoveRole(t.Context(), log.New(), testScope, testPrincipalID, azurehelper.RoleStorageBlobDataContributor),
+	)
 
 	for _, m := range tr.methods {
 		assert.NotEqual(t, http.MethodDelete, m, "inherited assignments must not be deleted")

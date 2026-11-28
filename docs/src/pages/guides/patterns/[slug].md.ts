@@ -4,7 +4,8 @@
 
 import type { APIRoute, GetStaticPaths } from 'astro';
 import { getCollection } from 'astro:content';
-import { entryToSimpleMarkdown, markdownDocument } from '@lib/page-to-markdown';
+import { markdownResponse, patternPage } from '@lib/generated-pages';
+import type { PatternEntry } from '@lib/patterns';
 
 export const prerender = true;
 
@@ -14,15 +15,6 @@ export const getStaticPaths = (async () => {
 }) satisfies GetStaticPaths;
 
 export const GET: APIRoute = async (context) => {
-  const { entry } = context.props as {
-    entry: Awaited<ReturnType<typeof getCollection<'patterns'>>>[number];
-  };
-
-  const body = await entryToSimpleMarkdown(entry, context);
-  const withByline = `_By ${entry.data.author}_\n\n${body}`;
-
-  return new Response(
-    markdownDocument(entry.data.title, entry.data.description, withByline),
-    { headers: { 'Content-Type': 'text/markdown; charset=utf-8' } },
-  );
+  const { entry } = context.props as { entry: PatternEntry };
+  return markdownResponse(await patternPage(entry, context));
 };

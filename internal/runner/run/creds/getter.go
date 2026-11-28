@@ -12,10 +12,13 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
+// Getter obtains credentials from providers and records which provider supplied each set, so it can warn when a
+// later provider overwrites credentials of the same kind.
 type Getter struct {
 	obtainedCreds map[string]*providers.Credentials
 }
 
+// NewGetter returns a Getter that has obtained no credentials yet.
 func NewGetter() *Getter {
 	return &Getter{
 		obtainedCreds: make(map[string]*providers.Credentials),

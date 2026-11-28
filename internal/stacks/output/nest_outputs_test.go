@@ -244,4 +244,26 @@ func TestNestOutputsRejectsCollidingAddresses(t *testing.T) {
 	var collision output.UnitAddressCollisionError
 	require.ErrorAs(t, err, &collision)
 	assert.Equal(t, "team.member", collision.Address)
+	assert.Contains(t, collision.Error(), collision.Address, "the message should name the contested address")
+}
+
+// TestNestOutputsRejectsAUnitNamedLikeAStack pins that a unit whose address is taken by a
+// stack holding other units fails loudly rather than one hiding the other.
+func TestNestOutputsRejectsAUnitNamedLikeAStack(t *testing.T) {
+	t.Parallel()
+
+	stacks := map[string][]string{
+		filepath.Join(nestTestStackDir, "team"): {"team"},
+	}
+
+	_, err := output.NestOutputs(logger.CreateLogger(), stacks,
+		[]output.UnitOutput{
+			plainUnit("team", "team-unit"),
+			plainUnit("member", "team/member"),
+		},
+	)
+
+	var collision output.UnitAddressCollisionError
+	require.ErrorAs(t, err, &collision)
+	assert.Equal(t, "team", collision.Address)
 }

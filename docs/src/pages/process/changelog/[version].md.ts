@@ -12,7 +12,8 @@ import { getCollection } from 'astro:content';
 import ReleaseEntries from '@components/ReleaseEntries.astro';
 import { entriesForVersion, uniqueVersions } from '@lib/changelog';
 import { getLatestVersion } from '@lib/release';
-import { componentToSimpleMarkdown, markdownDocument } from '@lib/page-to-markdown';
+import { markdownResponse } from '@lib/generated-pages';
+import { componentToMarkdown } from '@lib/page-to-markdown';
 import { isReleased } from '@lib/versions';
 
 export const prerender = true;
@@ -37,10 +38,11 @@ export const GET: APIRoute = async (context) => {
 	const allEntries = await getCollection('changelog');
 	const entries = entriesForVersion(allEntries, version);
 
-	const body = await componentToSimpleMarkdown(ReleaseEntries, { entries }, context);
+	const body = await componentToMarkdown(ReleaseEntries, { entries }, context);
 
-	return new Response(
-		markdownDocument(version, `Notable changes in Terragrunt ${version}.`, body),
-		{ headers: { 'Content-Type': 'text/markdown; charset=utf-8' } },
-	);
+	return markdownResponse({
+		title: version,
+		description: `Notable changes in Terragrunt ${version}.`,
+		body,
+	});
 };

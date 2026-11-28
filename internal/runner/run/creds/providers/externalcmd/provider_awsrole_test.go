@@ -9,18 +9,17 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/amazonsts"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 const (
-	awsRoleBaseAccessKeyID    = "AKIABASEIDENTITY"
-	awsRoleAssumedAccessKeyID = "ASIAASSUMEDSESSION"
+	awsRoleBaseAccessKeyID    = "fake-base-access-key-id"
+	awsRoleAssumedAccessKeyID = "fake-assumed-session-key-id"
 	awsRoleARN                = "arn:aws:iam::123456789012:role/auth-provider-test"
 )
 
@@ -30,7 +29,7 @@ func TestProviderAWSRoleReusesAssumedSessionAcrossFetches(t *testing.T) {
 
 	sts := newRecordingSTS(t)
 
-	v := venvtest.New().
+	v := venv.MemVenv().
 		WithHTTP(sts.client).
 		WithEnv(map[string]string{
 			"AWS_REGION":            "us-east-1",
@@ -78,7 +77,7 @@ func TestProviderAWSRoleHonoursExplicitSessionName(t *testing.T) {
 
 	sts := newRecordingSTS(t)
 
-	v := venvtest.New().
+	v := venv.MemVenv().
 		WithHTTP(sts.client).
 		WithEnv(map[string]string{
 			"AWS_REGION":            "us-east-1",

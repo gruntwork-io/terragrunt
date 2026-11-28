@@ -11,6 +11,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/topo"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/valuesblock"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
@@ -37,6 +38,10 @@ const (
 	varDependency = blockDependency
 	varEach       = "each"
 	varCount      = "count"
+	varPath       = "path"
+
+	// pathAttrInclude names `path.include`, the path of the included stack file.
+	pathAttrInclude = "include"
 )
 
 const (
@@ -106,8 +111,8 @@ func ParseStackFile(
 	// srcByFilename tracks source bytes by filename so the generator can slice expression bytes from the correct file even after include merging.
 	srcByFilename := map[string][]byte{input.Filename: input.Src}
 
-	// Phase 3 resolves include blocks and merges included Remain bodies.
-	mergedRemain, err := mergeIncludes(
+	// Phase 3 resolves include blocks and pairs each Remain body with its eval context.
+	bodies, err := scopedBodies(
 		fsys,
 		parsedStackFile,
 		input.StackDir,
@@ -133,12 +138,12 @@ func ParseStackFile(
 	// Publish unit.<name>.path / stack.<name>.path from a path-only pre-decode so the
 	// phase-4 decode can evaluate values expressions that reference sibling component
 	// paths, matching the production parse (injectStackComponentRefs in pkg/config).
-	if err := publishComponentRefs(ctx, mergedRemain, overrideRemain, evalCtx, input.StackDir); err != nil {
+	if err := publishComponentRefs(ctx, bodies, overrideRemain, evalCtx, input.StackDir); err != nil {
 		return result, err
 	}
 
 	// Phase 4 decodes unit/stack blocks once per expansion element and resolves autoincludes.
-	units, stacks, err := decodeComponents(ctx, mergedRemain, evalCtx)
+	units, stacks, err := decodeScopedComponents(ctx, bodies)
 
 	// Surface partial Units/Stacks before the error so LSP/IDE callers can inspect them.
 	result.Units = units
@@ -177,6 +182,23 @@ func ParseStackFile(
 	result.AutoIncludes = autoIncludes
 
 	return result, nil
+}
+
+// IncludeEvalContext returns a child of evalCtx in which `path.include` is includePath, or evalCtx without `path`.
+func IncludeEvalContext(evalCtx *hcl.EvalContext, includePath string) *hcl.EvalContext {
+	path, found := evalCtx.Variables[varPath]
+	if !found || !path.Type().IsObjectType() || !path.IsKnown() || path.IsNull() {
+		return evalCtx
+	}
+
+	attrs := make(map[string]cty.Value, path.LengthInt()+1)
+	maps.Copy(attrs, path.AsValueMap())
+	attrs[pathAttrInclude] = cty.StringVal(filepath.Clean(includePath))
+
+	child := evalCtx.NewChild()
+	child.Variables = map[string]cty.Value{varPath: cty.ObjectVal(attrs)}
+
+	return child
 }
 
 // validateParseStackFileInput panics on malformed parser input.
@@ -312,11 +334,12 @@ func validateUniqueNames(units []*UnitBlockHCL, stacks []*StackBlockHCL) error {
 // block, which the phase-4 decode accepts.
 func publishComponentRefs(
 	ctx context.Context,
-	body, override hcl.Body,
+	bodies []scopedBody,
+	override hcl.Body,
 	evalCtx *hcl.EvalContext,
 	stackDir string,
 ) error {
-	headers, decoded := pathOnlyHeaders(ctx, body, evalCtx)
+	headers, decoded := scopedPathOnlyHeaders(ctx, bodies)
 	if !decoded {
 		return nil
 	}
@@ -619,15 +642,22 @@ type resolvedInclude struct {
 	Src    []byte
 }
 
-// mergeIncludes resolves include paths and merges included Remain bodies.
-func mergeIncludes(
+// scopedBody is a Remain body with the eval context that its blocks decode in.
+type scopedBody struct {
+	body    hcl.Body
+	evalCtx *hcl.EvalContext
+}
+
+// scopedBodies returns the Remain body of the stack file and of each included file, each with its eval context.
+func scopedBodies(
 	fsys vfs.FS,
 	parsedFile *StackFileHCL,
 	stackDir string,
 	evalCtx *hcl.EvalContext,
 	srcByFilename map[string][]byte,
-) (hcl.Body, error) {
-	bodies := []hcl.Body{parsedFile.Remain}
+) ([]scopedBody, error) {
+	bodies := make([]scopedBody, 0, 1+len(parsedFile.Includes))
+	bodies = append(bodies, scopedBody{body: parsedFile.Remain, evalCtx: evalCtx})
 
 	for _, inc := range parsedFile.Includes {
 		resolved, err := mergeOneInclude(fsys, inc, stackDir, evalCtx)
@@ -637,14 +667,62 @@ func mergeIncludes(
 
 		srcByFilename[resolved.Path] = resolved.Src
 
-		bodies = append(bodies, resolved.Remain)
+		bodies = append(bodies, scopedBody{
+			body:    resolved.Remain,
+			evalCtx: IncludeEvalContext(evalCtx, resolved.Path),
+		})
 	}
 
-	if len(bodies) == 1 {
-		return bodies[0], nil
+	return bodies, nil
+}
+
+// decodeScopedComponents decodes the unit and stack blocks of each body in the eval context of that body.
+func decodeScopedComponents(ctx context.Context, bodies []scopedBody) ([]*UnitBlockHCL, []*StackBlockHCL, error) {
+	var (
+		units  []*UnitBlockHCL
+		stacks []*StackBlockHCL
+	)
+
+	errs := make([]error, 0, len(bodies))
+
+	for _, scoped := range bodies {
+		bodyUnits, bodyStacks, err := decodeComponents(ctx, scoped.body, scoped.evalCtx)
+
+		units = append(units, bodyUnits...)
+		stacks = append(stacks, bodyStacks...)
+		errs = append(errs, err)
 	}
 
-	return hcl.MergeBodies(bodies), nil
+	return units, stacks, errors.Join(errs...)
+}
+
+// scopedPathOnlyHeaders decodes the path-only shape of the components of bodies, and reports whether it succeeded.
+func scopedPathOnlyHeaders(ctx context.Context, bodies []scopedBody) (*discoveryDecode, bool) {
+	headers, err := decodeScopedPaths(ctx, bodies)
+
+	return headers, err == nil
+}
+
+// decodeScopedPaths decodes the path-only shape of the components of each body in the eval context of that body.
+func decodeScopedPaths(ctx context.Context, bodies []scopedBody) (*discoveryDecode, error) {
+	decoded := &discoveryDecode{}
+
+	for _, scoped := range bodies {
+		content, _, diags := scoped.body.PartialContent(componentBlocksSchema())
+		if diags.HasErrors() {
+			return nil, diags
+		}
+
+		paths, err := decodeComponentPaths(ctx, content.Blocks, scoped.evalCtx)
+		if err != nil {
+			return nil, err
+		}
+
+		decoded.Units = append(decoded.Units, paths.Units...)
+		decoded.Stacks = append(decoded.Stacks, paths.Stacks...)
+	}
+
+	return decoded, nil
 }
 
 // mergeOneInclude reads and parses one included file.
@@ -725,6 +803,18 @@ func mergeOneInclude(
 			IncludeName: inc.Name,
 			Reason:      "must not define nested includes",
 		}
+	}
+
+	decls, diags := valuesblock.Decode(included.Remain)
+	if decls != nil {
+		return resolvedInclude{}, IncludeValidationError{
+			IncludeName: inc.Name,
+			Reason:      "must not define a values block",
+		}
+	}
+
+	if diags.HasErrors() {
+		return resolvedInclude{}, FileDecodeError{Name: includePath, Err: diags}
 	}
 
 	return resolvedInclude{Remain: included.Remain, Src: data, Path: includePath}, nil

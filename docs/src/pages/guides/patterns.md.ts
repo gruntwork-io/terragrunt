@@ -5,7 +5,7 @@
 import type { APIRoute } from 'astro';
 import { getCollection } from 'astro:content';
 import { sortPatternEntries } from '@lib/patterns';
-import { markdownDocument } from '@lib/page-to-markdown';
+import { markdownResponse } from '@lib/generated-pages';
 
 export const prerender = true;
 
@@ -15,7 +15,7 @@ export const GET: APIRoute = async () => {
   const patterns = sortPatternEntries(await getCollection('patterns'));
 
   // The subhead is emitted as the document's `>` description by
-  // markdownDocument, so the body is just the list of patterns.
+  // markdownResponse, so the body is just the list of patterns.
   const sections: string[] = [];
 
   if (patterns.length === 0) {
@@ -30,8 +30,9 @@ export const GET: APIRoute = async () => {
     }
   }
 
-  return new Response(
-    markdownDocument('Terragrunt Patterns', SUBHEAD, sections.join('\n\n')),
-    { headers: { 'Content-Type': 'text/markdown; charset=utf-8' } },
-  );
+  return markdownResponse({
+    title: 'Terragrunt Patterns',
+    description: SUBHEAD,
+    body: sections.join('\n\n'),
+  });
 };

@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -87,7 +88,13 @@ func TestGraphPhase_ConcurrentDependencyDiscoveryWithRacing(t *testing.T) {
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: workingDir}).
 		WithFilters(filters)
 
-	components, err := d.Discover(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts)
+	components, err := d.Discover(
+		config.WithCaches(t.Context()),
+		l,
+		venvtest.NewOSWithEmptyEnv(),
+		new(config.Store),
+		opts,
+	)
 	require.NoError(t, err)
 
 	paths := components.Paths()
@@ -180,7 +187,13 @@ func TestGraphPhase_ConcurrentUpstreamDownstreamSharedDependencyWithRacing(t *te
 		WithGitRoot(workingDir).
 		WithFilters(filters)
 
-	components, err := d.Discover(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts)
+	components, err := d.Discover(
+		config.WithCaches(t.Context()),
+		l,
+		venvtest.NewOSWithEmptyEnv(),
+		new(config.Store),
+		opts,
+	)
 	require.NoError(t, err)
 
 	require.Contains(t, components.Paths(), filepath.Join(extDir, "shared"))
@@ -279,6 +292,6 @@ func TestGraphPhase_UpstreamCandidatePublishBeforeContextWithRacing(t *testing.T
 		WithGitRoot(gitRoot).
 		WithFilters(filters)
 
-	_, err = d.Discover(t.Context(), l, venvtest.NewOSWithEmptyEnv(), opts)
+	_, err = d.Discover(config.WithCaches(t.Context()), l, venvtest.NewOSWithEmptyEnv(), new(config.Store), opts)
 	require.NoError(t, err)
 }

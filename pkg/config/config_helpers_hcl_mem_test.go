@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -23,9 +24,9 @@ func TestHCLGetRepoRoot(t *testing.T) {
 
 	l := logger.CreateLogger()
 	repoRoot := venvtest.Root("/synthetic/repo/root")
-	v := venvtest.New().WithFS(memRepoFS(t, repoRoot, "unit"))
+	v := venv.MemVenv().WithFS(memRepoFS(t, repoRoot, "unit"))
 	ctx, pctx := newTestParsingContext(t, filepath.Join(repoRoot, "unit", "terragrunt.hcl"))
-	ctx = config.WithConfigValues(ctx)
+	ctx = config.WithCaches(ctx)
 
 	const hcl = `locals {
   repo = get_repo_root()
@@ -34,7 +35,7 @@ terraform {
   source = local.repo
 }`
 
-	out, err := config.ParseConfigString(ctx, l, v, pctx, "test.hcl", hcl, nil)
+	out, err := resolveRunConfigString(t, ctx, l, v, new(config.Store), pctx, "test.hcl", hcl)
 	require.NoError(t, err)
 	require.NotNil(t, out)
 	require.NotNil(t, out.Locals)
@@ -50,16 +51,16 @@ func TestHCLGetPathFromRepoRoot(t *testing.T) {
 
 	l := logger.CreateLogger()
 	workingDir := venvtest.Root("/repo/services/api")
-	v := venvtest.New().WithFS(memRepoFS(t, venvtest.Root("/repo"), "services/api"))
+	v := venv.MemVenv().WithFS(memRepoFS(t, venvtest.Root("/repo"), "services/api"))
 	ctx, pctx := newTestParsingContext(t, filepath.Join(workingDir, "terragrunt.hcl"))
-	ctx = config.WithConfigValues(ctx)
+	ctx = config.WithCaches(ctx)
 	pctx.WorkingDir = workingDir
 
 	const hcl = `locals {
   rel = get_path_from_repo_root()
 }`
 
-	out, err := config.ParseConfigString(ctx, l, v, pctx, "test.hcl", hcl, nil)
+	out, err := resolveRunConfigString(t, ctx, l, v, new(config.Store), pctx, "test.hcl", hcl)
 	require.NoError(t, err)
 	assert.Equal(t, filepath.FromSlash("services/api"), out.Locals["rel"])
 }
@@ -72,37 +73,37 @@ func TestHCLGetPathToRepoRoot(t *testing.T) {
 
 	l := logger.CreateLogger()
 	workingDir := venvtest.Root("/repo/services/api")
-	v := venvtest.New().WithFS(memRepoFS(t, venvtest.Root("/repo"), "services/api"))
+	v := venv.MemVenv().WithFS(memRepoFS(t, venvtest.Root("/repo"), "services/api"))
 	ctx, pctx := newTestParsingContext(t, filepath.Join(workingDir, "terragrunt.hcl"))
-	ctx = config.WithConfigValues(ctx)
+	ctx = config.WithCaches(ctx)
 	pctx.WorkingDir = workingDir
 
 	const hcl = `locals {
   up = get_path_to_repo_root()
 }`
 
-	out, err := config.ParseConfigString(ctx, l, v, pctx, "test.hcl", hcl, nil)
+	out, err := resolveRunConfigString(t, ctx, l, v, new(config.Store), pctx, "test.hcl", hcl)
 	require.NoError(t, err)
 	assert.Equal(t, filepath.FromSlash("../.."), out.Locals["up"])
 }
 
 // TestHCLGetRepoRootPropagatesLookupFailure pins the contract that a working
 // directory outside any repository surfaces as an error from
-// ParseConfigString rather than silently producing an empty string.
+// the parse rather than silently producing an empty string.
 func TestHCLGetRepoRootPropagatesLookupFailure(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	v := venvtest.New().
+	v := venv.MemVenv().
 		WithFS(venvtest.NewFS(t, venvtest.Root("/not/a/repo"), map[string]string{"terragrunt.hcl": ""}))
 	ctx, pctx := newTestParsingContext(t, venvtest.Root("/not/a/repo/terragrunt.hcl"))
-	ctx = config.WithConfigValues(ctx)
+	ctx = config.WithCaches(ctx)
 
 	const hcl = `locals {
   repo = get_repo_root()
 }`
 
-	_, err := config.ParseConfigString(ctx, l, v, pctx, "test.hcl", hcl, nil)
+	_, err := resolveRunConfigString(t, ctx, l, v, new(config.Store), pctx, "test.hcl", hcl)
 	require.Error(t, err)
 }
 
@@ -120,16 +121,16 @@ func TestHCLRunCmd(t *testing.T) {
 	})
 
 	l := logger.CreateLogger()
-	v := venvtest.New().WithExec(exec)
+	v := venv.MemVenv().WithExec(exec)
 	ctx, pctx := newTestParsingContext(t, t.TempDir()+"/terragrunt.hcl")
 
-	ctx = config.WithConfigValues(ctx)
+	ctx = config.WithCaches(ctx)
 
 	const hcl = `locals {
   account = run_cmd("--terragrunt-quiet", "describe", "--account", "prod")
 }`
 
-	out, err := config.ParseConfigString(ctx, l, v, pctx, "test.hcl", hcl, nil)
+	out, err := resolveRunConfigString(t, ctx, l, v, new(config.Store), pctx, "test.hcl", hcl)
 	require.NoError(t, err)
 	assert.Equal(t, "account-1234", out.Locals["account"])
 }

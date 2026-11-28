@@ -68,7 +68,9 @@ func RewriteLegacyGCSPublicSource(
 	}
 
 	evalCtx := log.ContextWithLogger(ctx, l)
-	_ = ctrl.Evaluate(evalCtx)
+	if err := ctrl.Evaluate(evalCtx); err != nil {
+		l.Warnf("Failed to evaluate strict control %s: %v", controls.LegacyGCSPublicPrefix, err)
+	}
 
 	return "gcs::" + source
 }

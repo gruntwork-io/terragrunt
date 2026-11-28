@@ -13,9 +13,9 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/shell/split"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/view/tui"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/venv"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -95,7 +95,15 @@ func runMutatingCommand(
 		return nil, runAllOutput{}, ErrApprovalMismatch
 	}
 
-	out, err := runAllCommand(ctx, l, d.withRefusal(refusalFails), rootVenv, input, command)
+	out, err := runAllCommand(
+		ctx,
+		l,
+		d.withRefusal(venv.RefuseWithError),
+		rootVenv,
+		input,
+		command,
+		outputsRedactSensitive,
+	)
 
 	return nil, out, err
 }

@@ -25,6 +25,8 @@ const (
 	maxDashesInFlag = 2
 )
 
+// DefaultComplete prints completions for a command with no Complete function: matching flag
+// names when the last argument starts with a dash, matching subcommand names otherwise.
 var DefaultComplete = defaultComplete
 
 // AutocompleteInstaller is an interface to be implemented to perform the

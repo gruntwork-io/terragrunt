@@ -42,8 +42,8 @@ func NewURL(raw string) URL {
 // String renders the address with its user and password removed and every
 // query value but the revision replaced by [Placeholder]. A forced getter
 // prefix such as git:: is kept, and the address after it is rendered the same
-// way. An address [url.Parse] rejects, such as the SCP form git@host:path, is
-// returned unchanged.
+// way. An address [url.Parse] rejects, such as the SCP form git@host:path,
+// keeps everything ahead of its query as written.
 //
 // The ref and version query values render as written, so a rendered address
 // still names the revision it points at.
@@ -84,13 +84,17 @@ func (u URL) WithoutUserinfo() string {
 	return parsed.String()
 }
 
-// render removes the userinfo from raw and replaces every query value but the
-// ones named by [revisionKeys] with [Placeholder], returning raw unchanged
-// when [url.Parse] rejects it.
+// render removes the userinfo from raw and redacts its query. When [url.Parse]
+// rejects raw, only the query is redacted.
 func render(raw string) string {
 	parsed, err := url.Parse(raw)
 	if err != nil {
-		return raw
+		base, rawQuery, ok := strings.Cut(raw, "?")
+		if !ok {
+			return raw
+		}
+
+		return base + "?" + redactQuery(rawQuery)
 	}
 
 	parsed.User = nil
@@ -99,7 +103,15 @@ func render(raw string) string {
 		return parsed.String()
 	}
 
-	query := parsed.Query()
+	parsed.RawQuery = redactQuery(parsed.RawQuery)
+
+	return parsed.String()
+}
+
+// redactQuery replaces every value of rawQuery but the ones named by
+// [revisionKeys] with [Placeholder], dropping any pair that does not parse.
+func redactQuery(rawQuery string) string {
+	query := (&url.URL{RawQuery: rawQuery}).Query()
 
 	for key, values := range query {
 		if _, revision := revisionKeys[key]; revision {
@@ -111,9 +123,7 @@ func render(raw string) string {
 		}
 	}
 
-	parsed.RawQuery = query.Encode()
-
-	return parsed.String()
+	return query.Encode()
 }
 
 // isGetterName reports whether name can be a forced getter name: one or more

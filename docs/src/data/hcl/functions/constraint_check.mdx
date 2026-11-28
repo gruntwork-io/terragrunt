@@ -1,0 +1,47 @@
+---
+name: constraint_check
+description: Returns whether a version satisfies a version constraint.
+configs: [unit, stack]
+params:
+  - name: version
+    type: string
+    description: The version to check, e.g. `1.2.3`. A leading `v` is allowed.
+  - name: constraint
+    type: string
+    description: The constraint, e.g. `">= 1.0, < 2.0"`, in the syntax of [`terraform_version_constraint`](/reference/hcl/attributes/terraform_version_constraint).
+returns: bool
+examples:
+  - code: |
+      # terragrunt.hcl
+
+      locals {
+        is_v1 = constraint_check("1.2.3", ">= 1.0, < 2.0") # true
+      }
+---
+
+`constraint_check` lets a unit change its configuration with the version of a module it deploys. Here, the module renamed an input in `v2.0.0`, and a [`feature`](/reference/hcl/blocks/feature) flag picks the version:
+
+```hcl
+# terragrunt.hcl
+
+feature "module_version" {
+  default = "1.2.3"
+}
+
+locals {
+  version = feature.module_version.value
+  v2      = constraint_check(local.version, ">= 2.0.0")
+}
+
+terraform {
+  source = "github.com/acme/modules.git//app?ref=v${local.version}"
+}
+
+inputs = local.v2 ? {
+  new_input_name = "value"
+} : {
+  old_input_name = "value"
+}
+```
+
+Setting the flag to `2.0.0`, e.g. with `--feature module_version=2.0.0`, moves the unit to the new module and the new input name in one change.

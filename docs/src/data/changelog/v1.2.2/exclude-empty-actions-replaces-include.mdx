@@ -1,0 +1,28 @@
+---
+version: "v1.2.2"
+category: "bug-fixes"
+---
+
+#### `actions = []` in a unit's `exclude` block overrides an included block under `run --all`
+
+A unit that set `actions = []` to turn off an included `exclude` block was still excluded from `run --all`, though `terragrunt run plan` in the same unit ran:
+
+```hcl
+# root.hcl
+exclude {
+  if      = true
+  actions = ["plan"]
+}
+
+# app/terragrunt.hcl
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+
+exclude {
+  if      = true
+  actions = []
+}
+```
+
+`run --all` now uses the unit's `exclude` block, as `terragrunt run` does, so `app` runs.

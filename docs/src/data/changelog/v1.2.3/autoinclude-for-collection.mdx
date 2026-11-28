@@ -1,0 +1,14 @@
+---
+version: "v1.2.3"
+category: "bug-fixes"
+---
+
+#### `autoinclude` resolves the collection of a `for` expression
+
+In an [`autoinclude`](/reference/hcl/blocks/autoinclude) block, a loop variable with the name of a stack file variable, e.g. `local`, made [`terragrunt stack generate`](/reference/cli/commands/stack/generate) write the collection of the `for` expression unresolved:
+
+```hcl
+names = [for local in [local.env] : "${local}-${dependency.vpc.outputs.id}"]
+```
+
+The generated unit failed, because `local.env` is not defined in it. Terragrunt now resolves the collection when it generates the stack.

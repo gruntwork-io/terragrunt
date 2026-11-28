@@ -3,10 +3,12 @@
 package test_test
 
 import (
+	"encoding/json"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -38,7 +40,8 @@ func TestTFFilterFlagWithRunAllGitFilter(t *testing.T) {
 			ignoredUnits:       []string{"unit-to-be-untouched"},
 			expectedExcluded:   []string{"unit-to-be-removed"},
 			expectError:        false,
-			description:        "Git filter should discover units that were created, modified, or removed between commits, and exclude untouched units. Removed unit should be excluded without --filter-allow-destroy",
+			description: "Git filter should discover units that were created, modified, or removed between commits, " +
+				"and exclude untouched units. Removed unit should be excluded without --filter-allow-destroy",
 		},
 		{
 			name:               "git filter with --filter-allow-destroy includes removed unit",
@@ -102,7 +105,8 @@ func TestTFFilterFlagWithRunAllGitFilter(t *testing.T) {
 			// Run terragrunt run --all --filter with git filter
 			// Note: We use 'plan' command which should work even without terraform init
 			// Note: --experiment-mode enables the filter-flag experiment required for --filter
-			cmd := "terragrunt run --all --no-color --experiment-mode --working-dir " + tmpDir + " --filter '" + tc.filterQuery + "' --report-file " + helpers.ReportFile
+			cmd := "terragrunt run --all --no-color --experiment-mode --working-dir " + tmpDir +
+				" --filter '" + tc.filterQuery + "' --report-file " + helpers.ReportFile
 
 			if tc.filterAllowDestroy {
 				cmd += " --filter-allow-destroy"
@@ -284,7 +288,8 @@ terraform {
 	require.NoError(t, runner.Commit(t.Context(), "Initial commit with unit"))
 
 	// Apply the unit so that it shows up in state first.
-	cmd := "terragrunt run --non-interactive --all --no-color --report-file report.json --working-dir " + tmpDir + " -- apply"
+	cmd := "terragrunt run --non-interactive --all --no-color --report-file report.json --working-dir " + tmpDir +
+		" -- apply"
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 	require.NoError(t, err)
@@ -333,7 +338,8 @@ terraform {
 	assert.True(
 		t,
 		hasDestroyFlag,
-		"Removed unit should be planned with -destroy flag. Output should contain 'to destroy', 'No objects need to be destroyed', or 'will be destroyed'. "+
+		"Removed unit should be planned with -destroy flag. Output should contain 'to destroy', "+
+			"'No objects need to be destroyed', or 'will be destroyed'. "+
 			"Current output:\nstdout: %s\nstderr: %s",
 		stdout,
 		stderr,
@@ -370,7 +376,9 @@ func TestTFFilterFlagWithExplicitStacksGitFilter(t *testing.T) {
 				"unit-to-be-removed-from-stack",
 			},
 			expectError: false,
-			description: "Git filter should discover units from stacks that were created, modified, or removed between commits, and exclude untouched stacks. Units from removed stack should be excluded without --filter-allow-destroy",
+			description: "Git filter should discover units from stacks that were created, modified, or removed " +
+				"between commits, and exclude untouched stacks. Units from removed stack should be excluded " +
+				"without --filter-allow-destroy",
 		},
 		{
 			name:               "git filter with --filter-allow-destroy includes units from removed stack",
@@ -388,7 +396,8 @@ func TestTFFilterFlagWithExplicitStacksGitFilter(t *testing.T) {
 			},
 			expectedExcluded: []string{},
 			expectError:      false,
-			description:      "Git filter with --filter-allow-destroy should include units from removed stack for destroy operations",
+			description: "Git filter with --filter-allow-destroy should include units from removed stack for " +
+				"destroy operations",
 		},
 	}
 
@@ -519,7 +528,8 @@ unit "unit-to-be-created-2" {
 			require.NoError(t, runner.Commit(t.Context(), "Modify, create, and remove stacks"))
 
 			// Run terragrunt run --all --filter with git filter
-			cmd := "terragrunt run --all --no-color --experiment-mode --working-dir " + tmpDir + " --filter '" + tc.filterQuery + "' --report-file " + helpers.ReportFile
+			cmd := "terragrunt run --all --no-color --experiment-mode --working-dir " + tmpDir +
+				" --filter '" + tc.filterQuery + "' --report-file " + helpers.ReportFile
 
 			if tc.filterAllowDestroy {
 				cmd += " --filter-allow-destroy"
@@ -757,7 +767,8 @@ func TestTFFilterFlagMinimizesParsing(t *testing.T) {
 		// This will parse target-unit and its dependency (dependency-unit) for outputs,
 		// but only target-unit will be run and appear in the report
 		// The excluded units with land-mine configs should NOT be parsed
-		cmd := "terragrunt run --all plan --no-color --experiment-mode --working-dir " + rootPath + " --filter './target-unit' --report-file " + helpers.ReportFile
+		cmd := "terragrunt run --all plan --no-color --experiment-mode --working-dir " + rootPath +
+			" --filter './target-unit' --report-file " + helpers.ReportFile
 		_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 
 		// Command should succeed
@@ -798,7 +809,8 @@ func TestTFFilterFlagMinimizesParsing(t *testing.T) {
 		rootPath := filepath.Join(tmpEnvPath, testFixtureMinimizeParsing)
 
 		// Run with filter targeting both target-unit and dependency-unit (OR semantics)
-		cmd := "terragrunt run --all plan --no-color --experiment-mode --working-dir " + rootPath + " --filter './target-unit' --filter './dependency-unit' --report-file " + helpers.ReportFile
+		cmd := "terragrunt run --all plan --no-color --experiment-mode --working-dir " + rootPath +
+			" --filter './target-unit' --filter './dependency-unit' --report-file " + helpers.ReportFile
 		_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 
 		// Command should succeed - if land-mines were parsed, we'd get errors
@@ -941,7 +953,8 @@ func TestTFFilterFlagMinimizesParsing(t *testing.T) {
 		// Run destroy with filter targeting only unit-a
 		// This should only parse unit-a, NOT all units in the repository
 		// The land-mine units should NOT be parsed
-		cmd := "terragrunt run --all destroy --non-interactive --no-color --experiment-mode --working-dir " + rootPath + " --filter './unit-a' --report-file " + helpers.ReportFile
+		cmd := "terragrunt run --all destroy --non-interactive --no-color --experiment-mode --working-dir " + rootPath +
+			" --filter './unit-a' --report-file " + helpers.ReportFile
 		_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 
 		// Command should succeed - if land-mines were parsed, we'd get errors
@@ -991,7 +1004,8 @@ func TestTFFilterFlagMinimizesParsing(t *testing.T) {
 		// Run destroy with graph filter targeting unit-a
 		// Graph filters explicitly request dependency discovery, so this is expected behavior
 		// The land-mine units should still NOT be parsed (they're not dependencies)
-		cmd := "terragrunt run --all destroy --non-interactive --no-color --experiment-mode --working-dir " + rootPath + " --filter '{./unit-a}...' --report-file " + helpers.ReportFile
+		cmd := "terragrunt run --all destroy --non-interactive --no-color --experiment-mode --working-dir " + rootPath +
+			" --filter '{./unit-a}...' --report-file " + helpers.ReportFile
 		_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 
 		// Command should succeed - if land-mines were parsed, we'd get errors
@@ -1135,33 +1149,64 @@ resource "null_resource" "test" {}
 
 	helpers.RunTerragrunt(t, cmd)
 
-	// Verify plan files are in outDir, NOT in a worktree path
-	// The key assertion: plan files should be in outDir/unit-new/
-	// NOT in /tmp/terragrunt-worktree-*/unit-new/
-	files, err := filepath.Glob(filepath.Join(outDir, "**", "*.tfplan"))
-	if err != nil {
-		// Glob with ** doesn't work on all systems, try a walk
-		files = []string{}
-		_ = filepath.Walk(outDir, func(path string, info os.FileInfo, err error) error {
-			require.NoError(t, err)
+	assert.FileExists(t, filepath.Join(outDir, "@HEAD", "unit-new", "tfplan.tfplan"))
+}
 
-			if strings.HasSuffix(path, ".tfplan") {
-				files = append(files, path)
-			}
+// TestTFOutDirSeparatesGitReferences pins that two Git filters selecting the
+// same unit at different references in one run each get the unit's plan under
+// a directory for their reference, holding that reference's changes.
+func TestTFOutDirSeparatesGitReferences(t *testing.T) {
+	t.Parallel()
 
-			return nil
-		})
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+	outDir := helpers.TmpDirWOSymlinks(t)
+
+	runner := helpers.InitTestGitRunner(t, tmpDir)
+
+	unitDir := filepath.Join(tmpDir, "env", "app")
+	require.NoError(t, os.MkdirAll(unitDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(unitDir, "terragrunt.hcl"), nil, 0644))
+
+	for i, resources := range []int{0, 1, 2} {
+		var main strings.Builder
+		for r := range resources {
+			main.WriteString("resource \"terraform_data\" \"r" + strconv.Itoa(r) + "\" {}\n")
+		}
+
+		require.NoError(t, os.WriteFile(filepath.Join(unitDir, "main.tf"), []byte(main.String()), 0644))
+		require.NoError(t, runner.Add(t.Context(), "."))
+		require.NoError(t, runner.Commit(t.Context(), "Revision "+strconv.Itoa(i)))
 	}
 
-	// Should have at least 1 plan file in outDir
-	assert.NotEmpty(t, files, "Expected plan files in outDir %s", outDir)
+	cmd := "terragrunt run --all --no-color --non-interactive --parallelism 1 --working-dir " + tmpDir +
+		" --out-dir " + outDir + " --json-out-dir " + outDir +
+		" --filter '[HEAD~2...HEAD~1]' --filter '[HEAD~1...HEAD]' -- plan"
 
-	// None of the files should be in a worktree path
-	for _, file := range files {
-		assert.NotContains(t, file, "terragrunt-worktree",
-			"Plan file %s should not be in a worktree directory", file)
-		assert.True(t, strings.HasPrefix(file, outDir),
-			"Plan file %s should be in outDir %s", file, outDir)
+	helpers.RunTerragrunt(t, cmd)
+
+	for ref, adds := range map[string]int{"@HEAD_1": 1, "@HEAD": 2} {
+		raw, err := os.ReadFile(filepath.Join(outDir, ref, "env", "app", "tfplan.json"))
+		require.NoError(t, err)
+
+		var plan struct {
+			ResourceChanges []struct {
+				Change struct {
+					Actions []string `json:"actions"`
+				} `json:"change"`
+			} `json:"resource_changes"`
+		}
+
+		require.NoError(t, json.Unmarshal(raw, &plan))
+
+		creates := 0
+
+		for _, rc := range plan.ResourceChanges {
+			if slices.Contains(rc.Change.Actions, "create") {
+				creates++
+			}
+		}
+
+		assert.Equal(t, adds, creates, "the plan under %s holds that reference's changes", ref)
 	}
 }
 

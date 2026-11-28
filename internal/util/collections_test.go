@@ -1,12 +1,14 @@
 package util_test
 
 import (
+	"regexp/syntax"
 	"slices"
 	"strconv"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMatchesAny(t *testing.T) {
@@ -60,10 +62,20 @@ func TestMatchesAny(t *testing.T) {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			t.Parallel()
 
-			actual := util.MatchesAny(tc.list, tc.element)
+			actual, err := util.MatchesAny(tc.list, tc.element)
+			require.NoError(t, err)
 			assert.Equal(t, tc.expected, actual, "For list %v and element %s", tc.list, tc.element)
 		})
 	}
+}
+
+func TestMatchesAnyInvalidPattern(t *testing.T) {
+	t.Parallel()
+
+	_, err := util.MatchesAny([]string{"foo", "(unclosed"}, "bar")
+
+	var syntaxErr *syntax.Error
+	require.ErrorAs(t, err, &syntaxErr)
 }
 
 func TestListContainsElement(t *testing.T) {

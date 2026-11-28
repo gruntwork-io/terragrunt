@@ -1,0 +1,109 @@
+---
+name: auth-provider-cache
+since: "v1.2.3"
+---
+
+Reuse of one [`--auth-provider-cmd`](/reference/cli/commands/run#auth-provider-cmd) response across the units that share its credentials.
+
+This experiment is ongoing and disabled by default. Without it, Terragrunt ignores the `cache` object in the response and runs the command for every unit.
+
+### `auth-provider-cache` - What it does
+
+Terragrunt runs the auth provider command several times for every unit. With this experiment enabled, the command can return a `cache` object with a list of glob patterns and a `ttl`. Terragrunt reuses the response for every unit whose directory matches one of the patterns, until the `ttl` expires.
+
+```json
+{
+  "awsCredentials": {
+    "ACCESS_KEY_ID": "fake-access-key-id",
+    "SECRET_ACCESS_KEY": "fake-secret-access-key",
+    "SESSION_TOKEN": "fake-session-token"
+  },
+  "cache": {
+    "root": "repo",
+    "globs": ["dev/**"],
+    "ttl": 900
+  }
+}
+```
+
+```bash
+terragrunt run --all --experiment auth-provider-cache --auth-provider-cmd /path/to/auth-script.sh -- plan
+```
+
+- `root` is the directory the globs are relative to. The only value is `repo`, the top level of the git repository that contains the unit, as returned by [`get_repo_root()`](/reference/hcl/functions/get_repo_root/).
+- `globs` is a list of patterns matched against the unit directory relative to `root`, with forward slashes. They use the glob syntax of a [`--filter`](/features/filter/path) path: `*` matches within one path segment, `**` matches across segments, and `{a,b}` matches either alternative, so `dev/**` matches every directory under `dev`. The response is reused for a unit that matches any pattern. At least one pattern must match the unit the command ran for, and the list can have up to 256 patterns.
+- `ttl` is how many seconds Terragrunt reuses the response, up to `86400` (24 hours). Terragrunt reuses a response with a longer `ttl` for 24 hours and logs a warning. Set it below the remaining lifetime of the credentials. `0` disables caching for the response.
+
+Terragrunt runs the command in the unit directory, so the command can choose its globs from its working directory.
+
+If the `cache` object is invalid, Terragrunt logs a warning and uses the credentials for that unit only. When cached responses with different globs match the same unit, Terragrunt uses any one of them, so return globs that do not overlap unless the overlapping responses are interchangeable.
+
+The full response schema is published at [`/schemas/auth-provider-cmd/v3/schema.json`](/schemas/auth-provider-cmd/v3/schema.json).
+
+#### Fetching credentials once for units that run in parallel
+
+Terragrunt runs units in parallel, so several units that share credentials can run the command before the first response is cached, and each of them fetches the credentials. To fetch them once, the command can return the `cache` object alone, with a negative `ttl`, before it fetches anything:
+
+```json
+{
+  "cache": {
+    "root": "repo",
+    "globs": ["dev/**"],
+    "ttl": -1
+  }
+}
+```
+
+Terragrunt then runs the command one more time for all the units that got the same `root` and `globs` back. On that run the command fetches the credentials and returns them with a positive `ttl`. If the `cache` object of a response with a negative `ttl` is invalid, Terragrunt returns an error for that unit, because the response has no credentials to use. If that run returns a negative `ttl` again, Terragrunt returns an error for every unit waiting on it.
+
+Terragrunt sets two environment variables on the command:
+
+- `TG_CTX_AUTH_PROVIDER_SCHEMA` is the version of the response schema Terragrunt reads, on every run.
+- `TG_CTX_AUTH_PROVIDER_CACHE_KEY` is the `root` and `globs` of the response with a negative `ttl`, as JSON. Terragrunt sets it only on the run that follows that response, so the command can tell the two runs apart.
+
+The following script shares one set of credentials among the units in each top-level directory of the repository:
+
+```bash
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# Path of the unit directory below the repository root, e.g. dev/vpc/
+unit="$(git rev-parse --show-prefix)"
+environment="${unit%%/*}"
+
+cache="$(jq -n --arg env "$environment" '{root: "repo", globs: [$env, $env + "/**"]}')"
+
+schema="${TG_CTX_AUTH_PROVIDER_SCHEMA:-v0}"
+
+if (( ${schema#v} >= 3 )) && [[ -z "${TG_CTX_AUTH_PROVIDER_CACHE_KEY:-}" ]]; then
+  jq -n --argjson cache "$cache" '{cache: ($cache + {ttl: -1})}'
+  exit 0
+fi
+
+# Fetch the credentials for $environment here, into the three variables below.
+
+jq -n \
+  --argjson cache "$cache" \
+  --arg access_key_id "$access_key_id" \
+  --arg secret_access_key "$secret_access_key" \
+  --arg session_token "$session_token" \
+  '{
+    awsCredentials: {
+      ACCESS_KEY_ID: $access_key_id,
+      SECRET_ACCESS_KEY: $secret_access_key,
+      SESSION_TOKEN: $session_token
+    },
+    cache: ($cache + {ttl: 900})
+  }'
+```
+
+### `auth-provider-cache` - How to provide feedback
+
+Provide your feedback in the [`auth-provider-cache` GitHub Discussion](https://github.com/gruntwork-io/terragrunt/discussions/7440).
+
+### `auth-provider-cache` - Criteria for stabilization
+
+To transition the `auth-provider-cache` feature to a stable release, the following must be addressed:
+
+- [ ] Community feedback on real-world usage.

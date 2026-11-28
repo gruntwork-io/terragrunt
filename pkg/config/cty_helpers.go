@@ -2,7 +2,6 @@ package config
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -21,6 +20,13 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 )
 
+var (
+	stringVarParam    = &function.Parameter{Type: cty.String}
+	returnsString     = function.StaticReturnType(cty.String)
+	returnsBool       = function.StaticReturnType(cty.Bool)
+	returnsStringList = function.StaticReturnType(cty.List(cty.String))
+)
+
 // Create a cty Function that takes as input parameters a slice of strings (var args, so this slice could be of any
 // length) and returns as output a string. The implementation of the function calls the given toWrap function, passing
 // it the input parameters string slice as well as the given include and terragruntOptions.
@@ -32,8 +38,8 @@ func wrapStringSliceToStringAsFuncImpl(
 	toWrap func(ctx context.Context, l log.Logger, v *venv.Venv, pctx *ParsingContext, params []string) (string, error),
 ) function.Function {
 	return function.New(&function.Spec{
-		VarParam: &function.Parameter{Type: cty.String},
-		Type:     function.StaticReturnType(cty.String),
+		VarParam: stringVarParam,
+		Type:     returnsString,
 		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
 			params, err := ctySliceToStringSlice(args)
 			if err != nil {
@@ -50,22 +56,17 @@ func wrapStringSliceToStringAsFuncImpl(
 	})
 }
 
-func wrapStringSliceToBoolAsFuncImpl(
-	ctx context.Context,
-	v *venv.Venv,
-	pctx *ParsingContext,
-	toWrap func(ctx context.Context, v *venv.Venv, pctx *ParsingContext, params []string) (bool, error),
-) function.Function {
+func wrapStringSliceToBoolAsFuncImpl(toWrap func(params []string) (bool, error)) function.Function {
 	return function.New(&function.Spec{
-		VarParam: &function.Parameter{Type: cty.String},
-		Type:     function.StaticReturnType(cty.Bool),
+		VarParam: stringVarParam,
+		Type:     returnsBool,
 		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
 			params, err := ctySliceToStringSlice(args)
 			if err != nil {
 				return cty.BoolVal(false), err
 			}
 
-			out, err := toWrap(ctx, v, pctx, params)
+			out, err := toWrap(params)
 			if err != nil {
 				return cty.BoolVal(false), err
 			}
@@ -85,7 +86,7 @@ func wrapVoidToStringAsFuncImpl(
 	toWrap func(ctx context.Context, l log.Logger, v *venv.Venv, pctx *ParsingContext) (string, error),
 ) function.Function {
 	return function.New(&function.Spec{
-		Type: function.StaticReturnType(cty.String),
+		Type: returnsString,
 		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
 			out, err := toWrap(ctx, l, v, pctx)
 			if err != nil {
@@ -100,7 +101,7 @@ func wrapVoidToStringAsFuncImpl(
 // Create a cty Function that takes no input parameters and returns as output an empty string.
 func wrapVoidToEmptyStringAsFuncImpl() function.Function {
 	return function.New(&function.Spec{
-		Type: function.StaticReturnType(cty.String),
+		Type: returnsString,
 		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
 			return cty.StringVal(""), nil
 		},
@@ -117,14 +118,14 @@ func wrapVoidToStringSliceAsFuncImpl(
 	toWrap func(ctx context.Context, l log.Logger, v *venv.Venv, pctx *ParsingContext) ([]string, error),
 ) function.Function {
 	return function.New(&function.Spec{
-		Type: function.StaticReturnType(cty.List(cty.String)),
+		Type: returnsStringList,
 		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
 			outVals, err := toWrap(ctx, l, v, pctx)
 			if err != nil || len(outVals) == 0 {
 				return cty.ListValEmpty(cty.String), err
 			}
 
-			outCtyVals := []cty.Value{}
+			outCtyVals := make([]cty.Value, 0, len(outVals))
 			for _, val := range outVals {
 				outCtyVals = append(outCtyVals, cty.StringVal(val))
 			}
@@ -144,8 +145,8 @@ func wrapStringSliceToStringSliceAsFuncImpl(
 	toWrap func(ctx context.Context, l log.Logger, v *venv.Venv, pctx *ParsingContext, params []string) ([]string, error),
 ) function.Function {
 	return function.New(&function.Spec{
-		VarParam: &function.Parameter{Type: cty.String},
-		Type:     function.StaticReturnType(cty.List(cty.String)),
+		VarParam: stringVarParam,
+		Type:     returnsStringList,
 		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
 			params, err := ctySliceToStringSlice(args)
 			if err != nil {
@@ -171,7 +172,7 @@ func wrapStringSliceToStringSliceAsFuncImpl(
 // function returns the given string slice.
 func wrapStaticValueToStringSliceAsFuncImpl(out []string) function.Function {
 	return function.New(&function.Spec{
-		Type: function.StaticReturnType(cty.List(cty.String)),
+		Type: returnsStringList,
 		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
 			outVals := make([]cty.Value, 0, len(out))
 			for _, val := range out {
@@ -344,19 +345,21 @@ func generateTypeFromValuesMap(valMap map[string]cty.Value) cty.Type {
 func includeMapAsCtyVal(
 	ctx context.Context,
 	l log.Logger,
-	v *venv.Venv,
 	pctx *ParsingContext,
+	exposed ExposedInclude,
 ) (cty.Value, error) {
-	bareInclude, hasBareInclude := pctx.TrackInclude.CurrentMap[bareIncludeKey]
-	if len(pctx.TrackInclude.CurrentMap) == 1 && hasBareInclude {
+	byName := pctx.includes.ByName()
+
+	bareInclude, hasBareInclude := byName[bareIncludeKey]
+	if len(byName) == 1 && hasBareInclude {
 		l.Debug("Detected single bare include block - exposing as top level")
-		return includeConfigAsCtyVal(ctx, l, v, pctx, bareInclude)
+		return includeConfigAsCtyVal(ctx, l, pctx, bareInclude, exposed)
 	}
 
 	exposedIncludeMap := map[string]cty.Value{}
 
-	for key, included := range pctx.TrackInclude.CurrentMap {
-		parsedIncludedCty, err := includeConfigAsCtyVal(ctx, l, v, pctx, included)
+	for key, included := range byName {
+		parsedIncludedCty, err := includeConfigAsCtyVal(ctx, l, pctx, included, exposed)
 		if err != nil {
 			return cty.NilVal, err
 		}
@@ -418,59 +421,34 @@ func fieldError(field string, err error) error {
 	return fmt.Errorf("%s%s: %w", field, ctyPathString(err), err)
 }
 
-// includeConfigAsCtyVal returns the parsed include block as a cty.Value object if expose is true. Otherwise, return
+// includeConfigAsCtyVal returns the value exposed gives for the include block if expose is true. Otherwise, return
 // the nil representation of cty.Value.
 func includeConfigAsCtyVal(
 	ctx context.Context,
 	l log.Logger,
-	v *venv.Venv,
 	pctx *ParsingContext,
 	includeConfig IncludeConfig,
+	exposed ExposedInclude,
 ) (cty.Value, error) {
-	pctx = pctx.WithTrackInclude(nil)
-
-	if includeConfig.GetExpose() {
-		// Annotate resolution errors with the include name and parent file. The conversion layer further annotates
-		// these with the failing field/attribute path (see TerragruntConfigAsCty), since low-level conversion errors
-		// carry no source location of their own.
-		parsedIncluded, err := parseIncludedConfig(ctx, l, v, pctx, &includeConfig)
-		if err != nil {
-			return cty.NilVal, fmt.Errorf(
-				"exposed include %s (%s): %w",
-				includeBlockLabel(includeConfig),
-				includeConfig.Path,
-				err,
-			)
-		}
-
-		parsedIncludedCty, err := TerragruntConfigAsCty(parsedIncluded)
-		if err != nil {
-			return cty.NilVal, fmt.Errorf(
-				"exposed include %s (%s): %w",
-				includeBlockLabel(includeConfig),
-				includeConfig.Path,
-				err,
-			)
-		}
-
-		return parsedIncludedCty, nil
+	if !includeConfig.GetExpose() {
+		return cty.NilVal, nil
 	}
 
-	return cty.NilVal, nil
+	// Annotate resolution errors with the include name and parent file. The conversion layer further annotates
+	// these with the failing field/attribute path (see TerragruntConfigAsCty), since low-level conversion errors
+	// carry no source location of their own.
+	value, err := exposed(ctx, l, pctx.WithTrackInclude(nil), &includeConfig)
+	if err != nil {
+		return cty.NilVal, ExposedIncludeError(&includeConfig, err)
+	}
+
+	return value, nil
 }
 
-// CtyToStruct converts a cty.Value to a go struct.
-func CtyToStruct(ctyValue cty.Value, target any) error {
-	jsonBytes, err := ctyjson.Marshal(ctyValue, ctyValue.Type())
-	if err != nil {
-		return err
-	}
-
-	if err := json.Unmarshal(jsonBytes, target); err != nil {
-		return err
-	}
-
-	return nil
+// ExposedIncludeError annotates err, the failure to resolve the value of include for the `include` variable, with the
+// name of include and the path of the file it names.
+func ExposedIncludeError(include *IncludeConfig, err error) error {
+	return fmt.Errorf("exposed include %s (%s): %w", includeBlockLabel(*include), include.Path, err)
 }
 
 // CtyValueAsString converts a cty.Value to a string.

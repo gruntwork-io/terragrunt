@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"slices"
 
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/zclconf/go-cty/cty"
 )
@@ -37,6 +39,7 @@ var (
 	catalogBlockReg = regexp.MustCompile(fmt.Sprintf(hclBlockRegExprFmt, MetadataCatalog))
 )
 
+// CatalogConfig is the `catalog` block, which configures `terragrunt catalog`.
 type CatalogConfig struct {
 	NoShell         *bool    `hcl:"no_shell,optional"         cty:"no_shell"`
 	NoHooks         *bool    `hcl:"no_hooks,optional"         cty:"no_hooks"`
@@ -78,17 +81,19 @@ func (cfg *CatalogConfig) normalize(fsys vfs.FS, cfgPath string) {
 //
 // We want users to be able to browse to any folder in an `infra-live` repo, run `terragrunt catalog` (with no URL) arg.
 // ReadCatalogConfig looks for the "nearest" `terragrunt.hcl` in the parent directories if the given
-// `opts.TerragruntConfigPath` does not exist. Since our normal parsing `ParseConfig` does not always work,
+// `opts.TerragruntConfigPath` does not exist. Since a normal parse does not always work,
 // as some `terragrunt.hcl` files are meant to be used from an `include` and/or they might use
 // `find_in_parent_folders` and they only work from certain child folders, it parses this file to see if the
 // config contains `include{...find_in_parent_folders()...}` block to determine if it is the root configuration.
 // If it finds `terragrunt.hcl` that already has `include`, then read that configuration as is,
 // otherwise generate a stub child `terragrunt.hcl` in memory with an `include` to pull in the one we found.
-// Unlike the "ReadTerragruntConfig" func, it ignores any configuration errors not related to the "catalog" block.
+// Unlike [Store.ReadTerragruntConfig], it ignores any configuration errors not related to the "catalog" block, and it
+// fetches dependency outputs only when a catalog block reads `dependency`.
 func ReadCatalogConfig(
 	parentCtx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *Store,
 	pctx *ParsingContext,
 ) (*CatalogConfig, error) {
 	cfgPath, configString, err := findCatalogConfig(parentCtx, l, v, pctx)
@@ -101,12 +106,50 @@ func ReadCatalogConfig(
 	pctx.Parser.HaltOnErrorOnlyInBlocks = append(pctx.Parser.HaltOnErrorOnlyInBlocks, MetadataCatalog)
 	pctx.catalogOnly = true
 
-	config, err := ParseConfigString(parentCtx, l, v, pctx, cfgPath, configString, nil)
+	if !vfs.Exists(v.FS, cfgPath) {
+		pctx.catalogStubDir = filepath.Dir(cfgPath)
+	}
+
+	pctx = pctx.forStore(v)
+
+	ctx, release := s.withReleaseScope(parentCtx)
+	defer release()
+
+	c, config, err := s.resolveCatalogFile(ctx, l, v, pctx, cfgPath, configString)
+	if c != nil && c.catalogReadsDependency() {
+		config, err = c.ResolveRunConfig(ctx, l, v, s, pctx)
+	}
+
 	if err != nil {
 		return nil, err
 	}
 
 	return config.Catalog, nil
+}
+
+// resolveCatalogFile resolves the config at cfgPath that [ReadCatalogConfig] found, parsing content as the child it
+// generated when there is one.
+func (s *Store) resolveCatalogFile(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	pc *ParsingContext,
+	cfgPath, content string,
+) (*UnitConfig, *TerragruntConfig, error) {
+	if pc.catalogStubDir == "" {
+		return s.resolveFile(ctx, l, v, pc, cfgPath)
+	}
+
+	pc, err := pc.incrementDepth()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	parse := func(_ context.Context, parser *hclparse.Parser) (*hclparse.File, error) {
+		return parser.ParseFromString(content, cfgPath)
+	}
+
+	return s.resolveParsed(ctx, l, v, pc, cfgPath, parse)
 }
 
 func findCatalogConfig(
@@ -207,21 +250,32 @@ func convertToTerragruntCatalogConfig(
 	}
 
 	if cfgFromFile.Errors != nil {
-		cfg.Errors = cfgFromFile.Errors
+		cfg.Errors = cfgFromFile.Errors.lastPerLabel()
 		cfg.SetFieldMetadata(MetadataErrors, defaultMetadata)
 	}
 
 	if pctx.Locals != nil && *pctx.Locals != cty.NilVal {
-		// we should ignore any errors from `parseCtyValueToMap` as some `locals` values might have been incorrectly evaluated, that results to `json.Unmarshal` error.
-		// for example if the locals block looks like `{"var1":, "var2":"value2"}`, `parseCtyValueToMap` returns the map with "var2" value and an syntax error,
-		// but since we consciously understand that not all variables can be evaluated correctly due to the fact that parsing may not start from the real root file, we can safely ignore this error.
-		localsParsed, _ := ctyhelper.ParseCtyValueToMap(*pctx.Locals)
-		// Only set Locals if there are actual values to avoid setting an empty map
-		if len(localsParsed) > 0 {
+		// Parsing may not start from the real root file, so some locals can be
+		// evaluated incorrectly and fail to convert. Such locals are left unset
+		// rather than failing the catalog parse. Empty locals are left unset too.
+		if localsParsed, parseErr := ctyhelper.ParseCtyValueToMap(*pctx.Locals); parseErr == nil && len(localsParsed) > 0 {
 			cfg.Locals = localsParsed
 			cfg.SetFieldMetadataMap(MetadataLocals, localsParsed, defaultMetadata)
 		}
 	}
 
 	return cfg, nil
+}
+
+// catalogReadsDependency reports whether the catalog block of c, or of a file c merges, reads `dependency`.
+func (c *UnitConfig) catalogReadsDependency() bool {
+	if c.Catalog != nil && c.Catalog.readsDependency() {
+		return true
+	}
+
+	merged := append([]*includedFile{c.kept.autoInclude}, c.kept.included...)
+
+	return slices.ContainsFunc(merged, func(file *includedFile) bool {
+		return file != nil && file.cfg != nil && file.cfg.catalogReadsDependency()
+	})
 }

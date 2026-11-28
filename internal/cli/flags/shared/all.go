@@ -9,7 +9,10 @@ import (
 )
 
 const (
-	AllFlagName  = "all"
+	// AllFlagName is the flag name for `--all`, which runs the command on every unit in the stack under
+	// the working directory.
+	AllFlagName = "all"
+	// AllFlagAlias is the short flag name `-a` for `--all`.
 	AllFlagAlias = "a"
 )
 

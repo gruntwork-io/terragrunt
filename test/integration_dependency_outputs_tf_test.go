@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 )
 
@@ -31,14 +32,23 @@ func TestTFDependencyOutputSkipDependencyOutputsFlag(t *testing.T) {
 
 	t.Run("plan without flag fails", func(t *testing.T) {
 		t.Parallel()
-		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --non-interactive --working-dir "+noOutputPath(t))
+
+		helpers.SkipInExperimentMode(t, experiment.EmptyDependencyOutputs)
+
+		_, _, err := helpers.RunTerragruntCommandWithOutput(
+			t,
+			"terragrunt plan --non-interactive --working-dir "+noOutputPath(t),
+		)
 		require.ErrorContains(t, err, "resolving dependency \"app1\" outputs")
 	})
 
 	for _, cmd := range []string{"init", "validate", "plan"} {
 		t.Run(cmd+" succeeds with flag", func(t *testing.T) {
 			t.Parallel()
-			_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt "+cmd+" --no-dependency-outputs --non-interactive --working-dir "+noOutputPath(t))
+			_, _, err := helpers.RunTerragruntCommandWithOutput(
+				t,
+				"terragrunt "+cmd+" --no-dependency-outputs --non-interactive --working-dir "+noOutputPath(t),
+			)
 			require.NoError(t, err)
 		})
 	}
@@ -46,7 +56,10 @@ func TestTFDependencyOutputSkipDependencyOutputsFlag(t *testing.T) {
 	for _, cmd := range []string{"init", "validate", "plan"} {
 		t.Run("run --all "+cmd+" succeeds with flag", func(t *testing.T) {
 			t.Parallel()
-			_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all "+cmd+" --no-dependency-outputs --non-interactive --working-dir "+noOutputPath(t))
+			_, _, err := helpers.RunTerragruntCommandWithOutput(
+				t,
+				"terragrunt run --all "+cmd+" --no-dependency-outputs --non-interactive --working-dir "+noOutputPath(t),
+			)
 			require.NoError(t, err)
 		})
 	}
@@ -90,11 +103,17 @@ func TestTFDependencyOutputSkipDependencyOutputsFlagWithApplyAndDestroy(t *testi
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNoDependencyOutputs)
 			rootPath := filepath.Join(tmpEnvPath, testFixtureNoDependencyOutputs)
 
-			_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all apply"+tc.args+" --non-interactive --working-dir "+rootPath)
+			_, _, err := helpers.RunTerragruntCommandWithOutput(
+				t,
+				"terragrunt run --all apply"+tc.args+" --non-interactive --working-dir "+rootPath,
+			)
 			require.NoError(t, err)
 
 			for unit, want := range tc.want {
-				stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -json"+tc.args+" --non-interactive --working-dir "+filepath.Join(rootPath, unit))
+				stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+					t,
+					"terragrunt output -json"+tc.args+" --non-interactive --working-dir "+filepath.Join(rootPath, unit),
+				)
 				require.NoError(t, err)
 
 				outputs := map[string]helpers.TerraformOutput{}
@@ -102,7 +121,10 @@ func TestTFDependencyOutputSkipDependencyOutputsFlagWithApplyAndDestroy(t *testi
 				helpers.ValidateOutput(t, outputs, "x", want)
 			}
 
-			_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all destroy"+tc.args+" --non-interactive --working-dir "+rootPath)
+			_, _, err = helpers.RunTerragruntCommandWithOutput(
+				t,
+				"terragrunt run --all destroy"+tc.args+" --non-interactive --working-dir "+rootPath,
+			)
 			require.NoError(t, err)
 		})
 	}

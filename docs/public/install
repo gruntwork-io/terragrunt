@@ -43,6 +43,8 @@
 # Environment:
 #   TERRAGRUNT_VERSION       Override version (same as -v)
 #   TERRAGRUNT_INSTALL_DIR   Override install directory (same as -d)
+#   GH_TOKEN, GITHUB_TOKEN   GitHub token for GitHub API requests, which raises their
+#                            rate limit
 
 set -euo pipefail
 
@@ -63,8 +65,9 @@ readonly MIN_GH_ATTESTATION_VERSION="2.81.0"
 readonly BUILDS_API_BASE="https://builds.terragrunt.com"
 
 # --- Colors (if terminal) ---
-# Use $'...' syntax for reliable escape sequence interpretation on macOS/Linux
-if [[ -t 1 ]]; then
+# Use $'...' syntax for reliable escape sequence interpretation on macOS/Linux.
+# Checks stderr, where all colored messages go.
+if [[ -t 2 ]]; then
     readonly RED=$'\033[0;31m'
     readonly GREEN=$'\033[0;32m'
     readonly YELLOW=$'\033[0;33m'
@@ -85,7 +88,7 @@ abort() {
 }
 
 info() {
-    printf "${BLUE}==> ${NC}%s\n" "$1"
+    printf "${BLUE}==> ${NC}%s\n" "$1" >&2
 }
 
 warn() {
@@ -93,7 +96,7 @@ warn() {
 }
 
 success() {
-    printf "${GREEN}==> %s${NC}\n" "$1"
+    printf "${GREEN}==> %s${NC}\n" "$1" >&2
 }
 
 usage() {
@@ -245,6 +248,23 @@ Supported: x86_64 (amd64), aarch64 (arm64), i386/i686 (386)"
 }
 
 # --- Version Resolution ---
+
+# Print a GitHub API response body, authenticated when GH_TOKEN or GITHUB_TOKEN is set.
+# curl reads the token header from stdin, so the token stays out of the process list.
+github_api_get() {
+    local url="$1"
+    local accept="$2"
+    local token="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
+
+    if [[ -n "$token" ]]; then
+        printf 'Authorization: Bearer %s\n' "$token" |
+            curl "${CURL_OPTS[@]}" -fsL -H "Accept: ${accept}" -H @- "$url"
+        return
+    fi
+
+    curl "${CURL_OPTS[@]}" -fsL -H "Accept: ${accept}" "$url"
+}
+
 get_latest_version() {
     local version
 
@@ -259,8 +279,8 @@ get_latest_version() {
         fi
     fi
 
-    # Method 2: Fallback to GitHub API (may hit rate limits: 60 req/hour unauthenticated)
-    if version=$(curl "${CURL_OPTS[@]}" -fsL "https://api.github.com/repos/${GITHUB_REPO}/releases/latest" 2>/dev/null | grep -o '"tag_name": "[^"]*' | cut -d'"' -f4); then
+    # Method 2: Fallback to GitHub API (may hit rate limits unless GH_TOKEN or GITHUB_TOKEN is set)
+    if version=$(github_api_get "https://api.github.com/repos/${GITHUB_REPO}/releases/latest" "application/vnd.github+json" 2>/dev/null | grep -o '"tag_name": "[^"]*' | cut -d'"' -f4); then
         if [[ -n "$version" ]]; then
             echo "$version"
             return 0
@@ -268,8 +288,8 @@ get_latest_version() {
     fi
 
     abort "Could not determine latest version.
-This may be due to GitHub API rate limits (60 requests/hour).
-Specify a version manually with -v, e.g.: -v v0.72.5"
+This may be due to GitHub API rate limits. Set GH_TOKEN to raise the limit,
+or specify a version manually with -v, e.g.: -v v0.72.5"
 }
 
 init_curl_opts() {
@@ -317,6 +337,31 @@ download_checksums() {
 }
 
 # --- Tip/Test Build Functions ---
+
+# Print the full 40-character SHA of a --commit value.
+# The builds server finds builds only by full lowercase SHA, so the GitHub API expands any other value.
+resolve_commit_sha() {
+    local sha="$1"
+
+    if [[ "$sha" =~ ^[0-9a-f]{40}$ ]]; then
+        echo "$sha"
+        return
+    fi
+
+    info "Expanding commit ${sha} to its full SHA..."
+
+    local full_sha
+    full_sha=$(github_api_get "https://api.github.com/repos/${GITHUB_REPO}/commits/${sha}" "application/vnd.github.sha" 2>/dev/null) || true
+
+    if [[ ! "$full_sha" =~ ^[0-9a-f]{40}$ ]]; then
+        abort "Could not expand commit ${sha} to its full SHA.
+The commit may not exist in ${GITHUB_REPO}, the GitHub API rate limit may be used up,
+or the token in GH_TOKEN or GITHUB_TOKEN may be invalid.
+Pass the full 40-character commit SHA, or set GH_TOKEN to raise the rate limit."
+    fi
+
+    echo "$full_sha"
+}
 
 get_build_file_url() {
     local channel="$1"
@@ -906,6 +951,10 @@ main() {
     # Check dependencies
     check_dependencies
 
+    if [[ -n "$COMMIT_SHA" ]]; then
+        COMMIT_SHA=$(resolve_commit_sha "$COMMIT_SHA")
+    fi
+
     # Detect platform
     local os arch
     os=$(detect_os)
@@ -917,6 +966,11 @@ main() {
     fi
     [[ -z "$BUILD_CHANNEL" ]] && install_release "$os" "$arch"
 
+    print_next_steps >&2
+}
+
+# Print PATH setup and getting-started hints after an install
+print_next_steps() {
     echo ""
 
     # Show PATH instructions if using default dir and not already configured

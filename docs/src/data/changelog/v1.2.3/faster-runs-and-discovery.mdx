@@ -1,0 +1,13 @@
+---
+version: "v1.2.3"
+category: "performance-improvements"
+order: 1
+---
+
+#### Faster runs and discovery with less memory
+
+`run --all plan` takes up to 63% less time than in v1.2.2 and uses up to 18% less peak memory, measured at up to 1,000 units.
+
+`find --dependencies` uses up to 89% less peak memory, measured at up to 5,000 units that share configuration through `include` and `read_terragrunt_config`, in the layout of [`BenchmarkDiscoverySharedConfig`](https://github.com/gruntwork-io/terragrunt/blob/main/internal/discovery/benchmark_shared_config_test.go).
+
+These numbers come from benchmarks on an AMD Ryzen AI Max+ 395, with a stand-in for `tofu` that exits immediately, so they time Terragrunt overhead alone.

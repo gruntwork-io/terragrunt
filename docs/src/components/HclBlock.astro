@@ -1,0 +1,74 @@
+---
+import { render, type CollectionEntry } from 'astro:content';
+import HclBlockAttribute from '@components/HclBlockAttribute.astro';
+import HclConfigs from '@components/HclConfigs.astro';
+import HclExamples from '@components/HclExamples.astro';
+import HclKeyGroups from '@components/HclKeyGroups.astro';
+import HclNestedBlock from '@components/HclNestedBlock.astro';
+import ReferenceCard from '@components/ReferenceCard.astro';
+import { renderMarkdownField } from '@lib/hcl/markdown';
+
+interface Props {
+	entry: CollectionEntry<'hclBlocks'>;
+}
+
+const { entry } = Astro.props;
+const { Content } = await render(entry);
+const labels = await Promise.all(
+	(entry.data.labels ?? []).map(async ({ name, description }) => ({
+		name,
+		descriptionHtml: await renderMarkdownField(description),
+	})),
+);
+const attributes = entry.data.attributes ?? [];
+const blocks = entry.data.blocks ?? [];
+---
+
+<HclConfigs configs={entry.data.configs} />
+
+<h2 id="usage">Usage</h2>
+
+<Content />
+
+{entry.data.examples && <HclExamples examples={entry.data.examples} />}
+
+{
+	labels.length > 0 && (
+		<>
+			<h2 id="labels">Labels</h2>
+			{labels.map(({ name, descriptionHtml }) => (
+				<ReferenceCard title={name}>
+					<Fragment set:html={descriptionHtml} />
+				</ReferenceCard>
+			))}
+		</>
+	)
+}
+
+{
+	attributes.length > 0 && (
+		<>
+			<h2 id="attributes">Attributes</h2>
+			<div>
+				{attributes.map((attribute) => (
+					<HclBlockAttribute attribute={attribute} />
+				))}
+			</div>
+		</>
+	)
+}
+
+{attributes.map((attribute) => attribute.keyGroups && <HclKeyGroups keys={attribute.keyGroups} />)}
+
+{
+	blocks.length > 0 && (
+		<>
+			<h2 id="blocks">Blocks</h2>
+			<div>
+				{blocks.map((block) => (
+					<HclNestedBlock block={block} />
+				))}
+			</div>
+		</>
+	)
+}

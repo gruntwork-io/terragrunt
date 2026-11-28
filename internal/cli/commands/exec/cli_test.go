@@ -6,7 +6,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/exec"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -167,7 +166,7 @@ func TestNewFlagsParsesSourceAndAutoInitFlags(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts := options.NewTerragruntOptions()
 			flags := exec.NewFlags(logger.CreateLogger(), opts, exec.NewOptions(), nil)
 
 			env := tc.env
@@ -190,7 +189,7 @@ func newExecFlags(t *testing.T) clihelper.Flags {
 
 	return exec.NewFlags(
 		logger.CreateLogger(),
-		options.NewTerragruntOptions(vexec.NewOSExec()),
+		options.NewTerragruntOptions(),
 		exec.NewOptions(),
 		nil,
 	)

@@ -17,6 +17,7 @@ import (
 
 var _ ProviderHandler = new(FilesystemMirrorProviderHandler)
 
+// FilesystemMirrorProviderHandler reads provider versions and platforms from a local directory mirror.
 type FilesystemMirrorProviderHandler struct {
 	*CommonProviderHandler
 
@@ -24,6 +25,7 @@ type FilesystemMirrorProviderHandler struct {
 	filesystemMirrorPath string
 }
 
+// NewFilesystemMirrorProviderHandler returns a handler that reads the mirror at the path of method from fsys.
 func NewFilesystemMirrorProviderHandler(
 	l log.Logger,
 	c vhttp.Client,

@@ -77,6 +77,42 @@ describe("cleanupContent block form", () => {
     expect(content).not.toContain("import Since");
     expect(content).not.toMatch(/\n{3,}/);
   });
+
+  test("keeps the final newline when the file ends with a removed gate", () => {
+    const source = [
+      IMPORTS,
+      "",
+      "Intro.",
+      "",
+      '<Before version="1.0.5">',
+      "",
+      "Old text.",
+      "",
+      "</Before>",
+      "",
+    ].join("\n");
+
+    const { content } = cleanupContent(source, "v1.0.5");
+    expect(content).toEndWith("\nIntro.\n");
+  });
+
+  test("keeps the final newline when the file ends with an unwrapped gate", () => {
+    const source = [
+      IMPORTS,
+      "",
+      "Intro.",
+      "",
+      '<Since version="1.0.5">',
+      "",
+      "New text.",
+      "",
+      "</Since>",
+      "",
+    ].join("\n");
+
+    const { content } = cleanupContent(source, "v1.0.5");
+    expect(content).toEndWith("\nIntro.\n\nNew text.\n");
+  });
 });
 
 describe("cleanupContent nesting", () => {
@@ -161,6 +197,28 @@ describe("pruneImports", () => {
     const result = pruneImports(source);
     expect(result).not.toContain("import Before");
     expect(result).toContain("import Since");
+  });
+
+  test("leaves one blank line after the frontmatter when every import goes", () => {
+    const source = ["---", "title: Page", "---", "", IMPORTS, "", "Text.", ""].join("\n");
+    expect(pruneImports(source)).toBe("---\ntitle: Page\n---\n\nText.\n");
+  });
+
+  test("keeps the blank line under an import that stays", () => {
+    const source = [
+      "---",
+      "title: Page",
+      "---",
+      "",
+      "import { Aside } from '@astrojs/starlight/components';",
+      IMPORTS,
+      "",
+      "Text.",
+      "",
+    ].join("\n");
+    expect(pruneImports(source)).toBe(
+      "---\ntitle: Page\n---\n\nimport { Aside } from '@astrojs/starlight/components';\n\nText.\n",
+    );
   });
 });
 

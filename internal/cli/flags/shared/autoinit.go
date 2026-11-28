@@ -7,6 +7,8 @@ import (
 )
 
 const (
+	// NoAutoInitFlagName is the flag name for `--no-auto-init`, which stops Terragrunt from running
+	// `tofu init` before other commands.
 	NoAutoInitFlagName = "no-auto-init"
 )
 

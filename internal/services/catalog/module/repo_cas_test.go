@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gruntwork-io/terragrunt/internal/getter"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -31,14 +32,14 @@ func TestNewRepoThroughCASReportsSourceRemoteAndDefaultBranch(t *testing.T) {
 	helpers.InitGitRepoOnBranch(t, sourceDir, sourceDefaultBranch)
 
 	repo, err := module.NewRepo(t.Context(), logger.CreateLogger(), casVenv(tmpDir), &module.RepoOpts{
-		CloneURL:      "git::" + helpers.FileURL(sourceDir),
+		CloneURL:      "git::" + getter.FileURL(sourceDir).String(),
 		Path:          filepath.Join(tmpDir, "clone"),
 		AllowCAS:      true,
 		CASCloneDepth: 1,
 	})
 	require.NoError(t, err)
 
-	assert.Equal(t, helpers.FileURL(sourceDir), repo.RemoteURL)
+	assert.Equal(t, getter.FileURL(sourceDir).String(), repo.RemoteURL)
 	assert.Equal(t, sourceDefaultBranch, repo.BranchName)
 }
 
@@ -52,14 +53,14 @@ func TestNewRepoThroughCASReportsRequestedRef(t *testing.T) {
 	helpers.InitGitRepoWithBranchRef(t, sourceDir, "release")
 
 	repo, err := module.NewRepo(t.Context(), logger.CreateLogger(), casVenv(tmpDir), &module.RepoOpts{
-		CloneURL:      "git::" + helpers.FileURL(sourceDir) + "?ref=release",
+		CloneURL:      "git::" + getter.FileURL(sourceDir).String() + "?ref=release",
 		Path:          filepath.Join(tmpDir, "clone"),
 		AllowCAS:      true,
 		CASCloneDepth: 1,
 	})
 	require.NoError(t, err)
 
-	assert.Equal(t, helpers.FileURL(sourceDir), repo.RemoteURL)
+	assert.Equal(t, getter.FileURL(sourceDir).String(), repo.RemoteURL)
 	assert.Equal(t, "release", repo.BranchName)
 }
 
@@ -74,7 +75,7 @@ func TestNewRepoThroughCASLinksModulesUnderRequestedSubdir(t *testing.T) {
 	helpers.InitGitRepoOnBranch(t, sourceDir, sourceDefaultBranch)
 
 	repo, err := module.NewRepo(t.Context(), logger.CreateLogger(), casVenv(tmpDir), &module.RepoOpts{
-		CloneURL:      "git::" + helpers.FileURL(sourceDir) + "//modules",
+		CloneURL:      "git::" + getter.FileURL(sourceDir).String() + "//modules",
 		Path:          filepath.Join(tmpDir, "clone"),
 		AllowCAS:      true,
 		CASCloneDepth: 1,
@@ -82,10 +83,10 @@ func TestNewRepoThroughCASLinksModulesUnderRequestedSubdir(t *testing.T) {
 	require.NoError(t, err)
 	require.FileExists(t, filepath.Join(repo.Path(), "vpc", "main.tf"))
 
-	assert.Equal(t, helpers.FileURL(sourceDir), repo.RemoteURL)
+	assert.Equal(t, getter.FileURL(sourceDir).String(), repo.RemoteURL)
 	assert.Equal(
 		t,
-		"git::"+helpers.FileURL(sourceDir)+"//modules/vpc",
+		"git::"+getter.FileURL(sourceDir).String()+"//modules/vpc",
 		module.SourcePath(repo.CloneURL(), "vpc"),
 	)
 
@@ -109,7 +110,7 @@ func TestNewRepoThroughCASOfflineReportsHead(t *testing.T) {
 
 	v := casVenv(tmpDir)
 	opts := module.RepoOpts{
-		CloneURL:      "git::" + helpers.FileURL(sourceDir),
+		CloneURL:      "git::" + getter.FileURL(sourceDir).String(),
 		AllowCAS:      true,
 		CASCloneDepth: 1,
 		CASProbeCache: true,

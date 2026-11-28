@@ -9,7 +9,7 @@ sidebar:
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
 import { Aside } from '@astrojs/starlight/components';
-import Since from '@components/Since.astro';
+import StatefulTabs from '@components/StatefulTabs.astro';
 
 Consider the following file structure in a typical OpenTofu/Terraform project, which defines three environments (prod, qa, stage) with the same infrastructure in each one (an app, a MySQL database, and a VPC):
 
@@ -154,7 +154,7 @@ cd live/stage/app
 terragrunt apply
 ```
 
-When Terragrunt finds the `terraform` block with a `source` parameter in `live/stage/app/terragrunt.hcl` file, it will:
+When you run `terragrunt apply` in `live/stage/app`, Terragrunt will:
 
 1. Download the configurations specified via the `source` parameter into the `--download-dir` folder (by default `.terragrunt-cache` in the working directory, which we recommend adding to `.gitignore`). The `source` parameter supports the same syntax as the OpenTofu/Terraform [module source](https://opentofu.org/docs/language/modules/sources/) parameter (via [go-getter](https://github.com/hashicorp/go-getter)), including local file paths, Git URLs, and `ref` parameters for pinning a tag, commit, or branch. Terragrunt downloads all the code before the double-slash `//` so that relative paths between modules work correctly.
 
@@ -164,7 +164,7 @@ When Terragrunt finds the `terraform` block with a `source` parameter in `live/s
 
 4. Pass any variables defined in the `inputs = { …​ }` block as environment variables (prefixed with `TF_VAR_`) when running OpenTofu/Terraform. Notice how the `inputs` block in `stage/app/terragrunt.hcl` deploys fewer and smaller instances than prod.
 
-Check out the [terragrunt-infrastructure-modules-example](https://github.com/gruntwork-io/terragrunt-infrastructure-modules-example) and [terragrunt-infrastructure-live-example](https://github.com/gruntwork-io/terragrunt-infrastructure-live-example) repos for fully-working sample code that demonstrates our recommended folder structure for successful infrastructure management.
+Check out the [terragrunt-infrastructure-catalog-example](https://github.com/gruntwork-io/terragrunt-infrastructure-catalog-example) repo and the live repos for [AWS](https://github.com/gruntwork-io/terragrunt-infrastructure-live-stacks-example), [Azure](https://github.com/gruntwork-io/terragrunt-infrastructure-live-azure-example), and [GCP](https://github.com/gruntwork-io/terragrunt-infrastructure-live-gcp-example) for fully-working sample code that demonstrates our recommended folder structure for successful infrastructure management.
 
 ## Immutable modules and atomic deployments
 
@@ -241,7 +241,7 @@ In particular:
       }
     }
     ```
-    See the [`get_terragrunt_dir()`](/reference/hcl/functions/#get_terragrunt_dir) documentation for more details.
+    See the [`get_terragrunt_dir()`](/reference/hcl/functions/get_terragrunt_dir) documentation for more details.
 
 ## Using Terragrunt with private Git repos
 
@@ -268,9 +268,9 @@ ssh -T -oStrictHostKeyChecking=accept-new git@github.com || true
 
 In an ideal world, all that units do would be to run versioned, immutable OpenTofu/Terraform modules with environment-specific inputs.
 In the real world, however, certain scenarios arise when you have to inject additional configurations to the immutable OpenTofu/Terraform
-modules you use. This is where [generate blocks](/reference/hcl/blocks#generate) prove useful.
+modules you use. This is where [generate blocks](/reference/hcl/blocks/generate) prove useful.
 When you define a `generate` block, Terragrunt will do the following before any run:
-1. Fetch any module referenced in a source URL in the `terraform` block into the `.terragrunt-cache` folder (if there is none, it will run in the current working directory).
+1. Copy the unit into the `.terragrunt-cache` folder, along with the module referenced by `source` in the `terraform` block, if there is one.
 2. Generate the file specified in the `generate` block into the directory where Terragrunt will run OpenTofu/Terraform.
 3. Run the OpenTofu/Terraform command.
 
@@ -309,9 +309,11 @@ Consider a setup where you want to always assume a specific IAM role when callin
 </FileTree>
 
 Each `env.hcl` file (the one at the environment level, e.g `prod/env.hcl`) should define a
-`generate` block to generate the AWS provider configuration to assume the role for that environment. For example,
-if you wanted to assume the role `arn:aws:iam::0123456789:role/terragrunt` in all the units for the prod account, you
-would put the following in `prod/env.hcl`:
+`generate` block to generate the provider configuration for that environment. For example, `prod/env.hcl` can give
+every production unit the same provider settings:
+
+<StatefulTabs syncKey="cloud-provider" tabs={['AWS', 'Azure', 'GCP']}>
+<Fragment slot="aws">
 
 ```hcl
 # prod/env.hcl
@@ -327,6 +329,46 @@ provider "aws" {
 EOF
 }
 ```
+
+</Fragment>
+<Fragment slot="azure">
+
+```hcl
+# prod/env.hcl
+generate "provider" {
+  path = "provider.tf"
+  if_exists = "overwrite_terragrunt"
+  contents = <<EOF
+provider "azurerm" {
+  features {}
+
+  subscription_id = "00000000-0000-0000-0000-000000000000"
+}
+EOF
+}
+```
+
+</Fragment>
+<Fragment slot="gcp">
+
+```hcl
+# prod/env.hcl
+generate "provider" {
+  path = "provider.tf"
+  if_exists = "overwrite_terragrunt"
+  contents = <<EOF
+provider "google" {
+  project = "my-project"
+  region  = "us-central1"
+
+  impersonate_service_account = "terragrunt@my-project.iam.gserviceaccount.com"
+}
+EOF
+}
+```
+
+</Fragment>
+</StatefulTabs>
 
 This instructs Terragrunt to create the file `provider.tf` in the working directory where Terragrunt calls `tofu`/`terraform`
 before it runs any of the OpenTofu/Terraform commands (e.g `plan`, `apply`, `validate`, etc). This allows you to inject this
@@ -345,11 +387,7 @@ The `include` block tells Terragrunt to use the exact same Terragrunt configurat
 specified via the `path` parameter. It behaves exactly as if you had copy/pasted the OpenTofu/Terraform configuration from the
 included file `generate` configuration into the child, but this approach is much easier to maintain!
 
-<Since version="v1.2.0">
-
-Every unit that includes `env.hcl` generates the same `provider.tf` content, so Terragrunt stores that content once in the [Content Addressable Store (CAS)](/features/caching/cas) and hard links it into each unit's working directory. The linked file is read-only. If a hook or script writes to a generated file, set [`mutable = true`](/reference/hcl/blocks#generate) on its `generate` block to give each unit a writable file of its own. With `--no-cas`, Terragrunt writes generated files directly.
-
-</Since>
+Every unit that includes `env.hcl` generates the same `provider.tf` content, so Terragrunt stores that content once in the [Content Addressable Store (CAS)](/features/caching/cas) and hard links it into each unit's working directory. The linked file is read-only. If a hook or script writes to a generated file, set [`mutable = true`](/reference/hcl/blocks/generate) on its `generate` block to give each unit a writable file of its own. With `--no-cas`, Terragrunt writes generated files directly.
 
 ## Further Reading
 
@@ -357,6 +395,6 @@ Every unit that includes `env.hcl` generates the same `provider.tf` content, so 
 - [Includes](/features/units/includes) — share common configuration across units
 - [Extra Arguments](/features/units/extra-arguments) — pass additional CLI arguments to OpenTofu/Terraform
 - [Hooks](/features/units/hooks) — run custom commands before or after OpenTofu/Terraform
-- [Authentication](/features/units/authentication) — work with multiple AWS accounts and dynamic provider authentication
-- [`terraform` block reference](/reference/hcl/blocks/#terraform) — full reference for the `terraform` block
+- [Authentication](/features/units/authentication) — authenticate with AWS, Azure, or GCP, and fetch credentials dynamically
+- [`terraform` block reference](/reference/hcl/blocks/terraform/) — full reference for the `terraform` block
 - [Lock File Handling](/features/units/lock-files) — details on how Terragrunt manages `.terraform.lock.hcl` files

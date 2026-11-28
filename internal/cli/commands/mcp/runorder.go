@@ -11,9 +11,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	dagview "github.com/gruntwork-io/terragrunt/internal/view/dag"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/venv"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -136,12 +136,12 @@ func runRunOrder(
 	}
 
 	// The command is stamped here and again as QueueConstructAs below.
-	// Exclude-block evaluation matches actions against TerraformCommand,
+	// Exclude-block evaluation matches actions against TofuCommand,
 	// where an empty command never matches, and the queue reads its up/down
 	// semantics from the DiscoveryContext that QueueConstructAs stamps.
 	// Stamping plan for an apply would answer with the wrong set of units,
 	// since an exclude block naming one action does not match the other.
-	opts.TerraformCommand = command
+	opts.TofuCommand = command
 
 	cv := d.callVenv(rootVenv, env, io.Discard)
 

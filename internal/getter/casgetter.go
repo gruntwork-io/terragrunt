@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -24,8 +25,7 @@ var ErrDirectoryNotFound = errors.New("directory not found")
 // SchemeGit is the forced-getter marker for git sources.
 const SchemeGit = "git"
 
-// CASGetter is the go-getter implementation that routes git, local, and
-// configured non-git sources through Terragrunt's content-addressable store.
+// CASGetter routes git, local and configured non-git sources through the CAS; it serves one request at a time.
 type CASGetter struct {
 	CAS         *cas.CAS
 	Logger      log.Logger
@@ -34,28 +34,14 @@ type CASGetter struct {
 	fetchers    map[string]getter.Getter
 	resolvers   map[string]cas.SourceResolver
 	innerClient InnerClientBuilder
-	Detectors   []Detector
 
-	// userDisabledArchive records that the source for the current
-	// request carried an explicit archive=false. Detect sets it; Get
-	// reads it when building the inner fetch URL. CAS injects archive=false
-	// itself so the outer v2 client skips pre-decompression, which means
-	// the URL alone cannot tell a user's "do not extract" from CAS's own
-	// marker. This field keeps them apart.
-	//
-	// Detect always runs immediately before Get within a single outer
-	// client.Get, and production callers build a CASGetter per download
-	// (runner/run/download_source.go), so the value is never read across
-	// concurrent requests. Do not share one CASGetter across goroutines.
-	userDisabledArchive bool
+	dispatchVenv *venv.Venv
+	innerQuery   innerFetchQuery
+	treeKey      string
+	Detectors    []Detector
 }
 
-// InnerClientBuilder builds the per-fetch [getter.Client] used to invoke
-// the bare scheme-specific getter from a [SourceFetcher]. Schemes that
-// download in a single step want a one-getter client; multi-stage
-// protocols (notably tfr://, where [RegistryGetter] resolves an archive
-// URL and delegates the actual download through
-// [getter.ClientFromContext]) need a richer client.
+// InnerClientBuilder builds the per-fetch [getter.Client] that invokes the bare getter for a [SourceFetcher].
 type InnerClientBuilder func(bare getter.Getter, scheme string) *getter.Client
 
 // CASGetterOption mutates a CASGetter at construction time.
@@ -88,7 +74,7 @@ func WithInnerClientBuilder(b InnerClientBuilder) CASGetterOption {
 // ([DefaultSourceResolvers]). opts are forwarded to both helpers so HTTP
 // auth headers reach the fetcher and tfr config reaches both.
 //
-// Probes and tfr fetches go through the venv's HTTP client unless
+// Probes, inner downloads and tfr fetches go through the venv's HTTP client unless
 // [WithHTTPClient] overrides it; a venv with no HTTP handle panics with
 // [venv.ErrVenvHTTPUnset] at construction.
 func WithDefaultGenericDispatch(opts ...GenericFetcherOption) CASGetterOption {
@@ -106,6 +92,7 @@ func WithDefaultGenericDispatch(opts ...GenericFetcherOption) CASGetterOption {
 			v = v.WithHTTP(cfg.httpClient)
 		}
 
+		g.dispatchVenv = v
 		g.fetchers = DefaultGenericFetchers(v, opts...)
 		g.resolvers = DefaultSourceResolvers(v, opts...)
 	}
@@ -143,12 +130,12 @@ func NewCASGetter(
 			new(GitLabDetector),
 			new(FileDetector),
 		},
-		CAS:         c,
-		Logger:      l,
-		Opts:        opts,
-		Venv:        v,
-		innerClient: defaultInnerClientBuilder,
+		CAS:    c,
+		Logger: l,
+		Opts:   opts,
+		Venv:   v,
 	}
+	g.innerClient = g.defaultInnerClient
 
 	for _, opt := range options {
 		opt(g)
@@ -171,10 +158,23 @@ func (g *CASGetter) Get(ctx context.Context, req *getter.Request) error {
 	}
 
 	if g.isGenericScheme(req.Forced) {
-		return g.getGeneric(ctx, req)
+		if err := g.getGeneric(ctx, req); err != nil {
+			g.restoreSource(req)
+
+			return err
+		}
+
+		return nil
 	}
 
 	return g.getGit(ctx, req)
+}
+
+// restoreSource puts the source Detect matched back on req for the getters the outer client tries next.
+func (g *CASGetter) restoreSource(req *getter.Request) {
+	if g.innerQuery.source != "" {
+		req.Src = g.innerQuery.source
+	}
 }
 
 // GetFile is not supported for the CAS getter.
@@ -187,12 +187,7 @@ func (g *CASGetter) Mode(_ context.Context, _ *url.URL) (getter.Mode, error) {
 	return getter.ModeDir, nil
 }
 
-// Detect canonicalizes the source via the detector chain. Local
-// sources get req.Copy = true so Get takes the StoreLocalDirectory
-// path. Non-git schemes covered by Fetchers get archive=false appended
-// to the URL so the outer client does not pre-decompress before
-// invoking Get; a source that already disabled archiving is recorded in
-// userDisabledArchive so Get can keep the inner fetch from extracting.
+// Detect canonicalizes the source, marks local sources for copy, and moves archive and checksum values into innerQuery.
 func (g *CASGetter) Detect(req *getter.Request) (bool, error) {
 	if req.Forced == SchemeGit {
 		return true, nil
@@ -207,7 +202,7 @@ func (g *CASGetter) Detect(req *getter.Request) (bool, error) {
 
 	if scheme, src, ok := g.matchGenericScheme(req); ok {
 		req.Forced = scheme
-		req.Src, g.userDisabledArchive = disableOuterArchive(src)
+		req.Src, g.innerQuery = outerFetchURL(src)
 
 		return true, nil
 	}
@@ -316,6 +311,13 @@ func (g *CASGetter) matchGenericScheme(req *getter.Request) (string, string, boo
 			}
 		}
 
+		if scheme == SchemeOCI {
+			if u, perr := url.Parse(req.Src); perr == nil && (u.Scheme == SchemeHTTP || u.Scheme == SchemeHTTPS) {
+				u.Scheme = SchemeOCI
+				src = u.String()
+			}
+		}
+
 		return scheme, src, true
 	}
 
@@ -368,52 +370,59 @@ func (g *CASGetter) lookupFetcher(scheme string) (string, bool) {
 	return "", false
 }
 
-// disableOuterArchive ensures rawURL carries archive=false so the outer
-// v2 client skips its archive-extension pre-decompression and req.Dst
-// reaches Get pointing at the original destination instead of a
-// temporary archive path. It reports whether the caller had already
-// disabled archiving: a pre-existing archive value is left untouched,
-// and the second return is true only when that value parses to a false
-// boolean. Get needs the distinction because the marker CAS injects and
-// a user's explicit archive=false are indistinguishable once the outer
-// client strips the parameter.
-func disableOuterArchive(rawURL string) (string, bool) {
+const (
+	archiveQueryKey  = "archive"
+	checksumQueryKey = "checksum"
+)
+
+// innerFetchQuery holds the source as written plus the archive and checksum values the inner fetch applies.
+type innerFetchQuery struct {
+	source   string
+	archive  string
+	checksum string
+}
+
+// outerFetchURL sets archive=false on rawURL, drops its checksum, and returns the values the inner fetch applies.
+func outerFetchURL(rawURL string) (string, innerFetchQuery) {
 	u, err := url.Parse(rawURL)
 	if err != nil {
-		return rawURL, false
+		return rawURL, innerFetchQuery{source: rawURL}
 	}
 
 	q := u.Query()
-
-	if v := q.Get("archive"); v != "" {
-		disabled, perr := strconv.ParseBool(v)
-		return rawURL, perr == nil && !disabled
+	inner := innerFetchQuery{
+		source:   rawURL,
+		archive:  q.Get(archiveQueryKey),
+		checksum: q.Get(checksumQueryKey),
 	}
 
-	q.Set("archive", "false")
+	if enabled, perr := strconv.ParseBool(inner.archive); perr == nil && enabled {
+		inner.archive = ""
+	}
+
+	q.Set(archiveQueryKey, "false")
+	q.Del(checksumQueryKey)
 	u.RawQuery = q.Encode()
 
-	return u.String(), false
+	return u.String(), inner
 }
 
-// innerArchiveURL builds the URL for the inner single-getter client. The
-// outer v2 client consumes and removes the archive parameter before Get
-// runs, so neither CAS's injected marker nor a user's archive=false
-// survives on its own. When userDisabled is set, archive=false is
-// re-applied so the inner client also skips extraction; otherwise the
-// URL carries no archive parameter and the inner client's extension-based
-// detection extracts .tar.gz/.zip sources before ingest.
-func innerArchiveURL(u *url.URL, userDisabled bool) string {
+// innerFetchURL puts the recorded archive value and checksum back on the URL the inner client downloads with.
+func innerFetchURL(u *url.URL, inner innerFetchQuery) string {
 	if u == nil {
 		return ""
 	}
 
 	clone := *u
 	q := clone.Query()
-	q.Del("archive")
+	q.Del(archiveQueryKey)
 
-	if userDisabled {
-		q.Set("archive", "false")
+	if inner.archive != "" {
+		q.Set(archiveQueryKey, inner.archive)
+	}
+
+	if inner.checksum != "" {
+		q.Set(checksumQueryKey, inner.checksum)
 	}
 
 	clone.RawQuery = q.Encode()
@@ -421,23 +430,21 @@ func innerArchiveURL(u *url.URL, userDisabled bool) string {
 	return clone.String()
 }
 
-// getGit clones via [cas.CAS.Clone] after lifting the go-getter ref and depth
-// query parameters out of the URL (see [cas.StripGitURLParams]).
+// getGit clones via [cas.CAS.Clone] after lifting the go-getter ref, depth and
+// sshkey query parameters out of the URL (see [cas.StripGitURLParams]).
 func (g *CASGetter) getGit(ctx context.Context, req *getter.Request) error {
-	u, ref := cas.StripGitURLParams(req.URL())
+	u, params := cas.StripGitURLParams(req.URL())
 
 	return g.CAS.Clone(ctx, g.Logger, g.Venv, redact.NewURL(GitCloneURL(u.String())),
 		cas.WithDir(req.Dst),
-		cas.WithBranch(ref),
+		cas.WithBranch(params.Ref),
+		cas.WithSSHKey(params.SSHKey),
 		cas.WithDepth(g.Opts.Depth),
 		cas.WithMutable(g.Opts.Mutable),
 		cas.WithIncludedGitFiles(g.Opts.IncludedGitFiles))
 }
 
-// getGeneric routes a non-git source through CAS. The inner getter.Client
-// performs archive extraction, so the URL passed to it carries archive=false
-// only when the user asked to disable archiving; otherwise the marker
-// Detect injected is dropped so extension-based extraction runs there.
+// getGeneric downloads a non-git source through the inner client, which extracts and verifies, and ingests it into CAS.
 func (g *CASGetter) getGeneric(ctx context.Context, req *getter.Request) error {
 	scheme, ok := g.lookupFetcher(strings.ToLower(req.Forced))
 	if !ok {
@@ -449,7 +456,7 @@ func (g *CASGetter) getGeneric(ctx context.Context, req *getter.Request) error {
 
 	bare := g.fetchers[scheme]
 
-	innerURL := redact.NewURL(innerArchiveURL(req.URL(), g.userDisabledArchive))
+	innerURL := redact.NewURL(innerFetchURL(req.URL(), g.innerQuery))
 
 	opts := *g.Opts
 	opts.Dir = req.Dst
@@ -457,12 +464,33 @@ func (g *CASGetter) getGeneric(ctx context.Context, req *getter.Request) error {
 	// leaving the list set would make every probe hit look like a miss.
 	opts.IncludedGitFiles = nil
 
-	return g.CAS.FetchSource(ctx, g.Logger, g.Venv, &opts, cas.SourceRequest{
+	treeKey, err := g.CAS.FetchSource(ctx, g.Logger, g.Venv, &opts, cas.SourceRequest{
 		Scheme:   scheme,
 		URL:      innerURL,
-		Resolver: g.resolvers[scheme],
+		Resolver: g.resolverFor(scheme),
 		Fetch:    g.buildInnerFetch(bare, scheme, innerURL),
 	})
+	if err != nil {
+		return err
+	}
+
+	g.treeKey = treeKey
+
+	return nil
+}
+
+// TreeKey returns the store key of the tree the last non-git request linked, or empty before one.
+func (g *CASGetter) TreeKey() string {
+	return g.treeKey
+}
+
+// resolverFor returns the probe resolver for scheme, or one keyed by the checksum when the request pins one.
+func (g *CASGetter) resolverFor(scheme string) cas.SourceResolver {
+	if g.innerQuery.checksum != "" {
+		return NewChecksumResolver(scheme, g.innerQuery.checksum)
+	}
+
+	return g.resolvers[scheme]
 }
 
 // buildInnerFetch returns a SourceFetcher that downloads source into a
@@ -563,18 +591,47 @@ func pinnedOCIURL(rawURL, digestValue string) string {
 	return u.String()
 }
 
-// defaultInnerClientBuilder is the inner-client builder used when none
-// is configured via [WithInnerClientBuilder]. For tfr it returns a
-// Terragrunt client with the bare [RegistryGetter] prepended so the
-// default protocol set is available for [RegistryGetter]'s delegated
-// archive download. Every other scheme uses a single-getter client.
-func defaultInnerClientBuilder(bare getter.Getter, scheme string) *getter.Client {
+// defaultInnerClient gives dispatch fetchers the default set minus the stock getter for scheme; custom ones run alone.
+func (g *CASGetter) defaultInnerClient(bare getter.Getter, scheme string) *getter.Client {
+	l, v := g.Logger, g.dispatchVenv
+
 	// The bare tfr getter carries the logger and venv its delegated archive
 	// download needs; the fallback client builds s3 and gcs getters that
 	// require the venv.
 	if tfr, ok := bare.(*RegistryGetter); ok && scheme == SchemeTFR {
-		return NewClient(tfr.Logger, tfr.Venv, WithCustomGettersPrepended(bare))
+		l, v = tfr.Logger, tfr.Venv
 	}
 
-	return &getter.Client{Getters: []getter.Getter{bare}}
+	if v == nil {
+		return &getter.Client{Getters: []getter.Getter{bare}}
+	}
+
+	c := NewClient(l, v, WithCustomGettersPrepended(bare))
+	c.Getters = slices.DeleteFunc(c.Getters, func(d getter.Getter) bool {
+		return d != bare && claimsScheme(d, scheme)
+	})
+
+	return c
+}
+
+// claimsScheme reports whether a default getter built by [NewClient] accepts requests forced to scheme.
+func claimsScheme(d getter.Getter, scheme string) bool {
+	switch t := d.(type) {
+	case *HTTPSchemeGetter:
+		return t.Scheme == scheme
+	case *S3Getter:
+		return scheme == SchemeS3
+	case *GCSGetter:
+		return scheme == SchemeGCS
+	case *HgGetter:
+		return scheme == SchemeHg
+	case *SmbClientGetter, *SmbMountGetter:
+		return scheme == SchemeSMB
+	case *RegistryGetter:
+		return scheme == SchemeTFR
+	case *OCIGetter:
+		return scheme == SchemeOCI
+	}
+
+	return false
 }

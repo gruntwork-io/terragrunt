@@ -41,8 +41,12 @@ var knownBadFiles = []string{
 	"fixtures/scaffold/with-shell-and-hooks/.boilerplate/terragrunt.hcl",
 	"fixtures/scaffold/with-shell-commands/.boilerplate/terragrunt.hcl",
 	"fixtures/stacks/errors/unknown-value/units/bad-unit/terragrunt.hcl",
+	"fixtures/telemetry-error-status/bad-config/terragrunt.hcl",
 	"fixtures/regressions/terraform-source-references-dependency/live/module-b/terragrunt.hcl",
 	"fixtures/find/source-references-dependency/app/terragrunt.hcl",
+	"fixtures/exclude/dependency-output/unit/terragrunt.hcl",
+	"fixtures/values-block/catalog/stacks/service/terragrunt.stack.hcl",
+	"fixtures/values-block/catalog/units/app/terragrunt.hcl",
 	// Files that require AWS credentials (will fail/timeout without them)
 	"fixtures/assume-role/external-id-with-comma/terragrunt.hcl",
 	"fixtures/assume-role/external-id/terragrunt.hcl",
@@ -53,6 +57,11 @@ var knownBadFiles = []string{
 	"fixtures/get-aws-account-alias/terragrunt.hcl",
 	"fixtures/get-aws-caller-identity/terragrunt.hcl",
 	"fixtures/read-config/iam_role_in_file/terragrunt.hcl",
+	// Files that return an error for a dependency reference in a module directory attribute
+	"fixtures/path-variable/module/dependency/download-dir/terragrunt.hcl",
+	"fixtures/path-variable/module/dependency/in-place/terragrunt.hcl",
+	// Stack files that read path.stack in locals
+	"fixtures/path-variable/stack/live/terragrunt.stack.hcl",
 }
 
 func TestParseAllFixtureFiles(t *testing.T) {
@@ -79,16 +88,21 @@ func TestParseAllFixtureFiles(t *testing.T) {
 			opts, err := options.NewTerragruntOptionsForTest(dir)
 			require.NoError(t, err)
 
+			opts.OriginalTerragruntConfigPath, err = filepath.Abs(file)
+			require.NoError(t, err)
+
 			opts.Experiments.ExperimentMode()
 
 			l := logger.CreateLogger()
 
 			// Using context.TODO() instead of t.Context() here because we end up storing way too much in context otherwise.
-			ctx := context.TODO()
+			ctx := config.WithCaches(context.TODO())
 			v := venv.OSVenv()
 			pctx := configbridge.NewParsingContext(opts)
 
-			cfg, _ := config.ParseConfigFile(ctx, l, v, pctx, file, nil)
+			s := new(config.Store)
+
+			cfg, _ := s.ResolveRunConfig(ctx, l, v, pctx, file)
 
 			assert.NotNil(t, cfg)
 

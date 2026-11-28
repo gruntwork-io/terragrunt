@@ -6,6 +6,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/scaffold"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -17,22 +18,26 @@ import (
 // form discovery, so Run only needs to render with the user-supplied values
 // and clean up.
 type scaffoldCmd struct {
+	ctx       context.Context
 	component *Component
 	opts      *options.TerragruntOptions
 	logger    log.Logger
 	plan      *scaffold.Plan
 	values    map[string]string
 	venv      *venv.Venv
+	store     *config.Store
 	files     []string
 }
 
 func newScaffoldCmd(
+	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	opts *options.TerragruntOptions,
 	c *Component,
 ) *scaffoldCmd {
-	return &scaffoldCmd{component: c, opts: opts, logger: l, venv: v}
+	return &scaffoldCmd{ctx: ctx, component: c, opts: opts, logger: l, venv: v, store: s}
 }
 
 // WithPlan attaches a prepared scaffold.Plan and the user-supplied HCL
@@ -51,7 +56,7 @@ func (c *scaffoldCmd) Run() error {
 
 		c.logger.Debugf("Generating scaffolded component: %q", c.component.TerraformSourcePath())
 
-		if err := c.plan.Generate(context.Background(), c.logger, c.venv, c.opts, c.values); err != nil {
+		if err := c.plan.Generate(c.ctx, c.logger, c.venv, c.opts, c.values); err != nil {
 			return err
 		}
 
@@ -63,9 +68,10 @@ func (c *scaffoldCmd) Run() error {
 	c.logger.Debugf("Scaffolding component: %q", c.component.TerraformSourcePath())
 
 	plan, err := scaffold.Prepare(
-		context.Background(),
+		c.ctx,
 		c.logger,
 		c.venv,
+		c.store,
 		c.opts,
 		c.component.TerraformSourcePath(),
 		"",
@@ -76,7 +82,7 @@ func (c *scaffoldCmd) Run() error {
 
 	defer plan.Cleanup(c.venv.FS)
 
-	if err := plan.Generate(context.Background(), c.logger, c.venv, c.opts, nil); err != nil {
+	if err := plan.Generate(c.ctx, c.logger, c.venv, c.opts, nil); err != nil {
 		return err
 	}
 

@@ -74,7 +74,7 @@ unit "member" {
 func generateStack(t *testing.T, files map[string]string) generatedStack {
 	t.Helper()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 
 	for _, path := range []string{"main.tf", config.DefaultTerragruntConfigPath} {
 		require.NoError(t, vfs.WriteFile(
@@ -107,7 +107,10 @@ func generateStack(t *testing.T, files map[string]string) generatedStack {
 
 	defer pool.Stop()
 
-	require.NoError(t, config.GenerateStackFile(ctx, l, v, pctx, pool, stackPath))
+	require.NoError(
+		t,
+		config.GenerateStackFile(ctx, l, v, new(config.Store), pctx, pool, stackPath, func(config.TryDefault) {}),
+	)
 	require.NoError(t, pool.Wait())
 
 	return generatedStack{v: v, dir: filepath.Join(enabledStackDir, config.StackDir)}

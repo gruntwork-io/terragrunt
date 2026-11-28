@@ -191,27 +191,36 @@ func TestExecGoRepoRootCeilingMatchesGit(t *testing.T) {
 	require.NoError(t, os.MkdirAll(unit, fixtureDirPerm))
 
 	mid := filepath.Join(repo, "live")
+	unclean := uncleanJoin(repo, "live")
 
-	for _, ceiling := range []string{
-		"",
-		repo,
-		mid,
-		unit,
-		filepath.Join(repo, "live", "prod"),
-		t.TempDir(),
-		filepath.FromSlash("../.."),
-		strings.Join([]string{t.TempDir(), mid}, string(filepath.ListSeparator)),
-		strings.Join([]string{"", mid}, string(filepath.ListSeparator)),
+	for _, tc := range []struct {
+		name    string
+		ceiling string
+	}{
+		{name: "unset"},
+		{name: "repository root", ceiling: repo},
+		{name: "between unit and root", ceiling: mid},
+		{name: "starting directory", ceiling: unit},
+		{name: "parent of the starting directory", ceiling: filepath.Join(repo, "live", "prod")},
+		{name: "unrelated directory", ceiling: t.TempDir()},
+		{name: "relative entry", ceiling: filepath.FromSlash("../..")},
+		{name: "unrelated entry then blocking entry", ceiling: ceilingList(t.TempDir(), mid)},
+		{name: "empty entry then slash separators", ceiling: ceilingList("", filepath.ToSlash(mid))},
+		{name: "empty entry then native separators", ceiling: ceilingList("", mid)},
+		{name: "empty entry then unclean entry", ceiling: ceilingList("", unclean)},
+		{name: "unclean entry then empty entry", ceiling: ceilingList(unclean, "")},
+		{name: "empty entry in the middle", ceiling: ceilingList("relative", "", unclean)},
+		{name: "empty entry then trailing slash", ceiling: ceilingList("", filepath.ToSlash(mid)+"/")},
 	} {
-		t.Run("ceiling="+ceiling, func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			v := venv.OSVenv().WithEnv(map[string]string{git.EnvNameGitCeilingDirectories: ceiling})
+			v := venv.OSVenv().WithEnv(map[string]string{git.EnvNameGitCeilingDirectories: tc.ceiling})
 
 			want, gitErr := forkRepoRoot(
 				t.Context(),
 				unit,
-				git.EnvNameGitCeilingDirectories+"="+ceiling,
+				git.EnvNameGitCeilingDirectories+"="+tc.ceiling,
 			)
 			got, err := git.GoRepoRoot(cache.ContextWithCache(t.Context()), v, unit)
 

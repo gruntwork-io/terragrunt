@@ -7,6 +7,7 @@ import (
 )
 
 const (
+	// FailFastFlagName is the flag name for `--fail-fast`, which stops the run when any unit fails.
 	FailFastFlagName = "fail-fast"
 )
 

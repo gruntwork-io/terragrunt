@@ -164,6 +164,7 @@ func (err RecoveredError) Error() string {
 	return fmt.Sprintf("%v", err.value)
 }
 
+// ErrorStack returns the goroutine stack captured when the panic was recovered.
 func (err RecoveredError) ErrorStack() string {
 	return string(err.stack)
 }
@@ -267,11 +268,11 @@ func IsPanic(err error) bool {
 		return false
 	}
 
-	if _, ok := stdErrors.AsType[function.PanicError](err); ok {
+	if stdErrors.As(err, new(function.PanicError)) {
 		return true
 	}
 
-	if _, ok := stdErrors.AsType[runtime.Error](err); ok {
+	if stdErrors.As(err, new(runtime.Error)) {
 		return true
 	}
 

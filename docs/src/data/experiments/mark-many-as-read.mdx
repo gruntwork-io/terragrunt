@@ -11,7 +11,7 @@ Mark many files as read in one step, so reading-based filter expressions cascade
 This experiment flag is no longer needed; the two behaviors it gated are now enabled by default:
 
 1. When a unit's `terraform` block points at a local module source, Terragrunt walks that directory and records every `*.tf`, `*.tf.json`, `*.hcl`, `*.tofu`, and `*.tofu.json` file as read for the unit. Non-source files such as `README.md` are skipped. Remote sources (Git, registry, S3, etc.) are not walked.
-2. The `mark_glob_as_read(pattern)` HCL function. It expands a glob using [`gobwas/glob`](https://github.com/gobwas/glob) syntax and marks every matching file as read, returning the list of absolute paths that matched. See the [HCL reference](/reference/hcl/functions/#mark_glob_as_read) for pattern syntax and examples.
+2. The `mark_glob_as_read(pattern)` HCL function. It expands a glob using [`gobwas/glob`](https://github.com/gobwas/glob) syntax and marks every matching file as read, returning the list of absolute paths that matched. See the [HCL reference](/reference/hcl/functions/mark_glob_as_read) for pattern syntax and examples.
 
 Both behaviors feed the same reading tracker that powers the [`reading=` filter attribute](/features/filter/attributes#reading-based-expressions), so a change to a local module file or a globbed configuration file is picked up by `--filter 'reading=<path>'` and matches every unit that reads it.
 

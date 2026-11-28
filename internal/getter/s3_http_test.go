@@ -194,7 +194,7 @@ func TestS3GetterUsesVenvEnvironmentCredentials(t *testing.T) {
 			return s3StubHandler(t, s3StubBucket{"mod.txt": "body"})(ctx, req)
 		}),
 		Env: map[string]string{
-			"AWS_ACCESS_KEY_ID":     "AKIAVENVKEY",
+			"AWS_ACCESS_KEY_ID":     "fake-venv-access-key-id",
 			"AWS_SECRET_ACCESS_KEY": "venv-secret",
 		},
 	}
@@ -208,7 +208,7 @@ func TestS3GetterUsesVenvEnvironmentCredentials(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	assert.Contains(t, auth, "AKIAVENVKEY")
+	assert.Contains(t, auth, "fake-venv-access-key-id")
 }
 
 // assertDownloadedTree compares everything under dst against want, which is

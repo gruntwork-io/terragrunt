@@ -13,10 +13,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	thlogger "github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 func TestLogUnitDeployOrder_Flat(t *testing.T) {
@@ -25,7 +25,7 @@ func TestLogUnitDeployOrder_Flat(t *testing.T) {
 	rnr := buildTestRunner(t, "/tmp/test", []string{"/tmp/test/vpc", "/tmp/test/app"})
 	l := thlogger.CreateLogger()
 
-	err := rnr.LogUnitDeployOrder(l, venvtest.New(), false, false, nil)
+	err := rnr.LogUnitDeployOrder(l, venv.MemVenv(), false, false, nil)
 	require.NoError(t, err)
 }
 
@@ -35,7 +35,7 @@ func TestLogUnitDeployOrder_Destroy(t *testing.T) {
 	rnr := buildTestRunner(t, "/tmp/test", []string{"/tmp/test/vpc", "/tmp/test/app"})
 	l := thlogger.CreateLogger()
 
-	err := rnr.LogUnitDeployOrder(l, venvtest.New(), true, false, nil)
+	err := rnr.LogUnitDeployOrder(l, venv.MemVenv(), true, false, nil)
 	require.NoError(t, err)
 }
 
@@ -93,7 +93,7 @@ func TestNewFromComponents_Empty(t *testing.T) {
 	l := thlogger.CreateLogger()
 
 	rnr, err := runner.NewFromComponents(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		l,
 		opts,
 		component.Components{},
@@ -113,7 +113,7 @@ func TestLogUnitDeployOrder_DAGExperiment(t *testing.T) {
 
 	exps := experiment.NewExperiments()
 
-	err := rnr.LogUnitDeployOrder(l, venvtest.New(), false, false, exps)
+	err := rnr.LogUnitDeployOrder(l, venv.MemVenv(), false, false, exps)
 	require.NoError(t, err)
 }
 
@@ -130,12 +130,12 @@ func TestNewFromComponents_WithPreventDestroy(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("/tmp/test/terragrunt.hcl")
 	require.NoError(t, err)
 
-	opts.TerraformCommand = tf.CommandNameDestroy
+	opts.TofuCommand = tf.CommandNameDestroy
 
 	l := thlogger.CreateLogger()
 
 	rnr, err := runner.NewFromComponents(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		l,
 		opts,
 		component.Components{vpc, app},
@@ -172,13 +172,13 @@ func TestNewFromComponents_FilterAllowDestroy(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("/tmp/test/terragrunt.hcl")
 	require.NoError(t, err)
 
-	opts.TerraformCommand = "apply"
+	opts.TofuCommand = "apply"
 	opts.FilterAllowDestroy = false
 
 	l := thlogger.CreateLogger()
 
 	rnr, err := runner.NewFromComponents(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		l,
 		opts,
 		component.Components{vpc},
@@ -217,10 +217,10 @@ func TestNewFromComponents_PreventDestroyExcludesDependencies(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("/tmp/test/terragrunt.hcl")
 	require.NoError(t, err)
 
-	opts.TerraformCommand = tf.CommandNameDestroy
+	opts.TofuCommand = tf.CommandNameDestroy
 
 	rnr, err := runner.NewFromComponents(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		thlogger.CreateLogger(),
 		opts,
 		component.Components{vpc, app},
@@ -240,10 +240,10 @@ func TestNewFromComponents_DestroyWithoutProtectedUnits(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("/tmp/test/terragrunt.hcl")
 	require.NoError(t, err)
 
-	opts.TerraformCommand = tf.CommandNameDestroy
+	opts.TofuCommand = tf.CommandNameDestroy
 
 	rnr, err := runner.NewFromComponents(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		thlogger.CreateLogger(),
 		opts,
 		component.Components{vpc},
@@ -265,11 +265,11 @@ func TestNewFromComponents_FilterAllowDestroyKeepsUnit(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("/tmp/test/terragrunt.hcl")
 	require.NoError(t, err)
 
-	opts.TerraformCommand = "apply"
+	opts.TofuCommand = "apply"
 	opts.FilterAllowDestroy = true
 
 	rnr, err := runner.NewFromComponents(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		thlogger.CreateLogger(),
 		opts,
 		component.Components{vpc},
@@ -285,7 +285,7 @@ func TestNewFromComponents_UnitWithoutParsedConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	rnr, err := runner.NewFromComponents(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		thlogger.CreateLogger(),
 		opts,
 		component.Components{component.NewUnit("/tmp/test/vpc")},
@@ -315,6 +315,55 @@ func TestListStackDependentUnits_Transitive(t *testing.T) {
 	assert.Equal(t, []string{"/tmp/test/app"}, deps["/tmp/test/db"])
 }
 
+func TestListStackDependentUnits_ThroughExcludedUnits(t *testing.T) {
+	t.Parallel()
+
+	vpc := component.NewUnit("/tmp/test/vpc").WithConfig(&config.TerragruntConfig{})
+	db := component.NewUnit("/tmp/test/db").WithConfig(&config.TerragruntConfig{})
+	app := component.NewUnit("/tmp/test/app").WithConfig(&config.TerragruntConfig{})
+
+	db.AddDependency(vpc)
+	db.SetExcluded(true)
+	app.AddDependency(db)
+
+	rnr := buildTestRunnerFromUnits(t, "/tmp/test", component.Components{vpc, db, app})
+
+	deps := rnr.ListStackDependentUnits()
+	assert.ElementsMatch(t, []string{"/tmp/test/db", "/tmp/test/app"}, deps["/tmp/test/vpc"])
+	assert.Equal(t, []string{"/tmp/test/app"}, deps["/tmp/test/db"])
+}
+
+func TestListStackDependentUnits_OfExcludedUnits(t *testing.T) {
+	t.Parallel()
+
+	vpc := component.NewUnit("/tmp/test/vpc").WithConfig(&config.TerragruntConfig{})
+	app := component.NewUnit("/tmp/test/app").WithConfig(&config.TerragruntConfig{})
+
+	app.AddDependency(vpc)
+	vpc.SetExcluded(true)
+
+	rnr := buildTestRunnerFromUnits(t, "/tmp/test", component.Components{vpc, app})
+
+	deps := rnr.ListStackDependentUnits()
+	assert.Equal(t, []string{"/tmp/test/app"}, deps["/tmp/test/vpc"])
+}
+
+func TestListStackDependentUnits_ThroughUndiscoveredComponents(t *testing.T) {
+	t.Parallel()
+
+	vpc := component.NewUnit("/tmp/test/vpc").WithConfig(&config.TerragruntConfig{})
+	db := component.NewUnit("/tmp/test/db")
+	app := component.NewUnit("/tmp/test/app").WithConfig(&config.TerragruntConfig{})
+
+	db.AddDependency(vpc)
+	app.AddDependency(db)
+
+	rnr := buildTestRunnerFromUnits(t, "/tmp/test", component.Components{vpc, app})
+
+	deps := rnr.ListStackDependentUnits()
+	assert.Equal(t, []string{"/tmp/test/app"}, deps["/tmp/test/vpc"])
+}
+
 func TestNewFromComponents_PreventDestroyWalksTheDependencyGraph(t *testing.T) {
 	t.Parallel()
 
@@ -341,6 +390,22 @@ func TestNewFromComponents_PreventDestroyWalksTheDependencyGraph(t *testing.T) {
 				return component.Components{vpc, db, app}
 			},
 			excluded: []string{"/tmp/test/vpc", "/tmp/test/db", "/tmp/test/app"},
+		},
+		{
+			name: "dependencies reached through units discovery did not return are excluded",
+			components: func() component.Components {
+				vpc := component.NewUnit("/tmp/test/vpc").WithConfig(&config.TerragruntConfig{})
+				app := component.NewUnit("/tmp/test/app").WithConfig(&config.TerragruntConfig{
+					PreventDestroy: &prevent,
+				})
+
+				db := component.NewUnit("/tmp/test/db")
+				db.AddDependency(vpc)
+				app.AddDependency(db)
+
+				return component.Components{vpc, app}
+			},
+			excluded: []string{"/tmp/test/vpc", "/tmp/test/app"},
 		},
 		{
 			name: "dependency cycles terminate",
@@ -381,10 +446,10 @@ func TestNewFromComponents_PreventDestroyWalksTheDependencyGraph(t *testing.T) {
 			opts, err := options.NewTerragruntOptionsForTest("/tmp/test/terragrunt.hcl")
 			require.NoError(t, err)
 
-			opts.TerraformCommand = tf.CommandNameDestroy
+			opts.TofuCommand = tf.CommandNameDestroy
 
 			rnr, err := runner.NewFromComponents(
-				t.Context(),
+				config.WithCaches(t.Context()),
 				thlogger.CreateLogger(),
 				opts,
 				tc.components(),
@@ -434,10 +499,10 @@ func TestNewFromComponents_PreventDestroyStopsAtTraversalDepth(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("/tmp/test/terragrunt.hcl")
 	require.NoError(t, err)
 
-	opts.TerraformCommand = tf.CommandNameDestroy
+	opts.TofuCommand = tf.CommandNameDestroy
 
 	rnr, err := runner.NewFromComponents(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		thlogger.CreateLogger(),
 		opts,
 		components,
@@ -504,7 +569,7 @@ func TestNewFromComponents_WithGitRefsAndStateBackends(t *testing.T) {
 			require.NoError(t, err)
 
 			rnr, err := runner.NewFromComponents(
-				t.Context(),
+				config.WithCaches(t.Context()),
 				thlogger.CreateLogger(),
 				opts,
 				component.Components{unit},
@@ -527,7 +592,7 @@ func TestNewFromComponents_IgnoresStackComponents(t *testing.T) {
 	}
 
 	rnr, err := runner.NewFromComponents(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		thlogger.CreateLogger(),
 		opts,
 		discovered,
@@ -551,7 +616,7 @@ func TestNewFromComponents_DependencyCycle(t *testing.T) {
 	b.AddDependency(a)
 
 	rnr, err := runner.NewFromComponents(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		thlogger.CreateLogger(),
 		opts,
 		component.Components{a, b},
@@ -569,10 +634,10 @@ func TestNewFromComponents_FilterAllowDestroyWithoutDiscoveryContext(t *testing.
 	opts, err := options.NewTerragruntOptionsForTest("/tmp/test/terragrunt.hcl")
 	require.NoError(t, err)
 
-	opts.TerraformCommand = "plan"
+	opts.TofuCommand = "plan"
 
 	rnr, err := runner.NewFromComponents(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		thlogger.CreateLogger(),
 		opts,
 		component.Components{vpc},
@@ -636,7 +701,7 @@ func buildTestRunnerFromUnits(
 
 	l := thlogger.CreateLogger()
 
-	rnr, err := runner.NewFromComponents(t.Context(), l, opts, components)
+	rnr, err := runner.NewFromComponents(config.WithCaches(t.Context()), l, opts, components)
 	require.NoError(t, err)
 
 	return rnr

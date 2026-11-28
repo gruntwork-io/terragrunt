@@ -341,7 +341,7 @@ func commandError(err error, stderr string) error {
 	return &WrappedError{
 		Op:      catFileBatchOp,
 		Context: stderr,
-		Err:     errors.Join(ErrCommandSpawn, err),
+		Err:     errors.Join(ErrGitCommand, err),
 	}
 }
 

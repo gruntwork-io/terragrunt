@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -46,7 +47,7 @@ func ShowTFHelp(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) cli
 
 		clihelper.HelpPrinterCustom(cliCtx, TFCommandHelpTemplate, map[string]any{
 			"tfBinary": func() string {
-				return filepath.Base(opts.TFPath)
+				return filepath.Base(tfimpl.BinaryOrDefault(v.Exec, opts.TFPath))
 			},
 			"runTFHelp": func() string {
 				return runTFHelp(ctx, cliCtx, l, v, opts)
@@ -75,7 +76,7 @@ func runTFHelp(
 		ctx,
 		l,
 		helpV,
-		configbridge.TFRunOptsFromOpts(v.Env, opts),
+		configbridge.TFRunOptsFromOpts(v.Exec, v.Env, opts, tfimpl.Unknown),
 		terraformHelpCmd...)
 	if err != nil {
 		var processError *util.ProcessExecutionError
@@ -85,7 +86,7 @@ func runTFHelp(
 
 		return fmt.Sprintf(
 			"Failed to execute \"%s %s\": %s",
-			opts.TFPath,
+			tfimpl.BinaryOrDefault(v.Exec, opts.TFPath),
 			strings.Join(terraformHelpCmd, " "),
 			err.Error(),
 		)

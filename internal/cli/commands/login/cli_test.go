@@ -7,10 +7,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/login"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -20,8 +19,8 @@ func TestNewCommandIsNamedLogin(t *testing.T) {
 
 	cmd := login.NewCommand(
 		logger.CreateLogger(),
-		options.NewTerragruntOptions(vexec.NewOSExec()),
-		venvtest.New(),
+		options.NewTerragruntOptions(),
+		venv.MemVenv(),
 	)
 
 	require.NotNil(t, cmd)
@@ -35,9 +34,9 @@ func TestNewCommandIsNamedLogin(t *testing.T) {
 func TestLoginIsReachableFromTheCommandLine(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	l := logger.CreateLogger()
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 
 	err := cli.NewApp(l, opts, v).Run(l, v, []string{"terragrunt", login.CommandName})
 
@@ -70,13 +69,13 @@ func TestExperimentGateRefusesTheRun(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts := options.NewTerragruntOptions()
 
 			if tt.withExperiment {
 				require.NoError(t, opts.Experiments.EnableExperiment(experiment.TGLogin))
 			}
 
-			cmd := login.NewCommand(logger.CreateLogger(), opts, venvtest.New())
+			cmd := login.NewCommand(logger.CreateLogger(), opts, venv.MemVenv())
 
 			err := cmd.Before(t.Context(), &clihelper.Context{})
 
@@ -103,8 +102,8 @@ func TestNewCommandStaysVisibleWithoutTheExperiment(t *testing.T) {
 
 	cmd := login.NewCommand(
 		logger.CreateLogger(),
-		options.NewTerragruntOptions(vexec.NewOSExec()),
-		venvtest.New(),
+		options.NewTerragruntOptions(),
+		venv.MemVenv(),
 	)
 
 	assert.False(t, cmd.Hidden)

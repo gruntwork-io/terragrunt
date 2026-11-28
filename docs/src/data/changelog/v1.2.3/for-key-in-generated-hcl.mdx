@@ -1,0 +1,23 @@
+---
+version: "v1.2.3"
+category: "bug-fixes"
+---
+
+#### Generated HCL quotes object keys named `for`
+
+A map with a key named `for` in the `values` of a [`unit`](/reference/hcl/blocks/unit/) or `stack` block made [`terragrunt stack generate`](/reference/cli/commands/stack/generate) write a `terragrunt.values.hcl` file that Terragrunt could not read:
+
+```hcl
+m = {
+  for  = "x"
+  zone = "y"
+}
+```
+
+```text
+Invalid 'for' expression; For expression requires variable name after 'for'.
+```
+
+Terragrunt now writes the key as `"for"` everywhere it writes HCL, e.g. the files written by `stack generate`, the output of `render --format hcl`, and the backend file generated from a `remote_state` block.
+
+A top-level `values` key that is not a valid identifier, e.g. `"a b"`, made `stack generate` write a `terragrunt.values.hcl` file that could not be parsed. `stack generate` and `hcl validate` now report the key and point at it in the stack file.

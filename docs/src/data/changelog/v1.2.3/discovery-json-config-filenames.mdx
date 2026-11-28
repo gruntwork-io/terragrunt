@@ -1,0 +1,10 @@
+---
+version: "v1.2.3"
+category: "bug-fixes"
+---
+
+#### Units configured with `terragrunt.hcl.json` are discovered
+
+Discovery only looked for `terragrunt.hcl` and `terragrunt.stack.hcl`, so a unit configured with a `terragrunt.hcl.json` file and no `terragrunt.hcl` was left out. [`find`](/reference/cli/commands/find), [`list`](/reference/cli/commands/list), `run --all`, and [`--filter`](/features/filter) skipped the unit, though running Terragrunt in its directory read the file.
+
+Discovery now reads `terragrunt.hcl.json` as well, including when a Git-based filter selects units by what changed.

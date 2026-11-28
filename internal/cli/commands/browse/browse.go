@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	viewtui "github.com/gruntwork-io/terragrunt/internal/view/tui"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -21,7 +22,7 @@ import (
 // Run runs the browse command. It opens the browser immediately over a tree the
 // TUI fills from the filesystem, and runs discovery in the background so unit and
 // stack metadata and counts stream in without blocking the initial render.
-func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
+func Run(ctx context.Context, l log.Logger, v *venv.Venv, s *config.Store, opts *Options) error {
 	v.RequireTerminal()
 
 	if err := viewtui.EnsureTTY(v.Terminal.StdinIsTTY); err != nil {
@@ -40,7 +41,7 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
 		return err
 	}
 
-	d, cleanupWorktrees, err := discoverysetup.Worktrees(ctx, l, v, opts.TerragruntOptions, d)
+	d, cleanupWorktrees, err := discoverysetup.Worktrees(ctx, l, v, s, opts.TerragruntOptions, d)
 
 	defer cleanupWorktrees(ctx)
 
@@ -69,7 +70,7 @@ func Run(ctx context.Context, l log.Logger, v *venv.Venv, opts *Options) error {
 	go func() {
 		defer close(done)
 
-		res = runDiscovery(discoverCtx, discoveryLogger, v, opts, d)
+		res = runDiscovery(discoverCtx, discoveryLogger, v, s, opts, d)
 		resultCh <- res
 	}()
 
@@ -105,6 +106,7 @@ func runDiscovery(
 	ctx context.Context,
 	l log.Logger,
 	v *venv.Venv,
+	s *config.Store,
 	opts *Options,
 	d *discovery.Discovery,
 ) tui.DiscoveryResult {
@@ -116,7 +118,7 @@ func runDiscovery(
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, l, "browse_discover", map[string]any{
 		"working_dir": opts.WorkingDir,
 	}, func(ctx context.Context, l log.Logger) error {
-		components, discoverErr = d.Discover(ctx, l, v, opts.TerragruntOptions)
+		components, discoverErr = d.Discover(ctx, l, v, s, opts.TerragruntOptions)
 
 		if span := trace.SpanFromContext(ctx); span.IsRecording() {
 			span.SetAttributes(attribute.Int("component_count", len(components)))

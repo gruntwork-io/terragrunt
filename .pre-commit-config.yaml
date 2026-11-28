@@ -6,3 +6,11 @@ repos:
         exclude: test/fixtures/hclvalidate/valid/.*
       - id: goimports
         exclude: ^internal/vendored/(compress|opentofu/upstream)/
+  - repo: local
+    hooks:
+      - id: golangci-lint-fmt
+        name: golangci-lint fmt
+        entry: mise x golangci-lint -- golangci-lint fmt
+        language: system
+        types: [go]
+        exclude: ^internal/vendored/(compress|opentofu/upstream)/

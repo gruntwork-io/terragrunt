@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
+// Config is the config map of a gcs remote_state block, including the keys only Terragrunt reads.
 type Config map[string]any
 
 // GetTFInitArgs returns the config filtered and normalized for terraform init.
@@ -23,6 +24,8 @@ func (cfg Config) GetTFInitArgs() Config {
 	)
 }
 
+// FilterOutTerragruntKeys returns a copy of cfg without the keys that only Terragrunt reads, such as project,
+// location, and gcs_bucket_labels.
 func (cfg Config) FilterOutTerragruntKeys() Config {
 	var filtered = make(Config)
 
@@ -37,6 +40,10 @@ func (cfg Config) FilterOutTerragruntKeys() Config {
 	return filtered
 }
 
+// IsEqual reports whether targetCfg matches cfg once the Terragrunt-only keys are removed from cfg.
+//
+// Modifies targetCfg: a string value that parses as a bool, under a key whose value in cfg is a bool, is
+// replaced with the parsed bool.
 func (cfg Config) IsEqual(targetCfg Config, logger log.Logger) bool {
 	// If other keys in config are bools, DeepEqual also will consider the maps to be different.
 	for key, value := range targetCfg {

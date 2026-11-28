@@ -9,6 +9,7 @@ import (
 	"math/big"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/gocty"
@@ -17,11 +18,9 @@ import (
 
 // ParseCtyValueToMap converts a cty.Value to a map[string]any.
 //
-// This is a hacky workaround to convert a cty Value to a Go map[string]any. cty does not support this directly
-// (https://github.com/hashicorp/hcl2/issues/108) and doing it with gocty.FromCtyValue is nearly impossible, as cty
-// requires you to specify all the output types and will error out when it hits interface{}. So, as an ugly workaround,
-// we convert the given value to JSON using cty's JSON library and then convert the JSON back to a
-// map[string]any using the Go json library.
+// The result is what encoding the value with cty's JSON library and decoding it with a [json.Decoder] that has
+// [json.Decoder.UseNumber] set would produce: objects and maps become map[string]any, lists, sets and tuples become
+// []any, numbers become [json.Number], and nulls become nil. Unknown values become empty strings.
 //
 // Note: This function will strip any marks (such as sensitive marks) from the values because JSON serialization does
 // not support cty marks. If you need to preserve marks, consider working with cty.Value directly instead of converting
@@ -31,35 +30,36 @@ func ParseCtyValueToMap(value cty.Value) (map[string]any, error) {
 		return map[string]any{}, nil
 	}
 
-	updatedValue, err := UpdateUnknownCtyValValues(value)
-	if err != nil {
-		return nil, err
+	if ty := value.Type(); ty.IsObjectType() || ty.IsMapType() {
+		if out, ok := mappingToGo(value, buildGo); ok {
+			return out, nil
+		}
 	}
 
-	value = updatedValue
+	value, _ = value.UnmarkDeep()
 
-	// Unmark the value (including nested values) before JSON serialization as JSON doesn't support marks.
-	unmarkedValue, _ := value.UnmarkDeep()
+	return parseCtyValueToMapWithJSON(value)
+}
 
-	if err := ValidateNumberRanges(unmarkedValue); err != nil {
-		return nil, err
+// ConvertsToMapDirectly reports whether [ParseCtyValueToMap] converts value without the JSON round trip, which is
+// the only step of the conversion that returns an error.
+//
+// It is true for a known, non-null object or map that holds no unknown value, infinity, number outside
+// [MaxNumberDecimalExponent], string that is not valid UTF-8, or capsule.
+func ConvertsToMapDirectly(value cty.Value) bool {
+	if value.IsNull() {
+		return false
 	}
 
-	jsonBytes, err := ctyjson.Marshal(unmarkedValue, cty.DynamicPseudoType)
-	if err != nil {
-		return nil, err
+	ty := value.Type()
+
+	if !ty.IsObjectType() && !ty.IsMapType() {
+		return false
 	}
 
-	var ctyJSONOutput CtyJSONOutput
+	_, ok := mappingToGo(value, checkGo)
 
-	decoder := json.NewDecoder(bytes.NewReader(jsonBytes))
-	decoder.UseNumber()
-
-	if err := decoder.Decode(&ctyJSONOutput); err != nil {
-		return nil, err
-	}
-
-	return ctyJSONOutput.Value, nil
+	return ok
 }
 
 // CtyJSONOutput is a struct that captures the output of cty's JSON marshalling.
@@ -73,12 +73,30 @@ type CtyJSONOutput struct {
 	Type  any            `json:"Type"`
 }
 
-// UpdateUnknownCtyValValues deeply updates unknown values with default value
+// UpdateUnknownCtyValValues deeply replaces unknown values with known placeholders. An unknown
+// string or dynamic value becomes an empty string, and an unknown of any other type becomes a
+// null of that type.
 func UpdateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
+	unmarked, marks := value.Unmark()
+
+	updated, err := updateUnknownCtyValValues(unmarked)
+	if err != nil {
+		return cty.NilVal, err
+	}
+
+	return updated.WithMarks(marks), nil
+}
+
+// updateUnknownCtyValValues replaces the unknown values of an unmarked value, marks of its elements kept.
+func updateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
 	var updatedValue any
 
 	switch {
 	case !value.IsKnown():
+		if ty := value.Type(); ty != cty.String && ty != cty.DynamicPseudoType {
+			return cty.NullVal(ty), nil
+		}
+
 		return cty.StringVal(""), nil
 	case value.IsNull():
 		return value, nil
@@ -163,13 +181,168 @@ func ValidateNumberRanges(value cty.Value) error {
 
 		unmarked, _ := val.Unmark()
 
-		exp := unmarked.AsBigFloat().MantExp(nil)
-		if (math.Abs(float64(exp))-1)*(math.Ln2/math.Ln10) > MaxNumberDecimalExponent {
+		if !numberInRange(unmarked.AsBigFloat()) {
 			return false, NumberOutOfRangeError{Path: path.Copy()}
 		}
 
 		return true, nil
 	})
+}
+
+// parseCtyValueToMapWithJSON converts an unmarked value by encoding it with cty's JSON library and decoding the
+// result. It handles the values mappingToGo declines, and its errors are the ones [ParseCtyValueToMap] reports.
+func parseCtyValueToMapWithJSON(value cty.Value) (map[string]any, error) {
+	value, err := UpdateUnknownCtyValValues(value)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := ValidateNumberRanges(value); err != nil {
+		return nil, err
+	}
+
+	jsonBytes, err := ctyjson.Marshal(value, cty.DynamicPseudoType)
+	if err != nil {
+		return nil, err
+	}
+
+	var ctyJSONOutput CtyJSONOutput
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonBytes))
+	decoder.UseNumber()
+
+	if err := decoder.Decode(&ctyJSONOutput); err != nil {
+		return nil, err
+	}
+
+	return ctyJSONOutput.Value, nil
+}
+
+// goConversion selects whether mappingToGo builds the Go value or only checks that it could.
+type goConversion int
+
+const (
+	buildGo goConversion = iota
+	checkGo
+)
+
+// mappingToGo converts an object or map to the result parseCtyValueToMapWithJSON would give for it with its marks
+// removed. With checkGo it builds nothing and returns a nil map.
+//
+// Reports false when the value is or holds anything that conversion would change or reject: an unknown value, an
+// infinity, a number outside [MaxNumberDecimalExponent], a string that is not valid UTF-8, or a capsule.
+func mappingToGo(val cty.Value, conv goConversion) (map[string]any, bool) {
+	val, _ = val.Unmark()
+
+	if !val.IsKnown() {
+		return nil, false
+	}
+
+	var out map[string]any
+	if conv == buildGo {
+		out = make(map[string]any, val.LengthInt())
+	}
+
+	for it := val.ElementIterator(); it.Next(); {
+		k, ev := it.Element()
+
+		key := k.AsString()
+		if !utf8.ValidString(key) {
+			return nil, false
+		}
+
+		goVal, ok := ctyValueToGo(ev, conv)
+		if !ok {
+			return nil, false
+		}
+
+		if conv == buildGo {
+			out[key] = goVal
+		}
+	}
+
+	return out, true
+}
+
+// ctyValueToGo converts one value nested in a value passed to mappingToGo, reporting false on the same values it
+// does.
+func ctyValueToGo(val cty.Value, conv goConversion) (any, bool) {
+	val, _ = val.Unmark()
+
+	if !val.IsKnown() {
+		return nil, false
+	}
+
+	if val.IsNull() {
+		return nil, true
+	}
+
+	ty := val.Type()
+
+	switch {
+	case ty == cty.String:
+		s := val.AsString()
+		if !utf8.ValidString(s) {
+			return nil, false
+		}
+
+		if conv == checkGo {
+			return nil, true
+		}
+
+		return s, true
+	case ty == cty.Number:
+		bf := val.AsBigFloat()
+		if bf.IsInf() || !numberInRange(bf) {
+			return nil, false
+		}
+
+		if conv == checkGo {
+			return nil, true
+		}
+
+		return json.Number(bf.Text('f', -1)), true
+	case ty == cty.Bool:
+		return val.True(), true
+	case ty.IsObjectType(), ty.IsMapType():
+		return mappingToGo(val, conv)
+	case ty.IsListType(), ty.IsSetType(), ty.IsTupleType():
+		return sequenceToGo(val, conv)
+	}
+
+	return nil, false
+}
+
+// sequenceToGo converts an unmarked list, set, or tuple, reporting false on the same values mappingToGo does. With
+// checkGo it builds nothing and returns a nil slice.
+func sequenceToGo(val cty.Value, conv goConversion) ([]any, bool) {
+	var out []any
+	if conv == buildGo {
+		out = make([]any, 0, val.LengthInt())
+	}
+
+	for it := val.ElementIterator(); it.Next(); {
+		_, ev := it.Element()
+
+		goVal, ok := ctyValueToGo(ev, conv)
+		if !ok {
+			return nil, false
+		}
+
+		if conv == buildGo {
+			out = append(out, goVal)
+		}
+	}
+
+	return out, true
+}
+
+// numberInRange reports whether the magnitude of n stays within [MaxNumberDecimalExponent] powers of ten in either
+// direction.
+func numberInRange(n *big.Float) bool {
+	exp := n.MantExp(nil)
+
+	return (math.Abs(float64(exp))-1)*(math.Ln2/math.Ln10) <= MaxNumberDecimalExponent
 }
 
 func ctyPathString(path cty.Path) string {

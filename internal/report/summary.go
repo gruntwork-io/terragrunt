@@ -48,10 +48,12 @@ func (r *Report) Summarize() *Summary {
 	return summary
 }
 
+// TotalUnits returns the number of runs in the summary, whatever their result.
 func (s *Summary) TotalUnits() int {
 	return len(s.runs)
 }
 
+// Update adds run to the count for its result and widens the summary's time span to cover it.
 func (s *Summary) Update(run *Run) {
 	run.mu.RLock()
 	defer run.mu.RUnlock()

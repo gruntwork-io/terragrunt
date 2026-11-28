@@ -18,6 +18,8 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
+// Parser parses Terragrunt config files and passes their diagnostics through the handlers and writer its options
+// set.
 type Parser struct {
 	*hclparse.Parser
 	diagsWriterFunc       func(hcl.Diagnostics) error
@@ -26,6 +28,7 @@ type Parser struct {
 	logger                log.Logger
 }
 
+// NewParser returns a Parser configured by opts. It logs to [log.Default] unless opts include [WithLogger].
 func NewParser(opts ...Option) *Parser {
 	return (&Parser{
 		Parser: hclparse.NewParser(),
@@ -58,6 +61,10 @@ func (parser *Parser) ParseFromString(content, configPath string) (file *File, e
 	return parser.ParseFromBytes([]byte(content), configPath)
 }
 
+// ParseFromBytes parses content as the config at configPath: as HCL JSON when configPath ends in `.json`, and as
+// native HCL otherwise.
+//
+// Returns [PanicWhileParsingConfigError] when the HCL library panics.
 func (parser *Parser) ParseFromBytes(content []byte, configPath string) (file *File, err error) {
 	// The HCL2 parser and especially cty conversions will panic in many types of errors, so we have to recover from
 	// those panics here and convert them to normal errors
@@ -70,20 +77,26 @@ func (parser *Parser) ParseFromBytes(content []byte, configPath string) (file *F
 	var (
 		diags   hcl.Diagnostics
 		hclFile *hcl.File
+		calls   FunctionCalls
 	)
 
 	switch filepath.Ext(configPath) {
 	case ".json":
 		hclFile, diags = parser.ParseJSON(content, configPath)
+		calls = AnyFunctionCalls()
 	default:
+		var syntaxDiags hcl.Diagnostics
+
 		hclFile, diags = parser.ParseHCL(content, configPath)
-		diags = append(diags, rejectOutOfRangeNumbers(hclFile)...)
+		calls, syntaxDiags = inspectSyntax(hclFile)
+		diags = append(diags, syntaxDiags...)
 	}
 
 	file = &File{
 		Parser:     parser,
 		File:       hclFile,
 		ConfigPath: configPath,
+		calls:      calls,
 	}
 
 	if err := parser.handleDiagnostics(file, diags); err != nil {
@@ -112,28 +125,67 @@ func (parser *Parser) GetDiagnosticsWriter(
 }
 
 func (parser *Parser) handleDiagnostics(file *File, diags hcl.Diagnostics) error {
-	if len(diags) == 0 {
-		return nil
+	kept, err := parser.filterDiagnostics(file, diags)
+	if err != nil || kept == nil {
+		return err
 	}
 
-	if fn := parser.handleDiagnosticsFunc; fn != nil {
-		var err error
-		if diags, err = fn(file, diags); err != nil || diags == nil {
-			return err
-		}
+	if err := parser.writeDiagnostics(kept); err != nil {
+		return err
 	}
 
-	if fn := parser.diagsWriterFunc; fn != nil {
-		if err := fn(diags); err != nil {
-			return err
-		}
-	}
-
-	return diags
+	return kept
 }
 
-// rejectOutOfRangeNumbers reports each number literal in file whose magnitude is outside the
-// range [ctyhelper.ValidateNumberRanges] allows, and makes its value unknown. Converting such a
+// filterDiagnostics passes diags through the parser's diagnostics handlers and returns what they keep, or the error
+// a handler returns. It returns nil when diags is empty or the handlers drop them.
+func (parser *Parser) filterDiagnostics(file *File, diags hcl.Diagnostics) (hcl.Diagnostics, error) {
+	if len(diags) == 0 {
+		return nil, nil
+	}
+
+	fn := parser.handleDiagnosticsFunc
+	if fn == nil {
+		return diags, nil
+	}
+
+	return fn(file, diags)
+}
+
+// writeDiagnostics writes diags through the parser's diagnostics writer, if it has one.
+func (parser *Parser) writeDiagnostics(diags hcl.Diagnostics) error {
+	if fn := parser.diagsWriterFunc; fn != nil && len(diags) > 0 {
+		return fn(diags)
+	}
+
+	return nil
+}
+
+// inspectSyntax returns the functions file calls and the diagnostics of rejecting its out-of-range numbers.
+//
+// file must come from [hclparse.Parser.ParseHCL], which always returns an [hclsyntax.Body].
+func inspectSyntax(file *hcl.File) (FunctionCalls, hcl.Diagnostics) {
+	names := map[string]struct{}{}
+
+	diags := hclsyntax.VisitAll(
+		file.Body.(*hclsyntax.Body),
+		func(node hclsyntax.Node) hcl.Diagnostics {
+			switch node := node.(type) {
+			case *hclsyntax.FunctionCallExpr:
+				names[node.Name] = struct{}{}
+			case *hclsyntax.LiteralValueExpr:
+				return rejectOutOfRangeNumber(node)
+			}
+
+			return nil
+		},
+	)
+
+	return FunctionCalls{names: names}, diags
+}
+
+// rejectOutOfRangeNumber reports lit when it is a number whose magnitude is outside the range
+// [ctyhelper.ValidateNumberRanges] allows, and makes its value unknown. Converting such a
 // number to a string, as toset(["a", 1e999999999]) or "${1e999999999}" do, writes out every
 // digit, which takes minutes. The literal is disarmed as well as reported because some callers
 // carry on evaluating a config that failed to parse.
@@ -141,34 +193,22 @@ func (parser *Parser) handleDiagnostics(file *File, diags hcl.Diagnostics) error
 // The parser never produces an unknown literal, so one found here was disarmed by an earlier
 // call and is reported again. That matters because [hclparse.Parser.ParseHCL] hands back the
 // file it cached for a path it has already parsed, without the original diagnostics.
-//
-// file must come from [hclparse.Parser.ParseHCL], which always returns an [hclsyntax.Body].
-func rejectOutOfRangeNumbers(file *hcl.File) hcl.Diagnostics {
-	return hclsyntax.VisitAll(
-		file.Body.(*hclsyntax.Body),
-		func(node hclsyntax.Node) hcl.Diagnostics {
-			lit, ok := node.(*hclsyntax.LiteralValueExpr)
-			if !ok {
-				return nil
-			}
+func rejectOutOfRangeNumber(lit *hclsyntax.LiteralValueExpr) hcl.Diagnostics {
+	err := ctyhelper.ValidateNumberRanges(lit.Val)
+	if err == nil && lit.Val.IsKnown() {
+		return nil
+	}
 
-			err := ctyhelper.ValidateNumberRanges(lit.Val)
-			if err == nil && lit.Val.IsKnown() {
-				return nil
-			}
+	if err == nil {
+		err = ctyhelper.NumberOutOfRangeError{}
+	}
 
-			if err == nil {
-				err = ctyhelper.NumberOutOfRangeError{}
-			}
+	lit.Val = cty.DynamicVal
 
-			lit.Val = cty.DynamicVal
-
-			return hcl.Diagnostics{{
-				Severity: hcl.DiagError,
-				Summary:  "Number out of range",
-				Detail:   err.Error(),
-				Subject:  lit.SrcRange.Ptr(),
-			}}
-		},
-	)
+	return hcl.Diagnostics{{
+		Severity: hcl.DiagError,
+		Summary:  "Number out of range",
+		Detail:   err.Error(),
+		Subject:  lit.SrcRange.Ptr(),
+	}}
 }

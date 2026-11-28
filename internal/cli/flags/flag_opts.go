@@ -1,6 +1,8 @@
 package flags
 
 import (
+	"fmt"
+
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 )
@@ -136,6 +138,23 @@ func WithDeprecatedEnvVars(
 		deprecatedFlag.SetStrictControls(newFlag, strictControls, extraParentNames...)
 
 		newFlag.deprecatedFlags = append(newFlag.deprecatedFlags, deprecatedFlag)
+	}
+}
+
+// DeprecateEnvVarPrefix registers, as a deprecated environment variable of
+// each flag in fs, the flag's name under prefix. Commands use it to keep
+// accepting names that once carried the command name, e.g. TG_LIST_FORMAT for
+// the --format flag of list, now TG_FORMAT.
+//
+// Panics when an element of fs is not a [*Flag].
+func DeprecateEnvVarPrefix(fs clihelper.Flags, prefix Prefix, strictControls strict.Controls) {
+	for _, f := range fs {
+		flag, ok := f.(*Flag)
+		if !ok {
+			panic(fmt.Sprintf("flag %q is %T, not *flags.Flag", f.Names()[0], f))
+		}
+
+		WithDeprecatedEnvVars(prefix.EnvVars(flag.Names()[0]), strictControls)(flag)
 	}
 }
 

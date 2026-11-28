@@ -15,6 +15,7 @@ import (
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/zclconf/go-cty/cty"
 
+	"github.com/gruntwork-io/terragrunt/internal/hclhelper"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 )
@@ -347,7 +348,7 @@ func WriteValuesFile(
 // otherwise fallback is written via the cty serializer.
 func writeValueAttribute(body *hclwrite.Body, name, userValue string, fallback cty.Value) error {
 	if userValue == "" {
-		body.SetAttributeValue(name, fallback)
+		body.SetAttributeRaw(name, hclhelper.TokensForValue(fallback))
 
 		return nil
 	}

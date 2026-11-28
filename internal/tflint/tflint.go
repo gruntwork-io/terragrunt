@@ -150,6 +150,8 @@ func InputsToTflintVar(inputs map[string]any) ([]string, error) {
 
 // Custom error types
 
+// ErrorRunningTflint is returned when `tflint --init` or the `tflint` run itself fails. A non-zero exit
+// because tflint reported issues counts as a failure.
 type ErrorRunningTflint struct {
 	Err  error
 	Args []string
@@ -171,12 +173,14 @@ func (err ErrorRunningTflint) Unwrap() error {
 	return err.Err
 }
 
+// IssuesFound is the error for a tflint run that reported issues.
 type IssuesFound struct{}
 
 func (err IssuesFound) Error() string {
 	return "Tflint found issues in the project. Check for the tflint logs."
 }
 
+// UnknownError is the error for a tflint exit status that has no defined meaning.
 type UnknownError struct {
 	statusCode int
 }
@@ -185,6 +189,8 @@ func (err UnknownError) Error() string {
 	return fmt.Sprintf("Unknown status code from tflint: %d", err.statusCode)
 }
 
+// ConfigNotFound is returned when no .tflint.hcl exists in the unit's directory or its parents, searching up to
+// the root or the folder limit.
 type ConfigNotFound struct {
 	cause string
 }

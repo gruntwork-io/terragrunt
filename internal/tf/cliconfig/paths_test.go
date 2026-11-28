@@ -10,7 +10,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -45,7 +44,7 @@ func pathsVenv(goos, home string, env map[string]string) *venv.Venv {
 		env = map[string]string{}
 	}
 
-	return venvtest.New().
+	return venv.MemVenv().
 		WithGOOS(goos).
 		WithUserHomeDir(func() (string, error) { return home, nil }).
 		WithEnv(env)

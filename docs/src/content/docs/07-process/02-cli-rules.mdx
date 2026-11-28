@@ -89,7 +89,7 @@ In addition, if you find that a certain pattern that's reliably followed in the 
 
         For example, the [terragrunt-include-module-prefix](https://docs.terragrunt.com/reference/cli-options/#terragrunt-include-module-prefix) flag was previously opt-in, but users were better served with the behavior being opt-out. To preserve backwards compatibility until the next release, the flag remained, but to use it, users had to set it via `--terragrunt-include-module-prefix=false`.
 
-        In this scenario, whenever applicable, a different flag will be made available that does obey this rule (like [tf-forward-stdout](https://docs.terragrunt.com/reference/cli-options/#tf-forward-stdout)).
+        In this scenario, whenever applicable, a different flag will be made available that does obey this rule (like [tf-forward-stdout](/reference/cli/commands/run#tf-forward-stdout)).
     </details>
 
     When a flag prevents something from happening that Terragrunt would do by default, it will be proceeded by the prefix `no`/ `non`.

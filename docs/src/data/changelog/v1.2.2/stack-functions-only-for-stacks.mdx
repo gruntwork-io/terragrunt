@@ -1,0 +1,18 @@
+---
+version: "v1.2.2"
+category: "performance-improvements"
+---
+
+#### Faster discovery of dependencies
+
+Discovery prepared to read a `terragrunt.stack.hcl` in every directory named by a `dependency` or `dependencies` block, even when the directory was a unit. It now does that work only when the stack file exists.
+
+In [benchmarks](https://github.com/gruntwork-io/terragrunt/blob/main/internal/discovery/benchmark_dependents_test.go) on an AMD Ryzen AI Max+ 395, selecting the dependents of a unit that every other unit depends on, run from that unit's directory:
+
+| units | before | after |
+| --- | --- | --- |
+| 10 | 2.9ms | 2.3ms |
+| 100 | 118ms | 86ms |
+| 1,000 | 11.1s | 8.0s |
+
+At 1,000 units, memory allocated during discovery dropped from 26.7 GiB to 10.3 GiB.

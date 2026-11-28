@@ -13,12 +13,27 @@ const (
 	multipleBlockDetailFmt = "Terragrunt currently does not support multiple %[1]s blocks in a single config. Consolidate to a single %[1]s block."
 )
 
+// File is a parsed config file bound to the [Parser] that parsed it.
 type File struct {
 	*Parser
 	*hcl.File
+	calls      FunctionCalls
 	ConfigPath string
 }
 
+// FunctionCalls returns the functions the file calls. A file that [Parser.ParseFromBytes] did not parse, and a file of
+// HCL JSON, which names its calls only inside strings, may call any function.
+func (file *File) FunctionCalls() FunctionCalls {
+	return file.calls
+}
+
+// WithoutParser returns a copy of file with no parser, for keeping after the parse. Using the copy before
+// [File.Rebind] panics.
+func (file *File) WithoutParser() *File {
+	return &File{File: file.File, ConfigPath: file.ConfigPath, calls: file.calls}
+}
+
+// Content returns the file's source text.
 func (file *File) Content() string {
 	return string(file.Bytes)
 }
@@ -46,6 +61,7 @@ func (file *File) Update(content []byte) error {
 	}
 
 	file.File = updatedFile.File
+	file.calls = updatedFile.calls
 
 	return nil
 }
@@ -115,6 +131,10 @@ func (file *File) Blocks(name string, isMultipleAllowed bool) ([]*Block, error) 
 	return extractedBlocks, nil
 }
 
+// JustAttributes returns the file's top-level attributes.
+//
+// Returns an error when the body holds a block or an attribute name is not a valid identifier, unless the parser's
+// diagnostics handlers drop it.
 func (file *File) JustAttributes() (Attributes, error) {
 	hclAttrs, diags := file.Body.JustAttributes()
 
@@ -131,8 +151,27 @@ func (file *File) JustAttributes() (Attributes, error) {
 	return attrs, nil
 }
 
+// HandleDiagnostics passes diags through the parser's diagnostics handlers and writer, and returns what the handlers
+// keep as an error. It returns nil when diags is empty or the handlers drop them.
 func (file *File) HandleDiagnostics(diags hcl.Diagnostics) error {
 	return file.handleDiagnostics(file, diags)
+}
+
+// FilterDiagnostics passes diags through the parser's diagnostics handlers and returns what they keep as an error, as
+// [File.HandleDiagnostics] does, but writes nothing.
+func (file *File) FilterDiagnostics(diags hcl.Diagnostics) error {
+	kept, err := file.filterDiagnostics(file, diags)
+	if err != nil || kept == nil {
+		return err
+	}
+
+	return kept
+}
+
+// WriteDiagnostics writes diags through the parser's diagnostics writer, which writes only diagnostics that contain an
+// error.
+func (file *File) WriteDiagnostics(diags hcl.Diagnostics) error {
+	return file.writeDiagnostics(diags)
 }
 
 // Rebind returns a new File wrapper bound to `parser`, sharing the underlying AST.
@@ -157,5 +196,6 @@ func (file *File) Rebind(parser *Parser) *File {
 		Parser:     parser,
 		File:       file.File,
 		ConfigPath: file.ConfigPath,
+		calls:      file.calls,
 	}
 }

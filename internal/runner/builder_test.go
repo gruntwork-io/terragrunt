@@ -1,7 +1,9 @@
 package runner_test
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -19,13 +21,14 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	thlogger "github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 )
 
 // TestBuild pins which units Build discovers for a given set of options.
@@ -39,9 +42,10 @@ func TestNew(t *testing.T) {
 		require.NoError(t, v.FS.MkdirAll(memRoot, 0o755))
 
 		rnr, err := runner.New(
-			t.Context(),
+			config.WithCaches(t.Context()),
 			thlogger.CreateLogger(),
 			v,
+			new(config.Store),
 			newStackOpts(t, memRoot, tf.CommandNamePlan),
 		)
 		require.NoError(t, err)
@@ -56,9 +60,10 @@ func TestNew(t *testing.T) {
 		writeUnit(t, v, memRoot, "app", dependencyBlock("../vpc"))
 
 		rnr, err := runner.New(
-			t.Context(),
+			config.WithCaches(t.Context()),
 			thlogger.CreateLogger(),
 			v,
+			new(config.Store),
 			newStackOpts(t, memRoot, tf.CommandNamePlan),
 		)
 		require.NoError(t, err)
@@ -84,7 +89,7 @@ func TestNew(t *testing.T) {
 		opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
 		opts.WorkingDir = filepath.Join(memRoot, "app")
 
-		rnr, err := runner.New(t.Context(), thlogger.CreateLogger(), v, opts)
+		rnr, err := runner.New(config.WithCaches(t.Context()), thlogger.CreateLogger(), v, new(config.Store), opts)
 		require.NoError(t, err)
 		assert.Len(
 			t,
@@ -105,7 +110,7 @@ func TestNew(t *testing.T) {
 		opts.RootWorkingDir = ""
 		opts.WorkingDir = filepath.Join(memRoot, "app")
 
-		rnr, err := runner.New(t.Context(), thlogger.CreateLogger(), v, opts)
+		rnr, err := runner.New(config.WithCaches(t.Context()), thlogger.CreateLogger(), v, new(config.Store), opts)
 		require.NoError(t, err)
 
 		units := rnr.GetStack().Units
@@ -126,12 +131,13 @@ func TestNew(t *testing.T) {
 
 		opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
 		opts.TerragruntConfigPath = filepath.Join(memRoot, "custom.hcl")
+		opts.TerragruntConfigPathExplicitlySet = true
 
-		rnr, err := runner.New(t.Context(), thlogger.CreateLogger(), v, opts)
+		rnr, err := runner.New(config.WithCaches(t.Context()), thlogger.CreateLogger(), v, new(config.Store), opts)
 		require.NoError(t, err)
 
 		units := rnr.GetStack().Units
-		require.Len(t, units, 1, "the custom config filename is added to the discovered filenames")
+		require.Len(t, units, 1, "the custom config filename replaces the default unit filenames")
 		assert.Equal(t, unitDir, units[0].Path())
 	})
 
@@ -155,9 +161,10 @@ func TestNew(t *testing.T) {
 		opts.DiscoveryBoundary = memRoot
 
 		rnr, err := runner.New(
-			t.Context(),
+			config.WithCaches(t.Context()),
 			l,
 			v,
+			new(config.Store),
 			opts,
 			runner.WithWorktrees(&worktrees.Worktrees{OriginalWorkingDir: memRoot}),
 		)
@@ -175,9 +182,10 @@ func TestNew(t *testing.T) {
 		writeUnit(t, v, memRoot, "vpc", invalidHCL)
 
 		_, err := runner.New(
-			t.Context(),
+			config.WithCaches(t.Context()),
 			thlogger.CreateLogger(),
 			v,
+			new(config.Store),
 			newStackOpts(t, memRoot, tf.CommandNamePlan),
 		)
 		require.Error(t, err)
@@ -193,9 +201,52 @@ func TestNew(t *testing.T) {
 		opts.WorkingDir = filepath.Join(memRoot, "does-not-exist")
 		opts.RootWorkingDir = opts.WorkingDir
 
-		_, err := runner.New(t.Context(), thlogger.CreateLogger(), v, opts)
+		_, err := runner.New(config.WithCaches(t.Context()), thlogger.CreateLogger(), v, new(config.Store), opts)
 		require.Error(t, err)
 	})
+}
+
+// TestNew_DiscoveryProgress checks that unit discovery is drawn with a reporter and finds the same unit without one.
+func TestNew_DiscoveryProgress(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		reported bool
+	}{
+		{name: "reporter on the context", reported: true},
+		{name: "plain context"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v := memVenv(tfVersionOutput)
+			writeUnit(t, v, memRoot, "vpc", "")
+
+			term := new(bytes.Buffer)
+
+			ctx := config.WithCaches(t.Context())
+			if tc.reported {
+				ctx = spinner.ContextWithReporter(ctx, drawingReporter(term))
+			}
+
+			rnr, err := runner.New(
+				ctx,
+				thlogger.CreateLogger(),
+				v,
+				new(config.Store),
+				newStackOpts(t, memRoot, tf.CommandNamePlan),
+			)
+			require.NoError(t, err)
+			require.Len(t, rnr.GetStack().Units, 1, "the unit is discovered with and without a reporter")
+
+			if tc.reported {
+				assert.NotEmpty(t, term.String())
+			}
+		})
+	}
 }
 
 // TestBuild_VersionConstraints pins the typed errors Build returns for unsatisfied version constraints.
@@ -259,7 +310,7 @@ func TestNew_VersionConstraints(t *testing.T) {
 			opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
 			opts.TerragruntVersion = semver.MustParse("0.1.0")
 
-			rnr, err := runner.New(t.Context(), thlogger.CreateLogger(), v, opts)
+			rnr, err := runner.New(config.WithCaches(t.Context()), thlogger.CreateLogger(), v, new(config.Store), opts)
 
 			if tc.assertErr != nil {
 				tc.assertErr(t, err)
@@ -293,7 +344,15 @@ func TestCheckUnitVersionConstraints_UnitLeftUnparsed(t *testing.T) {
 	unitOpts, unitLogger, err := runner.BuildUnitOpts(l, opts, unit)
 	require.NoError(t, err)
 
-	err = runner.CheckUnitVersionConstraints(t.Context(), l, v, unitOpts, unitLogger, unit)
+	err = runner.CheckUnitVersionConstraints(
+		config.WithCaches(t.Context()),
+		l,
+		v,
+		new(config.Store),
+		unitOpts,
+		unitLogger,
+		unit,
+	)
 
 	var target run.InvalidTerragruntVersion
 
@@ -309,7 +368,7 @@ func TestNew_TerraformBinaryOverridesVersionProbe(t *testing.T) {
 		invoked []string
 	)
 
-	v := venvtest.New().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+	v := venv.MemVenv().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
 		mu.Lock()
 		defer mu.Unlock()
 
@@ -321,9 +380,10 @@ func TestNew_TerraformBinaryOverridesVersionProbe(t *testing.T) {
 	writeUnit(t, v, memRoot, "vpc", `terraform_binary = "custom-tofu"`)
 
 	_, err := runner.New(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		thlogger.CreateLogger(),
 		v,
+		new(config.Store),
 		newStackOpts(t, memRoot, tf.CommandNamePlan),
 	)
 	require.NoError(t, err)
@@ -340,14 +400,14 @@ func TestNew_TerraformBinaryOverridesVersionProbe(t *testing.T) {
 func TestNew_EngineSkipsVersionProbe(t *testing.T) {
 	t.Parallel()
 
-	v := venvtest.New()
+	v := venv.MemVenv()
 	writeUnit(t, v, memRoot, "vpc", engineBlock)
 	writeUnit(t, v, memRoot, "app", engineBlock+"\n"+dependencyBlock("../vpc"))
 
 	opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
 	require.NoError(t, opts.Experiments.EnableExperiment(experiment.IacEngine))
 
-	rnr, err := runner.New(t.Context(), thlogger.CreateLogger(), v, opts)
+	rnr, err := runner.New(config.WithCaches(t.Context()), thlogger.CreateLogger(), v, new(config.Store), opts)
 	require.NoError(t, err)
 	assert.Len(t, rnr.GetStack().Units, 2)
 }
@@ -360,9 +420,10 @@ func TestNew_DependencyCycle(t *testing.T) {
 	writeUnit(t, v, memRoot, "app", dependencyBlock("../vpc"))
 
 	rnr, err := runner.New(
-		t.Context(),
+		config.WithCaches(t.Context()),
 		thlogger.CreateLogger(),
 		v,
+		new(config.Store),
 		newStackOpts(t, memRoot, tf.CommandNamePlan),
 	)
 	require.Error(t, err, "units that depend on each other cannot be ordered")
@@ -380,7 +441,7 @@ func TestNew_UnparsableUnitSource(t *testing.T) {
 	opts := newStackOpts(t, memRoot, tf.CommandNamePlan)
 	opts.Source = "/local/modules"
 
-	rnr, err := runner.New(t.Context(), thlogger.CreateLogger(), v, opts)
+	rnr, err := runner.New(config.WithCaches(t.Context()), thlogger.CreateLogger(), v, new(config.Store), opts)
 
 	var target config.ParsingModulePathError
 
@@ -400,7 +461,15 @@ func TestCheckUnitVersionConstraints_UnparsableConfig(t *testing.T) {
 	unitOpts, unitLogger, err := runner.BuildUnitOpts(l, opts, unit)
 	require.NoError(t, err)
 
-	err = runner.CheckUnitVersionConstraints(t.Context(), l, v, unitOpts, unitLogger, unit)
+	err = runner.CheckUnitVersionConstraints(
+		config.WithCaches(t.Context()),
+		l,
+		v,
+		new(config.Store),
+		unitOpts,
+		unitLogger,
+		unit,
+	)
 
 	var diags hcl.Diagnostics
 
@@ -423,7 +492,15 @@ func TestCheckUnitVersionConstraints_InvalidEngineMeta(t *testing.T) {
 	unitOpts, unitLogger, err := runner.BuildUnitOpts(l, opts, unit)
 	require.NoError(t, err)
 
-	err = runner.CheckUnitVersionConstraints(t.Context(), l, v, unitOpts, unitLogger, unit)
+	err = runner.CheckUnitVersionConstraints(
+		config.WithCaches(t.Context()),
+		l,
+		v,
+		new(config.Store),
+		unitOpts,
+		unitLogger,
+		unit,
+	)
 
 	var target ctyhelper.NumberOutOfRangeError
 
@@ -440,4 +517,14 @@ func dependencyBlock(configPath string) string {
 	return `dependency "dep" {
   config_path = "` + configPath + `"
 }`
+}
+
+// drawingReporter returns a reporter that draws its progress line on term from the start.
+func drawingReporter(term io.Writer) *spinner.Reporter {
+	v := venv.MemVenv().WithErrWriter(term).WithEnv(map[string]string{"TERM": "xterm"}).WithGOOS("linux")
+	v.Terminal.StderrIsTTY = func() bool { return true }
+	v.Terminal.StderrHandlesEscapes = func() bool { return true }
+	v.Terminal.ErrWidth = func() int { return 120 }
+
+	return spinner.New(v, spinner.Options{LogsForHumans: true})
 }

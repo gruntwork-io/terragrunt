@@ -1,0 +1,10 @@
+---
+version: "v1.2.2"
+category: "bug-fixes"
+---
+
+#### Configuration rewritten during a command is parsed again
+
+Terragrunt caches each parsed configuration file for the length of a command, and parses the file again when its modification time changes. A file rewritten soon after Terragrunt read it can keep the same modification time, as timestamps on Windows and on FAT volumes advance in coarse steps. Terragrunt then kept the cached result, and the rest of the command ran with the old contents.
+
+Terragrunt now also compares the file's size, and compares the contents of any file modified shortly before it was read.

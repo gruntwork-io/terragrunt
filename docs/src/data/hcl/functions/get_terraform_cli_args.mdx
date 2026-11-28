@@ -1,0 +1,27 @@
+---
+name: get_terraform_cli_args
+description: Returns the OpenTofu/Terraform command Terragrunt is running and its arguments.
+configs: [unit, stack]
+params: []
+returns: list(string)
+examples:
+  - description: During `terragrunt run -- plan -out=tf.plan`.
+    code: |
+      # terragrunt.hcl
+
+      inputs = {
+        cli_args = get_terraform_cli_args() # ["plan", "-out=tf.plan"]
+      }
+---
+
+`get_terraform_cli_args` returns the command first, then the arguments passed after it. Unlike [`get_terraform_command`](/reference/hcl/functions/get_terraform_command), it keeps the command as given, so `apply -destroy` returns `["apply", "-destroy"]`.
+
+```hcl
+# terragrunt.hcl
+
+locals {
+  saving_plan = anytrue([
+    for arg in get_terraform_cli_args() : startswith(arg, "-out=")
+  ])
+}
+```

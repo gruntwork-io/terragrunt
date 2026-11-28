@@ -21,13 +21,18 @@ const (
 	configSkipAccessLoggingBucketACLKey = "skip_accesslogging_bucket_acl"
 	configSkipBucketRootAccessKey       = "skip_bucket_root_access"
 
+	// DefaultS3BucketAccessLoggingTargetPrefix is the access log object prefix used when the config omits
+	// accesslogging_target_prefix.
 	DefaultS3BucketAccessLoggingTargetPrefix = "TFStateLogs/"
 
 	lockTableDeprecationMessage = "Remote state configuration 'lock_table' attribute is deprecated; use 'dynamodb_table' instead."
 )
 
+// Config is the config map of an s3 remote_state block, including the keys only Terragrunt reads.
 type Config map[string]any
 
+// FilterOutTerragruntKeys returns a copy of cfg without the keys that only Terragrunt reads, such as
+// s3_bucket_tags and skip_bucket_versioning.
 func (cfg Config) FilterOutTerragruntKeys() Config {
 	var filtered = make(Config)
 
@@ -42,6 +47,9 @@ func (cfg Config) FilterOutTerragruntKeys() Config {
 	return filtered
 }
 
+// GetTFInitArgs returns the config to pass to `tofu init`: the Terragrunt-only keys are removed, lock_table is
+// renamed to dynamodb_table, assume_role and assume_role_with_web_identity maps become single-line HCL
+// strings, and string bools become bools.
 func (cfg Config) GetTFInitArgs() Config {
 	var filtered = make(Config)
 
@@ -82,6 +90,8 @@ func (cfg Config) GetTFInitArgs() Config {
 	)
 }
 
+// Normalize returns a copy of cfg with a non-empty deprecated lock_table moved to dynamodb_table, and logs a
+// deprecation warning when it moves one.
 func (cfg Config) Normalize(logger log.Logger) Config {
 	var normalized = make(Config)
 

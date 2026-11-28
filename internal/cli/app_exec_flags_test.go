@@ -6,12 +6,11 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/exec"
-	"github.com/gruntwork-io/terragrunt/internal/cli/commands/run"
+	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -37,7 +36,7 @@ func TestExecAcceptsSourceAndAutoInitFlags(t *testing.T) {
 		},
 		{
 			name:              "source flag",
-			args:              []string{exec.CommandName, doubleDashed(run.SourceFlagName), "/local/vpc", "--", "echo", "hi"},
+			args:              []string{exec.CommandName, doubleDashed(shared.SourceFlagName), "/local/vpc", "--", "echo", "hi"},
 			expectedSource:    "/local/vpc",
 			expectedSourceMap: map[string]string{},
 			expectedAutoInit:  true,
@@ -46,7 +45,7 @@ func TestExecAcceptsSourceAndAutoInitFlags(t *testing.T) {
 			name: "source map flag",
 			args: []string{
 				exec.CommandName,
-				doubleDashed(run.SourceMapFlagName),
+				doubleDashed(shared.SourceMapFlagName),
 				"git::ssh://git@github.com/acme/vpc.git=/local/vpc",
 				"--",
 				"echo",
@@ -59,16 +58,16 @@ func TestExecAcceptsSourceAndAutoInitFlags(t *testing.T) {
 		},
 		{
 			name:              "no auto init flag",
-			args:              []string{exec.CommandName, doubleDashed(run.NoAutoInitFlagName), "--", "echo", "hi"},
+			args:              []string{exec.CommandName, doubleDashed(shared.NoAutoInitFlagName), "--", "echo", "hi"},
 			expectedSourceMap: map[string]string{},
 		},
 		{
 			name: "both flags together",
 			args: []string{
 				exec.CommandName,
-				doubleDashed(run.SourceMapFlagName),
+				doubleDashed(shared.SourceMapFlagName),
 				"git::ssh://git@github.com/acme/vpc.git=/local/vpc",
-				doubleDashed(run.NoAutoInitFlagName),
+				doubleDashed(shared.NoAutoInitFlagName),
 				"--",
 				"echo",
 				"hi",
@@ -100,7 +99,7 @@ func TestExecAcceptsSourceAndAutoInitFlags(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			opts := options.NewTerragruntOptions(vexec.NewOSExec())
+			opts := options.NewTerragruntOptions()
 
 			require.NoError(t, runExecAppTest(t, opts, tc.env, tc.args))
 			assert.Equal(t, tc.expectedSource, opts.Source)
@@ -124,7 +123,7 @@ func runExecAppTest(
 	}
 
 	l := logger.CreateLogger()
-	v := venvtest.New().WithEnv(env)
+	v := venv.MemVenv().WithEnv(env)
 
 	app := cli.NewApp(l, opts, v)
 	setCommandAction(func(context.Context, *clihelper.Context) error { return nil }, app.Commands...)

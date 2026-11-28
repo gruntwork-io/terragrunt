@@ -22,6 +22,7 @@ import (
 )
 
 const (
+	// BackendName is the remote_state backend value this backend handles.
 	BackendName = "azurerm"
 
 	// defaultSoftDeleteRetentionDays is applied when enable_soft_delete is set
@@ -121,7 +122,10 @@ func newBlobClient(ctx context.Context, l log.Logger, cfg *azurehelper.AzureConf
 		return azurehelper.NewBlobClient(cfg)
 	}
 
-	l.Debugf("%s: using shared-key blob authorization (set use_azuread_auth to authorize with Microsoft Entra instead)", BackendName)
+	l.Debugf(
+		"%s: using shared-key blob authorization (set use_azuread_auth to authorize with Microsoft Entra instead)",
+		BackendName,
+	)
 
 	return azurehelper.NewBlobClient(keyed)
 }
@@ -278,7 +282,13 @@ func sharedKeyConfig(ctx context.Context, cfg *azurehelper.AzureConfig) (*azureh
 // NeedsBootstrap returns true if the storage account or container backing the
 // state does not yet exist, or (when reachable) blob versioning or soft-delete
 // configuration has drifted from what the config requests.
-func (b *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, v *venv.Venv, backendConfig backend.Config, opts *backend.Options) (bool, error) {
+func (b *Backend) NeedsBootstrap(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	backendConfig backend.Config,
+	opts *backend.Options,
+) (bool, error) {
 	extCfg, cfg, err := resolveConfig(l, v, backendConfig)
 	if err != nil {
 		return false, err
@@ -355,7 +365,13 @@ func accountNeedsBootstrap(
 
 // Bootstrap creates (if necessary) the resource group, storage account, and
 // blob container backing the state, and ensures blob versioning / soft delete.
-func (b *Backend) Bootstrap(ctx context.Context, l log.Logger, v *venv.Venv, backendConfig backend.Config, opts *backend.Options) error {
+func (b *Backend) Bootstrap(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	backendConfig backend.Config,
+	opts *backend.Options,
+) error {
 	extCfg, cfg, err := resolveConfig(l, v, backendConfig)
 	if err != nil {
 		return err
@@ -379,7 +395,11 @@ func (b *Backend) Bootstrap(ctx context.Context, l log.Logger, v *venv.Venv, bac
 	defer mu.Unlock()
 
 	if b.IsConfigInited(extCfg) {
-		l.Debugf("%s container %s has already been confirmed to be initialized, skipping initialization checks", b.Name(), rs.CacheKey())
+		l.Debugf(
+			"%s container %s has already been confirmed to be initialized, skipping initialization checks",
+			b.Name(),
+			rs.CacheKey(),
+		)
 
 		return nil
 	}
@@ -409,7 +429,13 @@ func (b *Backend) Bootstrap(ctx context.Context, l log.Logger, v *venv.Venv, bac
 
 // ensureContainer creates the state container when it is missing and creation
 // is neither skipped nor forbidden.
-func ensureContainer(ctx context.Context, l log.Logger, cfg *azurehelper.AzureConfig, extCfg *ExtendedRemoteStateConfigAzurerm, opts *backend.Options) error {
+func ensureContainer(
+	ctx context.Context,
+	l log.Logger,
+	cfg *azurehelper.AzureConfig,
+	extCfg *ExtendedRemoteStateConfigAzurerm,
+	opts *backend.Options,
+) error {
 	if extCfg.SkipContainerCreation {
 		return nil
 	}
@@ -695,7 +721,13 @@ func effectiveSoftDeleteDays(extCfg *ExtendedRemoteStateConfigAzurerm) int32 {
 // IsVersionControlEnabled returns true if blob versioning is enabled on the
 // storage account. Data-plane-only auth (SAS / access key) cannot query this
 // via ARM and returns false.
-func (b *Backend) IsVersionControlEnabled(ctx context.Context, l log.Logger, v *venv.Venv, backendConfig backend.Config, opts *backend.Options) (bool, error) {
+func (b *Backend) IsVersionControlEnabled(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	backendConfig backend.Config,
+	opts *backend.Options,
+) (bool, error) {
 	_, cfg, err := resolveConfig(l, v, backendConfig)
 	if err != nil {
 		return false, err
@@ -725,7 +757,13 @@ func (b *Backend) IsVersionControlEnabled(ctx context.Context, l log.Logger, v *
 
 // Migrate copies the state blob from the source backend config to the
 // destination backend config within the same storage account.
-func (b *Backend) Migrate(ctx context.Context, l log.Logger, srcV, dstV *venv.Venv, srcBackendConfig, dstBackendConfig backend.Config, opts *backend.Options) error {
+func (b *Backend) Migrate(
+	ctx context.Context,
+	l log.Logger,
+	srcV, dstV *venv.Venv,
+	srcBackendConfig, dstBackendConfig backend.Config,
+	opts *backend.Options,
+) error {
 	srcExtCfg, cfg, err := resolveConfig(l, srcV, srcBackendConfig)
 	if err != nil {
 		return err
@@ -779,7 +817,13 @@ func (b *Backend) Migrate(ctx context.Context, l log.Logger, srcV, dstV *venv.Ve
 }
 
 // Delete deletes the Terraform state blob (config "key") from its container.
-func (b *Backend) Delete(ctx context.Context, l log.Logger, v *venv.Venv, backendConfig backend.Config, opts *backend.Options) error {
+func (b *Backend) Delete(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	backendConfig backend.Config,
+	opts *backend.Options,
+) error {
 	extCfg, cfg, err := resolveConfig(l, v, backendConfig)
 	if err != nil {
 		return err
@@ -813,7 +857,13 @@ func (b *Backend) Delete(ctx context.Context, l log.Logger, v *venv.Venv, backen
 }
 
 // DeleteBucket deletes the entire blob container backing the state.
-func (b *Backend) DeleteBucket(ctx context.Context, l log.Logger, v *venv.Venv, backendConfig backend.Config, opts *backend.Options) error {
+func (b *Backend) DeleteBucket(
+	ctx context.Context,
+	l log.Logger,
+	v *venv.Venv,
+	backendConfig backend.Config,
+	opts *backend.Options,
+) error {
 	extCfg, cfg, err := resolveConfig(l, v, backendConfig)
 	if err != nil {
 		return err

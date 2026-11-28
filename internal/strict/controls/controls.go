@@ -92,6 +92,10 @@ const (
 	// DisableDependentModules is the control that prevents the use of the deprecated `--disable-dependent-modules` flag.
 	DisableDependentModules = "disable-dependent-modules"
 
+	// UsePartialParseConfigCache is the control that prevents the use of the deprecated
+	// `--use-partial-parse-config-cache` flag.
+	UsePartialParseConfigCache = "use-partial-parse-config-cache"
+
 	// FastCopy is the control that switches `include_in_copy` and
 	// `exclude_from_copy` pattern matching from zglob to gobwas.
 	FastCopy = "fast-copy"
@@ -107,11 +111,21 @@ const (
 	// LegacyBase64Gzip is the control that switches base64gzip() from the Go 1.26 gzip bytes to the current encoder.
 	LegacyBase64Gzip = "legacy-base64gzip"
 
+	// OptionalHooks is the control named for the `--no-hooks` flag of `terragrunt run`, which skips
+	// before_hook, after_hook, and error_hook blocks.
 	OptionalHooks = "optional-hooks"
 
 	// DuplicateDependencyLabels is the control that prevents two `dependency` blocks in one
 	// configuration from addressing the same dependency, by label or by config_path.
 	DuplicateDependencyLabels = "duplicate-dependency-labels"
+
+	// DependencyConfigPathFile is the control that prevents a `dependency` block from setting
+	// `config_path` to a file instead of a directory.
+	DependencyConfigPathFile = "dependency-config-path-file"
+
+	// CASSourceInsideStack is the control that prevents a `unit` or `stack` block with
+	// `update_source_with_cas` from setting a source inside the directory of its stack file.
+	CASSourceInsideStack = "cas-source-inside-stack"
 )
 
 // LegacyGCSDeprecationWarning is the warning text emitted when a plain
@@ -127,6 +141,7 @@ func IsFastCopyEnabled(strictControls strict.Controls) bool {
 	return len(strictControls.FilterByNames(FastCopy).FilterByEnabled()) > 0
 }
 
+// New returns every strict control Terragrunt knows, each disabled, with its subcontrols attached.
 func New() strict.Controls {
 	skipDependenciesInputsControl := &Control{
 		Name:        SkipDependenciesInputs,
@@ -166,6 +181,24 @@ func New() strict.Controls {
 		Warning: "The `skip_bucket_root_access` config attribute is deprecated and will be removed in a future version of Terragrunt. Terragrunt no longer grants the AWS account root user access to S3 state buckets, so this attribute has no effect. Use `enable_bucket_root_access` to grant that access.",
 	}
 
+	dependencyConfigPathFileControl := &Control{
+		Name:        DependencyConfigPathFile,
+		Description: "Prevents a `dependency` block from setting `config_path` to a file. The `config_path` of a dependency is the directory of a unit or a stack.",
+		Error: errors.New(
+			"Setting the `config_path` of a `dependency` block to a file is no longer supported. Set it to the directory of the unit or stack instead.",
+		),
+		Warning: "Setting the `config_path` of a `dependency` block to a file is deprecated and will be removed in a future version of Terragrunt. Set it to the directory of the unit or stack instead.",
+	}
+
+	casSourceInsideStackControl := &Control{
+		Name:        CASSourceInsideStack,
+		Description: "Prevents a `unit` or `stack` block with `update_source_with_cas` from setting a source inside the directory of its stack file. Stack generation copies that directory whole, so the generated stack also contains a copy of the source, and `run --all` runs that copy as well.",
+		Error: errors.New(
+			"Setting the source of a `unit` or `stack` block with `update_source_with_cas` to a directory inside the stack directory is no longer supported. Move the unit or stack directory it points at out of the stack directory, and use `//` in the stack's source to separate the catalog from the stack directory.",
+		),
+		Warning: "Setting the source of a `unit` or `stack` block with `update_source_with_cas` to a directory inside the stack directory is deprecated and will be removed in a future version of Terragrunt.",
+	}
+
 	controls := strict.Controls{
 		&Control{
 			Name:        DeprecatedCommands,
@@ -187,12 +220,16 @@ func New() strict.Controls {
 				requireExplicitBootstrapControl,
 				skipAccessLoggingBucketACLControl,
 				skipBucketRootAccessControl,
+				dependencyConfigPathFileControl,
+				casSourceInsideStackControl,
 			},
 		},
 		skipDependenciesInputsControl,
 		requireExplicitBootstrapControl,
 		skipAccessLoggingBucketACLControl,
 		skipBucketRootAccessControl,
+		dependencyConfigPathFileControl,
+		casSourceInsideStackControl,
 		&Control{
 			Name:        CLIRedesign,
 			Description: "Prevents the use of commands deprecated as part of the CLI Redesign.",
@@ -362,6 +399,14 @@ func New() strict.Controls {
 				"The `--disable-dependent-modules` flag is no longer supported. Dependent modules discovery has been removed from `terragrunt render`.",
 			),
 			Warning: "The `--disable-dependent-modules` flag is deprecated and will be removed in a future version of Terragrunt. Dependent modules discovery has been removed from `terragrunt render`, so this flag has no effect.",
+		},
+		&Control{
+			Name:        UsePartialParseConfigCache,
+			Description: "Prevents the use of the deprecated `--use-partial-parse-config-cache` flag.",
+			Error: errors.New(
+				"The `--use-partial-parse-config-cache` flag is no longer supported. Terragrunt no longer has a partial parse cache for it to enable.",
+			),
+			Warning: "The `--use-partial-parse-config-cache` flag is deprecated and will be removed in a future version of Terragrunt. Terragrunt no longer has a partial parse cache for it to enable, so this flag has no effect.",
 		},
 		&Control{
 			Name:        FastCopy,

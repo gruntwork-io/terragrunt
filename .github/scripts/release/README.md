@@ -19,6 +19,7 @@ All inline bash and PowerShell code from GitHub Actions workflows has been extra
 ### General Release Scripts
 - **`get-version.sh`** - Extracts and validates version from git tag or workflow input
 - **`check-release-exists.sh`** - Checks if GitHub release exists for a version
+- **`create-draft-release.sh`** - Creates a draft GitHub release for a version that has none, marked as a pre-release when the version has a pre-release suffix
 - **`verify-binaries-downloaded.sh`** - Verifies expected binaries were downloaded from artifacts
 - **`set-permissions.sh`** - Sets executable permissions (+x) on all binaries
 - **`create-archives.sh`** - Creates ZIP and TAR.GZ archives for each binary
@@ -239,9 +240,10 @@ export CLOBBER=false
 ```
 
 **Features:**
-- Checks for 22 expected files (7 binaries + 7 ZIPs + 7 TAR.GZ + SHA256SUMS)
+- Checks for every file listed by `get_all_expected_files()`
 - Automatically retries failed uploads (max 10 attempts)
-- Verifies asset downloadability
+- Lists the release again after uploading and fails if any expected file is missing
+- Downloads `SHA256SUMS` from the release and fails if it differs from the local file
 
 ### `generate-upload-summary.sh`
 Generates a GitHub Actions step summary with release upload details.

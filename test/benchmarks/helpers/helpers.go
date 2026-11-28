@@ -4,16 +4,18 @@ package helpers
 import (
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"testing"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
+	"github.com/gruntwork-io/terragrunt/test/benchmarks/fixture"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/require"
 )
@@ -31,7 +33,7 @@ const (
 func RunTerragruntCommand(b *testing.B, args ...string) {
 	b.Helper()
 
-	opts := options.NewTerragruntOptions(vexec.NewOSExec())
+	opts := options.NewTerragruntOptions()
 
 	l := logger.CreateLogger().WithOptions(log.WithOutput(io.Discard))
 
@@ -89,6 +91,7 @@ func GenerateEmptyUnits(b *testing.B, dir string, n int) {
 	GenerateNUnits(b, dir, n, includeRootConfig, emptyMainTf)
 }
 
+// Init runs `terragrunt run --all init` in dir and reports its duration as the init_s/op metric.
 func Init(b *testing.B, dir string) {
 	b.Helper()
 
@@ -111,6 +114,7 @@ func Init(b *testing.B, dir string) {
 	b.ReportMetric(float64(planDuration.Seconds()), "init_s/op")
 }
 
+// Plan runs `terragrunt run --all plan` in dir and reports its duration as the plan_s/op metric.
 func Plan(b *testing.B, dir string) {
 	b.Helper()
 
@@ -133,6 +137,7 @@ func Plan(b *testing.B, dir string) {
 	b.ReportMetric(float64(planDuration.Seconds()), "plan_s/op")
 }
 
+// Apply runs `terragrunt run --all apply` in dir and reports its duration as the apply_s/op metric.
 func Apply(b *testing.B, dir string) {
 	b.Helper()
 
@@ -155,6 +160,7 @@ func Apply(b *testing.B, dir string) {
 	b.ReportMetric(float64(applyDuration.Seconds()), "apply_s/op")
 }
 
+// ApplyWithRunnerPool is [Apply] with the runner-pool experiment enabled.
 func ApplyWithRunnerPool(b *testing.B, dir string) {
 	b.Helper()
 
@@ -177,4 +183,36 @@ func ApplyWithRunnerPool(b *testing.B, dir string) {
 	applyDuration := time.Since(applyStart)
 
 	b.ReportMetric(float64(applyDuration.Seconds()), "apply_s/op")
+}
+
+// WriteFixture fills dir with a benchmark fixture of the given shape and unit count.
+func WriteFixture(b *testing.B, dir string, shape fixture.Shape, units int) {
+	b.Helper()
+
+	require.NoError(b, fixture.Write(dir, shape, units))
+}
+
+// UseFakeTofu builds faketofu as `tofu` and puts it first on PATH for the rest of the benchmark, so
+// every tofu process Terragrunt starts exits at once and the benchmark measures only Terragrunt.
+func UseFakeTofu(b *testing.B) {
+	b.Helper()
+
+	binDir := b.TempDir()
+
+	name := "tofu"
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+
+	cmd := exec.CommandContext(
+		b.Context(),
+		"go", "build",
+		"-o", filepath.Join(binDir, name),
+		"github.com/gruntwork-io/terragrunt/test/benchmarks/cmd/faketofu",
+	)
+
+	out, err := cmd.CombinedOutput()
+	require.NoError(b, err, string(out))
+
+	b.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 }

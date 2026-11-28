@@ -3,7 +3,6 @@ package s3
 import (
 	"fmt"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/gruntwork-io/terragrunt/internal/awshelper"
@@ -37,15 +36,12 @@ var terragruntOnlyConfigs = []string{
 	"bucket_sse_kms_key_id",
 }
 
-/* ExtendedRemoteStateConfigS3 is a struct that contains the RemoteStateConfigS3 struct and additional
- * configuration options that are specific to the S3 backend. This struct is used to parse the configuration
- * from the Terragrunt configuration file.
- *
- * We use this construct to separate the three config keys 's3_bucket_tags', 'dynamodb_table_tags'
- * and 'accesslogging_bucket_tags' from the others, as they are specific to the s3 backend,
- * but only used by terragrunt to tag the s3 bucket, the dynamo db and the s3 bucket used to the
- * access logs, in case it has to create them.
- */
+// ExtendedRemoteStateConfigS3 holds RemoteStateConfigS3 plus the configuration options specific to the S3
+// backend, parsed from the Terragrunt configuration file.
+//
+// It keeps the three config keys 's3_bucket_tags', 'dynamodb_table_tags' and 'accesslogging_bucket_tags' apart
+// from the others, as they are specific to the s3 backend and only used by terragrunt to tag the s3 bucket, the
+// DynamoDB table and the access log bucket in case it has to create them.
 type ExtendedRemoteStateConfigS3 struct {
 	S3BucketTags                                 map[string]string   `mapstructure:"s3_bucket_tags"`
 	DynamotableTags                              map[string]string   `mapstructure:"dynamodb_table_tags"`
@@ -74,6 +70,7 @@ type ExtendedRemoteStateConfigS3 struct {
 	SkipCredentialsValidation                    bool                `mapstructure:"skip_credentials_validation"`
 }
 
+// FetchEncryptionAlgorithm returns bucket_sse_algorithm, or aws:kms when the config leaves it unset.
 func (cfg *ExtendedRemoteStateConfigS3) FetchEncryptionAlgorithm() string {
 	// Encrypt with KMS by default
 	algorithm := string(s3types.ServerSideEncryptionAwsKms)
@@ -107,7 +104,7 @@ func (cfg *ExtendedRemoteStateConfigS3) GetAwsSessionConfig() *awshelper.AwsSess
 		ExternalID:              cfg.RemoteStateConfigS3.GetExternalID(),
 		SessionName:             cfg.RemoteStateConfigS3.GetSessionName(),
 		CredsFilename:           cfg.RemoteStateConfigS3.CredsFilename,
-		S3ForcePathStyle:        cfg.RemoteStateConfigS3.S3ForcePathStyle,
+		S3ForcePathStyle:        cfg.RemoteStateConfigS3.S3ForcePathStyle || cfg.RemoteStateConfigS3.UsePathStyle,
 		DisableComputeChecksums: cfg.DisableAWSClientChecksums,
 	}
 }
@@ -115,16 +112,16 @@ func (cfg *ExtendedRemoteStateConfigS3) GetAwsSessionConfig() *awshelper.AwsSess
 // CreateS3LoggingInput builds AWS S3 logging input struct from the configuration.
 func (cfg *ExtendedRemoteStateConfigS3) CreateS3LoggingInput() s3.PutBucketLoggingInput {
 	loggingInput := s3.PutBucketLoggingInput{
-		Bucket: aws.String(cfg.RemoteStateConfigS3.Bucket),
+		Bucket: new(cfg.RemoteStateConfigS3.Bucket),
 		BucketLoggingStatus: &s3types.BucketLoggingStatus{
 			LoggingEnabled: &s3types.LoggingEnabled{
-				TargetBucket: aws.String(cfg.AccessLoggingBucketName),
+				TargetBucket: new(cfg.AccessLoggingBucketName),
 			},
 		},
 	}
 
 	if cfg.AccessLoggingTargetPrefix != "" {
-		loggingInput.BucketLoggingStatus.LoggingEnabled.TargetPrefix = aws.String(
+		loggingInput.BucketLoggingStatus.LoggingEnabled.TargetPrefix = new(
 			cfg.AccessLoggingTargetPrefix,
 		)
 	}
@@ -161,6 +158,7 @@ func (cfg *ExtendedRemoteStateConfigS3) Validate() error {
 	return nil
 }
 
+// RemoteStateConfigS3AssumeRole is the assume_role block of an s3 remote_state config.
 type RemoteStateConfigS3AssumeRole struct {
 	RoleArn           string            `mapstructure:"role_arn"`
 	Duration          string            `mapstructure:"duration"`
@@ -173,6 +171,8 @@ type RemoteStateConfigS3AssumeRole struct {
 	TransitiveTagKeys []string          `mapstructure:"transitive_tag_keys"`
 }
 
+// RemoteStateConfigS3Endpoints is the endpoints block of an s3 remote_state config. A value set here takes
+// precedence over the top-level endpoint and dynamodb_endpoint attributes.
 type RemoteStateConfigS3Endpoints struct {
 	S3       string `mapstructure:"s3"`
 	DynamoDB string `mapstructure:"dynamodb"`
@@ -197,6 +197,7 @@ type RemoteStateConfigS3 struct {
 	AssumeRole       RemoteStateConfigS3AssumeRole `mapstructure:"assume_role"`
 	Encrypt          bool                          `mapstructure:"encrypt"`
 	S3ForcePathStyle bool                          `mapstructure:"force_path_style"`
+	UsePathStyle     bool                          `mapstructure:"use_path_style"`
 	UseLockfile      bool                          `mapstructure:"use_lockfile"`
 }
 
@@ -234,6 +235,7 @@ func (cfg *RemoteStateConfigS3) GetSessionRoleArn() string {
 	return cfg.RoleArn
 }
 
+// GetSessionTags returns the session tags from the assume_role block, or nil when it sets none.
 func (cfg *RemoteStateConfigS3) GetSessionTags() map[string]string {
 	if len(cfg.AssumeRole.Tags) != 0 {
 		return cfg.AssumeRole.Tags
@@ -253,6 +255,8 @@ func (cfg *RemoteStateConfigS3) GetExternalID() string {
 	return cfg.ExternalID
 }
 
+// GetSessionName returns the session name from the assume_role block, falling back to the top-level
+// session_name attribute.
 func (cfg *RemoteStateConfigS3) GetSessionName() string {
 	if cfg.AssumeRole.SessionName != "" {
 		return cfg.AssumeRole.SessionName

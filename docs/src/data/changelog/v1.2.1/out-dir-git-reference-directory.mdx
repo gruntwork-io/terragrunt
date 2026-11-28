@@ -1,0 +1,17 @@
+---
+version: "v1.2.1"
+category: "bug-fixes"
+---
+
+#### `--out-dir` keeps a plan for each Git reference that selects a unit
+
+`run --all` with [`--out-dir`](/reference/cli/commands/run#out-dir) or [`--json-out-dir`](/reference/cli/commands/run#json-out-dir) mirrors each unit under the output directory. Two Git filters that selected the same unit at different references, e.g. `--filter '[HEAD~2...HEAD~1]' --filter '[HEAD~1...HEAD]'`, mirrored both to the same path. Each run overwrote the other's plan file, so the plan saved for one reference held the other's changes.
+
+A unit that a Git filter selects at a reference now goes under a directory named for the reference, with `@` in front and characters other than letters, digits, `-`, and `_` replaced by `_`:
+
+```text
+<out-dir>/@HEAD_1/env/app/tfplan.tfplan
+<out-dir>/@HEAD/env/app/tfplan.tfplan
+```
+
+A unit found by walking the working directory keeps its path, and planning and applying with the same `--filter` still find the same files.

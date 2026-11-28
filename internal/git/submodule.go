@@ -31,7 +31,7 @@ func (g *GitRunner) SubmoduleURLs(
 		return nil, &WrappedError{
 			Op:      "git_config_blob",
 			Context: stderr.String(),
-			Err:     errors.Join(ErrCommandSpawn, err),
+			Err:     errors.Join(ErrGitCommand, err),
 		}
 	}
 

@@ -123,6 +123,7 @@ func (cfg *Config) WithProviderInstallation(installation *ProviderInstallation) 
 	return cfg
 }
 
+// Clone returns a deep copy of cfg that shares only its filesystem.
 func (cfg *Config) Clone() *Config {
 	var providerInstallation *ProviderInstallation
 
@@ -201,7 +202,6 @@ func (cfg *Config) AddHost(name string, services map[string]string) {
 //			exclude = ["example.com/*/*"]
 //		}
 //	}
-
 func (cfg *Config) AddProviderInstallationMethods(newMethods ...ProviderInstallationMethod) {
 	if cfg.ProviderInstallation == nil {
 		cfg.ProviderInstallation = &ProviderInstallation{}

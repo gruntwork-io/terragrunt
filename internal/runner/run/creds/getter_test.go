@@ -13,7 +13,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -44,7 +43,7 @@ func TestObtainAndUpdateEnvLaterProviderWins(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	v := venvtest.New()
+	v := venv.MemVenv()
 
 	authProvider := &stubProvider{
 		name: "external command",
@@ -83,7 +82,7 @@ func TestObtainAndUpdateEnvNilCredsLeaveEnvUntouched(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	v := venvtest.New()
+	v := venv.MemVenv()
 	v.Env["UNRELATED"] = "kept"
 
 	authProvider := &stubProvider{
@@ -115,7 +114,7 @@ func TestObtainAndUpdateEnvPropagatesProviderFailure(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	v := venvtest.New()
+	v := venv.MemVenv()
 
 	failingProvider := &stubProvider{
 		name: "external command",
@@ -145,7 +144,7 @@ func TestObtainCredsForParsingWithoutAuthProviderCmd(t *testing.T) {
 	var calls int
 
 	l := logger.CreateLogger()
-	v := venvtest.New().WithHandler(func(_ context.Context, _ vexec.Invocation) vexec.Result {
+	v := venv.MemVenv().WithHandler(func(_ context.Context, _ vexec.Invocation) vexec.Result {
 		calls++
 
 		return vexec.Result{}
@@ -182,13 +181,13 @@ func TestObtainCredsForParsingPopulatesEnvBeforeParsing(t *testing.T) {
 			name: "aws credentials",
 			stdout: `{
                 "awsCredentials": {
-                    "ACCESS_KEY_ID": "AKIA111",
+                    "ACCESS_KEY_ID": "fake-access-key-id",
                     "SECRET_ACCESS_KEY": "secret-xyz",
                     "SESSION_TOKEN": "session-abc"
                 }
             }`,
 			wantEnv: map[string]string{
-				"AWS_ACCESS_KEY_ID":     "AKIA111",
+				"AWS_ACCESS_KEY_ID":     "fake-access-key-id",
 				"AWS_SECRET_ACCESS_KEY": "secret-xyz",
 				"AWS_SESSION_TOKEN":     "session-abc",
 				"AWS_SECURITY_TOKEN":    "session-abc",
@@ -201,7 +200,7 @@ func TestObtainCredsForParsingPopulatesEnvBeforeParsing(t *testing.T) {
 			t.Parallel()
 
 			l := logger.CreateLogger()
-			v := venvtest.New().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
+			v := venv.MemVenv().WithHandler(func(_ context.Context, inv vexec.Invocation) vexec.Result {
 				assert.Equal(t, "auth-cmd", inv.Name)
 
 				return vexec.Result{Stdout: []byte(tc.stdout)}
@@ -221,7 +220,7 @@ func TestObtainCredsForParsingReportsCommandFailure(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	v := venvtest.New().WithHandler(func(_ context.Context, _ vexec.Invocation) vexec.Result {
+	v := venv.MemVenv().WithHandler(func(_ context.Context, _ vexec.Invocation) vexec.Result {
 		return vexec.Result{ExitCode: 2, Stderr: []byte("permission denied\n")}
 	})
 	v.Env["UNRELATED"] = "kept"

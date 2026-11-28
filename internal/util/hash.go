@@ -18,6 +18,7 @@ func EncodeBase64Sha1(str string) string {
 	return base64.RawURLEncoding.EncodeToString(hash[:])
 }
 
+// GenerateRandomSha256 returns the hex-encoded SHA-256 hash of 32 random bytes.
 func GenerateRandomSha256() (string, error) {
 	randomBytes := make([]byte, sha256InputSize)
 

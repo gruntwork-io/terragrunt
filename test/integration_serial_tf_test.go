@@ -31,7 +31,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 )
 
@@ -620,6 +619,31 @@ func TestTFTerragruntProduceTelemetryMetrics(t *testing.T) {
 	assert.Contains(t, output, ",\"IsMonotonic\":true}}")
 }
 
+func TestTFTerragruntProduceTelemetryLogs(t *testing.T) {
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since bash script execution is not supported")
+	}
+
+	t.Setenv("TG_TELEMETRY_LOGS_EXPORTER", "console")
+
+	helpers.CleanupTerraformFolder(t, testFixtureHooksBeforeAndAfterPath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHooksBeforeAndAfterPath)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureHooksBeforeAndAfterPath)
+
+	output, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt apply -auto-approve --non-interactive --experiment otel-logs --working-dir "+rootPath,
+	)
+	require.NoError(t, err)
+
+	// check that output has Telemetry JSON log records without ANSI color codes
+	assert.Contains(t, output, "{\"Timestamp\":")
+	assert.Contains(t, output, "\"SeverityText\":\"info\"")
+	assert.Contains(t, output, "\"Value\":\"Executing hook: after_hook_2\"")
+	assert.Contains(t, output, "\"Value\":\"Apply complete!")
+	assert.NotContains(t, output, "\\u001b")
+}
+
 func TestTFTerragruntProduceTelemetryTracesWithRootSpanAndTraceID(t *testing.T) {
 	if helpers.IsWindows() {
 		t.Skip("Skipping test on Windows since bash script execution is not supported")
@@ -654,10 +678,7 @@ func TestTFTerragruntProviderCache(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureProviderCacheDirect)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureProviderCacheDirect)
 
-	cacheDir, err := util.EnsureCacheDir(venv.OSVenv())
-	require.NoError(t, err)
-
-	providerCacheDir := filepath.Join(cacheDir, "provider-cache-test-direct")
+	providerCacheDir := filepath.Join(t.TempDir(), "provider-cache-test-direct")
 
 	helpers.RunTerragrunt(
 		t,

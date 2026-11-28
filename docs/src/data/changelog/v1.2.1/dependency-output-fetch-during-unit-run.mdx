@@ -1,0 +1,15 @@
+---
+version: "v1.2.1"
+category: "bug-fixes"
+---
+
+#### Reading a unit's outputs no longer collides with that unit's own run
+
+In `run --all`, a unit could run at the same time as another unit reading its outputs, e.g. with [`--queue-ignore-dag-order`](/reference/cli/commands/run#queue-ignore-dag-order), or when a Git filter plans the destroy of a removed unit while its dependents plan. Both ran OpenTofu/Terraform in the unit's `.terragrunt-cache` directory, so one could reinstall providers while the other used them, and the run failed with errors such as:
+
+```text
+Error: Required plugins are not installed
+  - registry.opentofu.org/hashicorp/null: the cached package for registry.opentofu.org/hashicorp/null 3.2.4 (in .terraform/providers) does not match any of the checksums recorded in the dependency lock file
+```
+
+Terragrunt now waits for a unit's run to finish before reading its outputs, and waits for a read in progress before running the unit.

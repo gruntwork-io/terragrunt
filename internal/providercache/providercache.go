@@ -23,6 +23,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	pcoptions "github.com/gruntwork-io/terragrunt/internal/providercache/options"
+	"github.com/gruntwork-io/terragrunt/internal/spinner"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/handlers"
@@ -40,11 +41,11 @@ const (
 	// The paths to the automatically generated local CLI configs
 	localCLIFilename = ".terraformrc"
 
-	// The status returned when making a request to the caching provider.
-	// It is needed to prevent further loading of providers by terraform, and at the same time make sure that the request was processed successfully.
+	// CacheProviderHTTPStatusCode is the status returned when making a request to the caching provider.
+	// It stops tofu from loading the provider any further while confirming that the request was processed successfully.
 	CacheProviderHTTPStatusCode = http.StatusLocked
 
-	// Authentication type on the Terragrunt Provider Cache server.
+	// APIKeyAuth is the authentication type on the Terragrunt Provider Cache server.
 	APIKeyAuth = "x-api-key"
 
 	// Retry configuration for registry operations during cache warm-up
@@ -92,6 +93,8 @@ var (
 	}
 )
 
+// ProviderCache is the provider cache server that tofu init runs against, so units share one cache of downloaded
+// providers.
 type ProviderCache struct {
 	*cache.Server
 	opts            *pcoptions.ProviderCacheOptions
@@ -384,15 +387,32 @@ func (pc *ProviderCache) warmUpCache(
 	// To do this we are using 'terraform providers lock' to force TF to request all the providers from our TG cache, and that's how we know what providers TF needs, and can load them into the cache.
 	// It's low cost operation, because it does not cache the same provider twice, but only new previously non-existent providers.
 
-	for _, args := range commandsArgs {
-		if output, err := pc.runTerraformCommand(ctx, l, v, tfOpts, args); err != nil {
-			return output, err
-		}
-	}
+	var (
+		output *util.CmdOutput
+		caches []getproviders.Provider
+	)
 
-	caches, err := pc.providerService.WaitForCacheReady(cacheRequestID)
-	if err != nil {
-		return nil, err
+	if err := spinner.ShowAfter(ctx, l, spinner.Messages{
+		Working: "Caching providers...",
+		Done:    "Cached providers",
+		Started: true,
+	}, func() error {
+		for _, args := range commandsArgs {
+			cmdOutput, err := pc.runTerraformCommand(ctx, l, v, tfOpts, args)
+			if err != nil {
+				output = cmdOutput
+
+				return err
+			}
+		}
+
+		var err error
+
+		caches, err = pc.providerService.WaitForCacheReady(cacheRequestID)
+
+		return err
+	}); err != nil {
+		return output, err
 	}
 
 	providerConstraints, err := getproviders.ParseProviderConstraints(

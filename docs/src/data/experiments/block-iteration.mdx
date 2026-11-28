@@ -30,7 +30,7 @@ That generates two units, at `.terragrunt-stack/aurora/web` and `.terragrunt-sta
 
 `unit` and `stack` blocks also accept an `enabled` attribute. Setting it to `false` drops the component from stack generation and leaves every other address alone.
 
-See the [`expansion` block reference](/reference/hcl/blocks#expansion) for the full set of rules, the addressing scheme, and what changing an expansion does to existing state.
+See the [`expansion` block reference](/reference/hcl/blocks/expansion/) for the full set of rules, the addressing scheme, and what changing an expansion does to existing state.
 
 ### `block-iteration` - How to provide feedback
 
@@ -40,7 +40,7 @@ Now that the `block-iteration` experiment is complete, please provide feedback i
 
 To transition the `block-iteration` feature to a stable release, the following were addressed. Unchecked items remain open.
 
-- [x] Adding an expansion to a `dependency`, `unit`, or `stack` block, shrinking it, removing it, and setting `enabled = false` behave as the [`expansion` reference](/reference/hcl/blocks#expansion) documents for each block type.
+- [x] Adding an expansion to a `dependency`, `unit`, or `stack` block, shrinking it, removing it, and setting `enabled = false` behave as the [`expansion` reference](/reference/hcl/blocks/expansion/) documents for each block type.
 - [x] Growing an expansion adds only the new elements. Adding a `for_each` key, or appending to the list a `count` reads, leaves every existing `dependency` address, generated `unit` directory, and generated `stack` tree as it was, and an applied unit keeps its state.
 - [x] Keyed addressing works in `inputs` and in `stack output`. `stack output` reads an address as an HCL traversal, so a key containing a dot stays one segment, and `shard[0]` reaches the same element as `shard["0"]`.
 - [x] A key containing a quote resolves in `inputs` when written with HCL's escape, as in `dependency.aurora["a\"b"]`, and `stack output` reads the same escaped address.

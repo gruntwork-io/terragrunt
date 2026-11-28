@@ -18,3 +18,5 @@ Example usage:
 ```bash
 terragrunt run plan --config custom-config.hcl
 ```
+
+With [`--all`](/reference/cli/commands/run#all), only files with the name you pass are unit configurations. `terragrunt run --all plan --config custom-config.hcl` skips a directory that has a `terragrunt.hcl` and no `custom-config.hcl`.

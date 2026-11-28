@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -117,10 +118,118 @@ func TestSetTerragruntInputsAsEnvVars(t *testing.T) {
 			expected:       map[string]string{"TF_VAR_foo": `{"a": "$${b}"}`},
 		},
 		{
+			description:    "input with a template directive for a string variable",
+			inputsInConfig: map[string]any{"foo": `{"a": "%{b}"}`},
+			moduleFiles:    map[string]string{"main.tf": `variable "foo" { type = string }`},
+			expected:       map[string]string{"TF_VAR_foo": `{"a": "%{b}"}`},
+		},
+		{
+			description:    "input with a template directive for a variable of any type",
+			inputsInConfig: map[string]any{"foo": `{"a": "%{b}"}`},
+			moduleFiles:    map[string]string{"main.tf": `variable "foo" { type = any }`},
+			expected:       map[string]string{"TF_VAR_foo": `{"a": "%%{b}"}`},
+		},
+		{
+			description:    "map input with template sequences for a map variable",
+			inputsInConfig: map[string]any{"foo": map[string]any{"a": "${b}", "c": "%{d}"}},
+			moduleFiles:    map[string]string{"main.tf": `variable "foo" { type = map(string) }`},
+			expected:       map[string]string{"TF_VAR_foo": `{"a":"$${b}","c":"%%{d}"}`},
+		},
+		{
+			description:    "map input with template sequences for a string variable",
+			inputsInConfig: map[string]any{"foo": map[string]any{"a": "${b}", "c": "%{d}"}},
+			moduleFiles:    map[string]string{"main.tf": `variable "foo" { type = string }`},
+			expected:       map[string]string{"TF_VAR_foo": `{"a":"${b}","c":"%{d}"}`},
+		},
+		{
+			description:    "list input with template sequences for a list variable",
+			inputsInConfig: map[string]any{"foo": []any{"${b}", "%{d}"}},
+			moduleFiles:    map[string]string{"main.tf": `variable "foo" { type = list(string) }`},
+			expected:       map[string]string{"TF_VAR_foo": `["$${b}","%%{d}"]`},
+		},
+		{
+			description:    "list input with template sequences for a string variable",
+			inputsInConfig: map[string]any{"foo": []any{"${b}", "%{d}"}},
+			moduleFiles:    map[string]string{"main.tf": `variable "foo" { type = string }`},
+			expected:       map[string]string{"TF_VAR_foo": `["${b}","%{d}"]`},
+		},
+		{
+			description:    "map input with template sequences for an untyped variable",
+			inputsInConfig: map[string]any{"foo": map[string]any{"a": "${b}", "c": "%{d}"}},
+			moduleFiles:    map[string]string{"main.tf": `variable "foo" {}`},
+			expected:       map[string]string{"TF_VAR_foo": `{"a":"${b}","c":"%{d}"}`},
+		},
+		{
+			description:    "map input with template sequences for a map variable with a default in an override file",
+			inputsInConfig: map[string]any{"foo": map[string]any{"a": "${b}", "c": "%{d}"}},
+			moduleFiles: map[string]string{
+				"main.tf":     `variable "foo" { type = map(string) }`,
+				"override.tf": `variable "foo" { default = {} }`,
+			},
+			expected: map[string]string{"TF_VAR_foo": `{"a":"$${b}","c":"%%{d}"}`},
+		},
+		{
+			description:    "map input with template sequences for a variable an override file retypes as a map",
+			inputsInConfig: map[string]any{"foo": map[string]any{"a": "${b}", "c": "%{d}"}},
+			moduleFiles: map[string]string{
+				"main.tf":          `variable "foo" { type = string }`,
+				"foo_override.tf":  `variable "foo" { type = map(string) }`,
+				"zzz_unrelated.tf": `variable "bar" { type = string }`,
+			},
+			expected: map[string]string{"TF_VAR_foo": `{"a":"$${b}","c":"%%{d}"}`},
+		},
+		{
+			description:    "map input with template sequences for a variable an override file retypes as a string",
+			inputsInConfig: map[string]any{"foo": map[string]any{"a": "${b}", "c": "%{d}"}},
+			moduleFiles: map[string]string{
+				"main.tf":         `variable "foo" { type = map(string) }`,
+				"foo_override.tf": `variable "foo" { type = string }`,
+			},
+			expected: map[string]string{"TF_VAR_foo": `{"a":"${b}","c":"%{d}"}`},
+		},
+		{
+			description:    "string input with template sequences for a variable an override file retypes as any",
+			inputsInConfig: map[string]any{"foo": `{"a": "${b}", "c": "%{d}"}`},
+			moduleFiles: map[string]string{
+				"main.tf":     `variable "foo" { type = string }`,
+				"override.tf": `variable "foo" { type = any }`,
+			},
+			expected: map[string]string{"TF_VAR_foo": `{"a": "$${b}", "c": "%%{d}"}`},
+		},
+		{
+			description:    "map input with template sequences for an undeclared variable",
+			inputsInConfig: map[string]any{"foo": map[string]any{"a": "${b}", "c": "%{d}"}},
+			moduleFiles:    map[string]string{"main.tf": `variable "other" { type = string }`},
+			expected:       map[string]string{"TF_VAR_foo": `{"a":"$${b}","c":"%%{d}"}`},
+		},
+		{
+			description:    "list input with template sequences for an undeclared variable",
+			inputsInConfig: map[string]any{"foo": []any{"${b}", "%{d}"}},
+			moduleFiles:    map[string]string{"main.tf": `variable "other" { type = string }`},
+			expected:       map[string]string{"TF_VAR_foo": `["$${b}","%%{d}"]`},
+		},
+		{
+			description:    "already escaped map input for a map variable",
+			inputsInConfig: map[string]any{"foo": map[string]any{"a": "$${b}", "c": "%%{d}"}},
+			moduleFiles:    map[string]string{"main.tf": `variable "foo" { type = map(string) }`},
+			expected:       map[string]string{"TF_VAR_foo": `{"a":"$${b}","c":"%%{d}"}`},
+		},
+		{
 			description:    "input with an interpolation pattern for an unparseable module",
 			inputsInConfig: map[string]any{"foo": `{"a": "${b}"}`},
 			moduleFiles:    map[string]string{"main.tf": `variable "foo" {`},
 			expected:       map[string]string{"TF_VAR_foo": `{"a": "${b}"}`},
+		},
+		{
+			description:    "map input with template sequences for an unparseable module",
+			inputsInConfig: map[string]any{"foo": map[string]any{"a": "${b}", "c": "%{d}"}},
+			moduleFiles:    map[string]string{"main.tf": `variable "foo" {`},
+			expected:       map[string]string{"TF_VAR_foo": `{"a":"$${b}","c":"%%{d}"}`},
+		},
+		{
+			description:    "map input with template sequences for a module with no files",
+			inputsInConfig: map[string]any{"foo": map[string]any{"a": "${b}", "c": "%{d}"}},
+			expected:       map[string]string{"TF_VAR_foo": `{"a":"$${b}","c":"%%{d}"}`},
 		},
 	}
 
@@ -240,7 +349,7 @@ func TestTerragruntTerraformCodeCheck(t *testing.T) {
 
 			opts.WorkingDir = tmpDir
 
-			err = run.CheckFolderContainsTerraformCode(fsys, configbridge.NewRunOptions(opts))
+			err = run.CheckFolderContainsTerraformCode(fsys, configbridge.NewRunOptions(opts, tfimpl.Unknown))
 			if tc.valid {
 				assert.NoError(t, err, "valid terraform returned error")
 				return
@@ -317,12 +426,36 @@ func TestToTerraformEnvVars(t *testing.T) {
 			},
 		},
 		{
-			description: "map value with interpolation pattern",
+			description: "map value with interpolation pattern for an HCL parsed variable",
+			vars:        map[string]any{"stuff": map[string]any{"foo": "test ${bar} test"}},
+			declared:    map[string]tf.ModuleVariable{"stuff": {ParsingMode: tf.VariableParseHCL}},
+			expected:    map[string]string{"TF_VAR_stuff": `{"foo":"test $${bar} test"}`},
+		},
+		{
+			description: "map value with interpolation pattern for a literally read variable",
+			vars:        map[string]any{"stuff": map[string]any{"foo": "test ${bar} test"}},
+			declared:    map[string]tf.ModuleVariable{"stuff": {ParsingMode: tf.VariableParseLiteral}},
+			expected:    map[string]string{"TF_VAR_stuff": `{"foo":"test ${bar} test"}`},
+		},
+		{
+			description: "map value with interpolation pattern for an undeclared variable",
 			vars:        map[string]any{"stuff": map[string]any{"foo": "test ${bar} test"}},
 			expected:    map[string]string{"TF_VAR_stuff": `{"foo":"test $${bar} test"}`},
 		},
 		{
+			description: "declarations of other variables leave a map escaped",
+			vars:        map[string]any{"stuff": map[string]any{"foo": "test ${bar} test"}},
+			declared:    map[string]tf.ModuleVariable{"other": {ParsingMode: tf.VariableParseLiteral}},
+			expected:    map[string]string{"TF_VAR_stuff": `{"foo":"test $${bar} test"}`},
+		},
+		{
 			description: "string with interpolation pattern for a literally read variable",
+			vars:        map[string]any{"mystr": "plain ${bar} string"},
+			declared:    map[string]tf.ModuleVariable{"mystr": {ParsingMode: tf.VariableParseLiteral}},
+			expected:    map[string]string{"TF_VAR_mystr": `plain ${bar} string`},
+		},
+		{
+			description: "string with interpolation pattern for an undeclared variable",
 			vars:        map[string]any{"mystr": "plain ${bar} string"},
 			expected:    map[string]string{"TF_VAR_mystr": `plain ${bar} string`},
 		},
@@ -345,8 +478,54 @@ func TestToTerraformEnvVars(t *testing.T) {
 			expected:    map[string]string{"TF_VAR_mystr": `plain ${bar} string`},
 		},
 		{
-			description: "typed slice with interpolation pattern",
+			description: "map value with template directive for an HCL parsed variable",
+			vars:        map[string]any{"stuff": map[string]any{"foo": "test %{bar} test"}},
+			declared:    map[string]tf.ModuleVariable{"stuff": {ParsingMode: tf.VariableParseHCL}},
+			expected:    map[string]string{"TF_VAR_stuff": `{"foo":"test %%{bar} test"}`},
+		},
+		{
+			description: "map value with template directive for a literally read variable",
+			vars:        map[string]any{"stuff": map[string]any{"foo": "test %{bar} test"}},
+			declared:    map[string]tf.ModuleVariable{"stuff": {ParsingMode: tf.VariableParseLiteral}},
+			expected:    map[string]string{"TF_VAR_stuff": `{"foo":"test %{bar} test"}`},
+		},
+		{
+			description: "map value with template directive for an undeclared variable",
+			vars:        map[string]any{"stuff": map[string]any{"foo": "test %{bar} test"}},
+			expected:    map[string]string{"TF_VAR_stuff": `{"foo":"test %%{bar} test"}`},
+		},
+		{
+			description: "string with template directive for a literally read variable",
+			vars:        map[string]any{"mystr": "plain %{bar} string"},
+			declared:    map[string]tf.ModuleVariable{"mystr": {ParsingMode: tf.VariableParseLiteral}},
+			expected:    map[string]string{"TF_VAR_mystr": `plain %{bar} string`},
+		},
+		{
+			description: "string with template directive for an undeclared variable",
+			vars:        map[string]any{"mystr": "plain %{bar} string"},
+			expected:    map[string]string{"TF_VAR_mystr": `plain %{bar} string`},
+		},
+		{
+			description: "list value with template sequences for a literally read variable",
+			vars:        map[string]any{"list": []any{"${a}", "%{b}"}},
+			declared:    map[string]tf.ModuleVariable{"list": {ParsingMode: tf.VariableParseLiteral}},
+			expected:    map[string]string{"TF_VAR_list": `["${a}","%{b}"]`},
+		},
+		{
+			description: "typed slice with interpolation pattern for an undeclared variable",
 			vars:        map[string]any{"list": []string{"${a}", "b"}},
+			expected:    map[string]string{"TF_VAR_list": `["$${a}","b"]`},
+		},
+		{
+			description: "string with template directive for an HCL parsed variable",
+			vars:        map[string]any{"mystr": "plain %{bar} string"},
+			declared:    map[string]tf.ModuleVariable{"mystr": {ParsingMode: tf.VariableParseHCL}},
+			expected:    map[string]string{"TF_VAR_mystr": `plain %%{bar} string`},
+		},
+		{
+			description: "typed slice with interpolation pattern for an HCL parsed variable",
+			vars:        map[string]any{"list": []string{"${a}", "b"}},
+			declared:    map[string]tf.ModuleVariable{"list": {ParsingMode: tf.VariableParseHCL}},
 			expected:    map[string]string{"TF_VAR_list": `["$${a}","b"]`},
 		},
 	}
@@ -568,7 +747,7 @@ func TestFilterTerraformExtraArgs(t *testing.T) {
 			},
 		}
 		l := logger.CreateLogger()
-		out := run.FilterTerraformExtraArgs(l, vfs.NewOSFS(), configbridge.NewRunOptions(tc.options), &config)
+		out := run.FilterTerraformExtraArgs(l, vfs.NewOSFS(), configbridge.NewRunOptions(tc.options, tfimpl.Unknown), &config)
 		assert.Equal(t, tc.expectedArgs, out)
 	}
 }
@@ -754,6 +933,104 @@ func TestShouldCopyLockFile(t *testing.T) {
 					tt.args.terraformConfig,
 				),
 				"shouldCopyLockFile(%v, %v)", tt.args.args, tt.args.terraformConfig)
+		})
+	}
+}
+
+func TestCheckProtectedModuleRunCfg(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		args      []string
+		extraArgs []string
+		protected bool
+	}{
+		{
+			name:      "destroy",
+			args:      []string{"destroy"},
+			protected: true,
+		},
+		{
+			name:      "plan with -destroy",
+			args:      []string{"plan", "-destroy"},
+			protected: true,
+		},
+		{
+			name:      "plan with -destroy=true",
+			args:      []string{"plan", "-destroy=true"},
+			protected: true,
+		},
+		{
+			name:      "plan with -destroy=false",
+			args:      []string{"plan", "-destroy=false"},
+			protected: false,
+		},
+		{
+			name:      "plan with -destroy=true then -destroy=false",
+			args:      []string{"plan", "-destroy=true", "-destroy=false"},
+			protected: false,
+		},
+		{
+			name:      "plan with -destroy=true from extra_arguments",
+			args:      []string{"plan"},
+			extraArgs: []string{"-destroy=true"},
+			protected: true,
+		},
+		{
+			name:      "plan -destroy=false with -destroy from extra_arguments",
+			args:      []string{"plan", "-destroy=false"},
+			extraArgs: []string{"-destroy"},
+			protected: false,
+		},
+		{
+			name:      "apply with --destroy from extra_arguments",
+			args:      []string{"apply"},
+			extraArgs: []string{"--destroy"},
+			protected: true,
+		},
+		{
+			name:      "apply with --destroy=true from extra_arguments",
+			args:      []string{"apply"},
+			extraArgs: []string{"--destroy=true"},
+			protected: true,
+		},
+		{
+			name:      "apply with --destroy=false from extra_arguments",
+			args:      []string{"apply"},
+			extraArgs: []string{"--destroy=false"},
+			protected: false,
+		},
+		{
+			name:      "plan",
+			args:      []string{"plan"},
+			protected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			opts := &run.Options{
+				TerraformCliArgs:     iacargs.New(tt.args...),
+				TerragruntConfigPath: "/work/terragrunt.hcl",
+			}
+
+			opts.InsertTerraformCliArgs(tt.extraArgs...)
+
+			err := run.CheckProtectedModuleRunCfg(opts, &runcfg.RunConfig{PreventDestroy: true})
+
+			if !tt.protected {
+				require.NoError(t, err)
+
+				return
+			}
+
+			var target run.ModuleIsProtected
+
+			require.ErrorAs(t, err, &target)
+			assert.Equal(t, opts.TerragruntConfigPath, target.ConfigPath)
 		})
 	}
 }

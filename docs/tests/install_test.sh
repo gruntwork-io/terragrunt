@@ -605,6 +605,54 @@ test_tip_build_force_overwrites() {
 	bash "$INSTALL_SCRIPT" -d "$tmpdir" --tip --force --no-verify-sig >/dev/null 2>&1
 }
 
+test_install_writes_nothing_to_stdout() {
+	local tmpdir
+	tmpdir=$(mktemp -d)
+	# shellcheck disable=SC2064  # Intentional: expand tmpdir now, not at trap time
+	trap "rm -rf '$tmpdir'" RETURN
+
+	local stdout
+	stdout=$(bash "$INSTALL_SCRIPT" -d "$tmpdir" --tip --no-verify-sig 2>/dev/null) || return 1
+	printf '%s\n' "$stdout"
+	[[ -z "$stdout" ]]
+}
+
+test_install_tip_with_short_commit() {
+	local commit
+	commit=$(get_latest_tip_commit)
+	[[ -z "$commit" ]] && {
+		echo "Could not fetch tip commit SHA"
+		return 1
+	}
+
+	local tmpdir
+	tmpdir=$(mktemp -d)
+	# shellcheck disable=SC2064  # Intentional: expand tmpdir now, not at trap time
+	trap "rm -rf '$tmpdir'" RETURN
+
+	bash "$INSTALL_SCRIPT" -d "$tmpdir" --tip --commit "${commit:0:9}" --no-verify-sig >/dev/null 2>&1 || return 1
+
+	local version
+	version=$("$tmpdir/terragrunt" --version)
+	printf '%s\n' "$version"
+	[[ "$version" == *"tip-${commit}"* ]]
+}
+
+test_unknown_short_commit_fails() {
+	local tmpdir
+	tmpdir=$(mktemp -d)
+	# shellcheck disable=SC2064  # Intentional: expand tmpdir now, not at trap time
+	trap "rm -rf '$tmpdir'" RETURN
+
+	local output
+	if output=$(bash "$INSTALL_SCRIPT" -d "$tmpdir" --tip --commit 0000000 --no-verify-sig 2>&1); then
+		return 1
+	fi
+	printf '%s\n' "$output"
+	[[ "$output" == *"Could not expand commit 0000000"* ]] &&
+		[[ ! -f "$tmpdir/terragrunt" ]]
+}
+
 # --- Main ---
 
 main() {
@@ -717,6 +765,9 @@ main() {
 		skip_test "Tip build checksum verification"
 		skip_test "Tip build GPG signature verification"
 		skip_test "Tip build --force overwrites"
+		skip_test "Install writes nothing to stdout"
+		skip_test "Install tip build by short commit"
+		skip_test "Unknown short commit fails"
 	fi
 	[[ -z "$skip_builds_reason" ]] && {
 		echo "--- Tip/Test Build Integration Tests (require builds API) ---"
@@ -725,6 +776,9 @@ main() {
 		run_test "Tip build checksum verification" test_tip_build_checksum_verification
 		run_test "Tip build GPG signature verification" test_tip_build_gpg_signature_verification
 		run_test "Tip build --force overwrites" test_tip_build_force_overwrites
+		run_test "Install writes nothing to stdout" test_install_writes_nothing_to_stdout
+		run_test "Install tip build by short commit" test_install_tip_with_short_commit
+		run_test "Unknown short commit fails" test_unknown_short_commit_fails
 	}
 	echo ""
 

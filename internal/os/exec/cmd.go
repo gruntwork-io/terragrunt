@@ -53,6 +53,7 @@ func Command(ctx context.Context, v *venv.Venv, name string, args ...string) *Cm
 	v.RequireStdin()
 	v.RequireWriters()
 	v.RequireEnv()
+	v.RequireSignals()
 
 	vc := v.Exec.Command(ctx, name, args...)
 
@@ -60,7 +61,7 @@ func Command(ctx context.Context, v *venv.Venv, name string, args ...string) *Cm
 		vc:              vc,
 		filename:        filepath.Base(name),
 		interruptSignal: signal.InterruptSignal,
-		notifier:        signal.NotifierWithContext,
+		notifier:        v.Signals,
 	}
 
 	cmd.SetStdin(v.Stdin)

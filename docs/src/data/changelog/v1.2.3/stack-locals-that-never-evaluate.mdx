@@ -1,0 +1,21 @@
+---
+version: "v1.2.3"
+category: "bug-fixes"
+---
+
+#### Stack files fail on a local that can never be evaluated
+
+A local in a `terragrunt.stack.hcl` file that reads an undefined local or is part of a reference cycle was left out without an error, and the stack failed only if something read it.
+
+Stack files now fail on such a local the way unit configuration files do:
+
+```text
+Error: Can't evaluate expression
+
+  on terragrunt.stack.hcl line 3, in locals:
+   3:   name = "${local.envv}-app"
+
+The local "envv" could not be evaluated. It is either undefined, part of a reference cycle, or depends on a value that locals cannot reference.
+```
+
+Fix the reference or remove the local. See [`locals`](/reference/hcl/blocks/locals).

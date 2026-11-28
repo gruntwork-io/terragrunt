@@ -16,6 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,7 +29,52 @@ const (
 	testFixtureDestroyWarning               = "fixtures/destroy-warning"
 	testFixtureDestroyDependentModule       = "fixtures/destroy-dependent-module"
 	testFixtureDestroyDependentModuleErrors = "fixtures/destroy-dependent-module-errors"
+	testFixtureDestroyMockOutputs           = "fixtures/destroy-mock-outputs"
 )
+
+// TestTFTerragruntApplyDestroyUsesDestroyMockOutputs pins that `apply` with the destroy flag
+// matches `destroy` in mock_outputs_allowed_terraform_commands, including for the dependency
+// of a dependency, which Terragrunt evaluates while reading outputs with `output -json`.
+func TestTFTerragruntApplyDestroyUsesDestroyMockOutputs(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		args     string
+		useMocks bool
+	}{
+		{name: "destroy", args: "destroy", useMocks: true},
+		{name: "apply -destroy", args: "apply -destroy", useMocks: true},
+		{name: "apply -destroy=true", args: "apply -destroy=true", useMocks: true},
+		{name: "apply", args: "apply", useMocks: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDestroyMockOutputs)
+			appPath := filepath.Join(tmpEnvPath, testFixtureDestroyMockOutputs, "app")
+
+			err := helpers.RunTerragruntCommand(
+				t,
+				"terragrunt "+tt.args+" -auto-approve --non-interactive --working-dir "+appPath,
+				io.Discard,
+				io.Discard,
+			)
+
+			if tt.useMocks {
+				require.NoError(t, err)
+
+				return
+			}
+
+			var target config.TerragruntOutputTargetNoOutputs
+
+			require.ErrorAs(t, err, &target)
+		})
+	}
+}
 
 func TestTFTerragruntDestroyOrder(t *testing.T) {
 	t.Parallel()

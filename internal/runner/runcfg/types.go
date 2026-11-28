@@ -23,8 +23,14 @@ type RunConfig struct {
 	ProcessedIncludes map[string]IncludeConfig
 	// GenerateConfigs contains code generation configurations
 	GenerateConfigs map[string]codegen.GenerateConfig
-	// Inputs contains input variables to pass to terraform
+	// Inputs contains the input variables passed to OpenTofu/Terraform as TF_VAR_ environment variables.
 	Inputs map[string]any
+	// TFVarsInputs contains the input variables written to the auto-loaded terragrunt.auto.tfvars file.
+	TFVarsInputs map[string]any
+	// JSONInputs contains the input variables written to the auto-loaded terragrunt.auto.tfvars.json file.
+	JSONInputs map[string]any
+	// ValidatedInputs names the input variables the module must declare.
+	ValidatedInputs map[string]struct{}
 	// Engine contains engine-specific settings
 	Engine EngineConfig
 	// DownloadDir is the custom download directory for terraform source
@@ -79,6 +85,13 @@ type TerraformConfig struct {
 	// NoCopyTerraformLockFile specifies whether to skip copying the lock file
 	// Defaults to false (copy the lock file) when not set
 	NoCopyTerraformLockFile bool
+
+	// NoDotTerragruntCache, when true, skips copying the unit's source into
+	// .terragrunt-cache and runs OpenTofu/Terraform directly from the unit
+	// directory. It only applies when no source is configured; combining it
+	// with a source is an error. Gated behind the no-dot-terragrunt-cache
+	// experiment.
+	NoDotTerragruntCache bool
 
 	// UpdateSourceWithCAS indicates the terraform.source is a relative path
 	// meant to be rewritten against a cloned repository by CAS. The run path
