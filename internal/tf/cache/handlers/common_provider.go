@@ -2,12 +2,17 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"sync"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/models"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"golang.org/x/sync/singleflight"
 )
+
+const defaultDiscoveryTimeout = 30 * time.Second
 
 // CommonProviderHandler has what every provider source shares: the include and exclude
 // patterns that select its providers and a cache of discovered registry URLs.
@@ -22,6 +27,7 @@ type CommonProviderHandler struct {
 	includeProviders models.Providers
 	excludeProviders models.Providers
 
+	discoveryGroup      singleflight.Group
 	discoveryURLCacheMu sync.Mutex
 }
 
@@ -88,24 +94,59 @@ func (handler *CommonProviderHandler) DiscoveryURL(
 		return urls, nil
 	}
 
-	urls, err := DiscoveryURL(ctx, handler.httpClient, registryName)
-	if err != nil {
-		if !IsOfflineError(err) {
-			return nil, err
-		}
-
-		urls = DefaultRegistryURLs
-		handler.logger.Debugf(
-			"Unable to discover %q registry URLs, reason: %q, use default URLs: %s",
-			registryName,
-			err,
-			urls,
-		)
-	} else {
-		handler.logger.Debugf("Discovered %q registry URLs: %s", registryName, urls)
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 
-	handler.SetDiscoveryURLCache(registryName, urls)
+	resCh := handler.discoveryGroup.DoChan(registryName, func() (any, error) {
+		handler.discoveryURLCacheMu.Lock()
+		urls, ok := handler.discoveryURLCache[registryName]
+		handler.discoveryURLCacheMu.Unlock()
 
-	return urls, nil
+		if ok {
+			return urls, nil
+		}
+
+		timeout := defaultDiscoveryTimeout
+		if handler.httpClient != nil && handler.httpClient.Timeout > 0 {
+			timeout = handler.httpClient.Timeout
+		}
+
+		reqCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
+		defer cancel()
+
+		urls, err := DiscoveryURL(reqCtx, handler.httpClient, registryName)
+		if err != nil {
+			if reqCtx.Err() != nil || errors.Is(err, context.DeadlineExceeded) || !IsOfflineError(err) {
+				return nil, err
+			}
+
+			urls = DefaultRegistryURLs
+			handler.logger.Debugf(
+				"Unable to discover %q registry URLs, reason: %q, use default URLs: %s",
+				registryName,
+				err,
+				urls,
+			)
+		} else {
+			handler.logger.Debugf("Discovered %q registry URLs: %s", registryName, urls)
+		}
+
+		handler.SetDiscoveryURLCache(registryName, urls)
+
+		return urls, nil
+	})
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case res := <-resCh:
+		if res.Err != nil {
+			return nil, res.Err
+		}
+
+		discovered, _ := res.Val.(*RegistryURLs)
+
+		return discovered, nil
+	}
 }

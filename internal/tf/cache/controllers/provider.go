@@ -2,6 +2,8 @@
 package controllers
 
 import (
+	"context"
+	"errors"
 	"net/http"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/handlers"
@@ -89,23 +91,36 @@ func (controller *ProviderController) getVersionsAction(w router.ResponseWriter,
 		Name:         name,
 	}
 
-	var allVersions models.Versions
+	var (
+		allVersions models.Versions
+		succeeded   bool
+		lastErr     error
+	)
 
 	for _, handler := range controller.ProviderHandlers {
 		if handler.CanHandleProvider(provider) {
 			versions, err := handler.GetVersions(r.Context(), provider)
 			if err != nil {
+				lastErr = err
 				controller.Logger.Errorf(
 					"Failed to get provider versions from %q: %s",
 					handler,
 					err.Error(),
 				)
+
+				continue
 			}
+
+			succeeded = true
 
 			if versions != nil {
 				allVersions = append(allVersions, versions...)
 			}
 		}
+	}
+
+	if !succeeded && lastErr != nil {
+		return upstreamHTTPError(lastErr)
 	}
 
 	validVersions, invalidVersions := allVersions.FilterValid()
@@ -158,14 +173,15 @@ func (controller *ProviderController) getPlatformsAction(w router.ResponseWriter
 	}
 
 	var (
-		resp *models.ResponseBody
-		err  error
+		resp    *models.ResponseBody
+		lastErr error
 	)
 
 	for _, handler := range controller.ProviderHandlers {
 		if handler.CanHandleProvider(provider) {
-			resp, err = handler.GetPlatform(r.Context(), provider)
+			res, err := handler.GetPlatform(r.Context(), provider)
 			if err != nil {
+				lastErr = err
 				controller.Logger.Errorf(
 					"Failed to get provider platform from %q: %s",
 					handler,
@@ -173,10 +189,15 @@ func (controller *ProviderController) getPlatformsAction(w router.ResponseWriter
 				)
 			}
 
-			if resp != nil {
+			if res != nil {
+				resp = res
 				break
 			}
 		}
+	}
+
+	if resp == nil && lastErr != nil {
+		return upstreamHTTPError(lastErr)
 	}
 
 	provider.ResponseBody = resp
@@ -187,4 +208,12 @@ func (controller *ProviderController) getPlatformsAction(w router.ResponseWriter
 	w.WriteHeader(controller.CacheProviderHTTPStatusCode)
 
 	return nil
+}
+
+func upstreamHTTPError(err error) error {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return router.NewHTTPError(http.StatusGatewayTimeout)
+	}
+
+	return router.NewHTTPError(http.StatusBadGateway)
 }

@@ -12,7 +12,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -422,6 +424,221 @@ func TestProviderServiceVerifiesRegistryPackages(t *testing.T) {
 			assert.FileExists(t, filepath.Join(cache.PackageDir(), binaryName))
 		})
 	}
+}
+
+func TestProviderServiceCacheProviderHandlesNilResponseBody(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	require.NoError(t, os.Chmod(tempDir, 0o700))
+
+	service := services.NewProviderService(
+		helpers.TmpDirWOSymlinks(t),
+		"",
+		nil,
+		logger.CreateLogger(),
+		venvtest.NewOSWithEmptyEnv().WithTempDir(func() string { return tempDir }),
+	)
+	require.NoError(t, service.Init())
+
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+
+	runErr := make(chan error, 1)
+
+	go func() { runErr <- service.Run(ctx) }()
+
+	const requestID = "nil-body-request"
+
+	service.CacheProvider(ctx, requestID, &models.Provider{
+		RegistryName: "registry.example.com",
+		Namespace:    "example",
+		Name:         "example",
+		Version:      "1.0.0",
+		OS:           "linux",
+		Arch:         "amd64",
+	})
+
+	_, err := service.WaitForCacheReady(requestID)
+	require.ErrorContains(t, err, "not found provider download url")
+
+	cancel()
+	require.ErrorContains(t, <-runErr, "not found provider download url")
+}
+
+func TestProviderServiceWaitForCacheReadyDoesNotBlockOtherRequests(t *testing.T) {
+	t.Parallel()
+
+	const (
+		slowArchivePath = "/slow/provider.zip"
+		fastArchivePath = "/fast/provider.zip"
+		slowBinaryName  = "terraform-provider-slow_v1.0.0"
+		fastBinaryName  = "terraform-provider-fast_v1.0.0"
+		reqID           = "req-slow"
+		fastReqID       = "req-fast"
+	)
+
+	slowArchive := providerArchive(t, slowBinaryName)
+	fastArchive := providerArchive(t, fastBinaryName)
+
+	slowStarted := make(chan struct{})
+	releaseSlow := make(chan struct{})
+
+	var slowOnce, releaseOnce sync.Once
+
+	t.Cleanup(func() { releaseOnce.Do(func() { close(releaseSlow) }) })
+
+	c := vhttp.NewMemClient(
+		func(_ context.Context, req *http.Request) (*http.Response, error) {
+			switch req.URL.Path {
+			case slowArchivePath:
+				slowOnce.Do(func() { close(slowStarted) })
+				<-releaseSlow
+
+				return vhttp.Respond(http.StatusOK, slowArchive, nil), nil
+			case fastArchivePath:
+				return vhttp.Respond(http.StatusOK, fastArchive, nil), nil
+			default:
+				return vhttp.Respond(http.StatusNotFound, nil, nil), nil
+			}
+		},
+	)
+
+	tempDir := t.TempDir()
+	require.NoError(t, os.Chmod(tempDir, 0o700))
+
+	service := services.NewProviderService(
+		helpers.TmpDirWOSymlinks(t),
+		"",
+		nil,
+		logger.CreateLogger(),
+		venvtest.NewOSWithEmptyEnv().
+			WithHTTP(c).
+			WithTempDir(func() string { return tempDir }),
+	)
+	require.NoError(t, service.Init())
+
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+
+	runErr := make(chan error, 1)
+
+	go func() { runErr <- service.Run(ctx) }()
+
+	service.CacheProvider(ctx, reqID, &models.Provider{
+		ResponseBody: &models.ResponseBody{
+			Filename:    "slow.zip",
+			DownloadURL: "https://releases.example.com" + slowArchivePath,
+			Origin:      models.OriginMirror,
+		},
+		RegistryName: "registry.example.com",
+		Namespace:    "example",
+		Name:         "slow",
+		Version:      "1.0.0",
+		OS:           "linux",
+		Arch:         "amd64",
+	})
+
+	const phaseWaitTimeout = 3 * time.Second
+
+	select {
+	case <-slowStarted:
+	case <-time.After(phaseWaitTimeout):
+		require.FailNow(t, "timed out waiting for slow provider download to start")
+	}
+
+	waitSlowErr := make(chan error, 1)
+
+	go func() {
+		_, err := service.WaitForCacheReady(reqID)
+		waitSlowErr <- err
+	}()
+
+	// Give WaitForCacheReady(reqID) a moment to enter waiting state before req-fast starts.
+	time.Sleep(25 * time.Millisecond)
+
+	fastDone := make(chan error, 1)
+
+	go func() {
+		service.CacheProvider(ctx, fastReqID, &models.Provider{
+			ResponseBody: &models.ResponseBody{
+				Filename:    "fast.zip",
+				DownloadURL: "https://releases.example.com" + fastArchivePath,
+				Origin:      models.OriginMirror,
+			},
+			RegistryName: "registry.example.com",
+			Namespace:    "example",
+			Name:         "fast",
+			Version:      "1.0.0",
+			OS:           "linux",
+			Arch:         "amd64",
+		})
+
+		cached, err := service.WaitForCacheReady(fastReqID)
+		if err == nil && len(cached) != 1 {
+			err = fmt.Errorf("expected 1 cached provider, got %d", len(cached))
+		}
+
+		fastDone <- err
+	}()
+
+	select {
+	case err := <-fastDone:
+		require.NoError(t, err)
+	case <-time.After(phaseWaitTimeout):
+		require.FailNow(t, "WaitForCacheReady for slow provider blocked unrelated CacheProvider/WaitForCacheReady")
+	}
+
+	releaseOnce.Do(func() { close(releaseSlow) })
+
+	select {
+	case err := <-waitSlowErr:
+		require.NoError(t, err)
+	case <-time.After(phaseWaitTimeout):
+		require.FailNow(t, "timed out waiting for slow WaitForCacheReady to complete")
+	}
+
+	cancel()
+
+	select {
+	case err := <-runErr:
+		require.NoError(t, err)
+	case <-time.After(phaseWaitTimeout):
+		require.FailNow(t, "timed out waiting for cache service shutdown")
+	}
+}
+
+func TestProviderCacheNilResponseBodyDoesNotPanic(t *testing.T) {
+	t.Parallel()
+
+	cache := &services.ProviderCache{
+		Provider: &models.Provider{
+			RegistryName: "registry.example.com",
+			Namespace:    "example",
+			Name:         "missing-metadata",
+			Version:      "1.0.0",
+			OS:           "linux",
+			Arch:         "amd64",
+		},
+	}
+
+	assert.Nil(t, cache.RegistryHashes())
+
+	sums, err := cache.DocumentSHA256Sums(t.Context())
+	require.NoError(t, err)
+	assert.Nil(t, sums)
+
+	sig, err := cache.Signature(t.Context())
+	require.NoError(t, err)
+	assert.Nil(t, sig)
+
+	auth, err := cache.AuthenticatePackage(t.Context())
+	require.Error(t, err)
+	assert.Nil(t, auth)
+
+	var missingErr *services.ChecksumFieldMissingError
+	require.ErrorAs(t, err, &missingErr)
+	assert.Equal(t, services.FieldSHA256Sum, missingErr.Field)
 }
 
 // providerArchive builds a zip archive holding a single file, standing in for
