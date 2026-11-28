@@ -259,6 +259,7 @@ var cliInventory = cliCommand{
 				{names: []string{"no-hidden"}, envVars: []string{"TG_NO_HIDDEN"}},
 				{names: []string{"queue-construct-as", "as"}, envVars: []string{"TG_QUEUE_CONSTRUCT_AS"}},
 				{names: []string{"reading"}, envVars: []string{"TG_READING"}},
+				sourceMapFlag,
 			}),
 		},
 		{
@@ -453,6 +454,11 @@ var cliInventory = cliCommand{
 					names:             []string{"queue-construct-as", "as"},
 					envVars:           []string{"TG_QUEUE_CONSTRUCT_AS"},
 					deprecatedEnvVars: []string{"TG_LIST_QUEUE_CONSTRUCT_AS"},
+				},
+				{
+					names:             []string{"source-map"},
+					envVars:           []string{"TG_SOURCE_MAP"},
+					deprecatedEnvVars: []string{"TERRAGRUNT_SOURCE_MAP", "TG_LIST_SOURCE_MAP"},
 				},
 				{
 					names:             []string{"tree", "T"},
@@ -865,6 +871,14 @@ var queueSelectionFlags = []cliFlag{
 	},
 }
 
+// sourceMapFlag is --source-map, shared by the config parsing commands and by find, which generates the stacks
+// of a Git filter. list has its own entry because its flags also answer to TG_LIST_ variables.
+var sourceMapFlag = cliFlag{
+	names:             []string{"source-map"},
+	envVars:           []string{"TG_SOURCE_MAP"},
+	deprecatedEnvVars: []string{"TERRAGRUNT_SOURCE_MAP"},
+}
+
 // configParsingFlags reach config parsing, which resolves dependency outputs
 // and so can download sources and run init, in every command that parses a
 // unit or a stack file.
@@ -980,11 +994,7 @@ var configParsingFlags = slices.Concat(backendFlags, []cliFlag{
 		deprecatedEnvVars: []string{"TERRAGRUNT_PROVIDER_CACHE_TOKEN"},
 	},
 	{names: []string{"source"}, envVars: []string{"TG_SOURCE"}, deprecatedEnvVars: []string{"TERRAGRUNT_SOURCE"}},
-	{
-		names:             []string{"source-map"},
-		envVars:           []string{"TG_SOURCE_MAP"},
-		deprecatedEnvVars: []string{"TERRAGRUNT_SOURCE_MAP"},
-	},
+	sourceMapFlag,
 	{
 		names:             []string{"tf-forward-stdout"},
 		envVars:           []string{"TG_TF_FORWARD_STDOUT"},
