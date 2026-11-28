@@ -44,6 +44,8 @@ type Data struct {
 	*log.Entry
 	RelativePather *RelativePather
 	PresetColorFn  func() ColorValue
+	// PathLabels maps paths to the labels used by the `basename` path format.
+	PathLabels     map[string]string
 	BaseDir        string
 	DisabledColors bool
 }

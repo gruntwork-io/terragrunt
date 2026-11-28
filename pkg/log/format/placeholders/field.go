@@ -17,6 +17,9 @@ const (
 	// TFCmdKeyName is the log field and `%tf-command` placeholder for the name
 	// of the tofu or terraform command that produced the entry, such as `plan`.
 	TFCmdKeyName = "tf-command"
+	// UnitPathKeyName is the log field for the path of the unit the entry is
+	// about, used by the `basename` path format of `%prefix`.
+	UnitPathKeyName = options.UnitPathFieldName
 
 	// Terragrunt Provider Cache Server fields.
 

@@ -1,0 +1,14 @@
+---
+version: "v1.2.0"
+category: "new-features"
+---
+
+#### Shorten log prefixes with `%prefix(path=basename)`
+
+The `basename` path mode of the `%prefix` placeholder shows only the last element of a unit's path, so units in nested stacks no longer repeat `.terragrunt-stack/foo/.terragrunt-stack/bar` on every log line:
+
+```shell
+--log-custom-format "%time %level %prefix(path=basename,suffix=' ')%msg"
+```
+
+When two units in the run end in the same element, parent directories are added until each prefix is unique, skipping `.terragrunt-stack` directories. See [Formatting](/reference/logging/formatting#options) for details.
