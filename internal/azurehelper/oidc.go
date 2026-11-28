@@ -134,12 +134,12 @@ func adoTokenRequest(env map[string]string, serviceConnectionID string) *oidcTok
 
 // tokenAssertion returns token, which must equal the contents of tokenFile when the file is not empty.
 func tokenAssertion(v *venv.Venv, token, tokenFile string) assertionProvider {
+	v.RequireFS()
+
 	return func(context.Context) (string, error) {
 		if tokenFile == "" {
 			return token, nil
 		}
-
-		v.RequireFS()
 
 		contents, err := vfs.ReadFile(v.FS, tokenFile)
 		if err != nil {

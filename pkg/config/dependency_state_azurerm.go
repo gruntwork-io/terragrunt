@@ -90,7 +90,22 @@ var azureTrimmedEnvKeys = []string{
 	"ARM_USE_MSI",
 	"ARM_USE_OIDC",
 	"AZURESUBSCRIPTION_SERVICE_CONNECTION_ID",
+	"AZURE_CLIENT_ID",
 	"AZURE_FEDERATED_TOKEN_FILE",
+	"AZURE_TENANT_ID",
+}
+
+// azurePodIdentityEnvKeys carry the identity the AKS workload identity webhook injects.
+var azurePodIdentityEnvKeys = []string{
+	"AZURE_CLIENT_ID",
+	"AZURE_FEDERATED_TOKEN_FILE",
+	"AZURE_TENANT_ID",
+}
+
+// azureGitHubOIDCEnvKeys select the GitHub Actions token request.
+var azureGitHubOIDCEnvKeys = []string{
+	"ACTIONS_ID_TOKEN_REQUEST_TOKEN",
+	"ACTIONS_ID_TOKEN_REQUEST_URL",
 }
 
 // azureDevOpsServiceConnectionEnvKeys name the service connection for OpenTofu and Terraform alike, first match wins.
@@ -117,22 +132,16 @@ var azureUnsupportedEnvKeys = []string{
 	"ARM_RESOURCE_GROUP_NAME",
 	"ARM_STORAGE_ACCOUNT_NAME",
 	"ARM_TIMEOUT_SECONDS",
-	"ARM_USE_AKS_WORKLOAD_IDENTITY",
 	"ARM_USE_AZUREAD_AUTH",
 	"ARM_USE_DNS_ZONE_ENDPOINT",
-	"AZURE_CLIENT_ID",
 	"AZURE_CLIENT_SECRET",
 	"AZURE_ENVIRONMENT",
-	"AZURE_FEDERATED_TOKEN_FILE",
 	"AZURE_MSI_RESOURCE_ID",
 	"AZURE_RESOURCE_GROUP_NAME",
 	"AZURE_STORAGE_ACCOUNT",
 	"AZURE_STORAGE_KEY",
 	"AZURE_STORAGE_SAS_TOKEN",
 	"AZURE_SUBSCRIPTION_ID",
-	"AZURE_TENANT_ID",
-	"ACTIONS_ID_TOKEN_REQUEST_TOKEN",
-	"ACTIONS_ID_TOKEN_REQUEST_URL",
 }
 
 // azureManagedIdentityEnvKeys steer managed-identity discovery, which the in-process SDK reads from the Terragrunt process, not the venv.
@@ -174,6 +183,7 @@ type azureAuthToggles struct {
 	useAzureAD bool
 	useMSI     bool
 	useOIDC    bool
+	useAKS     bool
 }
 
 // azureCredentials carries the credential coordinates resolved from backend config and environment.
@@ -226,6 +236,10 @@ func azureDirectStateReadSupported(
 
 	creds, ok := azureResolveCredentials(config, env)
 	if !ok {
+		return false
+	}
+
+	if !azurePodIdentitySupported(v, toggles.useAKS, creds) {
 		return false
 	}
 
@@ -304,10 +318,6 @@ func azureEnvSupported(v *venv.Venv, pctx *ParsingContext) bool {
 func azureResolveAuthToggles(config backend.Config, v *venv.Venv) (azureAuthToggles, bool) {
 	env := v.Env
 
-	if !azureCLIIdentitySupported(config, env) {
-		return azureAuthToggles{}, false
-	}
-
 	useAzureAD := backendConfigBoolWithEnv(config, "use_azuread_auth", env["ARM_USE_AZUREAD"])
 	if !useAzureAD.valid {
 		return azureAuthToggles{}, false
@@ -327,7 +337,21 @@ func azureResolveAuthToggles(config backend.Config, v *venv.Venv) (azureAuthTogg
 		return azureAuthToggles{}, false
 	}
 
-	if useOIDC.value && !azureEnvKeysUnset(env, azureWorkloadIdentityEnvKeys) {
+	useAKS := backendConfigStrictBoolWithEnv(
+		config,
+		"use_aks_workload_identity",
+		env["ARM_USE_AKS_WORKLOAD_IDENTITY"],
+		false,
+	)
+	if !useAKS.valid || (useAKS.value && (useMSI.value || useOIDC.value)) {
+		return azureAuthToggles{}, false
+	}
+
+	if (useOIDC.value || useAKS.value) && !azureEnvKeysUnset(env, azureWorkloadIdentityEnvKeys) {
+		return azureAuthToggles{}, false
+	}
+
+	if !azureAmbientCredentialsSupported(config, env, useAKS.value) {
 		return azureAuthToggles{}, false
 	}
 
@@ -343,24 +367,22 @@ func azureResolveAuthToggles(config backend.Config, v *venv.Venv) (azureAuthTogg
 		useAzureAD: useAzureAD.value,
 		useMSI:     useMSI.value,
 		useOIDC:    useOIDC.value,
+		useAKS:     useAKS.value,
 	}, true
 }
 
-// azureCLIIdentitySupported rejects AKS workload identity and any configuration that disables the Azure CLI credential.
-func azureCLIIdentitySupported(config backend.Config, env map[string]string) bool {
-	useAKS := backendConfigStrictBoolWithEnv(
-		config,
-		"use_aks_workload_identity",
-		env["ARM_USE_AKS_WORKLOAD_IDENTITY"],
-		false,
-	)
-	if !useAKS.valid || useAKS.value {
+// azureAmbientCredentialsSupported rejects a disabled Azure CLI or a GitHub token request without the pod identity.
+func azureAmbientCredentialsSupported(config backend.Config, env map[string]string, useAKS bool) bool {
+	useCLI := backendConfigStrictBoolWithEnv(config, "use_cli", env["ARM_USE_CLI"], true)
+	if !useCLI.valid {
 		return false
 	}
 
-	useCLI := backendConfigStrictBoolWithEnv(config, "use_cli", env["ARM_USE_CLI"], true)
+	if useAKS {
+		return true
+	}
 
-	return useCLI.valid && useCLI.value
+	return useCLI.value && firstNonEmptyFromMap(env, azureGitHubOIDCEnvKeys...) == ""
 }
 
 // azureEnvKeysUnset reports whether every key is unset, since even an empty value suppresses a native fallback.
@@ -478,6 +500,27 @@ func azureCloudEnvironmentSupported(config backend.Config, env map[string]string
 	return valid && slices.Contains(azureSupportedCloudEnvironments, environment)
 }
 
+// azurePodIdentitySupported accepts the AKS pod identity only when no other setting names another identity.
+func azurePodIdentitySupported(v *venv.Venv, useAKS bool, creds *azureCredentials) bool {
+	env := v.Env
+
+	if !useAKS {
+		return firstNonEmptyFromMap(env, azurePodIdentityEnvKeys...) == ""
+	}
+
+	clientID, tenantID := env["AZURE_CLIENT_ID"], env["AZURE_TENANT_ID"]
+	if clientID == "" || tenantID == "" || creds.clientSecret != "" {
+		return false
+	}
+
+	if !azureTokenFileUsable(v, env["AZURE_FEDERATED_TOKEN_FILE"]) {
+		return false
+	}
+
+	// OpenTofu ignores another client or tenant in the config, and Terraform rejects it.
+	return (creds.clientID == "" || creds.clientID == clientID) && (creds.tenantID == "" || creds.tenantID == tenantID)
+}
+
 // azureResolveOIDCTokenFile rejects token files that are not absolute, not regular, or unreadable from this process.
 func azureResolveOIDCTokenFile(
 	v *venv.Venv,
@@ -491,7 +534,7 @@ func azureResolveOIDCTokenFile(
 		env,
 		"ARM_OIDC_TOKEN_FILE_PATH",
 	)
-	if !valid || (tokenFile != "" && (!useOIDC || !filepath.IsAbs(tokenFile))) {
+	if !valid || (tokenFile != "" && !useOIDC) {
 		return "", false
 	}
 
@@ -499,15 +542,22 @@ func azureResolveOIDCTokenFile(
 		return "", true
 	}
 
-	if vfs.IsDir(v.FS, tokenFile) {
-		return "", false
-	}
-
-	if _, err := vfs.ReadFile(v.FS, tokenFile); err != nil {
+	if !azureTokenFileUsable(v, tokenFile) {
 		return "", false
 	}
 
 	return tokenFile, true
+}
+
+// azureTokenFileUsable reports whether path is an absolute regular file that this process can read.
+func azureTokenFileUsable(v *venv.Venv, path string) bool {
+	if !filepath.IsAbs(path) || vfs.IsDir(v.FS, path) {
+		return false
+	}
+
+	_, err := vfs.ReadFile(v.FS, path)
+
+	return err == nil
 }
 
 // azureCredentialMethodSupported keeps credential methods and storage-key lookups azurehelper resolves differently.
@@ -552,7 +602,7 @@ func azureTokenCredentialComplete(
 	}
 
 	// The native backend's remaining default is Azure CLI only, while azurehelper falls back to a broader credential chain.
-	return toggles.useMSI
+	return toggles.useMSI || toggles.useAKS
 }
 
 func azureBackendConfigKeyKnown(key string) bool {

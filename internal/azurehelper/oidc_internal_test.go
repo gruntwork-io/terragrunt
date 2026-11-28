@@ -472,7 +472,7 @@ func TestOIDCAssertionSource_IncompleteServiceConnectionUsesToken(t *testing.T) 
 }
 
 func oidcTestVenv(env map[string]string, h vhttp.Handler) *venv.Venv {
-	v := &venv.Venv{}
+	v := &venv.Venv{FS: vfs.NewMemMapFS()}
 	if h != nil {
 		v.HTTP = vhttp.NewMemClient(h)
 	}

@@ -120,6 +120,8 @@ With `use_oidc`, Terragrunt uses the first of these token sources that is set, a
 
 If a token and a token file are both set, the file must be empty or hold the same token.
 
+With `use_aks_workload_identity`, Terragrunt signs in as the identity that the AKS workload identity webhook injects. The SAS token, the access key, the service principal, the managed identity and `use_oidc = true` come before it. Without that identity, the setting has no effect.
+
 </Since>
 
 For Azure Government, set `environment = "usgovernment"` (or `ARM_ENVIRONMENT=usgovernment`) so Terragrunt

@@ -61,6 +61,8 @@ On AKS, the workload identity webhook injects `AZURE_FEDERATED_TOKEN_FILE`, whic
 
 <Since version="v1.3.0">
 
+With `ARM_USE_AKS_WORKLOAD_IDENTITY=true`, Terragrunt signs in as the identity that the webhook injects, as OpenTofu and Terraform do.
+
 In a CI system that issues the token itself, e.g. GitLab CI, pass it in `ARM_OIDC_TOKEN`.
 
 In Azure DevOps, use a service connection with workload identity federation. Set `ARM_ADO_PIPELINE_SERVICE_CONNECTION_ID` to its ID and `ARM_OIDC_REQUEST_TOKEN` to `$(System.AccessToken)`.

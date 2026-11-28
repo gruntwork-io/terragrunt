@@ -34,6 +34,8 @@ type AzureSessionConfig struct {
 	// UseOIDC selects OIDC / workload identity authentication. nil means
 	// unset; see UseAzureADAuth for how nil differs from an explicit false.
 	UseOIDC *bool
+	// UseAKSWorkloadIdentity selects the identity that the AKS workload identity webhook injects.
+	UseAKSWorkloadIdentity *bool
 	// SubscriptionID is the Azure subscription hosting the storage account.
 	SubscriptionID string
 	// TenantID is the Azure AD tenant used by token-based auth methods.
@@ -185,6 +187,7 @@ type AzureConfig struct {
 //  3. Service principal (client_id + client_secret + tenant_id)
 //  4. Managed Service Identity (UseMSI)
 //  5. OIDC / workload identity federation (UseOIDC)
+//     and then AKS workload identity (UseAKSWorkloadIdentity)
 //  6. Azure AD via DefaultAzureCredential (UseAzureADAuth or default fallback)
 //
 // Environment variable fallbacks (ARM_* / AZURE_*) are applied to subscription,
@@ -216,6 +219,8 @@ func (b *AzureConfigBuilder) Build(l log.Logger, v *venv.Venv) (*AzureConfig, er
 		CloudConfig:           cloudCfg,
 		ClientOptions:         clientOpts,
 	}
+
+	podIdentity := aksWorkloadIdentity(v.Env, &resolved)
 
 	switch {
 	case resolved.SasToken != "":
@@ -284,22 +289,14 @@ func (b *AzureConfigBuilder) Build(l log.Logger, v *venv.Venv) (*AzureConfig, er
 			return out, validate(out, &resolved)
 		}
 
-		cred, err := azidentity.NewWorkloadIdentityCredential(&azidentity.WorkloadIdentityCredentialOptions{
-			ClientOptions: clientOpts,
-			TenantID:      resolved.TenantID,
-			ClientID:      resolved.ClientID,
-			TokenFilePath: resolved.OIDCTokenFilePath,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("creating OIDC workload identity credential: %w", err)
-		}
+		return buildWorkloadIdentityConfig(out, &resolved, &clientOpts, l, "OIDC / workload identity")
 
-		out.Method = AuthMethodOIDC
-		out.Credential = cred
+	case podIdentity != nil:
+		out.TenantID = podIdentity.TenantID
+		out.ClientID = podIdentity.ClientID
+		out.CredentialFingerprint = credentialFingerprint(podIdentity, v.Env)
 
-		l.Debugf("azurehelper: using OIDC / workload identity authentication")
-
-		return out, validate(out, &resolved)
+		return buildWorkloadIdentityConfig(out, podIdentity, &clientOpts, l, "AKS workload identity")
 
 	case util.Deref(resolved.UseAzureADAuth):
 		return buildAzureADConfig(out, &resolved, &clientOpts, l, "use_azuread_auth")
@@ -307,6 +304,32 @@ func (b *AzureConfigBuilder) Build(l log.Logger, v *venv.Venv) (*AzureConfig, er
 	default:
 		return buildAzureADConfig(out, &resolved, &clientOpts, l, "default credential chain")
 	}
+}
+
+// buildWorkloadIdentityConfig finishes an AzureConfig with the federated token file that cfg names.
+func buildWorkloadIdentityConfig(
+	out *AzureConfig,
+	cfg *AzureSessionConfig,
+	clientOpts *azcore.ClientOptions,
+	l log.Logger,
+	method string,
+) (*AzureConfig, error) {
+	cred, err := azidentity.NewWorkloadIdentityCredential(&azidentity.WorkloadIdentityCredentialOptions{
+		ClientOptions: *clientOpts,
+		TenantID:      cfg.TenantID,
+		ClientID:      cfg.ClientID,
+		TokenFilePath: cfg.OIDCTokenFilePath,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("creating OIDC workload identity credential: %w", err)
+	}
+
+	out.Method = AuthMethodOIDC
+	out.Credential = cred
+
+	l.Debugf("azurehelper: using %s authentication", method)
+
+	return out, validate(out, cfg)
 }
 
 // buildAzureADConfig finishes an AzureConfig using the Azure AD credential
@@ -464,12 +487,19 @@ func applyEnvFallbacks(env map[string]string, cfg *AzureSessionConfig) {
 		cfg.UseAzureADAuth = new(true)
 	}
 
+	if isUnset(cfg.UseAKSWorkloadIdentity) && parseBool(firstEnv(env, "ARM_USE_AKS_WORKLOAD_IDENTITY")) {
+		cfg.UseAKSWorkloadIdentity = new(true)
+	}
+
+	usesPodIdentity := aksWorkloadIdentity(env, cfg) != nil
+
 	// Presence of a federated token file implies OIDC / workload-identity auth.
 	// The standard AKS workload-identity webhook injects AZURE_FEDERATED_TOKEN_FILE
 	// without ARM_USE_OIDC, so without this the explicit OIDC tier is unreachable.
-	// Defer to an explicit higher-tier choice (MSI / Azure AD) so a stray token
+	// An explicit choice (MSI, Azure AD, the AKS pod identity) wins, and then a stray token
 	// file in the environment does not override what the user asked for.
-	if isUnset(cfg.UseOIDC) && !util.Deref(cfg.UseMSI) && !util.Deref(cfg.UseAzureADAuth) && cfg.OIDCTokenFilePath != "" {
+	if isUnset(cfg.UseOIDC) && !util.Deref(cfg.UseMSI) && !util.Deref(cfg.UseAzureADAuth) &&
+		!usesPodIdentity && cfg.OIDCTokenFilePath != "" {
 		cfg.UseOIDC = new(true)
 	}
 
@@ -477,6 +507,7 @@ func applyEnvFallbacks(env map[string]string, cfg *AzureSessionConfig) {
 	// the same way a token file does. CI injects these without ARM_USE_OIDC, so
 	// without this the request-url flows would be unreachable.
 	if isUnset(cfg.UseOIDC) && !util.Deref(cfg.UseMSI) && !util.Deref(cfg.UseAzureADAuth) &&
+		!usesPodIdentity &&
 		firstEnv(env, "ARM_OIDC_REQUEST_URL", "ACTIONS_ID_TOKEN_REQUEST_URL", "SYSTEM_OIDCREQUESTURI") != "" {
 		cfg.UseOIDC = new(true)
 	}
@@ -540,6 +571,21 @@ func managedIdentityID(cfg *AzureSessionConfig) azidentity.ManagedIDKind {
 	}
 
 	return nil
+}
+
+// aksWorkloadIdentity returns cfg with the identity the AKS webhook injects; nil when it is off or incomplete.
+func aksWorkloadIdentity(env map[string]string, cfg *AzureSessionConfig) *AzureSessionConfig {
+	pod := *cfg
+	pod.TenantID = strings.TrimSpace(firstEnv(env, "AZURE_TENANT_ID"))
+	pod.ClientID = strings.TrimSpace(firstEnv(env, "AZURE_CLIENT_ID"))
+	pod.OIDCTokenFilePath = strings.TrimSpace(firstEnv(env, "AZURE_FEDERATED_TOKEN_FILE"))
+
+	complete := pod.TenantID != "" && pod.ClientID != "" && pod.OIDCTokenFilePath != ""
+	if !util.Deref(cfg.UseAKSWorkloadIdentity) || !complete {
+		return nil
+	}
+
+	return &pod
 }
 
 // validate returns an error if required fields are missing for the chosen method.
