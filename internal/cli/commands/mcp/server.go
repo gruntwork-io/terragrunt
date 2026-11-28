@@ -69,8 +69,8 @@ func (d *serverDeps) operatorTFPath() string {
 	return d.baseOpts.TFPath
 }
 
-// runsIaC reports whether a tool call can run tofu or terraform. Starting one
-// takes exec, and it writes to the directory it runs in, which takes fs-rw.
+// runsIaC reports whether a tool call can run tofu or terraform, which takes
+// exec and fs-rw.
 func (d *serverDeps) runsIaC() bool {
 	return d.granted.Has(venv.CapabilityExec) && d.granted.Has(venv.CapabilityFSRW)
 }
@@ -303,8 +303,7 @@ func serverInstructions(d *serverDeps) string {
 		{
 			granted: d.granted.Has(venv.CapabilityExec),
 			on: "The server was started with --allow=exec, so the tools run the git that Terragrunt " +
-				"starts to do its own work, and its tofu and terraform where --allow=fs-rw is set as " +
-				"well. A program a configuration names, through " +
+				"starts to do its own work. A program a configuration names, through " +
 				"run_cmd(), a hook, or an auth-provider command, is refused unless an --allow-cmd pattern " +
 				"or an approval allows it, and that includes a tofu, terraform, or git the configuration " +
 				"names for itself. The read-only tools offer such a program for approval rather than " +
@@ -318,8 +317,8 @@ func serverInstructions(d *serverDeps) string {
 			granted: d.granted.Has(venv.CapabilityFSRW),
 			on: "The server was started with --allow=fs-rw, so the tools write to disk: Terragrunt keeps " +
 				"its caches there, fmt rewrites files, and scaffold generates them. ",
-			off: "Filesystem writes are disabled. The tools read the tree from disk and nothing they " +
-				"write reaches it, so fmt only reports with check=true and there is no scaffold tool. " +
+			off: "Filesystem writes are disabled. The tools read the tree from disk and nothing " +
+				"Terragrunt writes reaches it, so fmt only reports with check=true and there is no scaffold tool. " +
 				"A remote catalog repository cannot be cloned and a git-range filter cannot be resolved " +
 				"until the server is restarted with --allow=exec and --allow=fs-rw. ",
 		},
@@ -328,7 +327,7 @@ func serverInstructions(d *serverDeps) string {
 			on: "With both --allow=exec and --allow=fs-rw, Terragrunt runs tofu and terraform, so the " +
 				"plan tool is served and dependency outputs are read for real. ",
 			off: "Terragrunt runs tofu and terraform only with both --allow=exec and --allow=fs-rw, " +
-				"because each writes to the directory it runs in. Without both there is no plan " +
+				"because neither can see what Terragrunt writes in memory. Unless both are set there is no plan " +
 				"tool, dependency outputs fall back to mock_outputs, and get_outputs reads remote state " +
 				"itself. ",
 		},

@@ -223,8 +223,6 @@ func newTestSession(t *testing.T, dir string) *mcp.ClientSession {
 	return newTestSessionWithOptions(t, dir, func(*tgmcp.Options) {})
 }
 
-// allowFSRW grants the capability to write files, for a test whose tool
-// rewrites or generates them.
 func allowFSRW(o *tgmcp.Options) {
 	o.Allow = []string{"fs-rw"}
 }
@@ -377,9 +375,8 @@ func TestServeAdvertisesTheToolSet(t *testing.T) {
 		toolNames(t, session))
 }
 
-// TestWritingToolsAreAbsentUntilGranted pins that a client is told plan and
-// scaffold exist only when the server can do what they do: plan runs tofu in
-// a directory Terragrunt writes, and scaffold writes files.
+// TestWritingToolsAreAbsentUntilGranted pins that plan is listed only under
+// exec and fs-rw, and scaffold only under fs-rw.
 func TestWritingToolsAreAbsentUntilGranted(t *testing.T) {
 	t.Parallel()
 
@@ -407,8 +404,7 @@ func TestWritingToolsAreAbsentUntilGranted(t *testing.T) {
 }
 
 // TestGitRangeFiltersAreRefusedWithoutExecAndFSRW pins that a filter naming a
-// git range fails with the capabilities it needs, before any git runs. git
-// would write a worktree to disk that the call could not remove.
+// git range fails with the capabilities it needs, before any git runs.
 func TestGitRangeFiltersAreRefusedWithoutExecAndFSRW(t *testing.T) {
 	t.Parallel()
 
@@ -442,8 +438,7 @@ func TestGitRangeFiltersAreRefusedWithoutExecAndFSRW(t *testing.T) {
 }
 
 // TestServeRefusesApplyWithoutItsCapabilities pins that asking for the apply
-// and destroy tools without exec or fs-rw fails the server, where serving
-// without them would read as the tools having been granted.
+// and destroy tools without exec or fs-rw fails the server.
 func TestServeRefusesApplyWithoutItsCapabilities(t *testing.T) {
 	t.Parallel()
 
@@ -985,8 +980,8 @@ const s3StateObject = `{"version":4,"serial":1,"lineage":"test","outputs":{` +
 	`},"resources":[]}`
 
 // TestGetOutputsReadsRemoteStateOnlyUnderAllowHTTP pins the http capability
-// on a request Terragrunt makes itself. Without both exec and fs-rw,
-// get_outputs reads an s3 backend's state object directly. Denied, it sends no
+// on a request Terragrunt makes itself. Unless exec and fs-rw are both
+// granted, get_outputs reads an s3 backend's state object directly. Denied, it sends no
 // request and says why it returned nothing. Granted, it returns the outputs in
 // the object, with the sensitive ones redacted unless the call asks for them.
 func TestGetOutputsReadsRemoteStateOnlyUnderAllowHTTP(t *testing.T) {
@@ -1083,6 +1078,50 @@ func TestGetOutputsReadsRemoteStateOnlyUnderAllowHTTP(t *testing.T) {
 			assert.Equal(t, tc.want, out.Outputs)
 			tc.degraded(t, out.Degraded)
 			tc.requested(t, requests.Load() > 0, "whether the state object was requested")
+		})
+	}
+}
+
+// TestGetOutputsReportsAStateItNeedsTofuToRead pins that get_outputs returns
+// nothing and names the capabilities to add when the state cannot be read
+// directly and the server cannot run tofu. An invalid TF_WORKSPACE rules out
+// the direct read.
+func TestGetOutputsReportsAStateItNeedsTofuToRead(t *testing.T) {
+	t.Parallel()
+
+	for _, allow := range [][]string{{"env", "http"}, {"env", "http", "exec"}} {
+		t.Run("allow="+strings.Join(allow, ","), func(t *testing.T) {
+			t.Parallel()
+
+			dir := writeTree(t, map[string]string{"s3-backed/terragrunt.hcl": unitS3Config})
+
+			var ran atomic.Int32
+
+			v := venvtest.NewWithOSFS().
+				WithHandler(func(context.Context, vexec.Invocation) vexec.Result {
+					ran.Add(1)
+
+					return vexec.Result{}
+				}).
+				WithHTTP(vhttp.NewNoNetworkClient()).
+				WithEnv(map[string]string{
+					"AWS_ACCESS_KEY_ID":     "fake-access-key-id",
+					"AWS_SECRET_ACCESS_KEY": "test-secret",
+					"TF_WORKSPACE":          "not/a/workspace",
+				})
+
+			session := newTestSessionWith(t, dir, v, func(o *tgmcp.Options) { o.Allow = allow }, nil)
+
+			var out getOutputsOutput
+
+			callTool(t, session, "get_outputs", map[string]any{"working_dir": "s3-backed"}, &out)
+
+			assert.Empty(t, out.Outputs)
+			assert.Zero(t, ran.Load(), "no tofu may start")
+			assert.True(t, slices.ContainsFunc(out.Degraded, func(note string) bool {
+				return strings.HasPrefix(note, "outputs not fetched: reading them required running tofu") &&
+					strings.HasSuffix(note, "restart the MCP server with --allow=exec and --allow=fs-rw")
+			}), "no note names the capabilities: %v", out.Degraded)
 		})
 	}
 }

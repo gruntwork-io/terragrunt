@@ -22,8 +22,8 @@ import (
 // wraps, when [CapabilityExec] is not granted.
 var ErrExecDenied = errors.New("subprocess execution denied: the exec capability is not granted")
 
-// ErrIaCNeedsFSRW is the error a tofu or terraform invocation Terragrunt makes
-// itself wraps, when [CapabilityExec] is granted and [CapabilityFSRW] is not.
+// ErrIaCNeedsFSRW is the error Terragrunt's own tofu or terraform invocation
+// fails with when [CapabilityExec] is granted and [CapabilityFSRW] is not.
 var ErrIaCNeedsFSRW = errors.New("OpenTofu/Terraform execution denied: the fs-rw capability is not granted")
 
 // ErrSopsDenied is the error every decrypt a [Restrict] venv refuses wraps,
@@ -67,7 +67,7 @@ type Policy struct {
 	// several goroutines at once. A nil Observe discards them.
 	Observe func(Denial)
 	// TFPath is a tofu or terraform binary the operator named explicitly.
-	// Without exec, an invocation of it fails like one of tofu, whatever its
+	// An invocation of it is refused wherever one of tofu is, whatever its
 	// file is called. Leave it empty when the operator named none.
 	TFPath string
 	// AllowCmds lets the programs a configuration names run, through
@@ -112,8 +112,9 @@ const (
 	// DeniedSops is a decrypt that failed with [ErrSopsDenied].
 	DeniedSops
 	// DeniedIaCWithoutFSRW is a tofu or terraform invocation Terragrunt made
-	// itself that failed with [ErrIaCNeedsFSRW]. A dependency fetch falls
-	// back to mock_outputs where they are configured.
+	// itself, or one of [Policy.TFPath], that failed with [ErrIaCNeedsFSRW].
+	// A dependency fetch falls back to mock_outputs where they are
+	// configured.
 	DeniedIaCWithoutFSRW
 )
 
@@ -139,8 +140,9 @@ type Denial struct {
 // Without [CapabilityExec], no process starts. Each invocation gets the answer
 // that degrades its caller least, as the [DenialKind] values describe, and
 // listening fails with [ErrListenDenied]. With it, the commands Terragrunt
-// runs itself start, and a program a configuration names starts only when an
-// entry in [Policy.AllowCmds] matches it.
+// runs itself start, tofu and terraform only with [CapabilityFSRW] as well,
+// and a program a configuration names starts only when an entry in
+// [Policy.AllowCmds] matches it.
 //
 // Without [CapabilityHTTP], the requests Terragrunt makes itself fail. Without
 // [CapabilitySops], decrypts fail with [ErrSopsDenied]. Without
@@ -153,10 +155,10 @@ type Denial struct {
 // its own, as [vfs.NewOverlayFS] describes, so nothing it writes reaches v.FS
 // or outlives the copy. A process reads and writes the disk and never that
 // layer, so the tofu and terraform Terragrunt runs itself fail with
-// [ErrIaCNeedsFSRW] even when [CapabilityExec] is granted.
+// [ErrIaCNeedsFSRW].
 //
-// Restrict does not confine what the filesystem reads: an HCL function like
-// file() reads anything v.FS can. Nor does it constrain a process it lets
+// Restrict does not confine reads: an HCL function like file() reads anything
+// v.FS can. Nor does it constrain a process it lets
 // start, or code that reads the process environment directly, such as
 // go-getter and the cloud SDKs.
 func Restrict(v *Venv, p Policy) *Venv {
@@ -241,8 +243,8 @@ func iacWithoutFSRWHandler(observe func(Denial)) vexec.Handler {
 	}
 }
 
-// isIaCBinary reports whether name is tofu, terraform, or the binary the
-// operator named with tfPath, whatever that file is called.
+// isIaCBinary reports whether name is tofu, opentofu, terraform, or tfPath,
+// whatever that file is called.
 func isIaCBinary(name, tfPath string) bool {
 	if name == tfPath {
 		return true

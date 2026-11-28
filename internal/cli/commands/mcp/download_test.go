@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	tgmcp "github.com/gruntwork-io/terragrunt/internal/cli/commands/mcp"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/test/helpers/venvtest"
@@ -37,12 +38,12 @@ terraform {
 }
 `
 
-// TestRenderConfigRefusesGitDownloadsWithoutExec pins that a dependency whose
-// outputs need its git source downloaded does not run git when the server was
-// not started with --allow=exec, even where it may write the download. The
-// download is refused and reported without the source's credentials, and the
-// render falls back to the dependency's mock_outputs.
-func TestRenderConfigRefusesGitDownloadsWithoutExec(t *testing.T) {
+// TestRenderConfigSkipsGitDownloadsWithoutExec pins that a dependency whose
+// outputs need its git source downloaded starts no process when the server
+// was not started with --allow=exec, even where it may write the download.
+// The render reports the refused tofu without the source's credentials and
+// falls back to the dependency's mock_outputs.
+func TestRenderConfigSkipsGitDownloadsWithoutExec(t *testing.T) {
 	t.Parallel()
 
 	dir := writeTree(t, map[string]string{
@@ -50,16 +51,26 @@ func TestRenderConfigRefusesGitDownloadsWithoutExec(t *testing.T) {
 		"b/terragrunt.hcl": unitBConfig,
 	})
 
-	session := newTestSessionWithOptions(t, dir, allowFSRW)
+	var ran atomic.Int32
+
+	v := venvtest.NewWithOSFS().WithHandler(func(context.Context, vexec.Invocation) vexec.Result {
+		ran.Add(1)
+
+		return vexec.Result{}
+	})
+
+	session := newTestSessionWith(t, dir, v, allowFSRW, nil)
 
 	var out renderConfigOutput
 
 	callTool(t, session, "render_config", map[string]any{"working_dir": "b"}, &out)
 
-	assert.True(t, slices.ContainsFunc(out.Degraded, func(note string) bool {
-		return strings.HasPrefix(note, `denied "git clone -- https://example.invalid/org/modules.git `) &&
-			strings.HasSuffix(note, `": sources that need it were not downloaded`)
-	}), "no note reports the refused clone: %v", out.Degraded)
+	assert.Equal(
+		t,
+		[]string{`denied "tofu -version": dependency outputs degraded to mock_outputs where configured`},
+		out.Degraded,
+	)
+	assert.Zero(t, ran.Load(), "no process may start without exec")
 
 	for _, note := range out.Degraded {
 		assert.NotContains(t, note, gitSourceToken)
@@ -86,8 +97,7 @@ func TestRenderConfigRefusesGitDownloadsWithoutExec(t *testing.T) {
 
 // TestRenderConfigRefusesRegistryDownloadsWithoutFSRW pins that a dependency
 // whose outputs need its registry source downloaded never reaches the registry
-// when the server was not started with --allow=fs-rw. The download would write
-// to disk whatever filesystem the call has.
+// when the server was not started with --allow=fs-rw.
 func TestRenderConfigRefusesRegistryDownloadsWithoutFSRW(t *testing.T) {
 	t.Parallel()
 

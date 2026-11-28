@@ -189,7 +189,7 @@ func DownloadTerraformSource(
 // touch the real disk.
 //
 // A tfr source is rejected because the registry answers with an archive or
-// git address, and the getter that fetches it is one of those.
+// git address, which the http or git getter then fetches.
 //
 // A cas:: source is rejected because the store it reads and writes is a real
 // git repository on disk, which is why

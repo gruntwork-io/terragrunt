@@ -16,11 +16,11 @@
 // reads anything the invoking user can. [resolveWorkingDir] bounds the
 // working_dir argument rather than what the parse then reaches for.
 //
-// What Terragrunt writes during a tool call stays in a memory layer the call
-// discards, unless [venv.CapabilityFSRW] is granted. A process reads and
-// writes the disk and never that layer, so the tools that run tofu need both
-// it and [venv.CapabilityExec], as [serverDeps.runsIaC] reports. The server's own empty home and PATH
-// directories, which [isolateProcessEnv] creates, go to disk either way.
+// What Terragrunt writes during a tool call is discarded when the call
+// returns, unless [venv.CapabilityFSRW] is granted. [venv.Restrict] says why
+// the tools that run tofu then need [venv.CapabilityExec] as well. The empty
+// home and PATH directories the server creates when env or exec is denied go
+// to disk either way.
 //
 // A tool call starts from an empty environment unless [venv.CapabilityEnv] is
 // granted, in which case it sees a copy of the server's own. The command also
@@ -150,11 +150,11 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv) *cl
 	}
 }
 
-// checkAllowApply reports an opts that asks for the apply and destroy tools
-// without the capabilities they run on.
+// checkAllowApply rejects asking for the apply and destroy tools without the
+// capabilities they run on.
 //
-// Returns [ErrApplyRequiresExec] or [ErrApplyRequiresFSRW], naming the first
-// one granted lacks.
+// Returns [ErrApplyRequiresExec] when granted lacks exec, and
+// [ErrApplyRequiresFSRW] when it has exec and lacks fs-rw.
 func checkAllowApply(opts *Options, granted venv.Capabilities) error {
 	if !opts.AllowApply {
 		return nil

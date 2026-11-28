@@ -20,11 +20,11 @@ var ErrApplyRequiresExec = errors.New(
 )
 
 // ErrApplyRequiresFSRW is returned when the apply and destroy tools are asked
-// for without the capability to write the directories tofu runs in.
+// for without the fs-rw capability.
 var ErrApplyRequiresFSRW = errors.New(
 	"--" + AllowApplyFlagName + " requires --" + AllowFlagName + "=" + string(
 		venv.CapabilityFSRW,
-	) + ": tofu writes to the directory it runs in",
+	) + ": tofu cannot read what Terragrunt writes in memory",
 )
 
 // ErrFmtRequiresCheck is returned when the fmt tool is asked to rewrite files

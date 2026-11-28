@@ -242,8 +242,9 @@ call fails where it does not.
 
 <Since version="v1.2.4">
 
-Without both `--allow=exec` and `--allow=fs-rw`, dependency outputs fall back to `mock_outputs` where the configuration
-declares them, and the call fails where it does not.
+Unless `--allow=exec` and `--allow=fs-rw` are both set, dependency outputs fall back to `mock_outputs` where the
+configuration declares them. A dependency that declares none has its outputs come back empty, and the `degraded` list
+says they were not read.
 
 </Since>
 
@@ -289,7 +290,7 @@ it fetched nothing, and says why.
 
 <Since version="v1.2.4">
 
-Under `--allow=exec` and `--allow=fs-rw`, Terragrunt runs OpenTofu/Terraform to read the outputs. Without both,
+Under `--allow=exec` and `--allow=fs-rw`, Terragrunt runs OpenTofu/Terraform to read the outputs. Otherwise,
 Terragrunt reads the state itself, which needs `--allow=http` and works for the `s3`, `gcs`, and `azurerm` backends.
 Any other unit reports that it fetched nothing, and says why.
 
@@ -466,7 +467,7 @@ credentials in the environment or your home directory.
 
 <Before version="v1.2.4">
 
-Before v1.2.4, the tools always write to disk.
+The tools always write to disk.
 
 </Before>
 

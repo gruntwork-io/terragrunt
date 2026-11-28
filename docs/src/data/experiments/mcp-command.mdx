@@ -27,7 +27,7 @@ With the experiment enabled, `terragrunt mcp` speaks the Model Context Protocol 
 
 Every tool is confined to the directory the server was launched in. A `working_dir` argument that resolves outside it is refused, and graph traversal is bounded there too, so a filter that follows dependencies or dependents cannot bring back a unit from a tree the server was never pointed at. A unit across that boundary still has its configuration read, so units inside can be ordered against it and fetch its outputs.
 
-That confinement covers `working_dir` and traversal, not what is read. An HCL function such as `file()` reads anything the user running the server can.
+That confinement does not limit what a tool reads. An HCL function such as `file()` reads anything the user running the server can.
 
 The server denies every capability at startup, and grants them separately.
 

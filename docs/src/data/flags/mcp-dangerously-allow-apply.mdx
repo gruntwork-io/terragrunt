@@ -32,7 +32,7 @@ The flag requires [`--allow=exec`](/reference/cli/commands/mcp#allow), since app
 
 <Since version="v1.2.4">
 
-The flag requires [`--allow=exec`](/reference/cli/commands/mcp#allow) and [`--allow=fs-rw`](/reference/cli/commands/mcp#fs-rw), since applying runs OpenTofu/Terraform, which writes to disk. Passing it without both is refused at startup.
+The flag requires [`--allow=exec`](/reference/cli/commands/mcp#allow) and [`--allow=fs-rw`](/reference/cli/commands/mcp#fs-rw), since applying runs OpenTofu/Terraform, which cannot see files Terragrunt keeps in memory. Passing it without either is refused at startup.
 
 </Since>
 

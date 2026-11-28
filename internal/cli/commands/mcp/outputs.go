@@ -78,7 +78,7 @@ func registerGetOutputs(srv *mcp.Server, l log.Logger, d *serverDeps, rootVenv *
 		Name: "get_outputs",
 		Description: "Read the applied OpenTofu/Terraform outputs of one unit. Use when another unit's " +
 			"inputs reference dependency outputs and you need the real values. With --allow=exec and " +
-			"--allow=fs-rw this runs 'terragrunt output -json' for full fidelity. Without both the server " +
+			"--allow=fs-rw this runs 'terragrunt output -json' for full fidelity. Otherwise the server " +
 			"can only read the remote state in-process, which needs --allow=http and which the s3, gcs, " +
 			"and azurerm backends support; a unit whose state " +
 			"cannot be read that way returns empty outputs with a degraded explanation. Either way, sensitive " +

@@ -178,7 +178,7 @@ func TestFmtDoesNotFollowSymlinksOutOfTheServerRoot(t *testing.T) {
 }
 
 // TestFmtOnlyChecksWithoutFSRW pins that a server that cannot write files
-// refuses to rewrite one, where reporting it as changed would read as done.
+// refuses to rewrite one.
 func TestFmtOnlyChecksWithoutFSRW(t *testing.T) {
 	t.Parallel()
 
