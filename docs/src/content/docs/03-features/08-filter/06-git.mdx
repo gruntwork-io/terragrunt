@@ -272,6 +272,8 @@ The stack in `HEAD^` generates `app/us-west-2` and the stack in `HEAD` does not,
 
 </FileTree>
 
+The stacks in the temporary worktrees resolve their unit sources the same way as the stack in your working directory, so `--source-map` (or `TG_SOURCE_MAP`) applies to them when you use `find` or `list`.
+
 ### Changed files read by a stack
 
 Terragrunt also compares the generated stacks when the stack file itself is unchanged but the diff includes [a file the stack reads](/features/filter/attributes#files-read-by-stacks). e.g. a stack that reads its regions from `regions.hcl`:

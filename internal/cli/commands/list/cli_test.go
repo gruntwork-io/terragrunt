@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/list"
+	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -52,6 +53,7 @@ func TestNewCommandExposesTheListFlags(t *testing.T) {
 		list.DependenciesFlagName,
 		list.ExternalFlagName,
 		list.QueueConstructAsFlagName,
+		shared.SourceMapFlagName,
 	}
 
 	for _, name := range flagNames {

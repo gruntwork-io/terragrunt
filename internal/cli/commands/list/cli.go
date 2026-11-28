@@ -169,7 +169,11 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *
 
 	sharedFlags := shared.NewBackendFlags(opts, nil)
 	sharedFlags = append(sharedFlags, shared.NewFeatureFlags(opts, nil)...)
-	sharedFlags = append(sharedFlags, shared.NewNoDiscoveryAuthProviderCmdFlag(opts, nil))
+	sharedFlags = append(
+		sharedFlags,
+		shared.NewNoDiscoveryAuthProviderCmdFlag(opts, nil),
+		shared.NewSourceMapFlag(opts, nil),
+	)
 	flags.DeprecateEnvVarPrefix(sharedFlags, flags.Prefix{flags.TgPrefix, CommandName}, opts.StrictControls)
 
 	// Base flags for list plus backend/feature flags

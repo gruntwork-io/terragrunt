@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/find"
+	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
@@ -54,6 +55,7 @@ func TestNewCommandExposesTheFindFlags(t *testing.T) {
 		find.Include,
 		find.Reading,
 		find.QueueConstructAsFlagName,
+		shared.SourceMapFlagName,
 	}
 
 	for _, name := range flagNames {

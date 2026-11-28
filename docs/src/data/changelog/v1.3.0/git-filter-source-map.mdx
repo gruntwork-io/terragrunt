@@ -1,0 +1,10 @@
+---
+version: "v1.3.0"
+category: "bug-fixes"
+---
+
+#### `find` and `list` apply `--source-map` to the stacks of a Git filter
+
+With a Git filter such as `--filter '[HEAD~1...HEAD]'`, `find` and `list` generate the stack files that changed in temporary worktrees. These commands did not accept `--source-map` or read `TG_SOURCE_MAP`, so the unit sources of those stacks were fetched from their original URL. When that URL could not be reached, the command failed with a `git clone` error, although `stack generate` in the same directory worked.
+
+`find` and `list` now accept `--source-map` and read `TG_SOURCE_MAP`, and the stacks in the worktrees use it.

@@ -184,7 +184,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, v *venv.Venv, s *
 	flags := NewFlags(l, cmdOpts, v, nil)
 	flags = append(flags, shared.NewBackendFlags(opts, nil)...)
 	flags = append(flags, shared.NewFeatureFlags(opts, nil)...)
-	flags = append(flags, shared.NewNoDiscoveryAuthProviderCmdFlag(opts, nil))
+	flags = append(flags, shared.NewNoDiscoveryAuthProviderCmdFlag(opts, nil), shared.NewSourceMapFlag(opts, nil))
 
 	return &clihelper.Command{
 		Name:    CommandName,
