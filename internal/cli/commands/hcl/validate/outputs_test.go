@@ -1673,7 +1673,9 @@ terraform {
 
 	probe := versionProbe(map[string]string{"tofu": "OpenTofu v1.10.0", "terraform": "Terraform v1.9.0"})
 
-	result := runValidateIn(t, venv.MemVenv().WithHTTP(missing).WithExec(probe), venvtest.Root("/repo"), &validateRun{
+	v := venv.MemVenv().WithFS(vfs.NewOSFS()).WithHTTP(missing).WithExec(probe)
+
+	result := runValidateIn(t, v, t.TempDir(), &validateRun{
 		files:       files,
 		experiments: []string{experiment.OutputsBlock},
 		outputs:     true,

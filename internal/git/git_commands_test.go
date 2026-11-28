@@ -610,6 +610,18 @@ func TestGitRunner_RevParseCommit(t *testing.T) {
 			wantErr: git.ErrUnknownRevision,
 		},
 		{
+			name:    "no output",
+			workDir: "/repo",
+			result:  vexec.Result{},
+			wantErr: git.ErrParseRevision,
+		},
+		{
+			name:    "abbreviated hash",
+			workDir: "/repo",
+			result:  vexec.Result{Stdout: []byte(headHash[:7] + "\n")},
+			wantErr: git.ErrParseRevision,
+		},
+		{
 			name:    "spawn failure",
 			workDir: "/repo",
 			result:  vexec.Result{Err: errors.New("spawn failed")},

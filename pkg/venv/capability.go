@@ -26,6 +26,10 @@ const (
 	// CapabilityEnv lets the venv keep the environment variables of the venv
 	// it narrows.
 	CapabilityEnv Capability = "env"
+	// CapabilityFSRW lets the venv write to the filesystem of the venv it
+	// narrows. Without it, writes land in memory, where no process the venv
+	// starts can read them.
+	CapabilityFSRW Capability = "fs-rw"
 )
 
 // Capabilities is a set of granted capabilities.
@@ -42,7 +46,7 @@ func (caps Capabilities) Has(c Capability) bool {
 // order an error for an unknown one lists them. A caller that grants more of
 // its own appends them before passing the list to [ParseCapabilities].
 func RestrictCapabilities() []Capability {
-	return []Capability{CapabilityExec, CapabilityHTTP, CapabilitySops, CapabilityEnv}
+	return []Capability{CapabilityExec, CapabilityHTTP, CapabilitySops, CapabilityEnv, CapabilityFSRW}
 }
 
 // ParseCapabilities turns the values of an --allow flag into a set, accepting

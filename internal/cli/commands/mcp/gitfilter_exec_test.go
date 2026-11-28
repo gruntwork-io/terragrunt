@@ -63,7 +63,7 @@ func TestExecGitRangeFilterFindsTheChangedUnit(t *testing.T) {
 	require.NoError(t, err)
 
 	session := newRealExecSession(t, resolved, func(o *tgmcp.Options) {
-		o.Allow = []string{"exec"}
+		o.Allow = []string{"exec", "fs-rw"}
 	})
 
 	var out discoverOutput

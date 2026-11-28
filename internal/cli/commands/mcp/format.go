@@ -42,17 +42,27 @@ type fmtOutput struct {
 }
 
 func registerFmt(srv *mcp.Server, l log.Logger, d *serverDeps, rootVenv *venv.Venv) {
+	description := "Rewrite the .hcl files under a directory into canonical HCL format, as 'terragrunt hcl fmt' " +
+		"does, or a single file via the optional 'file' argument. Use after editing .hcl files. Set " +
+		"check=true to report which files need formatting without changing any. 'changed' lists the files " +
+		"whose formatting differed: rewritten, or left as they were under check=true. "
+
+	if !d.granted.Has(venv.CapabilityFSRW) {
+		description = "Report which .hcl files under a directory are not in canonical HCL format, as " +
+			"'terragrunt hcl fmt --check' does, or check a single file via the optional 'file' argument. " +
+			"This server cannot write files, so every call must set check=true, and rewriting them needs " +
+			"the server restarted with --allow=fs-rw. 'changed' lists the files that need formatting. "
+	}
+
 	mcp.AddTool(srv, &mcp.Tool{
 		Name: "fmt",
-		Description: "Rewrite the .hcl files under a directory into canonical HCL format, as 'terragrunt hcl fmt' " +
-			"does, or a single file via the optional 'file' argument. Use after editing .hcl files. Set " +
-			"check=true to report which files need formatting without changing any. 'changed' lists the files " +
-			"whose formatting differed: rewritten, or left as they were under check=true. diff=true adds a " +
-			"unified diff to each. A file that does not parse is left untouched and reported in parse_errors. " +
-			"A file found to be a symlink or otherwise non-regular when fmt reaches it is neither read nor " +
-			"written, and comes back in skipped. " +
+		Description: description +
+			"diff=true adds a unified diff to each. A file that does not parse is left untouched and " +
+			"reported in parse_errors. A file found to be a symlink or otherwise non-regular when fmt " +
+			"reaches it is neither read nor written, and comes back in skipped. " +
 			"formatted=true means every file read was already formatted and parsed.",
 		Annotations: &mcp.ToolAnnotations{
+			ReadOnlyHint:    !d.granted.Has(venv.CapabilityFSRW),
 			DestructiveHint: new(false),
 			IdempotentHint:  true,
 			OpenWorldHint:   new(false),
@@ -69,6 +79,10 @@ func runFmt(
 	rootVenv *venv.Venv,
 	input fmtInput,
 ) (fmtOutput, error) {
+	if !input.Check && !d.granted.Has(venv.CapabilityFSRW) {
+		return fmtOutput{}, ErrFmtRequiresCheck
+	}
+
 	if input.File != "" && len(input.Filter) > 0 {
 		return fmtOutput{}, errors.New("the 'file' and 'filter' arguments are mutually exclusive")
 	}

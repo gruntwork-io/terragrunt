@@ -29,7 +29,7 @@ func TestExecCatalogClonesARepository(t *testing.T) {
 
 	scratch := t.TempDir()
 	v := withCatalogDirs(venvtest.NewOSWithEmptyEnv(), scratch)
-	session := newTestSessionWith(t, dir, v, func(o *tgmcp.Options) { o.Allow = []string{"exec"} }, nil)
+	session := newTestSessionWith(t, dir, v, func(o *tgmcp.Options) { o.Allow = []string{"exec", "fs-rw"} }, nil)
 
 	var out catalogOutput
 
@@ -62,7 +62,7 @@ func TestExecCatalogKeepsACredentialOutOfAClonedRepositorysComponents(t *testing
 	dir := writeTree(t, map[string]string{"root.hcl": "catalog {\n  urls = [\"" + url + "\"]\n}\n"})
 
 	v := withCatalogDirs(venvtest.NewOSWithEmptyEnv(), t.TempDir())
-	session := newTestSessionWith(t, dir, v, func(o *tgmcp.Options) { o.Allow = []string{"exec"} }, nil)
+	session := newTestSessionWith(t, dir, v, func(o *tgmcp.Options) { o.Allow = []string{"exec", "fs-rw"} }, nil)
 
 	var out catalogOutput
 
@@ -89,7 +89,7 @@ func TestExecCatalogKeepsACredentialOutOfGitsStderr(t *testing.T) {
 
 			dir := writeTree(t, map[string]string{"root.hcl": "catalog {\n  urls = [\"" + url + "\"]\n}\n"})
 			v := withCatalogDirs(venvtest.NewOSWithEmptyEnv(), t.TempDir())
-			session := newTestSessionWith(t, dir, v, func(o *tgmcp.Options) { o.Allow = []string{"exec"} }, nil)
+			session := newTestSessionWith(t, dir, v, func(o *tgmcp.Options) { o.Allow = []string{"exec", "fs-rw"} }, nil)
 
 			var out catalogOutput
 
@@ -124,7 +124,7 @@ catalog { urls = [local.url] }
 
 			v := withCatalogDirs(venvtest.NewOSWithEmptyEnv(), t.TempDir())
 			session := newAnsweringSession(t, dir, v, "accept", &prompts,
-				func(o *tgmcp.Options) { o.Allow = []string{"exec"} })
+				func(o *tgmcp.Options) { o.Allow = []string{"exec", "fs-rw"} })
 
 			var out catalogOutput
 

@@ -86,16 +86,15 @@ func registerPlan(srv *mcp.Server, l log.Logger, d *serverDeps, rootVenv *venv.V
 			"of the plan's JSON representation (what show -json prints), which lists every resource " +
 			"change with its before and after values in cleartext, sensitive ones included; without it, " +
 			"the plan files are deleted once their changes are counted. The files stay until the server " +
-			"stops. Requires " +
-			"the server to be started with --allow=exec, and runs are serialized, so concurrent plan " +
-			"calls queue. This can download module sources, run init, and reach backends/registries.",
+			"stops. Runs are serialized, so concurrent plan calls queue. This can download module " +
+			"sources, run init, and reach backends/registries.",
 		Annotations: &mcp.ToolAnnotations{
 			// Not read-only: plan writes caches, lockfile scratch, and plan
 			// files on disk, and clients should gate it accordingly.
 			IdempotentHint: true,
-			// Unconditional rather than following the HTTP policy: plan
-			// requires --allow=exec, and a spawned command reaches the
-			// network whether or not Terragrunt itself may.
+			// Unconditional rather than following the HTTP policy: plan is
+			// served only where it can run tofu, and a spawned command reaches
+			// the network whether or not Terragrunt itself may.
 			OpenWorldHint: new(true),
 		},
 	}, toolHandler(l, "plan", func(ctx context.Context, input planInput) (runAllOutput, error) {
@@ -114,7 +113,8 @@ func registerPlan(srv *mcp.Server, l log.Logger, d *serverDeps, rootVenv *venv.V
 // runAllCommand drives `run --all <command>` across the units under the call's
 // working dir and summarizes the per-unit results. Whether a given command is
 // allowed to reach this point is the caller's decision: plan is registered
-// whenever exec is, apply and destroy only under --dangerously-allow-apply.
+// when [serverDeps.runsIaC] says the server can run it, apply and destroy only
+// under --dangerously-allow-apply as well.
 func runAllCommand(
 	ctx context.Context,
 	l log.Logger,
@@ -124,13 +124,6 @@ func runAllCommand(
 	command string,
 	sensitivity outputsSensitivity,
 ) (runAllOutput, error) {
-	if !d.granted.Has(venv.CapabilityExec) {
-		return runAllOutput{}, fmt.Errorf(
-			"%s requires subprocess execution; restart the MCP server with --allow=exec",
-			command,
-		)
-	}
-
 	if err := input.validate(); err != nil {
 		return runAllOutput{}, err
 	}

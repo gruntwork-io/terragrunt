@@ -19,6 +19,37 @@ var ErrApplyRequiresExec = errors.New(
 	) + ": applying is running tofu",
 )
 
+// ErrApplyRequiresFSRW is returned when the apply and destroy tools are asked
+// for without the fs-rw capability.
+var ErrApplyRequiresFSRW = errors.New(
+	"--" + AllowApplyFlagName + " requires --" + AllowFlagName + "=" + string(
+		venv.CapabilityFSRW,
+	) + ": tofu cannot read what Terragrunt writes in memory",
+)
+
+// ErrFmtRequiresCheck is returned when the fmt tool is asked to rewrite files
+// on a server that cannot write them.
+var ErrFmtRequiresCheck = errors.New(
+	"this server cannot write files: pass check=true to report the files that need formatting, " +
+		"or restart the MCP server with --" + AllowFlagName + "=" + string(venv.CapabilityFSRW) + " to rewrite them",
+)
+
+// ErrCatalogCloneRequiresFSRW is the error the catalog tool reports for a
+// remote repository on a server that cannot write the clone to disk.
+var ErrCatalogCloneRequiresFSRW = errors.New(
+	"cloning a remote repository writes it to disk: restart the MCP server with --" +
+		AllowFlagName + "=" + string(venv.CapabilityExec) + " and --" +
+		AllowFlagName + "=" + string(venv.CapabilityFSRW),
+)
+
+// ErrGitFilterRequiresExecAndFSRW is returned when a filter query names a git
+// range on a server that cannot check the range out.
+var ErrGitFilterRequiresExecAndFSRW = errors.New(
+	"git-range filters check each ref out with git: restart the MCP server with --" +
+		AllowFlagName + "=" + string(venv.CapabilityExec) + " and --" +
+		AllowFlagName + "=" + string(venv.CapabilityFSRW),
+)
+
 // ErrExperimentRequired is returned when the mcp command is run without the
 // mcp-command experiment enabled.
 var ErrExperimentRequired = errors.New(

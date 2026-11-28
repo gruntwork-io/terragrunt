@@ -9,6 +9,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/vbrowser"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/pkg/venv"
 	"github.com/stretchr/testify/assert"
@@ -152,11 +153,109 @@ func TestRestrictRefusesListeningWithoutExec(t *testing.T) {
 func TestRestrictRunsTrustedCommandsWithExec(t *testing.T) {
 	t.Parallel()
 
-	v := venv.Restrict(ranVenv(), venv.Policy{Granted: venv.Capabilities{venv.CapabilityExec: {}}})
+	v := venv.Restrict(ranVenv(), venv.Policy{Granted: venv.Capabilities{
+		venv.CapabilityExec: {},
+		venv.CapabilityFSRW: {},
+	}})
 
 	out, err := v.Exec.Command(vexec.WithTrustedCommand(t.Context()), "tofu", "init").Output()
 	require.NoError(t, err)
 	assert.Equal(t, "ran", string(out))
+}
+
+// TestRestrictDeniesTerragruntsOwnIaCWithoutFSRW pins that exec alone does
+// not start the tofu Terragrunt runs itself, which would read a directory
+// whose files exist only in memory. Its own git still runs.
+func TestRestrictDeniesTerragruntsOwnIaCWithoutFSRW(t *testing.T) {
+	t.Parallel()
+
+	for _, name := range []string{"tofu", "terraform", "/opt/custom-iac"} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			var d denials
+
+			v := venv.Restrict(ranVenv(), venv.Policy{
+				Granted: venv.Capabilities{venv.CapabilityExec: {}},
+				TFPath:  "/opt/custom-iac",
+				Observe: d.observe,
+			})
+
+			trusted := vexec.WithTrustedCommand(t.Context())
+
+			err := v.Exec.Command(trusted, name, "init").Run()
+			require.ErrorIs(t, err, venv.ErrIaCNeedsFSRW)
+			assert.Equal(t, []venv.DenialKind{venv.DeniedIaCWithoutFSRW}, d.kinds())
+
+			out, err := v.Exec.Command(trusted, "git", "rev-parse", "--show-toplevel").Output()
+			require.NoError(t, err)
+			assert.Equal(t, "ran", string(out))
+		})
+	}
+}
+
+// TestRestrictRunsAnAllowedConfigIaCWithoutFSRW pins that a tofu a
+// configuration names is decided by the allow-cmd patterns alone.
+func TestRestrictRunsAnAllowedConfigIaCWithoutFSRW(t *testing.T) {
+	t.Parallel()
+
+	v := venv.Restrict(ranVenv(), venv.Policy{
+		Granted:   venv.Capabilities{venv.CapabilityExec: {}},
+		AllowCmds: []venv.AllowCmd{venv.AllowProgram("tofu")},
+	})
+
+	out, err := v.Exec.Command(t.Context(), "tofu", "version").Output()
+	require.NoError(t, err)
+	assert.Equal(t, "ran", string(out))
+}
+
+// TestRestrictKeepsWritesInMemoryWithoutFSRW pins that a narrowed venv reads
+// the filesystem it narrows and writes nothing to it.
+func TestRestrictKeepsWritesInMemoryWithoutFSRW(t *testing.T) {
+	t.Parallel()
+
+	base := venv.MemVenv()
+	require.NoError(t, vfs.WriteFile(base.FS, "/tree/terragrunt.hcl", []byte("on disk"), 0o644))
+
+	v := venv.Restrict(base, venv.Policy{})
+
+	contents, err := vfs.ReadFile(v.FS, "/tree/terragrunt.hcl")
+	require.NoError(t, err)
+	assert.Equal(t, "on disk", string(contents))
+
+	require.NoError(t, vfs.WriteFile(v.FS, "/tree/terragrunt.hcl", []byte("rewritten"), 0o644))
+	require.NoError(t, vfs.WriteFile(v.FS, "/tree/generated.tf", []byte("generated"), 0o644))
+
+	contents, err = vfs.ReadFile(v.FS, "/tree/terragrunt.hcl")
+	require.NoError(t, err)
+	assert.Equal(t, "rewritten", string(contents))
+
+	contents, err = vfs.ReadFile(base.FS, "/tree/terragrunt.hcl")
+	require.NoError(t, err)
+	assert.Equal(t, "on disk", string(contents))
+
+	exists, err := vfs.FileExists(base.FS, "/tree/generated.tf")
+	require.NoError(t, err)
+	assert.False(t, exists)
+
+	exists, err = vfs.FileExists(venv.Restrict(base, venv.Policy{}).FS, "/tree/generated.tf")
+	require.NoError(t, err)
+	assert.False(t, exists, "each narrowed venv has a layer of its own")
+}
+
+// TestRestrictWritesThroughWithFSRW pins that granting fs-rw leaves the
+// filesystem as the caller handed it over.
+func TestRestrictWritesThroughWithFSRW(t *testing.T) {
+	t.Parallel()
+
+	base := venv.MemVenv()
+
+	v := venv.Restrict(base, venv.Policy{Granted: venv.Capabilities{venv.CapabilityFSRW: {}}})
+	require.NoError(t, vfs.WriteFile(v.FS, "/tree/generated.tf", []byte("generated"), 0o644))
+
+	contents, err := vfs.ReadFile(base.FS, "/tree/generated.tf")
+	require.NoError(t, err)
+	assert.Equal(t, "generated", string(contents))
 }
 
 // TestRestrictRunsAConfigCommandAPatternAllows pins that an allow-cmd pattern

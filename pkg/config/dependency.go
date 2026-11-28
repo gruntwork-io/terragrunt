@@ -29,6 +29,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/venv"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	pkgvenv "github.com/gruntwork-io/terragrunt/pkg/venv"
 
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	azurermbackend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/azurerm"
@@ -2634,6 +2635,12 @@ func runTerragruntOutputJSON(
 		VersionFiles: pctx.VersionManagerFileName,
 	})
 	if err != nil {
+		// A venv that refuses the probe refuses every tofu the run would start, so preparing the source for one
+		// only costs a copy or a download.
+		if errors.Is(err, pkgvenv.ErrExecDenied) || errors.Is(err, pkgvenv.ErrIaCNeedsFSRW) {
+			return nil, err
+		}
+
 		l.Debugf(
 			"Failed to detect the OpenTofu/Terraform implementation of %s: %v",
 			tfimpl.BinaryOrDefault(v.Exec, pctx.TFPath),

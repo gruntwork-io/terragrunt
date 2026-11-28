@@ -1799,8 +1799,8 @@ func TestHTTPGetterNetrcAuthentication(t *testing.T) {
 
 // TestDownloadTerraformSourceRejectsNonOSFilesystemPerSource pins that the
 // entry gate rejects only the sources whose getter would escape the venv
-// filesystem. A source the file, tfr, or oci getter can serve gets past the
-// gate and fails later on its own terms, if at all.
+// filesystem. A source the file or oci getter can serve gets past the gate and
+// fails later on its own terms, if at all.
 func TestDownloadTerraformSourceRejectsNonOSFilesystemPerSource(t *testing.T) {
 	t.Parallel()
 
@@ -1834,10 +1834,9 @@ func TestDownloadTerraformSourceRejectsNonOSFilesystemPerSource(t *testing.T) {
 			rejected: true,
 		},
 		{
-			name:            "tfr source stays on the venv filesystem",
-			source:          "tfr://registry.invalid/foo/bar/baz?version=1.0.0",
-			rejected:        false,
-			reachesDownload: true,
+			name:     "tfr source needs the real disk",
+			source:   "tfr://registry.invalid/foo/bar/baz?version=1.0.0",
+			rejected: true,
 		},
 		{
 			name:            "oci source stays on the venv filesystem",

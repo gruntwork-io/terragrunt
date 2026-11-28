@@ -63,7 +63,7 @@ func TestFmtRewritesUnformattedFiles(t *testing.T) {
 	before, err := vfs.NewOSFS().Stat(filepath.Join(dir, "a", "terragrunt.hcl"))
 	require.NoError(t, err)
 
-	session := newTestSession(t, dir)
+	session := newTestSessionWithOptions(t, dir, allowFSRW)
 
 	var first fmtOutput
 
@@ -102,7 +102,7 @@ func TestFmtLeavesAFileThatDoesNotParse(t *testing.T) {
 		"ok/terragrunt.hcl":     unformattedHCL,
 	})
 
-	session := newTestSession(t, dir)
+	session := newTestSessionWithOptions(t, dir, allowFSRW)
 
 	var out fmtOutput
 
@@ -124,7 +124,7 @@ func TestFmtIsConfinedToTheServerRoot(t *testing.T) {
 	})
 	dir := filepath.Join(parent, "root")
 
-	session := newTestSession(t, dir)
+	session := newTestSessionWithOptions(t, dir, allowFSRW)
 
 	for _, args := range []map[string]any{
 		{"working_dir": ".."},
@@ -152,7 +152,7 @@ func TestFmtDoesNotFollowSymlinksOutOfTheServerRoot(t *testing.T) {
 	require.NoError(t, vfs.Symlink(fsys, filepath.Join(outside, "terragrunt.hcl"), filepath.Join(dir, "link.hcl")))
 	require.NoError(t, vfs.Symlink(fsys, outside, filepath.Join(dir, "linkdir")))
 
-	session := newTestSession(t, dir)
+	session := newTestSessionWithOptions(t, dir, allowFSRW)
 
 	var out fmtOutput
 
@@ -177,6 +177,34 @@ func TestFmtDoesNotFollowSymlinksOutOfTheServerRoot(t *testing.T) {
 	assert.Equal(t, unformattedHCL, readTreeFile(t, filepath.Join(outside, "terragrunt.hcl")))
 }
 
+// TestFmtOnlyChecksWithoutFSRW pins that a server that cannot write files
+// refuses to rewrite one.
+func TestFmtOnlyChecksWithoutFSRW(t *testing.T) {
+	t.Parallel()
+
+	dir := writeTree(t, map[string]string{"unit/terragrunt.hcl": unformattedHCL})
+
+	session := newTestSession(t, dir)
+
+	for _, args := range []map[string]any{
+		{},
+		{"check": false},
+		{"file": "unit/terragrunt.hcl"},
+		{"diff": true},
+	} {
+		callToolRefused(t, session, "fmt", args, tgmcp.ErrFmtRequiresCheck)
+	}
+
+	assert.Equal(t, unformattedHCL, readTreeFile(t, filepath.Join(dir, "unit", "terragrunt.hcl")))
+
+	res, err := session.ListTools(t.Context(), nil)
+	require.NoError(t, err)
+
+	idx := slices.IndexFunc(res.Tools, func(tool *mcp.Tool) bool { return tool.Name == "fmt" })
+	require.GreaterOrEqual(t, idx, 0, "the fmt tool must be advertised")
+	assert.True(t, res.Tools[idx].Annotations.ReadOnlyHint)
+}
+
 // TestFmtIsAnnotatedAsALocalWrite pins the annotations a client reads before
 // letting a model call fmt: it changes files, but only by reformatting them,
 // and never leaves the machine whatever the server was granted.
@@ -184,7 +212,7 @@ func TestFmtIsAnnotatedAsALocalWrite(t *testing.T) {
 	t.Parallel()
 
 	session := newTestSessionWithOptions(t, newTestTree(t), func(o *tgmcp.Options) {
-		o.Allow = []string{"exec", "http"}
+		o.Allow = []string{"exec", "http", "fs-rw"}
 	})
 
 	res, err := session.ListTools(t.Context(), nil)

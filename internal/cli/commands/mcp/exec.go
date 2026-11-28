@@ -153,6 +153,12 @@ func (r *execRecorder) observer(mode venv.Refusal) func(venv.Denial) {
 				"stubbed %q: --allow=exec runs Terragrunt's own commands, not programs a configuration names",
 				note,
 			))
+		case venv.DeniedIaCWithoutFSRW:
+			r.record(fmt.Sprintf(
+				"denied %q: Terragrunt runs tofu only with --allow=fs-rw, so dependency outputs degraded "+
+					"to mock_outputs where configured",
+				note,
+			))
 		case venv.DeniedSops:
 			r.record(fmt.Sprintf("refused decrypting %q: secrets stay encrypted without --allow=sops",
 				truncateRunes(dn.Path, execCmdlineMaxLen)))
@@ -163,9 +169,12 @@ func (r *execRecorder) observer(mode venv.Refusal) func(venv.Denial) {
 // callVenv returns the venv one tool call runs against. Every refusal it
 // arranges is noted on d.rec, whose notes become that call's degraded field.
 //
-// The two denials are independent. --allow=exec governs the processes
-// Terragrunt spawns, --allow=http the requests it makes itself. Neither
-// constrains a spawned process, which reaches the network on its own account.
+// --allow=exec governs the processes Terragrunt spawns, and --allow=http the
+// requests it makes itself. Neither constrains a spawned process, which
+// reaches the network on its own account.
+//
+// Without --allow=fs-rw the venv has a memory layer of its own over the root
+// venv's filesystem, so what one call writes is gone when the call returns.
 //
 // A program a person approved for this call runs with any arguments, as one
 // an --allow-cmd pattern matches does.

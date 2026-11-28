@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"maps"
 	"net/http"
 	"path/filepath"
@@ -18,6 +19,7 @@ import (
 	tgmcp "github.com/gruntwork-io/terragrunt/internal/cli/commands/mcp"
 	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/vhttp"
 	"github.com/gruntwork-io/terragrunt/internal/vsops"
@@ -221,6 +223,10 @@ func newTestSession(t *testing.T, dir string) *mcp.ClientSession {
 	return newTestSessionWithOptions(t, dir, func(*tgmcp.Options) {})
 }
 
+func allowFSRW(o *tgmcp.Options) {
+	o.Allow = []string{"fs-rw"}
+}
+
 // newApprovingSession serves the mutating tools to a client that answers every
 // approval prompt with action, and records the prompts it was shown.
 func newApprovingSession(t *testing.T, dir, action string, prompts *[]string) *mcp.ClientSession {
@@ -228,7 +234,7 @@ func newApprovingSession(t *testing.T, dir, action string, prompts *[]string) *m
 
 	return newAnsweringSession(t, dir, venvtest.NewWithOSFS(), action, prompts,
 		func(o *tgmcp.Options) {
-			o.Allow = []string{"exec"}
+			o.Allow = []string{"exec", "fs-rw"}
 			o.AllowApply = true
 		})
 }
@@ -365,8 +371,159 @@ func TestServeAdvertisesTheToolSet(t *testing.T) {
 	session := newTestSession(t, newTestTree(t))
 
 	assert.Equal(t,
-		[]string{"catalog", "discover", "fmt", "get_outputs", "plan", "render_config", "run_order", "scaffold", "validate"},
+		[]string{"catalog", "discover", "fmt", "get_outputs", "render_config", "run_order", "validate"},
 		toolNames(t, session))
+}
+
+// TestWritingToolsAreAbsentUntilGranted pins that plan is listed only under
+// exec and fs-rw, and scaffold only under fs-rw.
+func TestWritingToolsAreAbsentUntilGranted(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name     string
+		allow    []string
+		plan     bool
+		scaffold bool
+	}{
+		{name: "exec alone", allow: []string{"exec"}},
+		{name: "fs-rw alone", allow: []string{"fs-rw"}, scaffold: true},
+		{name: "exec and fs-rw", allow: []string{"exec", "fs-rw"}, plan: true, scaffold: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			session := newTestSessionWithOptions(t, newTestTree(t), func(o *tgmcp.Options) { o.Allow = tc.allow })
+			names := toolNames(t, session)
+
+			assert.Equal(t, tc.plan, slices.Contains(names, "plan"))
+			assert.Equal(t, tc.scaffold, slices.Contains(names, "scaffold"))
+			assert.NotContains(t, names, "apply")
+		})
+	}
+}
+
+// TestGitRangeFiltersAreRefusedWithoutExecAndFSRW pins that a filter naming a
+// git range fails with the capabilities it needs, before any git runs.
+func TestGitRangeFiltersAreRefusedWithoutExecAndFSRW(t *testing.T) {
+	t.Parallel()
+
+	for _, allow := range [][]string{nil, {"exec"}, {"fs-rw"}} {
+		t.Run("allow="+strings.Join(allow, ","), func(t *testing.T) {
+			t.Parallel()
+
+			var ran atomic.Int32
+
+			v := venvtest.NewWithOSFS().WithHandler(func(context.Context, vexec.Invocation) vexec.Result {
+				ran.Add(1)
+
+				return vexec.Result{}
+			})
+
+			session := newTestSessionWith(t, newTestTree(t), v, func(o *tgmcp.Options) { o.Allow = allow }, nil)
+
+			for _, tool := range []string{"discover", "validate", "run_order"} {
+				callToolRefused(
+					t,
+					session,
+					tool,
+					map[string]any{"filter": []string{"[HEAD~1...HEAD]"}},
+					tgmcp.ErrGitFilterRequiresExecAndFSRW,
+				)
+			}
+
+			assert.Zero(t, ran.Load(), "no git may run for a refused filter")
+		})
+	}
+}
+
+// TestServeRefusesApplyWithoutItsCapabilities pins that asking for the apply
+// and destroy tools without exec or fs-rw fails the server.
+func TestServeRefusesApplyWithoutItsCapabilities(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		want  error
+		name  string
+		allow []string
+	}{
+		{name: "nothing granted", want: tgmcp.ErrApplyRequiresExec},
+		{name: "fs-rw alone", allow: []string{"fs-rw"}, want: tgmcp.ErrApplyRequiresExec},
+		{name: "exec alone", allow: []string{"exec"}, want: tgmcp.ErrApplyRequiresFSRW},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			dir := newTestTree(t)
+
+			opts, err := options.NewTerragruntOptionsForTest(filepath.Join(dir, "terragrunt.hcl"))
+			require.NoError(t, err)
+
+			opts.WorkingDir = dir
+
+			cmdOpts := tgmcp.NewOptions(opts)
+			cmdOpts.Allow = tc.allow
+			cmdOpts.AllowApply = true
+
+			err = tgmcp.Serve(
+				t.Context(),
+				logger.CreateLogger(),
+				venvtest.NewWithOSFS(),
+				cmdOpts,
+				strings.NewReader(""),
+				io.Discard,
+			)
+			require.ErrorIs(t, err, tc.want)
+		})
+	}
+}
+
+// TestToolCallsWriteNothingWithoutFSRW pins that a parse under exec and http
+// leaves the tree as it found it. Its tofu is refused, so the dependency
+// output it would have fetched comes from mock_outputs.
+func TestToolCallsWriteNothingWithoutFSRW(t *testing.T) {
+	t.Parallel()
+
+	dir := newTestTree(t)
+
+	var ran atomic.Int32
+
+	v := venvtest.NewWithOSFS().WithHandler(func(context.Context, vexec.Invocation) vexec.Result {
+		ran.Add(1)
+
+		return vexec.Result{Stdout: []byte("{}")}
+	})
+
+	session := newTestSessionWith(t, dir, v, func(o *tgmcp.Options) { o.Allow = []string{"exec", "http"} }, nil)
+
+	var out struct {
+		Config   map[string]any `json:"config"`
+		Degraded []string       `json:"degraded"`
+	}
+
+	callTool(t, session, "render_config", map[string]any{"working_dir": "b", "format": "full"}, &out)
+
+	assert.Equal(t, map[string]any{"a_id": "mock-a"}, out.Config["inputs"])
+	assert.NotEmpty(t, out.Degraded, "the refused tofu must be reported")
+	assert.Zero(t, ran.Load(), "no tofu may start without fs-rw")
+
+	var names []string
+
+	require.NoError(t, filepath.WalkDir(dir, func(path string, _ fs.DirEntry, err error) error {
+		names = append(names, strings.TrimPrefix(path, dir))
+
+		return err
+	}))
+
+	slices.Sort(names)
+
+	assert.Equal(t, []string{
+		"",
+		filepath.FromSlash("/a"),
+		filepath.FromSlash("/a/terragrunt.hcl"),
+		filepath.FromSlash("/b"),
+		filepath.FromSlash("/b/terragrunt.hcl"),
+	}, names)
 }
 
 // TestMutatingToolsAreAbsentUntilGranted pins that a client is told apply and
@@ -380,7 +537,7 @@ func TestMutatingToolsAreAbsentUntilGranted(t *testing.T) {
 	assert.NotContains(t, toolNames(t, denied), "destroy")
 
 	granted := newTestSessionWithOptions(t, newTestTree(t), func(o *tgmcp.Options) {
-		o.Allow = []string{"exec"}
+		o.Allow = []string{"exec", "fs-rw"}
 		o.AllowApply = true
 	})
 	assert.Equal(
@@ -408,7 +565,7 @@ func TestMutatingToolsAreAnnotatedDestructive(t *testing.T) {
 	t.Parallel()
 
 	session := newTestSessionWithOptions(t, newTestTree(t), func(o *tgmcp.Options) {
-		o.Allow = []string{"exec"}
+		o.Allow = []string{"exec", "fs-rw"}
 		o.AllowApply = true
 	})
 
@@ -618,7 +775,7 @@ func TestPlanInputSchemaHasEveryArgument(t *testing.T) {
 		t,
 		newTestTree(t),
 		venvtest.NewWithOSFS(),
-		func(o *tgmcp.Options) { o.Allow = []string{"exec"} },
+		func(o *tgmcp.Options) { o.Allow = []string{"exec", "fs-rw"} },
 		nil,
 	)
 
@@ -717,19 +874,6 @@ func TestWorkingDirThroughASymlinkIsConfinedToTheServerRoot(t *testing.T) {
 	}
 }
 
-func TestPlanIsRefusedWithoutAllowExec(t *testing.T) {
-	t.Parallel()
-
-	session := newTestSession(t, newTestTree(t))
-
-	res, err := session.CallTool(t.Context(), &mcp.CallToolParams{
-		Name:      "plan",
-		Arguments: map[string]any{},
-	})
-	require.NoError(t, err)
-	assert.True(t, res.IsError, "plan must be refused when the server cannot spawn subprocesses")
-}
-
 // TestConcurrentToolCallsShareOneServerWithRacing drives every read-only tool
 // at once over a single session. The SDK dispatches each call on its own
 // goroutine, so the per-call option builders, caches, and exec recorders must
@@ -814,7 +958,7 @@ func TestToolAnnotationsFollowTheGrantedCapabilities(t *testing.T) {
 			require.NoError(t, err)
 
 			for _, tool := range res.Tools {
-				// plan requires --allow=exec, and the command it spawns
+				// plan is served only where it runs tofu, and the command it spawns
 				// reaches the network on its own account. fmt only reads and
 				// writes local files.
 				if tool.Name == "plan" || tool.Name == "fmt" {
@@ -836,10 +980,10 @@ const s3StateObject = `{"version":4,"serial":1,"lineage":"test","outputs":{` +
 	`},"resources":[]}`
 
 // TestGetOutputsReadsRemoteStateOnlyUnderAllowHTTP pins the http capability
-// on a request Terragrunt makes itself. Without exec, get_outputs reads an s3
-// backend's state object directly. Denied, it sends no request and says why it
-// returned nothing. Granted, it returns the outputs in the object, with the
-// sensitive ones redacted unless the call asks for them.
+// on a request Terragrunt makes itself. Unless exec and fs-rw are both
+// granted, get_outputs reads an s3 backend's state object directly. Denied, it sends no
+// request and says why it returned nothing. Granted, it returns the outputs in
+// the object, with the sensitive ones redacted unless the call asks for them.
 func TestGetOutputsReadsRemoteStateOnlyUnderAllowHTTP(t *testing.T) {
 	t.Parallel()
 
@@ -862,6 +1006,17 @@ func TestGetOutputsReadsRemoteStateOnlyUnderAllowHTTP(t *testing.T) {
 		{
 			name:      "granted",
 			allow:     []string{"env", "http"},
+			args:      map[string]any{"working_dir": "s3-backed"},
+			requested: assert.True,
+			degraded:  assert.Empty,
+			want: map[string]outputEntry{
+				"id":     {Value: "from-state"},
+				"secret": {Value: "(sensitive)", Sensitive: true},
+			},
+		},
+		{
+			name:      "granted with exec and no fs-rw",
+			allow:     []string{"env", "http", "exec"},
 			args:      map[string]any{"working_dir": "s3-backed"},
 			requested: assert.True,
 			degraded:  assert.Empty,
@@ -923,6 +1078,50 @@ func TestGetOutputsReadsRemoteStateOnlyUnderAllowHTTP(t *testing.T) {
 			assert.Equal(t, tc.want, out.Outputs)
 			tc.degraded(t, out.Degraded)
 			tc.requested(t, requests.Load() > 0, "whether the state object was requested")
+		})
+	}
+}
+
+// TestGetOutputsReportsAStateItNeedsTofuToRead pins that get_outputs returns
+// nothing and names the capabilities to add when the state cannot be read
+// directly and the server cannot run tofu. An invalid TF_WORKSPACE rules out
+// the direct read.
+func TestGetOutputsReportsAStateItNeedsTofuToRead(t *testing.T) {
+	t.Parallel()
+
+	for _, allow := range [][]string{{"env", "http"}, {"env", "http", "exec"}} {
+		t.Run("allow="+strings.Join(allow, ","), func(t *testing.T) {
+			t.Parallel()
+
+			dir := writeTree(t, map[string]string{"s3-backed/terragrunt.hcl": unitS3Config})
+
+			var ran atomic.Int32
+
+			v := venvtest.NewWithOSFS().
+				WithHandler(func(context.Context, vexec.Invocation) vexec.Result {
+					ran.Add(1)
+
+					return vexec.Result{}
+				}).
+				WithHTTP(vhttp.NewNoNetworkClient()).
+				WithEnv(map[string]string{
+					"AWS_ACCESS_KEY_ID":     "fake-access-key-id",
+					"AWS_SECRET_ACCESS_KEY": "test-secret",
+					"TF_WORKSPACE":          "not/a/workspace",
+				})
+
+			session := newTestSessionWith(t, dir, v, func(o *tgmcp.Options) { o.Allow = allow }, nil)
+
+			var out getOutputsOutput
+
+			callTool(t, session, "get_outputs", map[string]any{"working_dir": "s3-backed"}, &out)
+
+			assert.Empty(t, out.Outputs)
+			assert.Zero(t, ran.Load(), "no tofu may start")
+			assert.True(t, slices.ContainsFunc(out.Degraded, func(note string) bool {
+				return strings.HasPrefix(note, "outputs not fetched: reading them required running tofu") &&
+					strings.HasSuffix(note, "restart the MCP server with --allow=exec and --allow=fs-rw")
+			}), "no note names the capabilities: %v", out.Degraded)
 		})
 	}
 }

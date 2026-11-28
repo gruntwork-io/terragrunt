@@ -16,10 +16,10 @@ With the experiment enabled, `terragrunt mcp` speaks the Model Context Protocol 
 | `validate`      | Whether the configurations under a directory parse and evaluate, as file/line diagnostics |
 | `run_order`     | What must finish before each unit may start, for the command you name |
 | `get_outputs`   | The applied outputs of one unit                                              |
-| `plan`          | The per-unit result of `run --all plan`                                      |
+| `plan`          | The per-unit result of `run --all plan`, served only under `--allow=exec` and `--allow=fs-rw` |
 | `catalog`       | The components `terragrunt catalog` returns                                  |
-| `scaffold`      | New configuration written from a module, unit, or stack source, as `terragrunt scaffold` writes it |
-| `fmt`           | Rewrites `.hcl` files into canonical format, as `hcl fmt` does, or with `check` reports the files that need it without changing any |
+| `scaffold`      | New configuration written from a module, unit, or stack source, as `terragrunt scaffold` writes it, served only under `--allow=fs-rw` |
+| `fmt`           | With `check`, reports the `.hcl` files that are not in canonical format. Under `--allow=fs-rw`, rewrites them as `hcl fmt` does |
 | `docs_*`        | The tools of the Terragrunt docs MCP server, served only under `--allow=docs` |
 | `apply`, `destroy` | The per-unit result of a real change, served only under `--dangerously-allow-apply` and gated on a person accepting it |
 
@@ -27,7 +27,7 @@ With the experiment enabled, `terragrunt mcp` speaks the Model Context Protocol 
 
 Every tool is confined to the directory the server was launched in. A `working_dir` argument that resolves outside it is refused, and graph traversal is bounded there too, so a filter that follows dependencies or dependents cannot bring back a unit from a tree the server was never pointed at. A unit across that boundary still has its configuration read, so units inside can be ordered against it and fetch its outputs.
 
-That confinement covers `working_dir` and traversal, not file access. Tools work against the real filesystem, so a dependency fetch writes that dependency's source into a `.terragrunt-cache`, and an HCL function such as `file()` reads anything the user running the server can.
+That confinement does not limit what a tool reads. An HCL function such as `file()` reads anything the user running the server can.
 
 The server denies every capability at startup, and grants them separately.
 
@@ -35,16 +35,17 @@ The server denies every capability at startup, and grants them separately.
 - [`--allow=exec`](/reference/cli/commands/mcp#allow) lets it run the `tofu`, `terraform`, and `git` Terragrunt starts to do its own work. Without it none of them run. A program a configuration names through `run_cmd()`, a hook, or an auth-provider command stays refused even with it, including a `tofu`, `terraform`, or `git` the configuration names for itself, since the agent picks the repository and a configuration under it could otherwise name any program on the machine. Allow one with an [`--allow-cmd`](/reference/cli/commands/mcp#allow-cmd) pattern, or let the read-only tools offer the refused programs to the person operating the client and run again with what they accept.
 - [`--allow=http`](/reference/cli/commands/mcp#allow) lets it make requests. Without it every request Terragrunt makes on its own account fails, so state backends, registries, and remote module sources are unreachable, and a unit whose `terraform` source is remote cannot be planned at all.
 - [`--allow=env`](/reference/cli/commands/mcp#allow) passes its environment variables to configurations and the commands the tools run. Without it they start from an empty environment, so `get_env()` returns its default.
+- [`--allow=fs-rw`](/reference/cli/commands/mcp#allow) lets it write to disk. Without it a tool call reads the files on disk and keeps what Terragrunt writes in memory until the call returns. OpenTofu/Terraform cannot see those writes, so Terragrunt runs neither without it, even under `--allow=exec`.
 
 - [`--allow=docs`](/reference/cli/commands/mcp#allow) relays the tools and resources of the [Terragrunt docs MCP server](/getting-started/install#terragrunt-docs-mcp-server), each tool under a `docs_` prefix. Without it the server sends nothing to the docs server.
 
-With none granted, Terragrunt refuses the commands and requests the tools would otherwise make. A result a restriction affected carries a `degraded` list naming what was substituted, such as a dependency output that fell back to `mock_outputs`, a `run_cmd` that returned an empty string, or outputs that were not fetched. `plan` needs real commands, so it is refused outright. `get_outputs` needs either `exec` or `http`, since it runs the real output command or reads remote state itself. The second path works for a unit whose `remote_state` backend is `s3`, `gcs`, or `azurerm`; any other unit reports that it fetched nothing and says why.
+With none granted, Terragrunt refuses the commands and requests the tools would otherwise make. A result a restriction affected carries a `degraded` list naming what was substituted, such as a dependency output that fell back to `mock_outputs`, a `run_cmd` that returned an empty string, or outputs that were not fetched. `plan` needs real commands, so it is served only under both `exec` and `fs-rw`. `get_outputs` needs either those two or `http`, since it runs the real output command or reads remote state itself. The second path works for a unit whose `remote_state` backend is `s3`, `gcs`, or `azurerm`; any other unit reports that it fetched nothing and says why.
 
 Granting one does not bound another. A process started under `--allow=exec` reaches the network on its own account, so `tofu init` downloads providers whether or not `--allow=http` was passed. Denying HTTP restricts Terragrunt, not the tools it runs.
 
 None of this makes the server a sandbox. The restrictions limit what Terragrunt does when a tool asks it to. They do not contain a program Terragrunt starts, and an agent that can run shell commands can run Terragrunt itself without them.
 
-A separate flag, [`--dangerously-allow-apply`](/reference/cli/commands/mcp#dangerously-allow-apply), adds `apply` and `destroy` tools on top of `--allow=exec`. It is spelled out in full rather than being a value of `--allow`, because it is the one that changes infrastructure. Without it neither tool is registered, so a client is never told they exist. With it, an agent can reach real infrastructure, though not on its own say-so. Each run is described to the person operating the client through an elicitation (the protocol's way for a server to ask the client's user a question), and starts only once they accept. A client that cannot ask anyone is refused. The client draws that prompt, so it stops an agent acting unobserved rather than acting without authorization. Read the flag documentation before granting it.
+A separate flag, [`--dangerously-allow-apply`](/reference/cli/commands/mcp#dangerously-allow-apply), adds `apply` and `destroy` tools on top of `--allow=exec` and `--allow=fs-rw`. It is spelled out in full rather than being a value of `--allow`, because it is the one that changes infrastructure. Without it neither tool is registered, so a client is never told they exist. With it, an agent can reach real infrastructure, though not on its own say-so. Each run is described to the person operating the client through an elicitation (the protocol's way for a server to ask the client's user a question), and starts only once they accept. A client that cannot ask anyone is refused. The client draws that prompt, so it stops an agent acting unobserved rather than acting without authorization. Read the flag documentation before granting it.
 
 Running `terragrunt mcp` without the experiment enabled is an error.
 

@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/scaffold"
 	"github.com/gruntwork-io/terragrunt/internal/redact"
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/venv"
@@ -77,7 +78,8 @@ func registerCatalog(srv *mcp.Server, l log.Logger, d *serverDeps, rootVenv *ven
 			"'component_source' is the value to put in a terraform block's source. 'component_count' counts " +
 			"every component found, even past 'limit'. Set include_docs=true only when you need the READMEs; " +
 			"they are most of the result's size. A repository that fails to load is listed in 'failures'. " +
-			"Cloning a remote repository runs git, which needs --allow=exec; a local directory needs nothing.",
+			"Cloning a remote repository runs git and writes the clone to disk, which needs --allow=exec and " +
+			"--allow=fs-rw; a local directory needs nothing.",
 		Annotations: &mcp.ToolAnnotations{
 			ReadOnlyHint:   true,
 			IdempotentHint: true,
@@ -182,6 +184,12 @@ func catalogFailures(err error) ([]catalogFailure, error) {
 
 	for _, failure := range loadErr.Failures {
 		source := redactAddress(failure.URL)
+
+		if errors.Is(failure.Err, module.ErrRemoteCloneFSNotOS) {
+			failures = append(failures, catalogFailure{Source: source, Error: ErrCatalogCloneRequiresFSRW.Error()})
+
+			continue
+		}
 
 		failures = append(failures, catalogFailure{
 			Source: source,

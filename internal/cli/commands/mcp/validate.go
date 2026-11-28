@@ -53,8 +53,8 @@ func registerValidate(srv *mcp.Server, l log.Logger, d *serverDeps, rootVenv *ve
 			"files, before running plan. Returns structured diagnostics (file/line/severity/summary) plus " +
 			"parse_errors for failures that have no source location, and error_count/warning_count totals. " +
 			"A configuration with findings is still a successful call: read valid and the arrays, valid=true " +
-			"means no findings. Failures caused by the server running without --allow=exec are reported in " +
-			"the degraded list, not as configuration errors.",
+			"means no findings. Failures caused by a capability the server was started without are reported " +
+			"in the degraded list, not as configuration errors.",
 		Annotations: &mcp.ToolAnnotations{
 			ReadOnlyHint:   true,
 			IdempotentHint: true,
@@ -90,7 +90,7 @@ func runValidate(
 	// diagnostics are being collected.
 	opts.SkipOutput = true
 
-	if d.granted.Has(venv.CapabilityExec) {
+	if d.runsIaC() {
 		// The full parse's dependency-output fetches drive real runs into
 		// the shared per-unit cache dirs.
 		release, err := d.acquireRunSlot(ctx)

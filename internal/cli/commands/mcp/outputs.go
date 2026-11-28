@@ -77,17 +77,18 @@ func registerGetOutputs(srv *mcp.Server, l log.Logger, d *serverDeps, rootVenv *
 	mcp.AddTool(srv, &mcp.Tool{
 		Name: "get_outputs",
 		Description: "Read the applied OpenTofu/Terraform outputs of one unit. Use when another unit's " +
-			"inputs reference dependency outputs and you need the real values. With --allow=exec this runs " +
-			"'terragrunt output -json' for full fidelity. Without --allow=exec the server can only read the " +
-			"remote state in-process, which the s3, gcs, and azurerm backends support; a unit whose state " +
+			"inputs reference dependency outputs and you need the real values. With --allow=exec and " +
+			"--allow=fs-rw this runs 'terragrunt output -json' for full fidelity. Otherwise the server " +
+			"can only read the remote state in-process, which needs --allow=http and which the s3, gcs, " +
+			"and azurerm backends support; a unit whose state " +
 			"cannot be read that way returns empty outputs with a degraded explanation. Either way, sensitive " +
 			"values are replaced with \"(sensitive)\" unless include_sensitive=true.",
 		Annotations: &mcp.ToolAnnotations{
-			// Under --allow=exec this drives the whole run pipeline, which
-			// downloads sources, runs init, and fires hooks. That writes as
-			// much as plan does, so the tool claims to be read-only only
-			// when the in-process state read is all it can do.
-			ReadOnlyHint:   !d.granted.Has(venv.CapabilityExec),
+			// When the server can run tofu this drives the whole run
+			// pipeline, which downloads sources, runs init, and fires hooks.
+			// That writes as much as plan does, so the tool claims to be
+			// read-only only when the in-process state read is all it can do.
+			ReadOnlyHint:   !d.runsIaC(),
 			IdempotentHint: true,
 			OpenWorldHint:  new(d.reachesNetwork()),
 		},
@@ -110,7 +111,7 @@ func runGetOutputs(
 
 	sensitivity := outputsSensitivityFor(input.IncludeSensitive)
 
-	if d.granted.Has(venv.CapabilityExec) {
+	if d.runsIaC() {
 		return outputsFetchViaRun(ctx, l, d, rootVenv, dir, sensitivity)
 	}
 
@@ -281,7 +282,7 @@ func outputsFetchViaStateRead(
 	if !d.granted.Has(venv.CapabilityHTTP) {
 		out.Degraded = []string{
 			"outputs not fetched: reading remote state in-process needs outbound HTTP; restart the MCP server " +
-				"with --allow=http, or with --allow=exec to run the real output command",
+				"with --allow=http, or with --allow=exec and --allow=fs-rw to run the real output command",
 		}
 
 		return out, nil
@@ -301,7 +302,8 @@ func outputsFetchViaStateRead(
 	viable, reason := outputsStateReadViable(ctx, l, cv, s, pctx, opts.TerragruntConfigPath)
 	if !viable {
 		out.Degraded = append(d.rec.notes(), fmt.Sprintf(
-			"outputs not fetched: %s; restart the MCP server with --allow=exec for real outputs, or use render_config on dependent units to see their mock_outputs",
+			"outputs not fetched: %s; restart the MCP server with --allow=exec and --allow=fs-rw "+
+				"for real outputs, or use render_config on dependent units to see their mock_outputs",
 			reason,
 		))
 
@@ -315,9 +317,10 @@ func outputsFetchViaStateRead(
 		// A denied subprocess means the machinery gave up on the in-process
 		// path (e.g. a nested dependency needed a real fetch); degrade
 		// instead of surfacing a sandbox artifact as a config bug.
-		if errors.Is(err, venv.ErrExecDenied) {
+		if errors.Is(err, venv.ErrExecDenied) || errors.Is(err, venv.ErrIaCNeedsFSRW) {
 			out.Degraded = append(d.rec.notes(), fmt.Sprintf(
-				"outputs not fetched: reading them required a subprocess (%v); restart the MCP server with --allow=exec",
+				"outputs not fetched: reading them required running tofu (%v); "+
+					"restart the MCP server with --allow=exec and --allow=fs-rw",
 				err,
 			))
 

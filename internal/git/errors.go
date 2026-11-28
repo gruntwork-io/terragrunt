@@ -62,6 +62,10 @@ var (
 	// number.
 	ErrParseVersion = errors.New("unexpected git version output")
 
+	// ErrParseRevision is returned when `git rev-parse` succeeds without
+	// printing a full object hash.
+	ErrParseRevision = errors.New("unexpected git rev-parse output")
+
 	// ErrCatFileMissing reports that `git cat-file --batch` knows no object by
 	// the requested name.
 	ErrCatFileMissing = errors.New("object not found")

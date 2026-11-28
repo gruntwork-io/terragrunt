@@ -43,6 +43,7 @@ examples:
               "mcp",
               "--working-dir", "/path/to/estate",
               "--allow=exec",
+              "--allow=fs-rw",
               "--allow=http",
               "--allow=env"
             ],
@@ -65,6 +66,7 @@ examples:
               "mcp",
               "--working-dir", "/path/to/estate/throwaway",
               "--allow=exec",
+              "--allow=fs-rw",
               "--allow=http",
               "--allow=env",
               "--dangerously-allow-apply"
@@ -83,6 +85,8 @@ flags:
 ---
 
 import { Aside } from '@astrojs/starlight/components';
+import Before from '@components/Before.astro';
+import Since from '@components/Since.astro';
 
 <Aside type="caution" title="This is not a sandbox">
 The flags on this page limit what Terragrunt does when a tool asks it to. They do not contain the programs Terragrunt
@@ -96,11 +100,19 @@ with whatever credentials it can reach.
 
 - Under `--allow=env`, any environment variable the server has can come back in a tool result.
 
+<Since version="v1.2.4">
+
+- Without `--allow=fs-rw`, a program the tools run still writes to disk. Only Terragrunt's own writes stay in memory.
+
+</Since>
+
 Give the server credentials scoped to what you are willing to have an agent reach, and point it at the smallest
 directory that holds the units it needs.
 </Aside>
 
 ## Tools
+
+<Before version="v1.2.4">
 
 | Name            | What it does                                                                 | Needs                                                  |
 | --------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------ |
@@ -125,6 +137,34 @@ Two more tools are served only under
 | `apply`   | Runs `run --all apply` across the units                     | `exec` |
 | `destroy` | Runs `run --all destroy` across the units, dependents first | `exec` |
 
+</Before>
+
+<Since version="v1.2.4">
+
+| Name            | What it does                                                                 | Needs                                                                |
+| --------------- | ---------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `discover`      | Lists the units and stacks under a directory                                 | None                                                                 |
+| `render_config` | Evaluates one unit's `terragrunt.hcl` and returns the resolved configuration | `exec` and `fs-rw` to read dependency outputs                        |
+| `validate`      | Reports syntax and evaluation errors in the configurations under a directory | None                                                                 |
+| `run_order`     | Reports the order units run in, and what blocks each one                     | None                                                                 |
+| `get_outputs`   | Reads the applied outputs of one unit                                        | `exec` and `fs-rw`, or `http` for `s3`, `gcs`, and `azurerm` state   |
+| `plan`          | Runs `run --all plan` across the units and returns the per-unit result       | `exec` and `fs-rw`                                                   |
+| `catalog`       | Lists the components in the catalog the configuration names                  | `exec` and `fs-rw` to clone a remote repository                      |
+| `scaffold`      | Writes new configuration from a module, unit, or stack source                | `fs-rw`, plus `http`, or `exec` for git, to fetch a remote source    |
+| `fmt`           | Rewrites `.hcl` files into canonical format, as `hcl fmt` does               | `fs-rw` to rewrite, none to `check`                                  |
+
+`plan` and `scaffold` are served only when the server was started with what they need.
+
+Two more tools are served only under
+[`--dangerously-allow-apply`](/reference/cli/commands/mcp#dangerously-allow-apply). They change real infrastructure.
+
+| Name      | What it does                                                | Needs              |
+| --------- | ----------------------------------------------------------- | ------------------ |
+| `apply`   | Runs `run --all apply` across the units                     | `exec` and `fs-rw` |
+| `destroy` | Runs `run --all destroy` across the units, dependents first | `exec` and `fs-rw` |
+
+</Since>
+
 Neither acts when the agent calls it. Each first returns an elicitation (the protocol's way for a server to ask the
 client's user a question) naming the units it would run, and runs only once the person operating the client accepts.
 A client that cannot ask anyone is rejected.
@@ -136,8 +176,19 @@ symlinks included, and a filter following dependencies or dependents cannot retu
 unit and require it. Where a tool takes `filter`, it accepts [filter queries](/features/filter) and narrows that tool
 the way `--filter` narrows a run.
 
+<Before version="v1.2.4">
+
 The root does not limit file access. `file()` reads anything the server's user can read, and resolving a dependency
 downloads its source into a `.terragrunt-cache`.
+
+</Before>
+
+<Since version="v1.2.4">
+
+The root does not limit what a tool reads. `file()` reads anything the server's user can read. Whether a tool writes
+is up to [`fs-rw`](#fs-rw).
+
+</Since>
 
 The tools that run OpenTofu/Terraform use the binary the server was started with. Set it with
 [`--tf-path`](/reference/cli/commands/mcp#tf-path), as a program name found in `PATH` or as a filepath. It defaults to
@@ -182,8 +233,20 @@ outputs.
 - `render_metadata` tags each value in a `format=full` result with where it was defined, so you can see which `include`
 a value came from.
 
+<Before version="v1.2.4">
+
 Without `--allow=exec`, dependency outputs fall back to `mock_outputs` where the configuration declares them, and the
 call fails where it does not.
+
+</Before>
+
+<Since version="v1.2.4">
+
+Unless `--allow=exec` and `--allow=fs-rw` are both set, dependency outputs fall back to `mock_outputs` where the
+configuration declares them. A dependency that declares none has its outputs come back empty, and the `degraded` list
+says they were not read.
+
+</Since>
 
 ### validate
 
@@ -217,9 +280,21 @@ Reads one unit's applied outputs, what a `dependency` block on that unit receive
 Each output comes back with its value and whether it is sensitive. `redacted` lists the names whose values were
 replaced.
 
+<Before version="v1.2.4">
+
 Under `--allow=exec`, Terragrunt runs OpenTofu/Terraform to read the outputs. Without it, Terragrunt reads the state
 itself, which needs `--allow=http` and works for the `s3`, `gcs`, and `azurerm` backends. Any other unit reports that
 it fetched nothing, and says why.
+
+</Before>
+
+<Since version="v1.2.4">
+
+Under `--allow=exec` and `--allow=fs-rw`, Terragrunt runs OpenTofu/Terraform to read the outputs. Otherwise,
+Terragrunt reads the state itself, which needs `--allow=http` and works for the `s3`, `gcs`, and `azurerm` backends.
+Any other unit reports that it fetched nothing, and says why.
+
+</Since>
 
 ### plan
 
@@ -265,6 +340,12 @@ and `file_count` is the number of files examined.
 directory resolves outside the server root is refused. The check comes before the read, so a symlink that another
 process swaps in after the check, before the read, is followed.
 
+<Since version="v1.2.4">
+
+Without `--allow=fs-rw`, `fmt` rewrites nothing, and refuses a call that does not set `check`.
+
+</Since>
+
 ### apply and destroy
 
 Run `run --all apply` and `run --all destroy` across the units under a directory, destroy with dependents first. Both
@@ -292,11 +373,25 @@ it from. Each client decides where the file lives and how much of this shape it 
 
 The server denies every capability at startup, and grants each one separately:
 
+<Before version="v1.2.4">
+
 | Flag                                                                                | What it allows                                                           |
 | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
 | [`--allow`](/reference/cli/commands/mcp#allow)                                      | Any of `exec`, `http`, `sops`, `env`, or `docs`. Repeat it for each one. |
 | [`--allow-cmd`](/reference/cli/commands/mcp#allow-cmd)                              | A command pattern a configuration may run                                |
 | [`--dangerously-allow-apply`](/reference/cli/commands/mcp#dangerously-allow-apply)  | The `apply` and `destroy` tools                                          |
+
+</Before>
+
+<Since version="v1.2.4">
+
+| Flag                                                                                | What it allows                                                                    |
+| ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| [`--allow`](/reference/cli/commands/mcp#allow)                                      | Any of `exec`, `http`, `sops`, `env`, `fs-rw`, or `docs`. Repeat it for each one. |
+| [`--allow-cmd`](/reference/cli/commands/mcp#allow-cmd)                              | A command pattern a configuration may run                                         |
+| [`--dangerously-allow-apply`](/reference/cli/commands/mcp#dangerously-allow-apply)  | The `apply` and `destroy` tools                                                   |
+
+</Since>
 
 `docs` lets the server relay the tools of the Terragrunt docs MCP server at `https://mcp.docs.terragrunt.com/mcp`, as
 [Tools](#tools) describes. It is a separate capability from `http`, although both grant network connectivity. If the
@@ -312,6 +407,13 @@ substituting `mock_outputs` for a dependency output.
 Lets the tools run the `tofu`, `terraform`, and `git` that Terragrunt starts for its own work: a plan, a source
 download, a git-range filter. It does not let a configuration run those programs itself. A program a configuration
 names, through `run_cmd()`, a hook, or `--auth-provider-cmd`, is refused like any other.
+
+<Since version="v1.2.4">
+
+Running `tofu` or `terraform`, cloning a remote catalog repository, and resolving a git-range filter also need
+[`fs-rw`](#fs-rw).
+
+</Since>
 
 A refused program is reported in the call's `degraded` list and the call continues, with `run_cmd()` yielding an empty
 string. `apply` and `destroy` fail the unit instead, so a hook written to block the run still blocks it.
@@ -330,8 +432,6 @@ Covers what Terragrunt itself fetches:
 
 - Downloading a unit's `terraform { source }` when it is remote, such as a `tfr://` registry module, an `https`
 archive, or an `oci://` image. Without this, such a unit cannot be planned.
-
-- Fetching a stack's sources during discovery and generation.
 
 - Reading remote state directly for `get_outputs`.
 
@@ -362,6 +462,32 @@ every other Terragrunt command does. That can include cloud credentials.
 Without it, the server also points `HOME` at an empty directory, so nothing reads `~/.aws/credentials`,
 `~/.gitconfig`, or an age key file. A direct state read under `http` and a decrypt under `sops` both need `env` to find
 credentials in the environment or your home directory.
+
+### fs-rw
+
+<Before version="v1.2.4">
+
+The tools always write to disk.
+
+</Before>
+
+<Since version="v1.2.4">
+
+Without it, a tool call reads the files on disk and keeps what Terragrunt writes in memory until the call returns. No
+file under the server root changes, and no `.terragrunt-cache` is created or updated. A program the tools run, such as
+one a `run_cmd()` names, still writes wherever it likes.
+
+OpenTofu/Terraform reads the disk and cannot see those writes, so Terragrunt runs neither without `fs-rw`, even under
+`--allow=exec`:
+
+- `plan`, `apply`, and `destroy` are not served. Neither is `scaffold`.
+- Dependency outputs fall back to `mock_outputs`, and `get_outputs` reads the state itself.
+- `fmt` accepts only `check`.
+- `catalog` lists a remote repository under `failures`, and a git-range filter is refused.
+
+Granting it lets the tools write wherever the server's user can.
+
+</Since>
 
 ## Logs
 

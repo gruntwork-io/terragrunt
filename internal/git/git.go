@@ -5,6 +5,7 @@ package git
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"maps"
@@ -26,6 +27,9 @@ import (
 
 const (
 	minGitPartsLength = 2
+
+	sha1HexLength   = 40
+	sha256HexLength = 64
 
 	// catFileMissingExitCode is the exit code `git cat-file -e` returns when
 	// the requested object is absent. Any other non-zero exit is an
@@ -428,6 +432,10 @@ func (g *GitRunner) IsShallow(ctx context.Context) (bool, error) {
 // caller treat an empty bare repo as already containing the commit.
 // A non-zero exit returns [ErrUnknownRevision] so callers can branch
 // on the typed error without parsing stderr.
+//
+// Returns [ErrParseRevision] when git exits zero without printing a full
+// SHA-1 or SHA-256 hash, so a caller never receives a hash it cannot use as
+// an object name.
 func (g *GitRunner) RevParseCommit(ctx context.Context, ref string) (string, error) {
 	if err := g.RequiresWorkDir(); err != nil {
 		return "", err
@@ -456,7 +464,27 @@ func (g *GitRunner) RevParseCommit(ctx context.Context, ref string) (string, err
 		}
 	}
 
-	return strings.TrimSpace(stdout.String()), nil
+	hash := strings.TrimSpace(stdout.String())
+	if !isFullHash(hash) {
+		return "", &WrappedError{
+			Op:      "git_rev_parse",
+			Context: fmt.Sprintf("%d bytes of output for %q", len(hash), ref),
+			Err:     ErrParseRevision,
+		}
+	}
+
+	return hash, nil
+}
+
+// isFullHash reports whether s is a full SHA-1 or SHA-256 object name in hex.
+func isFullHash(s string) bool {
+	if len(s) != sha1HexLength && len(s) != sha256HexLength {
+		return false
+	}
+
+	_, err := hex.DecodeString(s)
+
+	return err == nil
 }
 
 // HasObject reports whether the given object exists in the configured

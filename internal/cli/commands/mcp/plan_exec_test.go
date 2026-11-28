@@ -41,7 +41,7 @@ func TestExecPlanSurvivesAUnitPinningATerragruntVersion(t *testing.T) {
 	require.NoError(t, err)
 
 	session := newRealExecSession(t, resolved, func(o *tgmcp.Options) {
-		o.Allow = []string{"exec"}
+		o.Allow = []string{"exec", "fs-rw"}
 	})
 
 	// Whether the run gets anywhere depends on the tofu on this machine, so the
