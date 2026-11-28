@@ -43,6 +43,7 @@ func runDigest(v *venv.Venv, run *ParsingContext) (string, bool) {
 	d.str(run.TerragruntConfigPath)
 	d.str(run.OriginalTerragruntConfigPath)
 	d.str(run.WorkingDir)
+	d.str(run.runWorkingDir())
 	d.str(run.RootWorkingDir)
 	d.str(run.DownloadDir)
 	d.str(run.Source)

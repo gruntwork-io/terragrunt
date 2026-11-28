@@ -177,6 +177,8 @@ func PrepareSource(
 			return nil, impl, err
 		}
 
+		updatedTerragruntOptions.WorkingDir = opts.WorkingDir
+
 		return updatedTerragruntOptions, impl, nil
 	}
 
@@ -262,6 +264,7 @@ func PrepareInit(
 	r *report.Report,
 ) error {
 	runOpts := configbridge.NewRunOptions(opts, impl)
+	runOpts.UnitDir = originalOpts.WorkingDir
 
 	// Check for terraform code
 	if err := run.CheckFolderContainsTerraformCode(v.FS, runOpts); err != nil {

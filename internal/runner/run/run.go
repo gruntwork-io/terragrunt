@@ -670,6 +670,7 @@ func prepareInitOptions(l log.Logger, opts *Options) (log.Logger, *Options, bool
 	}
 
 	initOptions.TerraformCliArgs = iacargs.New().SetCommand(tf.CommandNameInit)
+	initOptions.UnitDir = opts.UnitDir
 	initOptions.CacheDir = opts.CacheDir
 	initOptions.TerraformCommand = tf.CommandNameInit
 	initOptions.Headless = true

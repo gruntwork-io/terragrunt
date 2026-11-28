@@ -396,7 +396,7 @@ func unitModuleDir(ctx context.Context, l log.Logger, v *venv.Venv, s *Store, pc
 	}
 
 	if inPlace {
-		return unitPctx.WorkingDir, nil
+		return unitPctx.runWorkingDir(), nil
 	}
 
 	sourceURL = tf.RewriteLegacyGCSPublicSource(ctx, l, sourceURL, unitPctx.StrictControls)
@@ -406,7 +406,7 @@ func unitModuleDir(ctx context.Context, l log.Logger, v *venv.Venv, s *Store, pc
 		v.FS,
 		sourceURL,
 		unitDownloadDir(unitPctx, cfg),
-		unitPctx.WorkingDir,
+		unitPctx.runWorkingDir(),
 		unitPctx.Experiments.Evaluate(experiment.Symlinks),
 	)
 	if err != nil {
